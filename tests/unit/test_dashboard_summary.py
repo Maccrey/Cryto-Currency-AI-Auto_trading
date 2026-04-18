@@ -9,6 +9,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
     service = DashboardSummaryService()
     boot_state = BootState(
         safe_mode=True,
+        hard_stop=True,
         trading_ready=False,
         failure_stage="open_order_reconcile",
         portfolio_state=PortfolioState(
@@ -45,7 +46,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         trading_mode="demo",
         learning_enabled=True,
         safe_mode=True,
+        hard_stop=True,
         trading_ready=False,
         promotion_ready=False,
     )
-

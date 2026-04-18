@@ -17,6 +17,7 @@ class SummaryStubService:
             "trading_mode": "demo",
             "learning_enabled": True,
             "safe_mode": False,
+            "hard_stop": False,
             "trading_ready": True,
             "promotion_ready": False,
         }
@@ -27,6 +28,7 @@ def test_health_endpoint_reports_valid_mode(monkeypatch) -> None:
         def boot(self):
             class BootState:
                 safe_mode = False
+                hard_stop = False
                 trading_ready = True
                 failure_stage = None
 
@@ -45,6 +47,7 @@ def test_health_endpoint_reports_valid_mode(monkeypatch) -> None:
         "mode": "demo",
         "learning_enabled": True,
         "safe_mode": False,
+        "hard_stop": False,
         "trading_ready": True,
         "failure_stage": None,
     }
@@ -55,6 +58,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
         def boot(self):
             class BootState:
                 safe_mode = False
+                hard_stop = False
                 trading_ready = True
                 failure_stage = None
                 portfolio_state = None
@@ -87,6 +91,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
         "trading_mode": "demo",
         "learning_enabled": True,
         "safe_mode": False,
+        "hard_stop": False,
         "trading_ready": True,
         "promotion_ready": False,
     }
@@ -97,6 +102,7 @@ def test_startup_sync_failure_keeps_safe_mode(monkeypatch) -> None:
         def boot(self):
             class BootState:
                 safe_mode = True
+                hard_stop = False
                 trading_ready = False
                 failure_stage = "portfolio_sync"
 
@@ -115,6 +121,37 @@ def test_startup_sync_failure_keeps_safe_mode(monkeypatch) -> None:
         "mode": "demo",
         "learning_enabled": True,
         "safe_mode": True,
+        "hard_stop": False,
         "trading_ready": False,
         "failure_stage": "portfolio_sync",
+    }
+
+
+def test_health_endpoint_reports_hard_stop_state(monkeypatch) -> None:
+    class HardStopBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = True
+                hard_stop = True
+                trading_ready = False
+                failure_stage = "hard_stop"
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "live")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    client = TestClient(create_app(recovery_orchestrator=HardStopBootOrchestrator()))
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "degraded",
+        "mode": "live",
+        "learning_enabled": True,
+        "safe_mode": True,
+        "hard_stop": True,
+        "trading_ready": False,
+        "failure_stage": "hard_stop",
     }

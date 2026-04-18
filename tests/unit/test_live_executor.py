@@ -44,6 +44,7 @@ def test_live_executor_places_order_only_in_live_mode() -> None:
         live_order_gateway=gateway,
         trading_mode="live",
         safe_mode=False,
+        hard_stop=False,
     )
     intent = OrderIntent(
         market="KRW-XRP",
@@ -79,6 +80,7 @@ def test_live_executor_blocks_orders_in_safe_mode() -> None:
         live_order_gateway=gateway,
         trading_mode="live",
         safe_mode=True,
+        hard_stop=False,
     )
 
     result = executor.execute(
@@ -101,13 +103,41 @@ def test_live_executor_blocks_orders_in_safe_mode() -> None:
     )
 
 
+def test_live_executor_blocks_orders_during_hard_stop() -> None:
+    gateway = StubLiveOrderGateway()
+    executor = LiveExecutor(
+        live_order_gateway=gateway,
+        trading_mode="live",
+        safe_mode=False,
+        hard_stop=True,
+    )
+
+    result = executor.execute(
+        OrderIntent(
+            market="KRW-XRP",
+            side="buy",
+            price=812.0,
+            quantity=100.0,
+            order_type="limit",
+            is_stop_loss=False,
+        ),
+    )
+
+    assert gateway.calls == []
+    assert result == LiveExecutionResult(
+        accepted=False,
+        order_id=None,
+        status="blocked",
+        blocked_reason="HARD_STOP_ACTIVE",
+    )
+
+
 def test_execution_factory_returns_executor_by_mode() -> None:
     gateway = StubLiveOrderGateway()
     factory = ExecutionFactory(live_order_gateway=gateway)
 
-    demo_executor = factory.create(trading_mode="demo", safe_mode=False)
-    live_executor = factory.create(trading_mode="live", safe_mode=False)
+    demo_executor = factory.create(trading_mode="demo", safe_mode=False, hard_stop=False)
+    live_executor = factory.create(trading_mode="live", safe_mode=False, hard_stop=False)
 
     assert demo_executor.__class__.__name__ == "DemoExecutor"
     assert live_executor.__class__.__name__ == "LiveExecutor"
-

@@ -18,6 +18,7 @@ def test_restart_notifier_sends_restart_summary_after_recovery() -> None:
     notifier = RestartNotifier(gateway=gateway)
     boot_state = BootState(
         safe_mode=True,
+        hard_stop=False,
         trading_ready=False,
         failure_stage="open_order_reconcile",
         portfolio_state=PortfolioState(
@@ -55,6 +56,7 @@ def test_restart_notifier_uses_unknown_for_missing_portfolio_snapshot() -> None:
     notifier = RestartNotifier(gateway=gateway)
     boot_state = BootState(
         safe_mode=True,
+        hard_stop=False,
         trading_ready=False,
         failure_stage="portfolio_sync",
         portfolio_state=None,
@@ -80,4 +82,3 @@ def test_restart_notifier_uses_unknown_for_missing_portfolio_snapshot() -> None:
         "asset_currency=unknown\n"
         "asset_balance=unknown"
     ]
-

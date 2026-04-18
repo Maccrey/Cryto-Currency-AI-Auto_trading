@@ -23,10 +23,12 @@ class LiveExecutor:
         live_order_gateway: Any,
         trading_mode: str,
         safe_mode: bool,
+        hard_stop: bool = False,
     ) -> None:
         self._live_order_gateway = live_order_gateway
         self._trading_mode = trading_mode
         self._safe_mode = safe_mode
+        self._hard_stop = hard_stop
 
     def execute(self, intent: OrderIntent) -> LiveExecutionResult:
         if self._trading_mode != "live":
@@ -43,6 +45,13 @@ class LiveExecutor:
                 status="blocked",
                 blocked_reason="SAFE_MODE_ACTIVE",
             )
+        if self._hard_stop:
+            return LiveExecutionResult(
+                accepted=False,
+                order_id=None,
+                status="blocked",
+                blocked_reason="HARD_STOP_ACTIVE",
+            )
 
         response = self._live_order_gateway.place_order(
             market=intent.market,
@@ -57,4 +66,3 @@ class LiveExecutor:
             status=str(response["state"]),
             blocked_reason=None,
         )
-

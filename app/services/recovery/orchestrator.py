@@ -5,6 +5,7 @@ from typing import Any, Protocol
 
 from app.services.learning.service import LearningEvent
 from app.services.portfolio.sync import PortfolioState, PortfolioSyncService
+from app.services.recovery.hard_stop import RestartCounter
 
 
 class RestartStore(Protocol):
@@ -18,6 +19,7 @@ class OpenOrderReconciler(Protocol):
 @dataclass(frozen=True)
 class BootState:
     safe_mode: bool
+    hard_stop: bool
     trading_ready: bool
     failure_stage: str | None
     portfolio_state: PortfolioState | None
@@ -52,6 +54,7 @@ class RecoveryOrchestrator:
         portfolio_sync_service: PortfolioSyncService,
         open_order_reconciler: OpenOrderReconciler,
         restart_store: RestartStore,
+        restart_counter: RestartCounter | None = None,
         learning_service=None,
     ) -> None:
         self._app_name = app_name
@@ -59,6 +62,7 @@ class RecoveryOrchestrator:
         self._portfolio_sync_service = portfolio_sync_service
         self._open_order_reconciler = open_order_reconciler
         self._restart_store = restart_store
+        self._restart_counter = restart_counter
         self._learning_service = learning_service
 
     def boot(self) -> BootState:
@@ -69,12 +73,27 @@ class RecoveryOrchestrator:
         }
         self._restart_store.record(restart_event)
         self._record_learning_event("restart_detected", restart_event)
+        if self._restart_counter is not None:
+            hard_stop = self._restart_counter.record_restart()
+            if hard_stop.hard_stop:
+                return BootState(
+                    safe_mode=True,
+                    hard_stop=True,
+                    trading_ready=False,
+                    failure_stage="hard_stop",
+                    portfolio_state=None,
+                    reconcile_result={
+                        "restart_count": hard_stop.restart_count,
+                        "blocked_reason": hard_stop.blocked_reason,
+                    },
+                )
 
         try:
             portfolio_state = self._portfolio_sync_service.sync()
         except Exception:
             return BootState(
                 safe_mode=True,
+                hard_stop=False,
                 trading_ready=False,
                 failure_stage="portfolio_sync",
                 portfolio_state=None,
@@ -86,6 +105,7 @@ class RecoveryOrchestrator:
         except Exception:
             return BootState(
                 safe_mode=True,
+                hard_stop=False,
                 trading_ready=False,
                 failure_stage="open_order_reconcile",
                 portfolio_state=portfolio_state,
@@ -94,6 +114,7 @@ class RecoveryOrchestrator:
 
         boot_state = BootState(
             safe_mode=False,
+            hard_stop=False,
             trading_ready=True,
             failure_stage=None,
             portfolio_state=portfolio_state,

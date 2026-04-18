@@ -8,6 +8,7 @@ from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.portfolio.sync import PortfolioSyncService
+from app.services.recovery.hard_stop import RestartCounter
 from app.services.recovery.orchestrator import (
     InMemoryRestartStore,
     RecoveryOrchestrator,
@@ -43,6 +44,7 @@ def create_app(
                 trade_market=settings.trade_market,
             ),
             restart_store=InMemoryRestartStore(),
+            restart_counter=RestartCounter(threshold=3),
         )
     if dashboard_summary_service is None:
         dashboard_summary_service = DashboardSummaryService()
@@ -56,6 +58,7 @@ def create_app(
             "mode": settings.trading_mode,
             "learning_enabled": settings.learning_enabled,
             "safe_mode": boot_state.safe_mode,
+            "hard_stop": boot_state.hard_stop,
             "trading_ready": boot_state.trading_ready,
             "failure_stage": boot_state.failure_stage,
         }

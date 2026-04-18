@@ -18,6 +18,7 @@ class DashboardSummary:
     trading_mode: str
     learning_enabled: bool
     safe_mode: bool
+    hard_stop: bool
     trading_ready: bool
     promotion_ready: bool
 
@@ -52,6 +53,7 @@ class DashboardSummaryService:
             trading_mode=trading_mode,
             learning_enabled=learning_enabled,
             safe_mode=boot_state.safe_mode,
+            hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,
             promotion_ready=promotion_ready,
         )
