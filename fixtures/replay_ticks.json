@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": "2026-04-18T09:00:00+09:00",
+    "price": 800.0,
+    "traded_value": 10000000.0,
+    "spread_bps": 9.0,
+    "orderbook_imbalance": 0.10,
+    "liquidity_score": 0.80,
+    "regime_score": 0.52
+  },
+  {
+    "timestamp": "2026-04-18T09:00:01+09:00",
+    "price": 804.0,
+    "traded_value": 12000000.0,
+    "spread_bps": 8.5,
+    "orderbook_imbalance": 0.16,
+    "liquidity_score": 0.82,
+    "regime_score": 0.56
+  },
+  {
+    "timestamp": "2026-04-18T09:00:02+09:00",
+    "price": 809.0,
+    "traded_value": 21000000.0,
+    "spread_bps": 8.0,
+    "orderbook_imbalance": 0.24,
+    "liquidity_score": 0.84,
+    "regime_score": 0.63
+  },
+  {
+    "timestamp": "2026-04-18T09:00:03+09:00",
+    "price": 820.0,
+    "traded_value": 36000000.0,
+    "spread_bps": 6.5,
+    "orderbook_imbalance": 0.38,
+    "liquidity_score": 0.9,
+    "regime_score": 0.78
+  }
+]
