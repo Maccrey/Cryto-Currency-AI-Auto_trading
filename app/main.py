@@ -24,6 +24,7 @@ from app.services.promotion.evaluator import PromotionEvaluator
 from app.services.promotion.history import PromotionHistoryStore
 from app.services.promotion.lifecycle import PromotionLifecycleService
 from app.services.promotion.runner import PromotionReviewRequest, PromotionRunner
+from app.services.promotion.state import PromotionStateService
 from app.services.promotion.status import PromotionStatusStore
 from app.services.recovery.hard_stop import RestartCounter
 from app.services.recovery.orchestrator import (
@@ -51,6 +52,7 @@ def create_app(
     dashboard_summary_service: DashboardSummaryService | None = None,
     learning_service: LearningService | None = None,
     promotion_runner: PromotionRunner | None = None,
+    promotion_state_service: PromotionStateService | None = None,
     promotion_history_store: PromotionHistoryStore | None = None,
     promotion_status_store: PromotionStatusStore | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
@@ -108,10 +110,11 @@ def create_app(
                 notification_dispatcher=LifecycleNotificationDispatcher(),
             ),
         )
-    if promotion_status_store is None:
-        promotion_status_store = PromotionStatusStore()
-    if promotion_history_store is None:
-        promotion_history_store = PromotionHistoryStore()
+    if promotion_state_service is None:
+        promotion_state_service = PromotionStateService(
+            status_store=promotion_status_store,
+            history_store=promotion_history_store,
+        )
 
     boot_state = recovery_orchestrator.boot()
     if boot_notification_dispatcher is not None:
@@ -137,7 +140,7 @@ def create_app(
 
     @app.get("/dashboard/summary")
     def dashboard_summary() -> dict[str, object]:
-        promotion_snapshot = promotion_status_store.get()
+        promotion_snapshot = promotion_state_service.get_latest()
         summary = dashboard_summary_service.build(
             boot_state=boot_state,
             trading_mode=settings.trading_mode,
@@ -159,7 +162,9 @@ def create_app(
 
     @app.get("/dashboard/promotion")
     def dashboard_promotion() -> dict[str, object]:
-        promotion = promotion_dashboard_service.build_current(promotion_status_store.get())
+        promotion = promotion_dashboard_service.build_current(
+            promotion_state_service.get_latest(),
+        )
         if promotion is None:
             return {
                 "status": "empty",
@@ -172,7 +177,9 @@ def create_app(
 
     @app.get("/dashboard/promotion/history")
     def dashboard_promotion_history() -> dict[str, object]:
-        history = promotion_dashboard_service.build_history(promotion_history_store.list())
+        history = promotion_dashboard_service.build_history(
+            promotion_state_service.list_history(),
+        )
         if not history:
             return {
                 "status": "empty",
@@ -198,12 +205,11 @@ def create_app(
                 activated_at=payload.activated_at,
             ),
         )
-        snapshot = promotion_status_store.save(
+        promotion_state_service.save_review(
             market=payload.market,
             reviewed_at=payload.activated_at,
             result=result,
         )
-        promotion_history_store.append(snapshot)
         learning_service.record(
             LearningEvent(
                 event_name="promotion_review_completed",
@@ -243,7 +249,7 @@ def create_app(
 
     @app.get("/promotion/status")
     def promotion_status() -> dict[str, object]:
-        snapshot = promotion_status_store.get()
+        snapshot = promotion_state_service.get_latest()
         if snapshot is None:
             return {
                 "status": "empty",
@@ -251,12 +257,12 @@ def create_app(
             }
         return {
             "status": "ok",
-            "snapshot": promotion_status_store.to_payload(snapshot),
+            "snapshot": promotion_state_service.to_payload(snapshot),
         }
 
     @app.get("/promotion/history")
     def promotion_history() -> dict[str, object]:
-        entries = promotion_history_store.list()
+        entries = promotion_state_service.list_history()
         if not entries:
             return {
                 "status": "empty",
@@ -264,7 +270,7 @@ def create_app(
             }
         return {
             "status": "ok",
-            "history": promotion_history_store.to_payload(entries),
+            "history": promotion_state_service.to_history_payload(entries),
         }
 
     return app
