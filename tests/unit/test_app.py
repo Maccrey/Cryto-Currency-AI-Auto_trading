@@ -3,11 +3,11 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 
 
-class HardStopNotifierStub:
+class BootNotificationDispatcherStub:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
 
-    def notify_hard_stop(self, **kwargs) -> None:
+    def dispatch_boot_event(self, **kwargs) -> None:
         self.calls.append(kwargs)
 
 
@@ -165,7 +165,7 @@ def test_health_endpoint_reports_hard_stop_state(monkeypatch) -> None:
     }
 
 
-def test_create_app_notifies_when_boot_enters_hard_stop(monkeypatch) -> None:
+def test_create_app_dispatches_boot_notification_when_boot_enters_hard_stop(monkeypatch) -> None:
     class HardStopBootOrchestrator:
         def boot(self):
             class BootState:
@@ -181,26 +181,27 @@ def test_create_app_notifies_when_boot_enters_hard_stop(monkeypatch) -> None:
 
             return BootState()
 
-    notifier = HardStopNotifierStub()
+    dispatcher = BootNotificationDispatcherStub()
     monkeypatch.setenv("TRADING_MODE", "live")
     monkeypatch.setenv("LEARNING_ENABLED", "true")
     monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
 
     create_app(
         recovery_orchestrator=HardStopBootOrchestrator(),
-        hard_stop_notifier=notifier,
+        boot_notification_dispatcher=dispatcher,
         timestamp_provider=lambda: "2026-04-18T12:30:00+09:00",
     )
 
-    assert len(notifier.calls) == 1
-    assert notifier.calls[0]["app_name"] == "upbit-auto-trader"
-    assert notifier.calls[0]["market"] == "KRW-XRP"
-    assert notifier.calls[0]["triggered_at"] == "2026-04-18T12:30:00+09:00"
-    assert notifier.calls[0]["boot_state"].hard_stop is True
-    assert notifier.calls[0]["boot_state"].failure_stage == "hard_stop"
+    assert len(dispatcher.calls) == 1
+    assert dispatcher.calls[0]["app_name"] == "upbit-auto-trader"
+    assert dispatcher.calls[0]["market"] == "KRW-XRP"
+    assert dispatcher.calls[0]["triggered_at"] == "2026-04-18T12:30:00+09:00"
+    assert dispatcher.calls[0]["cause"] == "process_restart"
+    assert dispatcher.calls[0]["boot_state"].hard_stop is True
+    assert dispatcher.calls[0]["boot_state"].failure_stage == "hard_stop"
 
 
-def test_create_app_skips_hard_stop_notification_when_boot_is_normal(monkeypatch) -> None:
+def test_create_app_dispatches_boot_notification_when_boot_is_normal(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -213,14 +214,16 @@ def test_create_app_skips_hard_stop_notification_when_boot_is_normal(monkeypatch
 
             return BootState()
 
-    notifier = HardStopNotifierStub()
+    dispatcher = BootNotificationDispatcherStub()
     monkeypatch.setenv("TRADING_MODE", "demo")
     monkeypatch.setenv("LEARNING_ENABLED", "true")
 
     create_app(
         recovery_orchestrator=SuccessfulBootOrchestrator(),
-        hard_stop_notifier=notifier,
+        boot_notification_dispatcher=dispatcher,
         timestamp_provider=lambda: "2026-04-18T12:35:00+09:00",
     )
 
-    assert notifier.calls == []
+    assert len(dispatcher.calls) == 1
+    assert dispatcher.calls[0]["cause"] == "process_restart"
+    assert dispatcher.calls[0]["boot_state"].hard_stop is False

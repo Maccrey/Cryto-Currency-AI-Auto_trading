@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from app.core.logging import configure_logging
 from app.core.settings import load_settings
+from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
@@ -23,6 +24,7 @@ from app.services.recovery.open_orders import OpenOrderReconciler
 def create_app(
     recovery_orchestrator: RecoveryOrchestrator | None = None,
     dashboard_summary_service: DashboardSummaryService | None = None,
+    boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     hard_stop_notifier: HardStopNotifier | None = None,
     timestamp_provider: Callable[[], str] | None = None,
 ) -> FastAPI:
@@ -55,13 +57,18 @@ def create_app(
         )
     if dashboard_summary_service is None:
         dashboard_summary_service = DashboardSummaryService()
+    if boot_notification_dispatcher is None and hard_stop_notifier is not None:
+        boot_notification_dispatcher = BootNotificationDispatcher(
+            hard_stop_notifier=hard_stop_notifier,
+        )
 
     boot_state = recovery_orchestrator.boot()
-    if boot_state.hard_stop and hard_stop_notifier is not None:
-        hard_stop_notifier.notify_hard_stop(
+    if boot_notification_dispatcher is not None:
+        boot_notification_dispatcher.dispatch_boot_event(
             app_name=settings.app_name,
             market=settings.trade_market,
             triggered_at=timestamp_provider(),
+            cause="process_restart",
             boot_state=boot_state,
         )
 
