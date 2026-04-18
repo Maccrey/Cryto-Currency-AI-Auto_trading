@@ -6,6 +6,7 @@ from app.core.logging import configure_logging
 from app.core.settings import load_settings
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
+from app.services.dashboard.summary import DashboardSummaryService
 from app.services.portfolio.sync import PortfolioSyncService
 from app.services.recovery.orchestrator import (
     InMemoryRestartStore,
@@ -16,6 +17,7 @@ from app.services.recovery.open_orders import OpenOrderReconciler
 
 def create_app(
     recovery_orchestrator: RecoveryOrchestrator | None = None,
+    dashboard_summary_service: DashboardSummaryService | None = None,
 ) -> FastAPI:
     settings = load_settings()
     configure_logging(settings.learning_log_dir)
@@ -42,6 +44,8 @@ def create_app(
             ),
             restart_store=InMemoryRestartStore(),
         )
+    if dashboard_summary_service is None:
+        dashboard_summary_service = DashboardSummaryService()
 
     boot_state = recovery_orchestrator.boot()
 
@@ -55,6 +59,24 @@ def create_app(
             "trading_ready": boot_state.trading_ready,
             "failure_stage": boot_state.failure_stage,
         }
+
+    @app.get("/dashboard/summary")
+    def dashboard_summary() -> dict[str, object]:
+        summary = dashboard_summary_service.build(
+            boot_state=boot_state,
+            trading_mode=settings.trading_mode,
+            learning_enabled=settings.learning_enabled,
+            realized_pnl=0.0,
+            unrealized_pnl=0.0,
+            buy_count=0,
+            sell_count=0,
+            stop_loss_count=0,
+            recent_stop_loss_reason=None,
+            promotion_ready=False,
+        )
+        if isinstance(summary, dict):
+            return summary
+        return dashboard_summary_service.to_payload(summary)
 
     return app
 
