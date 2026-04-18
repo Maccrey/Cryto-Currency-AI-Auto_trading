@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import datetime
+
 from fastapi import FastAPI
 
 from app.core.logging import configure_logging
 from app.core.settings import load_settings
+from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.services.dashboard.summary import DashboardSummaryService
@@ -19,9 +23,12 @@ from app.services.recovery.open_orders import OpenOrderReconciler
 def create_app(
     recovery_orchestrator: RecoveryOrchestrator | None = None,
     dashboard_summary_service: DashboardSummaryService | None = None,
+    hard_stop_notifier: HardStopNotifier | None = None,
+    timestamp_provider: Callable[[], str] | None = None,
 ) -> FastAPI:
     settings = load_settings()
     configure_logging(settings.learning_log_dir)
+    timestamp_provider = timestamp_provider or (lambda: datetime.now().astimezone().isoformat())
 
     app = FastAPI(title=settings.app_name)
     if recovery_orchestrator is None:
@@ -50,6 +57,13 @@ def create_app(
         dashboard_summary_service = DashboardSummaryService()
 
     boot_state = recovery_orchestrator.boot()
+    if boot_state.hard_stop and hard_stop_notifier is not None:
+        hard_stop_notifier.notify_hard_stop(
+            app_name=settings.app_name,
+            market=settings.trade_market,
+            triggered_at=timestamp_provider(),
+            boot_state=boot_state,
+        )
 
     @app.get("/health")
     def health() -> dict[str, object]:

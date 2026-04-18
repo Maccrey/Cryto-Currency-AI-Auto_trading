@@ -3,6 +3,14 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 
 
+class HardStopNotifierStub:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def notify_hard_stop(self, **kwargs) -> None:
+        self.calls.append(kwargs)
+
+
 class SummaryStubService:
     def build(self, **kwargs):
         return {
@@ -155,3 +163,64 @@ def test_health_endpoint_reports_hard_stop_state(monkeypatch) -> None:
         "trading_ready": False,
         "failure_stage": "hard_stop",
     }
+
+
+def test_create_app_notifies_when_boot_enters_hard_stop(monkeypatch) -> None:
+    class HardStopBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = True
+                hard_stop = True
+                trading_ready = False
+                failure_stage = "hard_stop"
+                portfolio_state = None
+                reconcile_result = {
+                    "restart_count": 3,
+                    "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
+                }
+
+            return BootState()
+
+    notifier = HardStopNotifierStub()
+    monkeypatch.setenv("TRADING_MODE", "live")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
+
+    create_app(
+        recovery_orchestrator=HardStopBootOrchestrator(),
+        hard_stop_notifier=notifier,
+        timestamp_provider=lambda: "2026-04-18T12:30:00+09:00",
+    )
+
+    assert len(notifier.calls) == 1
+    assert notifier.calls[0]["app_name"] == "upbit-auto-trader"
+    assert notifier.calls[0]["market"] == "KRW-XRP"
+    assert notifier.calls[0]["triggered_at"] == "2026-04-18T12:30:00+09:00"
+    assert notifier.calls[0]["boot_state"].hard_stop is True
+    assert notifier.calls[0]["boot_state"].failure_stage == "hard_stop"
+
+
+def test_create_app_skips_hard_stop_notification_when_boot_is_normal(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    notifier = HardStopNotifierStub()
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    create_app(
+        recovery_orchestrator=SuccessfulBootOrchestrator(),
+        hard_stop_notifier=notifier,
+        timestamp_provider=lambda: "2026-04-18T12:35:00+09:00",
+    )
+
+    assert notifier.calls == []
