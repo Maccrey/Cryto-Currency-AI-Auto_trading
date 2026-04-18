@@ -1,0 +1,14 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: pytest -q
+        language: system
+        pass_filenames: false
+      - id: python-compile
+        name: python-compile
+        entry: python3 -m compileall app tests
+        language: system
+        pass_filenames: false
+

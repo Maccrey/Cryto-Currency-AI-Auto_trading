@@ -112,6 +112,8 @@ Codex는 아래 순서를 절대 깨면 안 된다.
 ### 5.5 권장 Git 절차
 ```bash
 git checkout -b feature/stoploss-injection
+git config commit.template .gitmessage.ko.txt
+pre-commit install
 pytest -q
 git add .
 git commit -m "매수 체결 시 손절가 주입과 손절 알림 테스트 추가"

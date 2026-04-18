@@ -70,6 +70,7 @@
 - mypy
 - Ruff
 - Black
+- pre-commit
 
 ### 관찰성
 - structlog
@@ -111,6 +112,7 @@ uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 uv run pytest -q
+uv run pre-commit run --all-files
 ```
 
 ### Poetry 사용
@@ -129,6 +131,7 @@ pip install -r requirements.txt
 alembic upgrade head
 uvicorn app.main:app --reload
 pytest -q
+pre-commit run --all-files
 ```
 
 ---
@@ -218,6 +221,15 @@ pytest -q
 4. 통합/계약 테스트
 5. 문서 업데이트
 6. Git 커밋
+
+### Git 보조 설정
+```bash
+git config commit.template .gitmessage.ko.txt
+pre-commit install
+```
+
+- 커밋 메시지는 반드시 한국어로 작성
+- 커밋 전에 `pytest -q`와 `pre-commit run --all-files` 통과 확인
 
 ### 커밋 규칙
 - 모든 커밋 메시지는 **반드시 한국어**
