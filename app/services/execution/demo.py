@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.services.learning.service import LearningEvent
 
 @dataclass(frozen=True)
 class OrderIntent:
@@ -32,13 +33,14 @@ class DemoExecutor:
 
     FEE_RATE = 0.00041605
 
-    def __init__(self, *, live_order_gateway: Any) -> None:
+    def __init__(self, *, live_order_gateway: Any, learning_service=None) -> None:
         self._live_order_gateway = live_order_gateway
+        self._learning_service = learning_service
 
     def execute(self, intent: OrderIntent) -> FillResult:
         notional = intent.price * intent.quantity
         fee = round(notional * self.FEE_RATE, 2)
-        return FillResult(
+        fill = FillResult(
             market=intent.market,
             side=intent.side,
             filled_price=intent.price,
@@ -49,3 +51,19 @@ class DemoExecutor:
             is_virtual=True,
             is_stop_loss=intent.is_stop_loss,
         )
+        if self._learning_service is not None:
+            self._learning_service.record(
+                LearningEvent(
+                    event_name="fill_result",
+                    market=fill.market,
+                    mode=fill.mode,
+                    payload={
+                        "side": fill.side,
+                        "filled_price": fill.filled_price,
+                        "filled_quantity": fill.filled_quantity,
+                        "fee": fill.fee,
+                        "is_stop_loss": fill.is_stop_loss,
+                    },
+                ),
+            )
+        return fill

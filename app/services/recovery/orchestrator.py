@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app.services.learning.service import LearningEvent
 from app.services.portfolio.sync import PortfolioState, PortfolioSyncService
 
 
@@ -51,21 +52,23 @@ class RecoveryOrchestrator:
         portfolio_sync_service: PortfolioSyncService,
         open_order_reconciler: OpenOrderReconciler,
         restart_store: RestartStore,
+        learning_service=None,
     ) -> None:
         self._app_name = app_name
         self._trading_mode = trading_mode
         self._portfolio_sync_service = portfolio_sync_service
         self._open_order_reconciler = open_order_reconciler
         self._restart_store = restart_store
+        self._learning_service = learning_service
 
     def boot(self) -> BootState:
-        self._restart_store.record(
-            {
-                "event_name": "restart_detected",
-                "app_name": self._app_name,
-                "trading_mode": self._trading_mode,
-            },
-        )
+        restart_event = {
+            "event_name": "restart_detected",
+            "app_name": self._app_name,
+            "trading_mode": self._trading_mode,
+        }
+        self._restart_store.record(restart_event)
+        self._record_learning_event("restart_detected", restart_event)
 
         try:
             portfolio_state = self._portfolio_sync_service.sync()
@@ -89,11 +92,32 @@ class RecoveryOrchestrator:
                 reconcile_result=None,
             )
 
-        return BootState(
+        boot_state = BootState(
             safe_mode=False,
             trading_ready=True,
             failure_stage=None,
             portfolio_state=portfolio_state,
             reconcile_result=reconcile_result,
         )
+        self._record_learning_event(
+            "recovery_completed",
+            {
+                "safe_mode": boot_state.safe_mode,
+                "trading_ready": boot_state.trading_ready,
+                "failure_stage": boot_state.failure_stage,
+                "open_order_count": reconcile_result.get("open_order_count"),
+            },
+        )
+        return boot_state
 
+    def _record_learning_event(self, event_name: str, payload: dict[str, object]) -> None:
+        if self._learning_service is None:
+            return
+        self._learning_service.record(
+            LearningEvent(
+                event_name=event_name,
+                market="KRW-XRP",
+                mode=self._trading_mode,
+                payload=payload,
+            ),
+        )
