@@ -499,3 +499,87 @@ def test_dashboard_summary_reflects_last_promotion_review_status(monkeypatch) ->
 
     assert after_response.status_code == 200
     assert after_response.json()["promotion_ready"] is True
+
+
+def test_dashboard_promotion_returns_empty_before_review(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    response = client.get("/dashboard/promotion")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "empty",
+        "promotion": None,
+    }
+
+
+def test_dashboard_promotion_returns_last_review_payload(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    client.post(
+        "/promotion/review",
+        json={
+            "market": "KRW-XRP",
+            "demo_days": 7,
+            "total_trades": 64,
+            "profit_factor": 1.08,
+            "max_drawdown": 0.11,
+            "stoploss_failures": 2,
+            "approval_granted": False,
+            "approved_by": "manual_review",
+            "activated_at": "2026-04-19T10:00:00+09:00",
+        },
+    )
+
+    response = client.get("/dashboard/promotion")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "promotion": {
+            "market": "KRW-XRP",
+            "ready_for_review": False,
+            "evaluation_status": "NOT_READY",
+            "live_enabled": False,
+            "safe_mode_entry": False,
+            "reason_code": "PROMOTION_NOT_READY",
+            "blocking_reasons": [
+                "DEMO_DAYS_BELOW_THRESHOLD",
+                "TRADE_COUNT_BELOW_THRESHOLD",
+                "PROFIT_FACTOR_BELOW_THRESHOLD",
+                "MAX_DRAWDOWN_ABOVE_THRESHOLD",
+                "STOPLOSS_FAILURES_ABOVE_THRESHOLD",
+            ],
+            "reviewed_at": "2026-04-19T10:00:00+09:00",
+        },
+    }

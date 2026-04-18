@@ -145,6 +145,28 @@ def create_app(
             return summary
         return dashboard_summary_service.to_payload(summary)
 
+    @app.get("/dashboard/promotion")
+    def dashboard_promotion() -> dict[str, object]:
+        snapshot = promotion_status_store.get()
+        if snapshot is None:
+            return {
+                "status": "empty",
+                "promotion": None,
+            }
+        return {
+            "status": "ok",
+            "promotion": {
+                "market": snapshot.market,
+                "ready_for_review": snapshot.evaluation_status == "READY_FOR_REVIEW",
+                "evaluation_status": snapshot.evaluation_status,
+                "live_enabled": snapshot.live_enabled,
+                "safe_mode_entry": snapshot.safe_mode_entry,
+                "reason_code": snapshot.reason_code,
+                "blocking_reasons": snapshot.rejection_reasons,
+                "reviewed_at": snapshot.reviewed_at,
+            },
+        }
+
     @app.post("/promotion/review")
     def promotion_review(payload: PromotionReviewPayload) -> dict[str, object]:
         result = promotion_runner.run(
