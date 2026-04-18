@@ -21,6 +21,7 @@ from app.services.promotion.approval import PromotionApprovalFlow
 from app.services.promotion.evaluator import PromotionEvaluator
 from app.services.promotion.lifecycle import PromotionLifecycleService
 from app.services.promotion.runner import PromotionReviewRequest, PromotionRunner
+from app.services.promotion.status import PromotionStatusStore
 from app.services.recovery.hard_stop import RestartCounter
 from app.services.recovery.orchestrator import (
     InMemoryRestartStore,
@@ -45,6 +46,7 @@ def create_app(
     recovery_orchestrator: RecoveryOrchestrator | None = None,
     dashboard_summary_service: DashboardSummaryService | None = None,
     promotion_runner: PromotionRunner | None = None,
+    promotion_status_store: PromotionStatusStore | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     hard_stop_notifier: HardStopNotifier | None = None,
     timestamp_provider: Callable[[], str] | None = None,
@@ -96,6 +98,8 @@ def create_app(
                 notification_dispatcher=LifecycleNotificationDispatcher(),
             ),
         )
+    if promotion_status_store is None:
+        promotion_status_store = PromotionStatusStore()
 
     boot_state = recovery_orchestrator.boot()
     if boot_notification_dispatcher is not None:
@@ -139,13 +143,6 @@ def create_app(
 
     @app.post("/promotion/review")
     def promotion_review(payload: PromotionReviewPayload) -> dict[str, object]:
-        if promotion_runner is None:
-            return {
-                "status": "not_configured",
-                "evaluation": None,
-                "approval_result": None,
-            }
-
         result = promotion_runner.run(
             PromotionReviewRequest(
                 market=payload.market,
@@ -159,6 +156,11 @@ def create_app(
                 activated_at=payload.activated_at,
             ),
         )
+        promotion_status_store.save(
+            market=payload.market,
+            reviewed_at=payload.activated_at,
+            result=result,
+        )
         return {
             "status": "ok",
             "evaluation": {
@@ -171,6 +173,19 @@ def create_app(
                 "safe_mode_entry": result.approval_result.safe_mode_entry,
                 "reason_code": result.approval_result.reason_code,
             },
+        }
+
+    @app.get("/promotion/status")
+    def promotion_status() -> dict[str, object]:
+        snapshot = promotion_status_store.get()
+        if snapshot is None:
+            return {
+                "status": "empty",
+                "snapshot": None,
+            }
+        return {
+            "status": "ok",
+            "snapshot": promotion_status_store.to_payload(snapshot),
         }
 
     return app
