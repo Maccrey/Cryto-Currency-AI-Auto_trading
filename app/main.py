@@ -10,10 +10,16 @@ from app.core.logging import configure_logging
 from app.core.settings import load_settings
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
+from app.integrations.telegram.lifecycle_notification_dispatcher import (
+    LifecycleNotificationDispatcher,
+)
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.portfolio.sync import PortfolioSyncService
+from app.services.promotion.approval import PromotionApprovalFlow
+from app.services.promotion.evaluator import PromotionEvaluator
+from app.services.promotion.lifecycle import PromotionLifecycleService
 from app.services.promotion.runner import PromotionReviewRequest, PromotionRunner
 from app.services.recovery.hard_stop import RestartCounter
 from app.services.recovery.orchestrator import (
@@ -75,6 +81,20 @@ def create_app(
     if boot_notification_dispatcher is None and hard_stop_notifier is not None:
         boot_notification_dispatcher = BootNotificationDispatcher(
             hard_stop_notifier=hard_stop_notifier,
+        )
+    if promotion_runner is None:
+        promotion_runner = PromotionRunner(
+            lifecycle_service=PromotionLifecycleService(
+                evaluator=PromotionEvaluator(
+                    min_demo_days=14,
+                    min_trades=100,
+                    min_profit_factor=1.2,
+                    max_drawdown=0.08,
+                    max_stoploss_failures=0,
+                ),
+                approval_flow=PromotionApprovalFlow(),
+                notification_dispatcher=LifecycleNotificationDispatcher(),
+            ),
         )
 
     boot_state = recovery_orchestrator.boot()

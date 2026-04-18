@@ -313,7 +313,7 @@ def test_promotion_review_endpoint_returns_runner_result(monkeypatch) -> None:
     assert runner.requests[0].approval_granted is True
 
 
-def test_promotion_review_endpoint_reports_not_configured_without_runner(monkeypatch) -> None:
+def test_promotion_review_endpoint_uses_default_runner_when_not_injected(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -347,8 +347,14 @@ def test_promotion_review_endpoint_reports_not_configured_without_runner(monkeyp
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "not_configured",
-        "evaluation": None,
-        "approval_result": None,
+    assert response.json()["status"] == "ok"
+    assert response.json()["evaluation"] == {
+        "status": "READY_FOR_REVIEW",
+        "approved": False,
+        "rejection_reasons": [],
+    }
+    assert response.json()["approval_result"] == {
+        "live_enabled": True,
+        "safe_mode_entry": True,
+        "reason_code": None,
     }
