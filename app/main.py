@@ -20,6 +20,7 @@ from app.services.learning.service import LearningEvent, LearningService
 from app.services.portfolio.sync import PortfolioSyncService
 from app.services.promotion.approval import PromotionApprovalFlow
 from app.services.promotion.evaluator import PromotionEvaluator
+from app.services.promotion.history import PromotionHistoryStore
 from app.services.promotion.lifecycle import PromotionLifecycleService
 from app.services.promotion.runner import PromotionReviewRequest, PromotionRunner
 from app.services.promotion.status import PromotionStatusStore
@@ -48,6 +49,7 @@ def create_app(
     dashboard_summary_service: DashboardSummaryService | None = None,
     learning_service: LearningService | None = None,
     promotion_runner: PromotionRunner | None = None,
+    promotion_history_store: PromotionHistoryStore | None = None,
     promotion_status_store: PromotionStatusStore | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     hard_stop_notifier: HardStopNotifier | None = None,
@@ -104,6 +106,8 @@ def create_app(
         )
     if promotion_status_store is None:
         promotion_status_store = PromotionStatusStore()
+    if promotion_history_store is None:
+        promotion_history_store = PromotionHistoryStore()
 
     boot_state = recovery_orchestrator.boot()
     if boot_notification_dispatcher is not None:
@@ -186,11 +190,12 @@ def create_app(
                 activated_at=payload.activated_at,
             ),
         )
-        promotion_status_store.save(
+        snapshot = promotion_status_store.save(
             market=payload.market,
             reviewed_at=payload.activated_at,
             result=result,
         )
+        promotion_history_store.append(snapshot)
         learning_service.record(
             LearningEvent(
                 event_name="promotion_review_completed",
@@ -239,6 +244,19 @@ def create_app(
         return {
             "status": "ok",
             "snapshot": promotion_status_store.to_payload(snapshot),
+        }
+
+    @app.get("/promotion/history")
+    def promotion_history() -> dict[str, object]:
+        entries = promotion_history_store.list()
+        if not entries:
+            return {
+                "status": "empty",
+                "history": [],
+            }
+        return {
+            "status": "ok",
+            "history": promotion_history_store.to_payload(entries),
         }
 
     return app
