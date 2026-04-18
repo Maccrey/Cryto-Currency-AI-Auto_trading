@@ -15,6 +15,7 @@ from app.integrations.telegram.lifecycle_notification_dispatcher import (
 )
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
+from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningEvent, LearningService
 from app.services.portfolio.sync import PortfolioSyncService
@@ -46,6 +47,7 @@ class PromotionReviewPayload(BaseModel):
 
 def create_app(
     recovery_orchestrator: RecoveryOrchestrator | None = None,
+    promotion_dashboard_service: PromotionDashboardService | None = None,
     dashboard_summary_service: DashboardSummaryService | None = None,
     learning_service: LearningService | None = None,
     promotion_runner: PromotionRunner | None = None,
@@ -84,6 +86,8 @@ def create_app(
         )
     if dashboard_summary_service is None:
         dashboard_summary_service = DashboardSummaryService()
+    if promotion_dashboard_service is None:
+        promotion_dashboard_service = PromotionDashboardService()
     if learning_service is None:
         learning_service = LearningService(log_dir=settings.learning_log_dir)
     if boot_notification_dispatcher is None and hard_stop_notifier is not None:
@@ -155,47 +159,28 @@ def create_app(
 
     @app.get("/dashboard/promotion")
     def dashboard_promotion() -> dict[str, object]:
-        snapshot = promotion_status_store.get()
-        if snapshot is None:
+        promotion = promotion_dashboard_service.build_current(promotion_status_store.get())
+        if promotion is None:
             return {
                 "status": "empty",
                 "promotion": None,
             }
         return {
             "status": "ok",
-            "promotion": {
-                "market": snapshot.market,
-                "ready_for_review": snapshot.evaluation_status == "READY_FOR_REVIEW",
-                "evaluation_status": snapshot.evaluation_status,
-                "live_enabled": snapshot.live_enabled,
-                "safe_mode_entry": snapshot.safe_mode_entry,
-                "reason_code": snapshot.reason_code,
-                "blocking_reasons": snapshot.rejection_reasons,
-                "reviewed_at": snapshot.reviewed_at,
-            },
+            "promotion": promotion_dashboard_service.to_payload(promotion),
         }
 
     @app.get("/dashboard/promotion/history")
     def dashboard_promotion_history() -> dict[str, object]:
-        entries = promotion_history_store.list()
-        if not entries:
+        history = promotion_dashboard_service.build_history(promotion_history_store.list())
+        if not history:
             return {
                 "status": "empty",
                 "history": [],
             }
         return {
             "status": "ok",
-            "history": [
-                {
-                    "market": entry.market,
-                    "reviewed_at": entry.reviewed_at,
-                    "evaluation_status": entry.evaluation_status,
-                    "ready_for_review": entry.evaluation_status == "READY_FOR_REVIEW",
-                    "live_enabled": entry.live_enabled,
-                    "reason_code": entry.reason_code,
-                }
-                for entry in entries
-            ],
+            "history": promotion_dashboard_service.to_history_payload(history),
         }
 
     @app.post("/promotion/review")
