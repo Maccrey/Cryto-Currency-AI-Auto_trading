@@ -16,6 +16,7 @@ from app.integrations.telegram.lifecycle_notification_dispatcher import (
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.services.dashboard.summary import DashboardSummaryService
+from app.services.learning.service import LearningEvent, LearningService
 from app.services.portfolio.sync import PortfolioSyncService
 from app.services.promotion.approval import PromotionApprovalFlow
 from app.services.promotion.evaluator import PromotionEvaluator
@@ -45,6 +46,7 @@ class PromotionReviewPayload(BaseModel):
 def create_app(
     recovery_orchestrator: RecoveryOrchestrator | None = None,
     dashboard_summary_service: DashboardSummaryService | None = None,
+    learning_service: LearningService | None = None,
     promotion_runner: PromotionRunner | None = None,
     promotion_status_store: PromotionStatusStore | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
@@ -80,6 +82,8 @@ def create_app(
         )
     if dashboard_summary_service is None:
         dashboard_summary_service = DashboardSummaryService()
+    if learning_service is None:
+        learning_service = LearningService(log_dir=settings.learning_log_dir)
     if boot_notification_dispatcher is None and hard_stop_notifier is not None:
         boot_notification_dispatcher = BootNotificationDispatcher(
             hard_stop_notifier=hard_stop_notifier,
@@ -186,6 +190,29 @@ def create_app(
             market=payload.market,
             reviewed_at=payload.activated_at,
             result=result,
+        )
+        learning_service.record(
+            LearningEvent(
+                event_name="promotion_review_completed",
+                market=payload.market,
+                mode=settings.trading_mode,
+                payload={
+                    "demo_days": payload.demo_days,
+                    "total_trades": payload.total_trades,
+                    "profit_factor": payload.profit_factor,
+                    "max_drawdown": payload.max_drawdown,
+                    "stoploss_failures": payload.stoploss_failures,
+                    "approval_granted": payload.approval_granted,
+                    "approved_by": payload.approved_by,
+                    "activated_at": payload.activated_at,
+                    "evaluation_status": result.evaluation.status,
+                    "approved": result.evaluation.approved,
+                    "rejection_reasons": result.evaluation.rejection_reasons,
+                    "live_enabled": result.approval_result.live_enabled,
+                    "safe_mode_entry": result.approval_result.safe_mode_entry,
+                    "reason_code": result.approval_result.reason_code,
+                },
+            ),
         )
         return {
             "status": "ok",
