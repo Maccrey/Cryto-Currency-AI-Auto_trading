@@ -455,3 +455,47 @@ def test_promotion_status_endpoint_returns_last_review_result(monkeypatch) -> No
             "reviewed_at": "2026-04-18T13:50:00+09:00",
         },
     }
+
+
+def test_dashboard_summary_reflects_last_promotion_review_status(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    before_response = client.get("/dashboard/summary")
+
+    assert before_response.status_code == 200
+    assert before_response.json()["promotion_ready"] is False
+
+    client.post(
+        "/promotion/review",
+        json={
+            "market": "KRW-XRP",
+            "demo_days": 16,
+            "total_trades": 132,
+            "profit_factor": 1.31,
+            "max_drawdown": 0.051,
+            "stoploss_failures": 0,
+            "approval_granted": False,
+            "approved_by": "manual_review",
+            "activated_at": "2026-04-18T13:55:00+09:00",
+        },
+    )
+
+    after_response = client.get("/dashboard/summary")
+
+    assert after_response.status_code == 200
+    assert after_response.json()["promotion_ready"] is True

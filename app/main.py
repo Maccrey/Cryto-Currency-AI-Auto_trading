@@ -125,6 +125,7 @@ def create_app(
 
     @app.get("/dashboard/summary")
     def dashboard_summary() -> dict[str, object]:
+        promotion_snapshot = promotion_status_store.get()
         summary = dashboard_summary_service.build(
             boot_state=boot_state,
             trading_mode=settings.trading_mode,
@@ -135,7 +136,10 @@ def create_app(
             sell_count=0,
             stop_loss_count=0,
             recent_stop_loss_reason=None,
-            promotion_ready=False,
+            promotion_ready=(
+                promotion_snapshot is not None
+                and promotion_snapshot.evaluation_status == "READY_FOR_REVIEW"
+            ),
         )
         if isinstance(summary, dict):
             return summary
