@@ -175,6 +175,29 @@ def create_app(
             },
         }
 
+    @app.get("/dashboard/promotion/history")
+    def dashboard_promotion_history() -> dict[str, object]:
+        entries = promotion_history_store.list()
+        if not entries:
+            return {
+                "status": "empty",
+                "history": [],
+            }
+        return {
+            "status": "ok",
+            "history": [
+                {
+                    "market": entry.market,
+                    "reviewed_at": entry.reviewed_at,
+                    "evaluation_status": entry.evaluation_status,
+                    "ready_for_review": entry.evaluation_status == "READY_FOR_REVIEW",
+                    "live_enabled": entry.live_enabled,
+                    "reason_code": entry.reason_code,
+                }
+                for entry in entries
+            ],
+        }
+
     @app.post("/promotion/review")
     def promotion_review(payload: PromotionReviewPayload) -> dict[str, object]:
         result = promotion_runner.run(

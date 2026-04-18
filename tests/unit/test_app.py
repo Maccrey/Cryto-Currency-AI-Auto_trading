@@ -724,6 +724,33 @@ def test_dashboard_promotion_returns_empty_before_review(monkeypatch) -> None:
     }
 
 
+def test_dashboard_promotion_history_returns_empty_before_review(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    response = client.get("/dashboard/promotion/history")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "empty",
+        "history": [],
+    }
+
+
 def test_dashboard_promotion_returns_last_review_payload(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
@@ -778,4 +805,77 @@ def test_dashboard_promotion_returns_last_review_payload(monkeypatch) -> None:
             ],
             "reviewed_at": "2026-04-19T10:00:00+09:00",
         },
+    }
+
+
+def test_dashboard_promotion_history_returns_compact_review_timeline(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    client.post(
+        "/promotion/review",
+        json={
+            "market": "KRW-XRP",
+            "demo_days": 7,
+            "total_trades": 64,
+            "profit_factor": 1.08,
+            "max_drawdown": 0.11,
+            "stoploss_failures": 2,
+            "approval_granted": False,
+            "approved_by": "manual_review",
+            "activated_at": "2026-04-19T10:00:00+09:00",
+        },
+    )
+    client.post(
+        "/promotion/review",
+        json={
+            "market": "KRW-XRP",
+            "demo_days": 16,
+            "total_trades": 132,
+            "profit_factor": 1.31,
+            "max_drawdown": 0.051,
+            "stoploss_failures": 0,
+            "approval_granted": True,
+            "approved_by": "manual_review",
+            "activated_at": "2026-04-19T11:00:00+09:00",
+        },
+    )
+
+    response = client.get("/dashboard/promotion/history")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "history": [
+            {
+                "market": "KRW-XRP",
+                "reviewed_at": "2026-04-19T10:00:00+09:00",
+                "evaluation_status": "NOT_READY",
+                "ready_for_review": False,
+                "live_enabled": False,
+                "reason_code": "PROMOTION_NOT_READY",
+            },
+            {
+                "market": "KRW-XRP",
+                "reviewed_at": "2026-04-19T11:00:00+09:00",
+                "evaluation_status": "READY_FOR_REVIEW",
+                "ready_for_review": True,
+                "live_enabled": True,
+                "reason_code": None,
+            },
+        ],
     }
