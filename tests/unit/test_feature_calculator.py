@@ -1,0 +1,27 @@
+from __future__ import annotations
+
+from app.services.signals.features import MarketFeatureCalculator
+
+
+def test_feature_calculator_computes_market_features() -> None:
+    calculator = MarketFeatureCalculator()
+
+    snapshot = calculator.calculate(
+        prices=[800.0, 804.0, 809.0, 815.0],
+        traded_values=[10_000_000.0, 12_000_000.0, 21_000_000.0, 30_000_000.0],
+        spread_bps=9.5,
+        orderbook_imbalance=0.27,
+        liquidity_score=0.82,
+        regime_score=0.55,
+    )
+
+    assert round(snapshot.ret_1s, 4) == 0.0074
+    assert round(snapshot.ret_5s, 4) == 0.0186
+    assert round(snapshot.ret_30s, 4) == 0.0186
+    assert round(snapshot.volume_multiple, 4) == 1.8182
+    assert round(snapshot.traded_value_multiple, 4) == 1.8182
+    assert snapshot.spread_bps == 9.5
+    assert snapshot.orderbook_imbalance == 0.27
+    assert round(snapshot.short_volatility, 4) == 0.0062
+    assert snapshot.regime_score == 0.55
+    assert snapshot.liquidity_score == 0.82
