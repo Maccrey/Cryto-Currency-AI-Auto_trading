@@ -20,6 +20,8 @@ class DashboardSummary:
     last_learning_event: str | None
     learning_signal_count: int
     learning_fill_count: int
+    last_signal_recorded_at: str | None
+    last_fill_recorded_at: str | None
     safe_mode: bool
     hard_stop: bool
     trading_ready: bool
@@ -44,6 +46,8 @@ class DashboardSummaryService:
         last_learning_event: str | None,
         learning_signal_count: int,
         learning_fill_count: int,
+        last_signal_recorded_at: str | None,
+        last_fill_recorded_at: str | None,
         promotion_ready: bool,
     ) -> DashboardSummary:
         portfolio = boot_state.portfolio_state
@@ -61,6 +65,8 @@ class DashboardSummaryService:
             last_learning_event=last_learning_event,
             learning_signal_count=learning_signal_count,
             learning_fill_count=learning_fill_count,
+            last_signal_recorded_at=last_signal_recorded_at,
+            last_fill_recorded_at=last_fill_recorded_at,
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,

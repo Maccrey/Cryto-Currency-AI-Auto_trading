@@ -75,6 +75,8 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
         "last_learning_event": None,
         "learning_signal_count": 0,
         "learning_fill_count": 0,
+        "last_signal_recorded_at": None,
+        "last_fill_recorded_at": None,
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -147,6 +149,8 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
     assert payload["last_learning_event"] is None
     assert payload["learning_signal_count"] == 0
     assert payload["learning_fill_count"] == 0
+    assert payload["last_signal_recorded_at"] is None
+    assert payload["last_fill_recorded_at"] is None
 
 
 def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() -> None:
@@ -197,6 +201,8 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
 
     assert payload["unrealized_pnl"] == 2500.0
     assert payload["last_learning_event"] is None
+    assert payload["last_signal_recorded_at"] is None
+    assert payload["last_fill_recorded_at"] is None
 
 
 def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
@@ -254,3 +260,5 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
     assert payload["last_learning_event"] == "position_opened"
     assert payload["learning_signal_count"] == 1
     assert payload["learning_fill_count"] == 1
+    assert payload["last_signal_recorded_at"] is not None
+    assert payload["last_fill_recorded_at"] is not None

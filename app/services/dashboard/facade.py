@@ -45,6 +45,22 @@ class DashboardSummaryFacade:
         learning_fill_count = sum(
             1 for event in recent_learning_events if event.event_name.startswith("fill_")
         )
+        last_signal_recorded_at = next(
+            (
+                event.recorded_at
+                for event in reversed(recent_learning_events)
+                if event.event_name.startswith("signal_")
+            ),
+            None,
+        )
+        last_fill_recorded_at = next(
+            (
+                event.recorded_at
+                for event in reversed(recent_learning_events)
+                if event.event_name.startswith("fill_")
+            ),
+            None,
+        )
         unrealized_pnl = 0.0
         if self._position_store is not None and self._market_price_store is not None:
             position = self._position_store.get()
@@ -68,6 +84,8 @@ class DashboardSummaryFacade:
             last_learning_event=last_learning_event,
             learning_signal_count=learning_signal_count,
             learning_fill_count=learning_fill_count,
+            last_signal_recorded_at=last_signal_recorded_at,
+            last_fill_recorded_at=last_fill_recorded_at,
             promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
         )
         if isinstance(summary, dict):
