@@ -27,4 +27,19 @@ def build_market_router(
             "snapshot": market_price_store.to_payload(snapshot),
         }
 
+    @router.get("/history")
+    def market_price_history(limit: int = 20) -> dict[str, object]:
+        history = market_price_store.history_to_payload(market, limit=limit)
+        if not history:
+            return {
+                "status": "empty",
+                "market": market,
+                "history": [],
+            }
+        return {
+            "status": "ok",
+            "market": market,
+            "history": history,
+        }
+
     return router

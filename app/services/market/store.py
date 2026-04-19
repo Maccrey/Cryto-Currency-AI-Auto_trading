@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -18,12 +19,15 @@ class MarketPriceStore:
     def __init__(
         self,
         *,
+        history_limit: int = 100,
         timestamp_provider: Callable[[], str] | None = None,
     ) -> None:
+        self._history_limit = history_limit
         self._timestamp_provider = timestamp_provider or (
             lambda: datetime.now().astimezone().isoformat()
         )
         self._prices: dict[str, MarketPriceSnapshot] = {}
+        self._history: dict[str, deque[MarketPriceSnapshot]] = {}
 
     def save(self, *, market: str, price: float) -> MarketPriceSnapshot:
         snapshot = MarketPriceSnapshot(
@@ -32,10 +36,24 @@ class MarketPriceStore:
             recorded_at=self._timestamp_provider(),
         )
         self._prices[market] = snapshot
+        if market not in self._history:
+            self._history[market] = deque(maxlen=self._history_limit)
+        self._history[market].append(snapshot)
         return snapshot
 
     def get(self, market: str) -> MarketPriceSnapshot | None:
         return self._prices.get(market)
+
+    def list_history(
+        self,
+        market: str,
+        *,
+        limit: int | None = None,
+    ) -> list[MarketPriceSnapshot]:
+        history = list(self._history.get(market, ()))
+        if limit is None or limit >= len(history):
+            return history
+        return history[-limit:]
 
     def get_price(self, market: str) -> float | None:
         snapshot = self.get(market)
@@ -44,3 +62,11 @@ class MarketPriceStore:
     @staticmethod
     def to_payload(snapshot: MarketPriceSnapshot) -> dict[str, object]:
         return asdict(snapshot)
+
+    def history_to_payload(
+        self,
+        market: str,
+        *,
+        limit: int | None = None,
+    ) -> list[dict[str, object]]:
+        return [self.to_payload(snapshot) for snapshot in self.list_history(market, limit=limit)]

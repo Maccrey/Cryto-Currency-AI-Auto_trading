@@ -786,6 +786,90 @@ def test_market_current_endpoint_returns_latest_snapshot(monkeypatch) -> None:
     }
 
 
+def test_market_history_endpoint_returns_recent_snapshots(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    timestamps = iter(
+        [
+            "2026-04-19T20:20:00+09:00",
+            "2026-04-19T20:20:01+09:00",
+            "2026-04-19T20:20:02+09:00",
+        ],
+    )
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
+
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            timestamp_provider=lambda: next(timestamps),
+        ),
+    )
+
+    empty_response = client.get("/market/history")
+    assert empty_response.status_code == 200
+    assert empty_response.json() == {
+        "status": "empty",
+        "market": "KRW-XRP",
+        "history": [],
+    }
+
+    for price in [820.0, 825.0, 830.0]:
+        response = client.post(
+            "/decision/entry",
+            json={
+                "prices": [800.0, 806.0, 813.0, price],
+                "traded_values": [800000.0, 850000.0, 1200000.0, 2100000.0],
+                "spread_bps": 8.0,
+                "orderbook_imbalance": 0.24,
+                "liquidity_score": 0.9,
+                "regime_score": 0.78,
+                "current_price": price,
+                "slippage_bps": 10.0,
+                "portfolio": {
+                    "cash_balance": 500000.0,
+                    "asset_currency": "XRP",
+                    "asset_balance": 0.0,
+                    "avg_buy_price": 0.0,
+                },
+                "safe_mode": False,
+                "recent_loss_streak": 0,
+            },
+        )
+        assert response.status_code == 200
+
+    history_response = client.get("/market/history?limit=2")
+
+    assert history_response.status_code == 200
+    assert history_response.json() == {
+        "status": "ok",
+        "market": "KRW-XRP",
+        "history": [
+            {
+                "market": "KRW-XRP",
+                "price": 825.0,
+                "recorded_at": "2026-04-19T20:20:01+09:00",
+            },
+            {
+                "market": "KRW-XRP",
+                "price": 830.0,
+                "recorded_at": "2026-04-19T20:20:02+09:00",
+            },
+        ],
+    }
+
+
 def test_startup_sync_failure_keeps_safe_mode(monkeypatch) -> None:
     class FailingBootOrchestrator:
         def boot(self):
