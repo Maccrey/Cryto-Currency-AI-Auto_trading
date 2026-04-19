@@ -17,13 +17,14 @@ from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
-from app.services.learning.service import LearningEvent, LearningService
+from app.services.learning.service import LearningService
 from app.services.portfolio.sync import PortfolioSyncService
 from app.services.promotion.approval import PromotionApprovalFlow
 from app.services.promotion.evaluator import PromotionEvaluator
 from app.services.promotion.history import PromotionHistoryStore
 from app.services.promotion.lifecycle import PromotionLifecycleService
-from app.services.promotion.runner import PromotionReviewRequest, PromotionRunner
+from app.services.promotion.review import PromotionReviewService
+from app.services.promotion.runner import PromotionRunner
 from app.services.promotion.state import PromotionStateService
 from app.services.promotion.status import PromotionStatusStore
 from app.services.recovery.hard_stop import RestartCounter
@@ -52,6 +53,7 @@ def create_app(
     dashboard_summary_service: DashboardSummaryService | None = None,
     learning_service: LearningService | None = None,
     promotion_runner: PromotionRunner | None = None,
+    promotion_review_service: PromotionReviewService | None = None,
     promotion_state_service: PromotionStateService | None = None,
     promotion_history_store: PromotionHistoryStore | None = None,
     promotion_status_store: PromotionStatusStore | None = None,
@@ -114,6 +116,13 @@ def create_app(
         promotion_state_service = PromotionStateService(
             status_store=promotion_status_store,
             history_store=promotion_history_store,
+        )
+    if promotion_review_service is None:
+        promotion_review_service = PromotionReviewService(
+            promotion_runner=promotion_runner,
+            promotion_state_service=promotion_state_service,
+            learning_service=learning_service,
+            trading_mode=settings.trading_mode,
         )
 
     boot_state = recovery_orchestrator.boot()
@@ -188,48 +197,11 @@ def create_app(
 
     @app.post("/promotion/review")
     def promotion_review(payload: PromotionReviewPayload) -> dict[str, object]:
-        result = promotion_runner.run(
-            PromotionReviewRequest(
-                market=payload.market,
-                demo_days=payload.demo_days,
-                total_trades=payload.total_trades,
-                profit_factor=payload.profit_factor,
-                max_drawdown=payload.max_drawdown,
-                stoploss_failures=payload.stoploss_failures,
-                approval_granted=payload.approval_granted,
-                approved_by=payload.approved_by,
-                activated_at=payload.activated_at,
+        return promotion_review_service.review(
+            promotion_review_service.build_command(
+                payload.model_dump(),
             ),
         )
-        promotion_state_service.save_review(
-            market=payload.market,
-            reviewed_at=payload.activated_at,
-            result=result,
-        )
-        learning_service.record(
-            LearningEvent(
-                event_name="promotion_review_completed",
-                market=payload.market,
-                mode=settings.trading_mode,
-                payload={
-                    "demo_days": payload.demo_days,
-                    "total_trades": payload.total_trades,
-                    "profit_factor": payload.profit_factor,
-                    "max_drawdown": payload.max_drawdown,
-                    "stoploss_failures": payload.stoploss_failures,
-                    "approval_granted": payload.approval_granted,
-                    "approved_by": payload.approved_by,
-                    "activated_at": payload.activated_at,
-                    "evaluation_status": result.evaluation.status,
-                    "approved": result.evaluation.approved,
-                    "rejection_reasons": result.evaluation.rejection_reasons,
-                    "live_enabled": result.approval_result.live_enabled,
-                    "safe_mode_entry": result.approval_result.safe_mode_entry,
-                    "reason_code": result.approval_result.reason_code,
-                },
-            ),
-        )
-        return promotion_state_service.build_review_response(result)
 
     @app.get("/promotion/status")
     def promotion_status() -> dict[str, object]:
