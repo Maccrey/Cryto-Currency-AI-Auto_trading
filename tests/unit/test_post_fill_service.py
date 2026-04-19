@@ -1,5 +1,6 @@
 from app.services.execution.demo import DemoExecutor
 from app.services.portfolio.sync import PortfolioState
+from app.services.position.store import CurrentPositionStore
 from app.services.regime.engine import RegimeEngine
 from app.services.risk.stop_loss import StopLossInjector
 from app.services.signals.engine import SignalEngine
@@ -54,6 +55,7 @@ def _build_execution_result(safe_mode: bool = False):
 
 
 def test_post_fill_service_injects_position_for_buy_fill() -> None:
+    store = CurrentPositionStore()
     service = PostFillService(
         stop_loss_injector=StopLossInjector(
             stop_loss_by_signal={
@@ -65,6 +67,7 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
             validation_window_sec=180,
             min_expected_return_pct=0.004,
         ),
+        position_store=store,
     )
 
     result = service.process(_build_execution_result())
@@ -72,6 +75,7 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
     assert result.position is not None
     assert result.position.market == "KRW-XRP"
     assert result.position.stop_loss_price > 0
+    assert store.get() == result.position
 
 
 def test_post_fill_service_skips_position_when_execution_blocked() -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 from app.services.execution.demo import FillResult
+from app.services.position.store import CurrentPositionStore
 from app.services.risk.stop_loss import PositionSnapshot, StopLossInjector
 from app.services.trading.execution import TradeExecutionResult, TradeExecutionService
 
@@ -16,8 +17,14 @@ class PostFillResult:
 class PostFillService:
     """Attach position risk metadata after a successful buy execution."""
 
-    def __init__(self, *, stop_loss_injector: StopLossInjector) -> None:
+    def __init__(
+        self,
+        *,
+        stop_loss_injector: StopLossInjector,
+        position_store: CurrentPositionStore | None = None,
+    ) -> None:
         self._stop_loss_injector = stop_loss_injector
+        self._position_store = position_store
 
     def process(self, execution_result: TradeExecutionResult) -> PostFillResult:
         execution = execution_result.execution
@@ -25,8 +32,14 @@ class PostFillService:
             execution_result.status != "filled"
             or execution is None
             or not isinstance(execution, FillResult)
-            or execution.side != "buy"
         ):
+            return PostFillResult(
+                execution_result=execution_result,
+                position=None,
+            )
+        if execution.side != "buy":
+            if self._position_store is not None:
+                self._position_store.clear()
             return PostFillResult(
                 execution_result=execution_result,
                 position=None,
@@ -38,6 +51,8 @@ class PostFillService:
             entry_price=execution.filled_price,
             quantity=execution.filled_quantity,
         )
+        if self._position_store is not None:
+            self._position_store.save(position)
         return PostFillResult(
             execution_result=execution_result,
             position=position,

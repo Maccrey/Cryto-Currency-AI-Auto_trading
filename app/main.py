@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.api.routes.decision import build_decision_router
 from app.api.routes.dashboard import build_dashboard_router
 from app.api.routes.health import build_health_router
+from app.api.routes.position import build_position_router
 from app.api.routes.promotion import build_promotion_router
 from app.core.logging import configure_logging
 from app.core.settings import load_settings
@@ -21,6 +22,8 @@ from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.factory import ExecutionFactory
 from app.services.learning.service import LearningService
 from app.services.notification.factory import build_notification_services
+from app.services.dashboard.overlay import StopLossOverlayService
+from app.services.position.store import CurrentPositionStore
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.promotion.factory import build_promotion_services
 from app.services.promotion.history import PromotionHistoryStore
@@ -60,6 +63,7 @@ def create_app(
     trade_decision_service: TradeDecisionService | None = None,
     trade_execution_service: TradeExecutionService | None = None,
     post_fill_service: PostFillService | None = None,
+    position_store: CurrentPositionStore | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     restart_notifier: RestartNotifier | None = None,
     hard_stop_notifier: HardStopNotifier | None = None,
@@ -139,6 +143,8 @@ def create_app(
             ),
             market=settings.trade_market,
         )
+    if position_store is None:
+        position_store = CurrentPositionStore()
     if post_fill_service is None:
         post_fill_service = PostFillService(
             stop_loss_injector=StopLossInjector(
@@ -151,6 +157,7 @@ def create_app(
                 validation_window_sec=180,
                 min_expected_return_pct=0.004,
             ),
+            position_store=position_store,
         )
 
     app = FastAPI(title=settings.app_name)
@@ -181,6 +188,12 @@ def create_app(
             trade_decision_service=trade_decision_service,
             trade_execution_service=trade_execution_service,
             post_fill_service=post_fill_service,
+        ),
+    )
+    app.include_router(
+        build_position_router(
+            position_store=position_store,
+            stop_loss_overlay_service=StopLossOverlayService(),
         ),
     )
     return app
