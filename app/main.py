@@ -23,6 +23,7 @@ from app.services.execution.factory import ExecutionFactory
 from app.services.learning.service import LearningService
 from app.services.notification.factory import build_notification_services
 from app.services.dashboard.overlay import StopLossOverlayService
+from app.services.position.risk import PositionRiskService
 from app.services.position.store import CurrentPositionStore
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.promotion.factory import build_promotion_services
@@ -31,6 +32,8 @@ from app.services.promotion.review import PromotionReviewService
 from app.services.promotion.runner import PromotionRunner
 from app.services.promotion.state import PromotionStateService
 from app.services.promotion.status import PromotionStatusStore
+from app.services.risk.hard_stop import HardStopMonitor
+from app.services.risk.post_entry import PostEntryValidator
 from app.services.recovery.orchestrator import RecoveryOrchestrator
 from app.services.risk.stop_loss import StopLossInjector
 from app.services.runtime.factory import build_runtime_services
@@ -145,6 +148,11 @@ def create_app(
         )
     if position_store is None:
         position_store = CurrentPositionStore()
+    position_risk_service = PositionRiskService(
+        position_store=position_store,
+        hard_stop_monitor=HardStopMonitor(),
+        post_entry_validator=PostEntryValidator(),
+    )
     if post_fill_service is None:
         post_fill_service = PostFillService(
             stop_loss_injector=StopLossInjector(
@@ -194,6 +202,7 @@ def create_app(
         build_position_router(
             position_store=position_store,
             stop_loss_overlay_service=StopLossOverlayService(),
+            position_risk_service=position_risk_service,
         ),
     )
     return app

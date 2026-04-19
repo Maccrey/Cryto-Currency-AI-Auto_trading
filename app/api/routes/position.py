@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from app.services.dashboard.overlay import StopLossOverlayService
+from app.services.position.risk import PositionRiskService
 from app.services.position.store import CurrentPositionStore
+
+
+class PositionRiskPayload(BaseModel):
+    current_price: float
+    elapsed_sec: int
+    momentum_score: float
+    orderbook_imbalance: float
 
 
 def build_position_router(
     *,
     position_store: CurrentPositionStore,
     stop_loss_overlay_service: StopLossOverlayService,
+    position_risk_service: PositionRiskService,
 ) -> APIRouter:
     router = APIRouter(prefix="/position")
 
@@ -38,5 +48,14 @@ def build_position_router(
                 "label": overlay.label,
             },
         }
+
+    @router.post("/risk-check")
+    def position_risk_check(payload: PositionRiskPayload) -> dict[str, object]:
+        return position_risk_service.evaluate(
+            current_price=payload.current_price,
+            elapsed_sec=payload.elapsed_sec,
+            momentum_score=payload.momentum_score,
+            orderbook_imbalance=payload.orderbook_imbalance,
+        )
 
     return router

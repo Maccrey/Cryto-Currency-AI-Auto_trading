@@ -416,6 +416,24 @@ def test_position_endpoints_return_saved_position_and_overlay(monkeypatch) -> No
         },
     }
 
+    risk_response = client.post(
+        "/position/risk-check",
+        json={
+            "current_price": position_response.json()["position"]["stop_loss_price"] - 0.24,
+            "elapsed_sec": 181,
+            "momentum_score": 0.41,
+            "orderbook_imbalance": -0.12,
+        },
+    )
+
+    assert risk_response.status_code == 200
+    assert risk_response.json()["status"] == "ok"
+    assert risk_response.json()["hard_stop"]["triggered"] is True
+    assert (
+        risk_response.json()["post_entry"]["reason_code"]
+        == "STOP_LOSS_EXPECTATION_FAILED"
+    )
+
 
 def test_startup_sync_failure_keeps_safe_mode(monkeypatch) -> None:
     class FailingBootOrchestrator:
