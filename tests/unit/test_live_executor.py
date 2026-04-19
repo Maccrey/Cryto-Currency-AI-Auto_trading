@@ -38,6 +38,14 @@ class StubLiveOrderGateway:
         }
 
 
+class StubLearningService:
+    def __init__(self) -> None:
+        self.events: list[str] = []
+
+    def record(self, event) -> None:
+        self.events.append(event.event_name)
+
+
 def test_live_executor_places_order_only_in_live_mode() -> None:
     gateway = StubLiveOrderGateway()
     executor = LiveExecutor(
@@ -134,10 +142,25 @@ def test_live_executor_blocks_orders_during_hard_stop() -> None:
 
 def test_execution_factory_returns_executor_by_mode() -> None:
     gateway = StubLiveOrderGateway()
-    factory = ExecutionFactory(live_order_gateway=gateway)
+    learning_service = StubLearningService()
+    factory = ExecutionFactory(
+        live_order_gateway=gateway,
+        learning_service=learning_service,
+    )
 
     demo_executor = factory.create(trading_mode="demo", safe_mode=False, hard_stop=False)
     live_executor = factory.create(trading_mode="live", safe_mode=False, hard_stop=False)
 
     assert demo_executor.__class__.__name__ == "DemoExecutor"
     assert live_executor.__class__.__name__ == "LiveExecutor"
+    demo_executor.execute(
+        OrderIntent(
+            market="KRW-XRP",
+            side="buy",
+            price=820.0,
+            quantity=100.0,
+            order_type="limit",
+            is_stop_loss=False,
+        ),
+    )
+    assert learning_service.events == ["fill_result"]

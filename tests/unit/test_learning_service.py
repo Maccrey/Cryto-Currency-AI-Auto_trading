@@ -54,3 +54,29 @@ def test_learning_service_persists_fill_and_restart_events(tmp_path: Path) -> No
     assert [row["event_name"] for row in rows] == ["fill_result", "restart_detected"]
     assert rows[1]["payload"]["safe_mode"] is True
 
+
+def test_learning_service_keeps_recent_events_in_memory(tmp_path: Path) -> None:
+    service = LearningService(log_dir=tmp_path)
+
+    service.record_many(
+        [
+            LearningEvent(
+                event_name="signal_generated",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"level": "medium"},
+            ),
+            LearningEvent(
+                event_name="position_opened",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"quantity": 120.0},
+            ),
+        ],
+    )
+
+    payload = service.recent_events_payload(limit=1)
+
+    assert len(payload) == 1
+    assert payload[0]["event_name"] == "position_opened"
+    assert payload[0]["payload"]["quantity"] == 120.0

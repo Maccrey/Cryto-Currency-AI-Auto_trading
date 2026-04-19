@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.api.routes.decision import build_decision_router
 from app.api.routes.dashboard import build_dashboard_router
 from app.api.routes.health import build_health_router
+from app.api.routes.learning import build_learning_router
 from app.api.routes.market import build_market_router
 from app.api.routes.position import build_position_router
 from app.api.routes.promotion import build_promotion_router
@@ -150,6 +151,7 @@ def create_app(
     boot_state = runtime_services.runtime_service.start()
     executor = ExecutionFactory(
         live_order_gateway=NoOpLiveOrderGateway(),
+        learning_service=learning_service,
     ).create(
         trading_mode=settings.trading_mode,
         safe_mode=boot_state.safe_mode,
@@ -256,6 +258,12 @@ def create_app(
         build_market_router(
             market=settings.trade_market,
             market_price_store=market_price_store,
+        ),
+    )
+    app.include_router(
+        build_learning_router(
+            market=settings.trade_market,
+            learning_service=learning_service,
         ),
     )
     return app

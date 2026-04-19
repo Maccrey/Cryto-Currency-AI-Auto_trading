@@ -9,8 +9,9 @@ from app.services.execution.live import LiveExecutor
 class ExecutionFactory:
     """Create mode-appropriate execution services."""
 
-    def __init__(self, *, live_order_gateway: Any) -> None:
+    def __init__(self, *, live_order_gateway: Any, learning_service: Any | None = None) -> None:
         self._live_order_gateway = live_order_gateway
+        self._learning_service = learning_service
 
     def create(self, *, trading_mode: str, safe_mode: bool, hard_stop: bool = False):
         if trading_mode == "live":
@@ -21,4 +22,7 @@ class ExecutionFactory:
                 hard_stop=hard_stop,
             )
 
-        return DemoExecutor(live_order_gateway=self._live_order_gateway)
+        return DemoExecutor(
+            live_order_gateway=self._live_order_gateway,
+            learning_service=self._learning_service,
+        )

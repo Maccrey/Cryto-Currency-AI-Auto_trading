@@ -584,8 +584,9 @@ def test_position_exit_records_learning_event_and_notifies_fill(monkeypatch) -> 
     assert trade_fill_notifier.fills[0].side == "buy"
     assert trade_fill_notifier.fills[-1].side == "sell"
     assert trade_fill_notifier.fills[-1].is_stop_loss is True
-    assert [event.event_name for event in learning_service.events][-3:] == [
+    assert [event.event_name for event in learning_service.events][-4:] == [
         "position_opened",
+        "fill_result",
         "position_exit_completed",
         "position_lifecycle_updated",
     ]
@@ -873,6 +874,73 @@ def test_market_history_endpoint_returns_recent_snapshots(monkeypatch) -> None:
             },
         ],
     }
+
+
+def test_learning_recent_endpoint_returns_runtime_events(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
+
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            timestamp_provider=lambda: "2026-04-19T20:30:00+09:00",
+        ),
+    )
+
+    response = client.get("/learning/recent")
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "empty",
+        "market": "KRW-XRP",
+        "events": [],
+    }
+
+    execution_response = client.post(
+        "/decision/execute",
+        json={
+            "prices": [800.0, 806.0, 813.0, 820.0],
+            "traded_values": [800000.0, 850000.0, 1200000.0, 2100000.0],
+            "spread_bps": 8.0,
+            "orderbook_imbalance": 0.24,
+            "liquidity_score": 0.9,
+            "regime_score": 0.78,
+            "current_price": 820.0,
+            "slippage_bps": 10.0,
+            "portfolio": {
+                "cash_balance": 500000.0,
+                "asset_currency": "XRP",
+                "asset_balance": 0.0,
+                "avg_buy_price": 0.0,
+            },
+            "safe_mode": False,
+            "recent_loss_streak": 0,
+        },
+    )
+    assert execution_response.status_code == 200
+
+    response = client.get("/learning/recent?limit=4")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["market"] == "KRW-XRP"
+    assert [event["event_name"] for event in response.json()["events"]] == [
+        "signal_generated",
+        "fill_result",
+        "position_opened",
+    ]
 
 
 def test_dashboard_market_endpoint_returns_market_summary(monkeypatch) -> None:
