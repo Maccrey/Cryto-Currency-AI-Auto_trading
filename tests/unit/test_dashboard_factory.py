@@ -1,24 +1,27 @@
 from app.services.dashboard.factory import build_dashboard_services
 from app.services.dashboard.executions_facade import DashboardExecutionsFacade
 from app.services.dashboard.facade import DashboardSummaryFacade
+from app.services.dashboard.learning_facade import DashboardLearningFacade
 from app.services.dashboard.market_facade import DashboardMarketFacade
 from app.services.dashboard.positions_facade import DashboardPositionsFacade
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.ledger import ExecutionLedger
+from app.services.learning.service import LearningService
 from app.services.market.store import MarketPriceStore
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.promotion.state import PromotionStateService
 
 
-def test_build_dashboard_services_creates_default_summary_facade() -> None:
+def test_build_dashboard_services_creates_default_summary_facade(tmp_path) -> None:
     services = build_dashboard_services(
         market="KRW-XRP",
         promotion_dashboard_facade=PromotionDashboardFacade(
             promotion_state_service=PromotionStateService(),
             promotion_dashboard_service=PromotionDashboardService(),
         ),
+        learning_service=LearningService(log_dir=tmp_path),
         execution_ledger=ExecutionLedger(),
         position_lifecycle_ledger=PositionLifecycleLedger(),
         market_price_store=MarketPriceStore(),
@@ -28,9 +31,10 @@ def test_build_dashboard_services_creates_default_summary_facade() -> None:
     assert isinstance(services.market_facade, DashboardMarketFacade)
     assert isinstance(services.executions_facade, DashboardExecutionsFacade)
     assert isinstance(services.positions_facade, DashboardPositionsFacade)
+    assert isinstance(services.learning_facade, DashboardLearningFacade)
 
 
-def test_build_dashboard_services_reuses_injected_summary_facade() -> None:
+def test_build_dashboard_services_reuses_injected_summary_facade(tmp_path) -> None:
     promotion_facade = PromotionDashboardFacade(
         promotion_state_service=PromotionStateService(),
         promotion_dashboard_service=PromotionDashboardService(),
@@ -43,6 +47,7 @@ def test_build_dashboard_services_reuses_injected_summary_facade() -> None:
     services = build_dashboard_services(
         market="KRW-XRP",
         promotion_dashboard_facade=promotion_facade,
+        learning_service=LearningService(log_dir=tmp_path),
         execution_ledger=ExecutionLedger(),
         position_lifecycle_ledger=PositionLifecycleLedger(),
         market_price_store=MarketPriceStore(),
