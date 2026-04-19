@@ -10,25 +10,18 @@ from app.core.logging import configure_logging
 from app.core.settings import load_settings
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
-from app.integrations.upbit.auth import UpbitAuthSigner
-from app.integrations.upbit.client import UpbitRestClient
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningService
-from app.services.portfolio.sync import PortfolioSyncService
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.promotion.factory import build_promotion_services
 from app.services.promotion.history import PromotionHistoryStore
 from app.services.promotion.review import PromotionReviewService
 from app.services.promotion.runner import PromotionRunner
 from app.services.promotion.state import PromotionStateService
+from app.services.runtime.factory import build_runtime_services
 from app.services.promotion.status import PromotionStatusStore
-from app.services.recovery.hard_stop import RestartCounter
-from app.services.recovery.orchestrator import (
-    InMemoryRestartStore,
-    RecoveryOrchestrator,
-)
-from app.services.recovery.open_orders import OpenOrderReconciler
+from app.services.recovery.orchestrator import RecoveryOrchestrator
 
 
 class PromotionReviewPayload(BaseModel):
@@ -62,35 +55,26 @@ def create_app(
     configure_logging(settings.learning_log_dir)
     timestamp_provider = timestamp_provider or (lambda: datetime.now().astimezone().isoformat())
 
+    if learning_service is None:
+        learning_service = LearningService(log_dir=settings.learning_log_dir)
+
     app = FastAPI(title=settings.app_name)
-    if recovery_orchestrator is None:
-        upbit_client = UpbitRestClient(
-            base_url=settings.upbit_base_url,
-            auth_signer=UpbitAuthSigner(
-                access_key=settings.upbit_access_key,
-                secret_key=settings.upbit_secret_key,
-            ),
-        )
-        recovery_orchestrator = RecoveryOrchestrator(
-            app_name=settings.app_name,
-            trading_mode=settings.trading_mode,
-            portfolio_sync_service=PortfolioSyncService(
-                upbit_client=upbit_client,
-                trade_coin=settings.trade_coin,
-            ),
-            open_order_reconciler=OpenOrderReconciler(
-                upbit_client=upbit_client,
-                trade_market=settings.trade_market,
-            ),
-            restart_store=InMemoryRestartStore(),
-            restart_counter=RestartCounter(threshold=3),
-        )
+    runtime_services = build_runtime_services(
+        app_name=settings.app_name,
+        trading_mode=settings.trading_mode,
+        upbit_base_url=settings.upbit_base_url,
+        upbit_access_key=settings.upbit_access_key,
+        upbit_secret_key=settings.upbit_secret_key,
+        trade_coin=settings.trade_coin,
+        trade_market=settings.trade_market,
+        learning_service=learning_service,
+        recovery_orchestrator=recovery_orchestrator,
+    )
+    recovery_orchestrator = runtime_services.recovery_orchestrator
     if dashboard_summary_service is None:
         dashboard_summary_service = DashboardSummaryService()
     if promotion_dashboard_service is None:
         promotion_dashboard_service = PromotionDashboardService()
-    if learning_service is None:
-        learning_service = LearningService(log_dir=settings.learning_log_dir)
     if boot_notification_dispatcher is None and hard_stop_notifier is not None:
         boot_notification_dispatcher = BootNotificationDispatcher(
             hard_stop_notifier=hard_stop_notifier,
