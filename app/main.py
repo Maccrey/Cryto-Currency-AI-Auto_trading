@@ -65,18 +65,6 @@ def create_app(
         learning_service = LearningService(log_dir=settings.learning_log_dir)
 
     app = FastAPI(title=settings.app_name)
-    runtime_services = build_runtime_services(
-        app_name=settings.app_name,
-        trading_mode=settings.trading_mode,
-        upbit_base_url=settings.upbit_base_url,
-        upbit_access_key=settings.upbit_access_key,
-        upbit_secret_key=settings.upbit_secret_key,
-        trade_coin=settings.trade_coin,
-        trade_market=settings.trade_market,
-        learning_service=learning_service,
-        recovery_orchestrator=recovery_orchestrator,
-    )
-    recovery_orchestrator = runtime_services.recovery_orchestrator
     if promotion_dashboard_service is None:
         promotion_dashboard_service = PromotionDashboardService()
     notification_services = build_notification_services(
@@ -85,6 +73,20 @@ def create_app(
         hard_stop_notifier=hard_stop_notifier,
     )
     boot_notification_dispatcher = notification_services.boot_notification_dispatcher
+    runtime_services = build_runtime_services(
+        app_name=settings.app_name,
+        trading_mode=settings.trading_mode,
+        upbit_base_url=settings.upbit_base_url,
+        upbit_access_key=settings.upbit_access_key,
+        upbit_secret_key=settings.upbit_secret_key,
+        trade_coin=settings.trade_coin,
+        trade_market=settings.trade_market,
+        timestamp_provider=timestamp_provider,
+        boot_notification_dispatcher=boot_notification_dispatcher,
+        learning_service=learning_service,
+        recovery_orchestrator=recovery_orchestrator,
+    )
+    recovery_orchestrator = runtime_services.recovery_orchestrator
     promotion_services = build_promotion_services(
         trading_mode=settings.trading_mode,
         learning_service=learning_service,
@@ -107,15 +109,7 @@ def create_app(
     )
     dashboard_summary_facade = dashboard_services.summary_facade
 
-    boot_state = recovery_orchestrator.boot()
-    if boot_notification_dispatcher is not None:
-        boot_notification_dispatcher.dispatch_boot_event(
-            app_name=settings.app_name,
-            market=settings.trade_market,
-            triggered_at=timestamp_provider(),
-            cause="process_restart",
-            boot_state=boot_state,
-        )
+    boot_state = runtime_services.runtime_service.start()
 
     @app.get("/health")
     def health() -> dict[str, object]:
