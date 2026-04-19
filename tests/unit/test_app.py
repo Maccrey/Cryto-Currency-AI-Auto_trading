@@ -1095,6 +1095,72 @@ def test_dashboard_learning_endpoint_returns_learning_summary(monkeypatch) -> No
     ]
 
 
+def test_dashboard_learning_health_endpoint_returns_category_summary(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
+
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            timestamp_provider=lambda: "2026-04-19T20:46:00+09:00",
+        ),
+    )
+
+    empty_response = client.get("/dashboard/learning/health")
+    assert empty_response.status_code == 200
+    assert empty_response.json() == {
+        "status": "empty",
+        "health": None,
+    }
+
+    execute_response = client.post(
+        "/decision/execute",
+        json={
+            "prices": [800.0, 806.0, 813.0, 820.0],
+            "traded_values": [800000.0, 850000.0, 1200000.0, 2100000.0],
+            "spread_bps": 8.0,
+            "orderbook_imbalance": 0.24,
+            "liquidity_score": 0.9,
+            "regime_score": 0.78,
+            "current_price": 820.0,
+            "slippage_bps": 10.0,
+            "portfolio": {
+                "cash_balance": 500000.0,
+                "asset_currency": "XRP",
+                "asset_balance": 0.0,
+                "avg_buy_price": 0.0,
+            },
+            "safe_mode": False,
+            "recent_loss_streak": 0,
+        },
+    )
+    assert execute_response.status_code == 200
+
+    response = client.get("/dashboard/learning/health?limit=3")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["health"]["total_events"] == 3
+    assert response.json()["health"]["category_counts"] == {
+        "signals": 1,
+        "fills": 1,
+        "positions": 1,
+    }
+
+
 def test_dashboard_executions_endpoint_returns_recent_fill_history(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):

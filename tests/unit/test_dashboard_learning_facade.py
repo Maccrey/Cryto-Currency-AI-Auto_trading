@@ -59,3 +59,56 @@ def test_dashboard_learning_facade_returns_empty_without_events(tmp_path: Path) 
         "status": "empty",
         "learning": None,
     }
+
+
+def test_dashboard_learning_facade_returns_health_summary(tmp_path: Path) -> None:
+    learning_service = LearningService(log_dir=tmp_path)
+    learning_service.record_many(
+        [
+            LearningEvent(
+                event_name="signal_generated",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"level": "strong"},
+            ),
+            LearningEvent(
+                event_name="fill_result",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"side": "buy"},
+            ),
+            LearningEvent(
+                event_name="position_opened",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"quantity": 100.0},
+            ),
+            LearningEvent(
+                event_name="promotion_review_completed",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"evaluation_status": "READY_FOR_REVIEW"},
+            ),
+        ],
+    )
+    facade = DashboardLearningFacade(
+        learning_service=learning_service,
+        dashboard_learning_service=DashboardLearningService(),
+    )
+
+    response = facade.build_health_response(limit=4)
+
+    assert response["status"] == "ok"
+    assert response["health"]["total_events"] == 4
+    assert response["health"]["category_counts"] == {
+        "signals": 1,
+        "fills": 1,
+        "positions": 1,
+        "promotion": 1,
+    }
+    assert set(response["health"]["last_event_by_category"]) == {
+        "signals",
+        "fills",
+        "positions",
+        "promotion",
+    }

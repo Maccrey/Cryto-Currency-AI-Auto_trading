@@ -15,8 +15,25 @@ class DashboardLearning:
     recent_events: list[dict[str, object]]
 
 
+@dataclass(frozen=True)
+class DashboardLearningHealth:
+    total_events: int
+    last_recorded_at: str | None
+    category_counts: dict[str, int]
+    last_event_by_category: dict[str, str | None]
+
+
 class DashboardLearningService:
     """Build dashboard-friendly learning event payloads."""
+
+    CATEGORY_BY_EVENT_PREFIX: tuple[tuple[str, str], ...] = (
+        ("signal_", "signals"),
+        ("fill_", "fills"),
+        ("position_", "positions"),
+        ("promotion_", "promotion"),
+        ("restart_", "recovery"),
+        ("recovery_", "recovery"),
+    )
 
     def build(
         self,
@@ -39,3 +56,35 @@ class DashboardLearningService:
     @staticmethod
     def to_payload(learning: DashboardLearning) -> dict[str, object]:
         return asdict(learning)
+
+    def build_health(
+        self,
+        *,
+        events: list[LearningEvent],
+    ) -> DashboardLearningHealth | None:
+        if not events:
+            return None
+
+        category_counts: Counter[str] = Counter()
+        last_event_by_category: dict[str, str | None] = {}
+        for event in events:
+            category = self._categorize_event(event.event_name)
+            category_counts[category] += 1
+            last_event_by_category[category] = event.recorded_at
+
+        return DashboardLearningHealth(
+            total_events=len(events),
+            last_recorded_at=events[-1].recorded_at,
+            category_counts=dict(category_counts),
+            last_event_by_category=last_event_by_category,
+        )
+
+    @staticmethod
+    def to_health_payload(health: DashboardLearningHealth) -> dict[str, object]:
+        return asdict(health)
+
+    def _categorize_event(self, event_name: str) -> str:
+        for prefix, category in self.CATEGORY_BY_EVENT_PREFIX:
+            if event_name.startswith(prefix):
+                return category
+        return "other"

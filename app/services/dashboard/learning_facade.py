@@ -28,3 +28,16 @@ class DashboardLearningFacade:
             "status": "ok",
             "learning": self._dashboard_learning_service.to_payload(learning),
         }
+
+    def build_health_response(self, *, limit: int = 50) -> dict[str, object]:
+        events = self._learning_service.recent_events(limit=limit)
+        learning_health = self._dashboard_learning_service.build_health(events=events)
+        if learning_health is None:
+            return {
+                "status": "empty",
+                "health": None,
+            }
+        return {
+            "status": "ok",
+            "health": self._dashboard_learning_service.to_health_payload(learning_health),
+        }
