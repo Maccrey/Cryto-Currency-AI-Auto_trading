@@ -11,6 +11,7 @@ from app.core.settings import load_settings
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
 from app.integrations.telegram.restart_notifier import RestartNotifier
+from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningService
@@ -42,6 +43,7 @@ def create_app(
     recovery_orchestrator: RecoveryOrchestrator | None = None,
     promotion_dashboard_service: PromotionDashboardService | None = None,
     dashboard_summary_service: DashboardSummaryService | None = None,
+    dashboard_summary_facade: DashboardSummaryFacade | None = None,
     learning_service: LearningService | None = None,
     promotion_runner: PromotionRunner | None = None,
     promotion_dashboard_facade: PromotionDashboardFacade | None = None,
@@ -99,6 +101,11 @@ def create_app(
     promotion_state_service = promotion_services.state_service
     promotion_dashboard_facade = promotion_services.dashboard_facade
     promotion_review_service = promotion_services.review_service
+    if dashboard_summary_facade is None:
+        dashboard_summary_facade = DashboardSummaryFacade(
+            dashboard_summary_service=dashboard_summary_service,
+            promotion_dashboard_facade=promotion_dashboard_facade,
+        )
 
     boot_state = recovery_orchestrator.boot()
     if boot_notification_dispatcher is not None:
@@ -124,21 +131,11 @@ def create_app(
 
     @app.get("/dashboard/summary")
     def dashboard_summary() -> dict[str, object]:
-        summary = dashboard_summary_service.build(
+        return dashboard_summary_facade.build_response(
             boot_state=boot_state,
             trading_mode=settings.trading_mode,
             learning_enabled=settings.learning_enabled,
-            realized_pnl=0.0,
-            unrealized_pnl=0.0,
-            buy_count=0,
-            sell_count=0,
-            stop_loss_count=0,
-            recent_stop_loss_reason=None,
-            promotion_ready=promotion_dashboard_facade.is_ready_for_review(),
         )
-        if isinstance(summary, dict):
-            return summary
-        return dashboard_summary_service.to_payload(summary)
 
     @app.get("/dashboard/promotion")
     def dashboard_promotion() -> dict[str, object]:
