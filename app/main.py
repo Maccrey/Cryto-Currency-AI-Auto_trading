@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.api.routes.decision import build_decision_router
 from app.api.routes.dashboard import build_dashboard_router
 from app.api.routes.health import build_health_router
+from app.api.routes.market import build_market_router
 from app.api.routes.position import build_position_router
 from app.api.routes.promotion import build_promotion_router
 from app.core.logging import configure_logging
@@ -123,7 +124,9 @@ def create_app(
     )
     execution_ledger = execution_ledger or ExecutionLedger()
 
-    market_price_store = market_price_store or MarketPriceStore()
+    market_price_store = market_price_store or MarketPriceStore(
+        timestamp_provider=timestamp_provider,
+    )
     if trade_decision_service is None:
         trade_decision_service = TradeDecisionService(
             feature_calculator=MarketFeatureCalculator(),
@@ -233,6 +236,12 @@ def create_app(
             stop_loss_overlay_service=StopLossOverlayService(),
             position_risk_service=position_risk_service,
             position_exit_service=position_exit_service,
+            market_price_store=market_price_store,
+        ),
+    )
+    app.include_router(
+        build_market_router(
+            market=settings.trade_market,
             market_price_store=market_price_store,
         ),
     )

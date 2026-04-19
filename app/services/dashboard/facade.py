@@ -38,7 +38,7 @@ class DashboardSummaryFacade:
         if self._position_store is not None and self._market_price_store is not None:
             position = self._position_store.get()
             if position is not None:
-                latest_price = self._market_price_store.get(position.market)
+                latest_price = self._market_price_store.get_price(position.market)
                 if latest_price is not None:
                     unrealized_pnl = round(
                         (latest_price - position.entry_price) * position.quantity,
