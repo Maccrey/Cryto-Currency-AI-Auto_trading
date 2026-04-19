@@ -1,4 +1,5 @@
 from app.services.execution.demo import DemoExecutor
+from app.services.learning.service import LearningEvent
 from app.services.position.exit import PositionExitService
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.hard_stop import HardStopMonitor
@@ -11,12 +12,29 @@ class ForbiddenLiveOrderGateway:
         raise AssertionError("live gateway should not be called in demo execution")
 
 
+class LearningServiceStub:
+    def __init__(self) -> None:
+        self.events: list[LearningEvent] = []
+
+    def record(self, event: LearningEvent) -> None:
+        self.events.append(event)
+
+
+class TelegramNotifierStub:
+    def __init__(self) -> None:
+        self.fills = []
+
+    def notify_fill(self, fill) -> None:
+        self.fills.append(fill)
+
+
 def _build_service(store: CurrentPositionStore) -> PositionExitService:
     return PositionExitService(
         position_store=store,
         hard_stop_monitor=HardStopMonitor(),
         post_entry_validator=PostEntryValidator(),
         executor=DemoExecutor(live_order_gateway=ForbiddenLiveOrderGateway()),
+        trading_mode="demo",
     )
 
 
@@ -40,6 +58,8 @@ def test_position_exit_service_returns_empty_without_position() -> None:
 
 def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
     store = CurrentPositionStore()
+    learning_service = LearningServiceStub()
+    telegram_notifier = TelegramNotifierStub()
     store.save(
         PositionSnapshot(
             market="KRW-XRP",
@@ -53,7 +73,15 @@ def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
             stop_loss_reason=None,
         ),
     )
-    service = _build_service(store)
+    service = PositionExitService(
+        position_store=store,
+        hard_stop_monitor=HardStopMonitor(),
+        post_entry_validator=PostEntryValidator(),
+        executor=DemoExecutor(live_order_gateway=ForbiddenLiveOrderGateway()),
+        trading_mode="demo",
+        learning_service=learning_service,
+        telegram_notifier=telegram_notifier,
+    )
 
     result = service.evaluate_and_execute(
         current_price=805.0,
@@ -72,6 +100,11 @@ def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
     assert result["execution"]["is_stop_loss"] is True
     assert result["position"] is None
     assert store.get() is None
+    assert len(learning_service.events) == 1
+    assert learning_service.events[0].event_name == "position_exit_completed"
+    assert learning_service.events[0].payload["trigger_type"] == "hard_stop"
+    assert len(telegram_notifier.fills) == 1
+    assert telegram_notifier.fills[0].is_stop_loss is True
 
 
 def test_position_exit_service_updates_position_after_partial_post_entry_exit() -> None:

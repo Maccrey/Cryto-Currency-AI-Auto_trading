@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import asdict, replace
 from typing import Any
 
+from app.integrations.telegram.notifier import TelegramNotifier
 from app.services.execution.demo import OrderIntent
+from app.services.learning.service import LearningEvent, LearningService
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.hard_stop import HardStopMonitor
 from app.services.risk.post_entry import PostEntryValidator
@@ -19,11 +21,17 @@ class PositionExitService:
         hard_stop_monitor: HardStopMonitor,
         post_entry_validator: PostEntryValidator,
         executor: Any,
+        trading_mode: str,
+        learning_service: LearningService | None = None,
+        telegram_notifier: TelegramNotifier | None = None,
     ) -> None:
         self._position_store = position_store
         self._hard_stop_monitor = hard_stop_monitor
         self._post_entry_validator = post_entry_validator
         self._executor = executor
+        self._trading_mode = trading_mode
+        self._learning_service = learning_service
+        self._telegram_notifier = telegram_notifier
 
     def evaluate_and_execute(
         self,
@@ -58,6 +66,18 @@ class PositionExitService:
                 ),
             )
             self._position_store.clear()
+            self._record_exit_event(
+                position=position,
+                trigger_type="hard_stop",
+                reason_code=hard_stop.reason_code,
+                exit_ratio=1.0,
+                current_price=current_price,
+                elapsed_sec=elapsed_sec,
+                momentum_score=momentum_score,
+                orderbook_imbalance=orderbook_imbalance,
+                execution=execution,
+                remaining_quantity=0.0,
+            )
             return {
                 "status": "ok",
                 "position": None,
@@ -102,6 +122,18 @@ class PositionExitService:
         else:
             updated_position = replace(position, quantity=remaining_quantity)
             self._position_store.save(updated_position)
+        self._record_exit_event(
+            position=position,
+            trigger_type="post_entry",
+            reason_code=post_entry.reason_code,
+            exit_ratio=post_entry.exit_ratio,
+            current_price=current_price,
+            elapsed_sec=elapsed_sec,
+            momentum_score=momentum_score,
+            orderbook_imbalance=orderbook_imbalance,
+            execution=execution,
+            remaining_quantity=remaining_quantity,
+        )
 
         return {
             "status": "ok",
@@ -113,3 +145,42 @@ class PositionExitService:
             },
             "execution": None if execution is None else asdict(execution),
         }
+
+    def _record_exit_event(
+        self,
+        *,
+        position,
+        trigger_type: str,
+        reason_code: str | None,
+        exit_ratio: float,
+        current_price: float,
+        elapsed_sec: int,
+        momentum_score: float,
+        orderbook_imbalance: float,
+        execution: Any,
+        remaining_quantity: float,
+    ) -> None:
+        if self._learning_service is not None:
+            self._learning_service.record(
+                LearningEvent(
+                    event_name="position_exit_completed",
+                    market=position.market,
+                    mode=getattr(execution, "mode", self._trading_mode),
+                    payload={
+                        "trigger_type": trigger_type,
+                        "reason_code": reason_code,
+                        "exit_ratio": exit_ratio,
+                        "current_price": current_price,
+                        "elapsed_sec": elapsed_sec,
+                        "momentum_score": momentum_score,
+                        "orderbook_imbalance": orderbook_imbalance,
+                        "entry_price": position.entry_price,
+                        "previous_quantity": position.quantity,
+                        "remaining_quantity": max(remaining_quantity, 0.0),
+                        "execution_status": getattr(execution, "status", None),
+                        "is_stop_loss": getattr(execution, "is_stop_loss", True),
+                    },
+                ),
+            )
+        if self._telegram_notifier is not None and hasattr(execution, "filled_price"):
+            self._telegram_notifier.notify_fill(execution)

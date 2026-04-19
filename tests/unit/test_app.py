@@ -53,6 +53,14 @@ class LearningServiceStub:
         self.events.append(event)
 
 
+class TelegramNotifierStub:
+    def __init__(self) -> None:
+        self.fills = []
+
+    def notify_fill(self, fill) -> None:
+        self.fills.append(fill)
+
+
 class TradeDecisionServiceStub:
     def evaluate(self, request):
         self.request = request
@@ -457,6 +465,74 @@ def test_position_endpoints_return_saved_position_and_overlay(monkeypatch) -> No
         "status": "empty",
         "position": None,
     }
+
+
+def test_position_exit_records_learning_event_and_notifies_fill(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    learning_service = LearningServiceStub()
+    trade_fill_notifier = TelegramNotifierStub()
+
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            learning_service=learning_service,
+            trade_fill_notifier=trade_fill_notifier,
+        ),
+    )
+
+    execute_response = client.post(
+        "/decision/execute",
+        json={
+            "prices": [800.0, 806.0, 813.0, 820.0],
+            "traded_values": [800000.0, 850000.0, 1200000.0, 2100000.0],
+            "spread_bps": 8.0,
+            "orderbook_imbalance": 0.24,
+            "liquidity_score": 0.9,
+            "regime_score": 0.78,
+            "current_price": 820.0,
+            "slippage_bps": 10.0,
+            "portfolio": {
+                "cash_balance": 500000.0,
+                "asset_currency": "XRP",
+                "asset_balance": 0.0,
+                "avg_buy_price": 0.0,
+            },
+            "safe_mode": False,
+            "recent_loss_streak": 0,
+        },
+    )
+    assert execute_response.status_code == 200
+
+    stop_loss_price = client.get("/position/current").json()["position"]["stop_loss_price"]
+    exit_response = client.post(
+        "/position/exit",
+        json={
+            "current_price": stop_loss_price - 0.24,
+            "elapsed_sec": 181,
+            "momentum_score": 0.41,
+            "orderbook_imbalance": -0.12,
+        },
+    )
+
+    assert exit_response.status_code == 200
+    assert len(trade_fill_notifier.fills) == 1
+    assert trade_fill_notifier.fills[0].side == "sell"
+    assert trade_fill_notifier.fills[0].is_stop_loss is True
+    assert [event.event_name for event in learning_service.events][-1] == "position_exit_completed"
+    assert learning_service.events[-1].payload["trigger_type"] == "hard_stop"
 
 
 def test_startup_sync_failure_keeps_safe_mode(monkeypatch) -> None:

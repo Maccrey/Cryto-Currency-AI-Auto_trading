@@ -15,6 +15,7 @@ from app.core.settings import load_settings
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
 from app.integrations.telegram.restart_notifier import RestartNotifier
+from app.integrations.telegram.notifier import TelegramNotifier
 from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.factory import build_dashboard_services
 from app.services.dashboard.promotion import PromotionDashboardService
@@ -69,6 +70,7 @@ def create_app(
     post_fill_service: PostFillService | None = None,
     position_exit_service: PositionExitService | None = None,
     position_store: CurrentPositionStore | None = None,
+    trade_fill_notifier: TelegramNotifier | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     restart_notifier: RestartNotifier | None = None,
     hard_stop_notifier: HardStopNotifier | None = None,
@@ -162,6 +164,9 @@ def create_app(
             hard_stop_monitor=HardStopMonitor(),
             post_entry_validator=PostEntryValidator(),
             executor=executor,
+            trading_mode=settings.trading_mode,
+            learning_service=learning_service,
+            telegram_notifier=trade_fill_notifier,
         )
     if post_fill_service is None:
         post_fill_service = PostFillService(
