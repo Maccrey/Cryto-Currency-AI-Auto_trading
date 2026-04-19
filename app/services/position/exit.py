@@ -188,6 +188,22 @@ class PositionExitService:
                     },
                 ),
             )
+            self._learning_service.record(
+                LearningEvent(
+                    event_name="position_lifecycle_updated",
+                    market=position.market,
+                    mode=getattr(execution, "mode", self._trading_mode),
+                    payload={
+                        "event_type": "closed" if max(remaining_quantity, 0.0) <= 0 else "reduced",
+                        "reason_code": reason_code,
+                        "signal_level": position.signal_level,
+                        "entry_price": position.entry_price,
+                        "previous_quantity": position.quantity,
+                        "remaining_quantity": max(remaining_quantity, 0.0),
+                        "stop_loss_price": position.stop_loss_price,
+                    },
+                ),
+            )
         if self._execution_ledger is not None and isinstance(execution, FillResult):
             self._execution_ledger.record_fill(execution, reason_code=reason_code)
         if self._position_lifecycle_ledger is not None:

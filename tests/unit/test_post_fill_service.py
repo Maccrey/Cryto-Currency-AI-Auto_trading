@@ -1,4 +1,5 @@
 from app.services.execution.demo import DemoExecutor
+from app.services.learning.service import LearningEvent
 from app.services.portfolio.sync import PortfolioState
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
@@ -23,6 +24,14 @@ class TelegramNotifierStub:
 
     def notify_fill(self, fill) -> None:
         self.fills.append(fill)
+
+
+class LearningServiceStub:
+    def __init__(self) -> None:
+        self.events: list[LearningEvent] = []
+
+    def record(self, event: LearningEvent) -> None:
+        self.events.append(event)
 
 
 def _build_execution_result(safe_mode: bool = False):
@@ -69,6 +78,7 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
     lifecycle_ledger = PositionLifecycleLedger(
         timestamp_provider=lambda: "2026-04-19T21:20:00+09:00",
     )
+    learning_service = LearningServiceStub()
     service = PostFillService(
         stop_loss_injector=StopLossInjector(
             stop_loss_by_signal={
@@ -83,6 +93,7 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
         position_store=store,
         telegram_notifier=notifier,
         position_lifecycle_ledger=lifecycle_ledger,
+        learning_service=learning_service,
     )
 
     result = service.process(_build_execution_result())
@@ -97,6 +108,7 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
     records = lifecycle_ledger.list_records()
     assert len(records) == 1
     assert records[0].event_type == "opened"
+    assert [event.event_name for event in learning_service.events] == ["position_opened"]
 
 
 def test_post_fill_service_skips_position_when_execution_blocked() -> None:

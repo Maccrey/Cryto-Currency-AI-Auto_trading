@@ -584,8 +584,13 @@ def test_position_exit_records_learning_event_and_notifies_fill(monkeypatch) -> 
     assert trade_fill_notifier.fills[0].side == "buy"
     assert trade_fill_notifier.fills[-1].side == "sell"
     assert trade_fill_notifier.fills[-1].is_stop_loss is True
-    assert [event.event_name for event in learning_service.events][-1] == "position_exit_completed"
-    assert learning_service.events[-1].payload["trigger_type"] == "hard_stop"
+    assert [event.event_name for event in learning_service.events][-3:] == [
+        "position_opened",
+        "position_exit_completed",
+        "position_lifecycle_updated",
+    ]
+    assert learning_service.events[-2].payload["trigger_type"] == "hard_stop"
+    assert learning_service.events[-1].payload["event_type"] == "closed"
 
 
 def test_summary_endpoint_reflects_runtime_execution_counts(monkeypatch) -> None:

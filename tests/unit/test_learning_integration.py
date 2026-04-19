@@ -3,9 +3,16 @@ from __future__ import annotations
 from app.services.execution.demo import DemoExecutor, OrderIntent
 from app.services.learning.service import LearningEvent
 from app.services.portfolio.sync import PortfolioState
+from app.services.position.ledger import PositionLifecycleLedger
+from app.services.position.store import CurrentPositionStore
 from app.services.recovery.orchestrator import RecoveryOrchestrator
+from app.services.risk.hard_stop import HardStopMonitor
+from app.services.risk.post_entry import PostEntryValidator
+from app.services.risk.stop_loss import PositionSnapshot, StopLossInjector
 from app.services.signals.engine import SignalEngine
 from app.services.signals.features import FeatureSnapshot
+from app.services.trading.post_fill import PostFillService
+from app.services.position.exit import PositionExitService
 
 
 class StubLearningService:
@@ -115,3 +122,85 @@ def test_recovery_orchestrator_records_restart_and_recovery_events() -> None:
         "recovery_completed",
     ]
 
+
+def test_post_fill_service_records_position_opened_learning_event() -> None:
+    learning_service = StubLearningService()
+    store = CurrentPositionStore()
+    lifecycle_ledger = PositionLifecycleLedger()
+    executor = DemoExecutor(
+        live_order_gateway=ForbiddenLiveOrderGateway(),
+        learning_service=learning_service,
+    )
+    fill = executor.execute(
+        OrderIntent(
+            market="KRW-XRP",
+            side="buy",
+            price=820.0,
+            quantity=120.5,
+            order_type="limit",
+            is_stop_loss=False,
+        ),
+    )
+    post_fill_service = PostFillService(
+        stop_loss_injector=StopLossInjector(
+            stop_loss_by_signal={"strong": 0.018},
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+        ),
+        position_store=store,
+        position_lifecycle_ledger=lifecycle_ledger,
+        learning_service=learning_service,
+    )
+
+    class Signal:
+        level = "strong"
+
+    class Decision:
+        signal = Signal()
+
+    class ExecutionResult:
+        status = "filled"
+        execution = fill
+        decision = Decision()
+
+    post_fill_service.process(ExecutionResult())
+
+    assert [event.event_name for event in learning_service.events][-1] == "position_opened"
+
+
+def test_position_exit_service_records_lifecycle_learning_event() -> None:
+    learning_service = StubLearningService()
+    store = CurrentPositionStore()
+    store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="strong",
+            entry_price=820.0,
+            quantity=100.0,
+            stop_loss_price=805.24,
+            stop_loss_pct=0.018,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    service = PositionExitService(
+        position_store=store,
+        hard_stop_monitor=HardStopMonitor(),
+        post_entry_validator=PostEntryValidator(),
+        executor=DemoExecutor(live_order_gateway=ForbiddenLiveOrderGateway()),
+        trading_mode="demo",
+        learning_service=learning_service,
+    )
+
+    service.evaluate_and_execute(
+        current_price=805.0,
+        elapsed_sec=181,
+        momentum_score=0.41,
+        orderbook_imbalance=-0.12,
+    )
+
+    assert [event.event_name for event in learning_service.events] == [
+        "position_exit_completed",
+        "position_lifecycle_updated",
+    ]

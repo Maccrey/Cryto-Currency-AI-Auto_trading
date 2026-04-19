@@ -105,9 +105,12 @@ def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
     assert result["execution"]["is_stop_loss"] is True
     assert result["position"] is None
     assert store.get() is None
-    assert len(learning_service.events) == 1
-    assert learning_service.events[0].event_name == "position_exit_completed"
+    assert [event.event_name for event in learning_service.events] == [
+        "position_exit_completed",
+        "position_lifecycle_updated",
+    ]
     assert learning_service.events[0].payload["trigger_type"] == "hard_stop"
+    assert learning_service.events[1].payload["event_type"] == "closed"
     assert len(telegram_notifier.fills) == 1
     assert telegram_notifier.fills[0].is_stop_loss is True
     records = lifecycle_ledger.list_records()

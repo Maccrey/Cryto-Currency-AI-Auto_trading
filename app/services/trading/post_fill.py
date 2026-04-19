@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from app.integrations.telegram.notifier import TelegramNotifier
 from app.services.execution.demo import FillResult
 from app.services.execution.ledger import ExecutionLedger
+from app.services.learning.service import LearningEvent, LearningService
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.stop_loss import PositionSnapshot, StopLossInjector
@@ -28,12 +29,14 @@ class PostFillService:
         telegram_notifier: TelegramNotifier | None = None,
         execution_ledger: ExecutionLedger | None = None,
         position_lifecycle_ledger: PositionLifecycleLedger | None = None,
+        learning_service: LearningService | None = None,
     ) -> None:
         self._stop_loss_injector = stop_loss_injector
         self._position_store = position_store
         self._telegram_notifier = telegram_notifier
         self._execution_ledger = execution_ledger
         self._position_lifecycle_ledger = position_lifecycle_ledger
+        self._learning_service = learning_service
 
     def process(self, execution_result: TradeExecutionResult) -> PostFillResult:
         execution = execution_result.execution
@@ -66,6 +69,22 @@ class PostFillService:
             self._position_lifecycle_ledger.record(
                 event_type="opened",
                 position=position,
+            )
+        if self._learning_service is not None:
+            self._learning_service.record(
+                LearningEvent(
+                    event_name="position_opened",
+                    market=position.market,
+                    mode=execution.mode,
+                    payload={
+                        "signal_level": position.signal_level,
+                        "entry_price": position.entry_price,
+                        "quantity": position.quantity,
+                        "stop_loss_price": position.stop_loss_price,
+                        "validation_window_sec": position.validation_window_sec,
+                        "min_expected_return_pct": position.min_expected_return_pct,
+                    },
+                ),
             )
         if self._execution_ledger is not None:
             self._execution_ledger.record_fill(execution)

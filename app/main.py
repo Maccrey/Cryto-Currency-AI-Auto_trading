@@ -205,6 +205,7 @@ def create_app(
             telegram_notifier=trade_fill_notifier,
             execution_ledger=execution_ledger,
             position_lifecycle_ledger=position_lifecycle_ledger,
+            learning_service=learning_service,
         )
 
     app = FastAPI(title=settings.app_name)
