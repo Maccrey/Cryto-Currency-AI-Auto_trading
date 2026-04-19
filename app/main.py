@@ -18,6 +18,7 @@ from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.factory import build_dashboard_services
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
+from app.services.execution.factory import ExecutionFactory
 from app.services.learning.service import LearningService
 from app.services.notification.factory import build_notification_services
 from app.services.promotion.dashboard import PromotionDashboardFacade
@@ -34,6 +35,12 @@ from app.services.signals.features import MarketFeatureCalculator
 from app.services.regime.engine import RegimeEngine
 from app.services.sizing.engine import SizingEngine
 from app.services.trading.decision import TradeDecisionService
+from app.services.trading.execution import TradeExecutionService
+
+
+class NoOpLiveOrderGateway:
+    def place_order(self, **kwargs) -> dict[str, object]:
+        return {"uuid": "blocked", "state": "noop"}
 
 
 def create_app(
@@ -49,6 +56,7 @@ def create_app(
     promotion_history_store: PromotionHistoryStore | None = None,
     promotion_status_store: PromotionStatusStore | None = None,
     trade_decision_service: TradeDecisionService | None = None,
+    trade_execution_service: TradeExecutionService | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     restart_notifier: RestartNotifier | None = None,
     hard_stop_notifier: HardStopNotifier | None = None,
@@ -117,6 +125,17 @@ def create_app(
         )
 
     boot_state = runtime_services.runtime_service.start()
+    if trade_execution_service is None:
+        trade_execution_service = TradeExecutionService(
+            executor=ExecutionFactory(
+                live_order_gateway=NoOpLiveOrderGateway(),
+            ).create(
+                trading_mode=settings.trading_mode,
+                safe_mode=boot_state.safe_mode,
+                hard_stop=boot_state.hard_stop,
+            ),
+            market=settings.trade_market,
+        )
 
     app = FastAPI(title=settings.app_name)
     app.include_router(
@@ -144,6 +163,7 @@ def create_app(
     app.include_router(
         build_decision_router(
             trade_decision_service=trade_decision_service,
+            trade_execution_service=trade_execution_service,
         ),
     )
     return app

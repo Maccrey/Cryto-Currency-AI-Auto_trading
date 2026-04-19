@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from app.services.portfolio.sync import PortfolioState
 from app.services.trading.decision import TradeDecisionRequest, TradeDecisionService
+from app.services.trading.execution import TradeExecutionService
 
 
 class PortfolioPayload(BaseModel):
@@ -31,29 +32,48 @@ class TradeDecisionPayload(BaseModel):
 def build_decision_router(
     *,
     trade_decision_service: TradeDecisionService,
+    trade_execution_service: TradeExecutionService | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/decision")
 
     @router.post("/entry")
     def evaluate_entry(payload: TradeDecisionPayload) -> dict[str, object]:
-        result = trade_decision_service.evaluate(
-            TradeDecisionRequest(
-                prices=payload.prices,
-                traded_values=payload.traded_values,
-                spread_bps=payload.spread_bps,
-                orderbook_imbalance=payload.orderbook_imbalance,
-                liquidity_score=payload.liquidity_score,
-                regime_score=payload.regime_score,
-                current_price=payload.current_price,
-                slippage_bps=payload.slippage_bps,
-                portfolio=PortfolioState(**payload.portfolio.model_dump()),
-                safe_mode=payload.safe_mode,
-                recent_loss_streak=payload.recent_loss_streak,
-            ),
-        )
+        result = trade_decision_service.evaluate(_build_request(payload))
         return {
             "status": "ok",
             "decision": trade_decision_service.to_payload(result),
         }
 
+    @router.post("/execute")
+    def execute_entry(payload: TradeDecisionPayload) -> dict[str, object]:
+        result = trade_decision_service.evaluate(_build_request(payload))
+        if trade_execution_service is None:
+            return {
+                "status": "not_configured",
+                "decision": trade_decision_service.to_payload(result),
+                "execution": None,
+            }
+        execution_result = trade_execution_service.execute(result)
+        return {
+            "status": "ok",
+            "decision": trade_decision_service.to_payload(result),
+            "execution": trade_execution_service.to_payload(execution_result),
+        }
+
     return router
+
+
+def _build_request(payload: TradeDecisionPayload) -> TradeDecisionRequest:
+    return TradeDecisionRequest(
+        prices=payload.prices,
+        traded_values=payload.traded_values,
+        spread_bps=payload.spread_bps,
+        orderbook_imbalance=payload.orderbook_imbalance,
+        liquidity_score=payload.liquidity_score,
+        regime_score=payload.regime_score,
+        current_price=payload.current_price,
+        slippage_bps=payload.slippage_bps,
+        portfolio=PortfolioState(**payload.portfolio.model_dump()),
+        safe_mode=payload.safe_mode,
+        recent_loss_streak=payload.recent_loss_streak,
+    )
