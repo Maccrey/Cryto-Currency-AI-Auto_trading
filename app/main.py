@@ -10,9 +10,11 @@ from app.core.logging import configure_logging
 from app.core.settings import load_settings
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
+from app.integrations.telegram.restart_notifier import RestartNotifier
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningService
+from app.services.notification.factory import build_notification_services
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.promotion.factory import build_promotion_services
 from app.services.promotion.history import PromotionHistoryStore
@@ -48,6 +50,7 @@ def create_app(
     promotion_history_store: PromotionHistoryStore | None = None,
     promotion_status_store: PromotionStatusStore | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
+    restart_notifier: RestartNotifier | None = None,
     hard_stop_notifier: HardStopNotifier | None = None,
     timestamp_provider: Callable[[], str] | None = None,
 ) -> FastAPI:
@@ -75,10 +78,12 @@ def create_app(
         dashboard_summary_service = DashboardSummaryService()
     if promotion_dashboard_service is None:
         promotion_dashboard_service = PromotionDashboardService()
-    if boot_notification_dispatcher is None and hard_stop_notifier is not None:
-        boot_notification_dispatcher = BootNotificationDispatcher(
-            hard_stop_notifier=hard_stop_notifier,
-        )
+    notification_services = build_notification_services(
+        boot_notification_dispatcher=boot_notification_dispatcher,
+        restart_notifier=restart_notifier,
+        hard_stop_notifier=hard_stop_notifier,
+    )
+    boot_notification_dispatcher = notification_services.boot_notification_dispatcher
     promotion_services = build_promotion_services(
         trading_mode=settings.trading_mode,
         learning_service=learning_service,
