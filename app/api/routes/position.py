@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.services.dashboard.overlay import StopLossOverlayService
+from app.services.market.store import MarketPriceStore
 from app.services.position.exit import PositionExitService
 from app.services.position.risk import PositionRiskService
 from app.services.position.store import CurrentPositionStore
@@ -22,6 +23,7 @@ def build_position_router(
     stop_loss_overlay_service: StopLossOverlayService,
     position_risk_service: PositionRiskService,
     position_exit_service: PositionExitService | None = None,
+    market_price_store: MarketPriceStore | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/position")
 
@@ -53,6 +55,9 @@ def build_position_router(
 
     @router.post("/risk-check")
     def position_risk_check(payload: PositionRiskPayload) -> dict[str, object]:
+        position = position_store.get()
+        if market_price_store is not None and position is not None:
+            market_price_store.save(market=position.market, price=payload.current_price)
         return position_risk_service.evaluate(
             current_price=payload.current_price,
             elapsed_sec=payload.elapsed_sec,
@@ -69,6 +74,9 @@ def build_position_router(
                 "trigger": None,
                 "execution": None,
             }
+        position = position_store.get()
+        if market_price_store is not None and position is not None:
+            market_price_store.save(market=position.market, price=payload.current_price)
         return position_exit_service.evaluate_and_execute(
             current_price=payload.current_price,
             elapsed_sec=payload.elapsed_sec,

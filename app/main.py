@@ -23,6 +23,7 @@ from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.ledger import ExecutionLedger
 from app.services.execution.factory import ExecutionFactory
 from app.services.learning.service import LearningService
+from app.services.market.store import MarketPriceStore
 from app.services.notification.factory import build_notification_services
 from app.services.dashboard.overlay import StopLossOverlayService
 from app.services.position.exit import PositionExitService
@@ -72,6 +73,7 @@ def create_app(
     position_exit_service: PositionExitService | None = None,
     position_store: CurrentPositionStore | None = None,
     execution_ledger: ExecutionLedger | None = None,
+    market_price_store: MarketPriceStore | None = None,
     trade_fill_notifier: TelegramNotifier | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     restart_notifier: RestartNotifier | None = None,
@@ -121,12 +123,7 @@ def create_app(
     )
     execution_ledger = execution_ledger or ExecutionLedger()
 
-    dashboard_services = build_dashboard_services(
-        promotion_dashboard_facade=promotion_services.dashboard_facade,
-        execution_ledger=execution_ledger,
-        dashboard_summary_service=dashboard_summary_service,
-        dashboard_summary_facade=dashboard_summary_facade,
-    )
+    market_price_store = market_price_store or MarketPriceStore()
     if trade_decision_service is None:
         trade_decision_service = TradeDecisionService(
             feature_calculator=MarketFeatureCalculator(),
@@ -157,6 +154,14 @@ def create_app(
         )
     if position_store is None:
         position_store = CurrentPositionStore()
+    dashboard_services = build_dashboard_services(
+        promotion_dashboard_facade=promotion_services.dashboard_facade,
+        execution_ledger=execution_ledger,
+        position_store=position_store,
+        market_price_store=market_price_store,
+        dashboard_summary_service=dashboard_summary_service,
+        dashboard_summary_facade=dashboard_summary_facade,
+    )
     position_risk_service = PositionRiskService(
         position_store=position_store,
         hard_stop_monitor=HardStopMonitor(),
@@ -215,9 +220,11 @@ def create_app(
     )
     app.include_router(
         build_decision_router(
+            market=settings.trade_market,
             trade_decision_service=trade_decision_service,
             trade_execution_service=trade_execution_service,
             post_fill_service=post_fill_service,
+            market_price_store=market_price_store,
         ),
     )
     app.include_router(
@@ -226,6 +233,7 @@ def create_app(
             stop_loss_overlay_service=StopLossOverlayService(),
             position_risk_service=position_risk_service,
             position_exit_service=position_exit_service,
+            market_price_store=market_price_store,
         ),
     )
     return app

@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.services.market.store import MarketPriceStore
 from app.services.portfolio.sync import PortfolioState
 from app.services.trading.decision import TradeDecisionRequest, TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
@@ -32,14 +33,18 @@ class TradeDecisionPayload(BaseModel):
 
 def build_decision_router(
     *,
+    market: str,
     trade_decision_service: TradeDecisionService,
     trade_execution_service: TradeExecutionService | None = None,
     post_fill_service: PostFillService | None = None,
+    market_price_store: MarketPriceStore | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/decision")
 
     @router.post("/entry")
     def evaluate_entry(payload: TradeDecisionPayload) -> dict[str, object]:
+        if market_price_store is not None:
+            market_price_store.save(market=market, price=payload.current_price)
         result = trade_decision_service.evaluate(_build_request(payload))
         return {
             "status": "ok",
@@ -48,6 +53,8 @@ def build_decision_router(
 
     @router.post("/execute")
     def execute_entry(payload: TradeDecisionPayload) -> dict[str, object]:
+        if market_price_store is not None:
+            market_price_store.save(market=market, price=payload.current_price)
         result = trade_decision_service.evaluate(_build_request(payload))
         if trade_execution_service is None:
             return {
