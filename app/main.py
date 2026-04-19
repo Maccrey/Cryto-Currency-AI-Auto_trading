@@ -10,20 +10,15 @@ from app.core.logging import configure_logging
 from app.core.settings import load_settings
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
-from app.integrations.telegram.lifecycle_notification_dispatcher import (
-    LifecycleNotificationDispatcher,
-)
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningService
 from app.services.portfolio.sync import PortfolioSyncService
-from app.services.promotion.approval import PromotionApprovalFlow
 from app.services.promotion.dashboard import PromotionDashboardFacade
-from app.services.promotion.evaluator import PromotionEvaluator
+from app.services.promotion.factory import build_promotion_services
 from app.services.promotion.history import PromotionHistoryStore
-from app.services.promotion.lifecycle import PromotionLifecycleService
 from app.services.promotion.review import PromotionReviewService
 from app.services.promotion.runner import PromotionRunner
 from app.services.promotion.state import PromotionStateService
@@ -100,37 +95,21 @@ def create_app(
         boot_notification_dispatcher = BootNotificationDispatcher(
             hard_stop_notifier=hard_stop_notifier,
         )
-    if promotion_runner is None:
-        promotion_runner = PromotionRunner(
-            lifecycle_service=PromotionLifecycleService(
-                evaluator=PromotionEvaluator(
-                    min_demo_days=14,
-                    min_trades=100,
-                    min_profit_factor=1.2,
-                    max_drawdown=0.08,
-                    max_stoploss_failures=0,
-                ),
-                approval_flow=PromotionApprovalFlow(),
-                notification_dispatcher=LifecycleNotificationDispatcher(),
-            ),
-        )
-    if promotion_state_service is None:
-        promotion_state_service = PromotionStateService(
-            status_store=promotion_status_store,
-            history_store=promotion_history_store,
-        )
-    if promotion_dashboard_facade is None:
-        promotion_dashboard_facade = PromotionDashboardFacade(
-            promotion_state_service=promotion_state_service,
-            promotion_dashboard_service=promotion_dashboard_service,
-        )
-    if promotion_review_service is None:
-        promotion_review_service = PromotionReviewService(
-            promotion_runner=promotion_runner,
-            promotion_state_service=promotion_state_service,
-            learning_service=learning_service,
-            trading_mode=settings.trading_mode,
-        )
+    promotion_services = build_promotion_services(
+        trading_mode=settings.trading_mode,
+        learning_service=learning_service,
+        promotion_runner=promotion_runner,
+        promotion_dashboard_service=promotion_dashboard_service,
+        promotion_review_service=promotion_review_service,
+        promotion_dashboard_facade=promotion_dashboard_facade,
+        promotion_state_service=promotion_state_service,
+        promotion_history_store=promotion_history_store,
+        promotion_status_store=promotion_status_store,
+    )
+    promotion_runner = promotion_services.runner
+    promotion_state_service = promotion_services.state_service
+    promotion_dashboard_facade = promotion_services.dashboard_facade
+    promotion_review_service = promotion_services.review_service
 
     boot_state = recovery_orchestrator.boot()
     if boot_notification_dispatcher is not None:
