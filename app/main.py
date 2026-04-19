@@ -12,6 +12,7 @@ from app.integrations.telegram.boot_notification_dispatcher import BootNotificat
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
 from app.integrations.telegram.restart_notifier import RestartNotifier
 from app.services.dashboard.facade import DashboardSummaryFacade
+from app.services.dashboard.factory import build_dashboard_services
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningService
@@ -76,8 +77,6 @@ def create_app(
         recovery_orchestrator=recovery_orchestrator,
     )
     recovery_orchestrator = runtime_services.recovery_orchestrator
-    if dashboard_summary_service is None:
-        dashboard_summary_service = DashboardSummaryService()
     if promotion_dashboard_service is None:
         promotion_dashboard_service = PromotionDashboardService()
     notification_services = build_notification_services(
@@ -101,11 +100,12 @@ def create_app(
     promotion_state_service = promotion_services.state_service
     promotion_dashboard_facade = promotion_services.dashboard_facade
     promotion_review_service = promotion_services.review_service
-    if dashboard_summary_facade is None:
-        dashboard_summary_facade = DashboardSummaryFacade(
-            dashboard_summary_service=dashboard_summary_service,
-            promotion_dashboard_facade=promotion_dashboard_facade,
-        )
+    dashboard_services = build_dashboard_services(
+        promotion_dashboard_facade=promotion_dashboard_facade,
+        dashboard_summary_service=dashboard_summary_service,
+        dashboard_summary_facade=dashboard_summary_facade,
+    )
+    dashboard_summary_facade = dashboard_services.summary_facade
 
     boot_state = recovery_orchestrator.boot()
     if boot_notification_dispatcher is not None:
