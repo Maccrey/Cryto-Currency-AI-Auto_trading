@@ -89,6 +89,40 @@ class TradeExecutionServiceStub:
         }
 
 
+class PostFillServiceStub:
+    def process(self, execution_result):
+        self.execution_result = execution_result
+        return self
+
+    @staticmethod
+    def to_payload(result) -> dict[str, object]:
+        return {
+            "execution": {
+                "status": "filled",
+                "blocked_reason": None,
+                "execution": {
+                    "market": "KRW-XRP",
+                    "side": "buy",
+                    "filled_price": 800.0,
+                    "filled_quantity": 192.5,
+                    "mode": "demo",
+                    "is_virtual": True,
+                },
+            },
+            "position": {
+                "market": "KRW-XRP",
+                "signal_level": "strong",
+                "entry_price": 800.0,
+                "quantity": 192.5,
+                "stop_loss_price": 785.6,
+                "stop_loss_pct": 0.018,
+                "validation_window_sec": 180,
+                "min_expected_return_pct": 0.004,
+                "stop_loss_reason": None,
+            },
+        }
+
+
 def test_health_endpoint_reports_valid_mode(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
@@ -238,12 +272,14 @@ def test_decision_execute_endpoint_returns_execution_payload(monkeypatch) -> Non
     monkeypatch.setenv("LEARNING_ENABLED", "true")
     trade_decision_service = TradeDecisionServiceStub()
     trade_execution_service = TradeExecutionServiceStub()
+    post_fill_service = PostFillServiceStub()
 
     client = TestClient(
         create_app(
             recovery_orchestrator=SuccessfulBootOrchestrator(),
             trade_decision_service=trade_decision_service,
             trade_execution_service=trade_execution_service,
+            post_fill_service=post_fill_service,
         ),
     )
 
@@ -288,6 +324,31 @@ def test_decision_execute_endpoint_returns_execution_payload(monkeypatch) -> Non
                 "filled_quantity": 192.5,
                 "mode": "demo",
                 "is_virtual": True,
+            },
+        },
+        "post_fill": {
+            "execution": {
+                "status": "filled",
+                "blocked_reason": None,
+                "execution": {
+                    "market": "KRW-XRP",
+                    "side": "buy",
+                    "filled_price": 800.0,
+                    "filled_quantity": 192.5,
+                    "mode": "demo",
+                    "is_virtual": True,
+                },
+            },
+            "position": {
+                "market": "KRW-XRP",
+                "signal_level": "strong",
+                "entry_price": 800.0,
+                "quantity": 192.5,
+                "stop_loss_price": 785.6,
+                "stop_loss_pct": 0.018,
+                "validation_window_sec": 180,
+                "min_expected_return_pct": 0.004,
+                "stop_loss_reason": None,
             },
         },
     }

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.services.portfolio.sync import PortfolioState
 from app.services.trading.decision import TradeDecisionRequest, TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
+from app.services.trading.post_fill import PostFillService
 
 
 class PortfolioPayload(BaseModel):
@@ -33,6 +34,7 @@ def build_decision_router(
     *,
     trade_decision_service: TradeDecisionService,
     trade_execution_service: TradeExecutionService | None = None,
+    post_fill_service: PostFillService | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/decision")
 
@@ -54,10 +56,14 @@ def build_decision_router(
                 "execution": None,
             }
         execution_result = trade_execution_service.execute(result)
+        post_fill_result = (
+            None if post_fill_service is None else post_fill_service.process(execution_result)
+        )
         return {
             "status": "ok",
             "decision": trade_decision_service.to_payload(result),
             "execution": trade_execution_service.to_payload(execution_result),
+            "post_fill": None if post_fill_result is None else post_fill_service.to_payload(post_fill_result),
         }
 
     return router

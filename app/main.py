@@ -29,6 +29,7 @@ from app.services.promotion.runner import PromotionRunner
 from app.services.promotion.state import PromotionStateService
 from app.services.promotion.status import PromotionStatusStore
 from app.services.recovery.orchestrator import RecoveryOrchestrator
+from app.services.risk.stop_loss import StopLossInjector
 from app.services.runtime.factory import build_runtime_services
 from app.services.signals.engine import SignalEngine
 from app.services.signals.features import MarketFeatureCalculator
@@ -36,6 +37,7 @@ from app.services.regime.engine import RegimeEngine
 from app.services.sizing.engine import SizingEngine
 from app.services.trading.decision import TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
+from app.services.trading.post_fill import PostFillService
 
 
 class NoOpLiveOrderGateway:
@@ -57,6 +59,7 @@ def create_app(
     promotion_status_store: PromotionStatusStore | None = None,
     trade_decision_service: TradeDecisionService | None = None,
     trade_execution_service: TradeExecutionService | None = None,
+    post_fill_service: PostFillService | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     restart_notifier: RestartNotifier | None = None,
     hard_stop_notifier: HardStopNotifier | None = None,
@@ -136,6 +139,19 @@ def create_app(
             ),
             market=settings.trade_market,
         )
+    if post_fill_service is None:
+        post_fill_service = PostFillService(
+            stop_loss_injector=StopLossInjector(
+                stop_loss_by_signal={
+                    "weak": 0.008,
+                    "medium": 0.012,
+                    "strong": 0.018,
+                    "very_strong": 0.022,
+                },
+                validation_window_sec=180,
+                min_expected_return_pct=0.004,
+            ),
+        )
 
     app = FastAPI(title=settings.app_name)
     app.include_router(
@@ -164,6 +180,7 @@ def create_app(
         build_decision_router(
             trade_decision_service=trade_decision_service,
             trade_execution_service=trade_execution_service,
+            post_fill_service=post_fill_service,
         ),
     )
     return app
