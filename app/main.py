@@ -140,7 +140,6 @@ def create_app(
 
     @app.get("/dashboard/summary")
     def dashboard_summary() -> dict[str, object]:
-        promotion_snapshot = promotion_state_service.get_latest()
         summary = dashboard_summary_service.build(
             boot_state=boot_state,
             trading_mode=settings.trading_mode,
@@ -151,10 +150,7 @@ def create_app(
             sell_count=0,
             stop_loss_count=0,
             recent_stop_loss_reason=None,
-            promotion_ready=(
-                promotion_snapshot is not None
-                and promotion_snapshot.evaluation_status == "READY_FOR_REVIEW"
-            ),
+            promotion_ready=promotion_state_service.is_ready_for_review(),
         )
         if isinstance(summary, dict):
             return summary
@@ -233,45 +229,15 @@ def create_app(
                 },
             ),
         )
-        return {
-            "status": "ok",
-            "evaluation": {
-                "status": result.evaluation.status,
-                "approved": result.evaluation.approved,
-                "rejection_reasons": result.evaluation.rejection_reasons,
-            },
-            "approval_result": {
-                "live_enabled": result.approval_result.live_enabled,
-                "safe_mode_entry": result.approval_result.safe_mode_entry,
-                "reason_code": result.approval_result.reason_code,
-            },
-        }
+        return promotion_state_service.build_review_response(result)
 
     @app.get("/promotion/status")
     def promotion_status() -> dict[str, object]:
-        snapshot = promotion_state_service.get_latest()
-        if snapshot is None:
-            return {
-                "status": "empty",
-                "snapshot": None,
-            }
-        return {
-            "status": "ok",
-            "snapshot": promotion_state_service.to_payload(snapshot),
-        }
+        return promotion_state_service.build_status_response()
 
     @app.get("/promotion/history")
     def promotion_history() -> dict[str, object]:
-        entries = promotion_state_service.list_history()
-        if not entries:
-            return {
-                "status": "empty",
-                "history": [],
-            }
-        return {
-            "status": "ok",
-            "history": promotion_state_service.to_history_payload(entries),
-        }
+        return promotion_state_service.build_history_response()
 
     return app
 
