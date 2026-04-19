@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.services.dashboard.facade import DashboardSummaryFacade
+from app.services.dashboard.market_facade import DashboardMarketFacade
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.recovery.orchestrator import BootState
 
@@ -13,6 +14,7 @@ def build_dashboard_router(
     trading_mode: str,
     learning_enabled: bool,
     dashboard_summary_facade: DashboardSummaryFacade,
+    dashboard_market_facade: DashboardMarketFacade,
     promotion_dashboard_facade: PromotionDashboardFacade,
 ) -> APIRouter:
     router = APIRouter(prefix="/dashboard")
@@ -23,6 +25,12 @@ def build_dashboard_router(
             boot_state=boot_state,
             trading_mode=trading_mode,
             learning_enabled=learning_enabled,
+        )
+
+    @router.get("/market")
+    def dashboard_market(history_limit: int = 20) -> dict[str, object]:
+        return dashboard_market_facade.build_current_response(
+            history_limit=history_limit,
         )
 
     @router.get("/promotion")

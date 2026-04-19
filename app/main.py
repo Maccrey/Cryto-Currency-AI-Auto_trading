@@ -158,6 +158,7 @@ def create_app(
     if position_store is None:
         position_store = CurrentPositionStore()
     dashboard_services = build_dashboard_services(
+        market=settings.trade_market,
         promotion_dashboard_facade=promotion_services.dashboard_facade,
         execution_ledger=execution_ledger,
         position_store=position_store,
@@ -212,6 +213,7 @@ def create_app(
             trading_mode=settings.trading_mode,
             learning_enabled=settings.learning_enabled,
             dashboard_summary_facade=dashboard_services.summary_facade,
+            dashboard_market_facade=dashboard_services.market_facade,
             promotion_dashboard_facade=promotion_services.dashboard_facade,
         ),
     )
