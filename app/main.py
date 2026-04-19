@@ -214,6 +214,7 @@ def create_app(
             learning_enabled=settings.learning_enabled,
             dashboard_summary_facade=dashboard_services.summary_facade,
             dashboard_market_facade=dashboard_services.market_facade,
+            dashboard_executions_facade=dashboard_services.executions_facade,
             promotion_dashboard_facade=promotion_services.dashboard_facade,
         ),
     )
