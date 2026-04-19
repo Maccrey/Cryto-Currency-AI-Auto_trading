@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
+from app.integrations.telegram.notifier import TelegramNotifier
 from app.services.execution.demo import FillResult
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.stop_loss import PositionSnapshot, StopLossInjector
@@ -22,9 +23,11 @@ class PostFillService:
         *,
         stop_loss_injector: StopLossInjector,
         position_store: CurrentPositionStore | None = None,
+        telegram_notifier: TelegramNotifier | None = None,
     ) -> None:
         self._stop_loss_injector = stop_loss_injector
         self._position_store = position_store
+        self._telegram_notifier = telegram_notifier
 
     def process(self, execution_result: TradeExecutionResult) -> PostFillResult:
         execution = execution_result.execution
@@ -53,6 +56,8 @@ class PostFillService:
         )
         if self._position_store is not None:
             self._position_store.save(position)
+        if self._telegram_notifier is not None:
+            self._telegram_notifier.notify_fill(execution)
         return PostFillResult(
             execution_result=execution_result,
             position=position,

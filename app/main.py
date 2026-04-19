@@ -181,6 +181,7 @@ def create_app(
                 min_expected_return_pct=0.004,
             ),
             position_store=position_store,
+            telegram_notifier=trade_fill_notifier,
         )
 
     app = FastAPI(title=settings.app_name)

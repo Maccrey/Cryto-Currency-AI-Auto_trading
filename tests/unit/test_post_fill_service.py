@@ -16,6 +16,14 @@ class ForbiddenLiveOrderGateway:
         raise AssertionError("live gateway should not be called in demo execution")
 
 
+class TelegramNotifierStub:
+    def __init__(self) -> None:
+        self.fills = []
+
+    def notify_fill(self, fill) -> None:
+        self.fills.append(fill)
+
+
 def _build_execution_result(safe_mode: bool = False):
     decision_service = TradeDecisionService(
         feature_calculator=MarketFeatureCalculator(),
@@ -56,6 +64,7 @@ def _build_execution_result(safe_mode: bool = False):
 
 def test_post_fill_service_injects_position_for_buy_fill() -> None:
     store = CurrentPositionStore()
+    notifier = TelegramNotifierStub()
     service = PostFillService(
         stop_loss_injector=StopLossInjector(
             stop_loss_by_signal={
@@ -68,6 +77,7 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
             min_expected_return_pct=0.004,
         ),
         position_store=store,
+        telegram_notifier=notifier,
     )
 
     result = service.process(_build_execution_result())
@@ -76,9 +86,13 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
     assert result.position.market == "KRW-XRP"
     assert result.position.stop_loss_price > 0
     assert store.get() == result.position
+    assert len(notifier.fills) == 1
+    assert notifier.fills[0].side == "buy"
+    assert notifier.fills[0].is_stop_loss is False
 
 
 def test_post_fill_service_skips_position_when_execution_blocked() -> None:
+    notifier = TelegramNotifierStub()
     service = PostFillService(
         stop_loss_injector=StopLossInjector(
             stop_loss_by_signal={
@@ -90,8 +104,10 @@ def test_post_fill_service_skips_position_when_execution_blocked() -> None:
             validation_window_sec=180,
             min_expected_return_pct=0.004,
         ),
+        telegram_notifier=notifier,
     )
 
     result = service.process(_build_execution_result(safe_mode=True))
 
     assert result.position is None
+    assert notifier.fills == []

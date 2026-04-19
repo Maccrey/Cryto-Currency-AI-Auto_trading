@@ -362,6 +362,58 @@ def test_decision_execute_endpoint_returns_execution_payload(monkeypatch) -> Non
     }
 
 
+def test_decision_execute_notifies_buy_fill(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    trade_fill_notifier = TelegramNotifierStub()
+
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            trade_fill_notifier=trade_fill_notifier,
+        ),
+    )
+
+    response = client.post(
+        "/decision/execute",
+        json={
+            "prices": [800.0, 806.0, 813.0, 820.0],
+            "traded_values": [800000.0, 850000.0, 1200000.0, 2100000.0],
+            "spread_bps": 8.0,
+            "orderbook_imbalance": 0.24,
+            "liquidity_score": 0.9,
+            "regime_score": 0.78,
+            "current_price": 820.0,
+            "slippage_bps": 10.0,
+            "portfolio": {
+                "cash_balance": 500000.0,
+                "asset_currency": "XRP",
+                "asset_balance": 0.0,
+                "avg_buy_price": 0.0,
+            },
+            "safe_mode": False,
+            "recent_loss_streak": 0,
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(trade_fill_notifier.fills) == 1
+    assert trade_fill_notifier.fills[0].side == "buy"
+    assert trade_fill_notifier.fills[0].is_stop_loss is False
+
+
 def test_position_endpoints_return_saved_position_and_overlay(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
@@ -528,9 +580,10 @@ def test_position_exit_records_learning_event_and_notifies_fill(monkeypatch) -> 
     )
 
     assert exit_response.status_code == 200
-    assert len(trade_fill_notifier.fills) == 1
-    assert trade_fill_notifier.fills[0].side == "sell"
-    assert trade_fill_notifier.fills[0].is_stop_loss is True
+    assert len(trade_fill_notifier.fills) == 2
+    assert trade_fill_notifier.fills[0].side == "buy"
+    assert trade_fill_notifier.fills[-1].side == "sell"
+    assert trade_fill_notifier.fills[-1].is_stop_loss is True
     assert [event.event_name for event in learning_service.events][-1] == "position_exit_completed"
     assert learning_service.events[-1].payload["trigger_type"] == "hard_stop"
 
