@@ -5,6 +5,7 @@ from datetime import datetime
 
 from fastapi import FastAPI
 
+from app.api.routes.decision import build_decision_router
 from app.api.routes.dashboard import build_dashboard_router
 from app.api.routes.health import build_health_router
 from app.api.routes.promotion import build_promotion_router
@@ -28,6 +29,11 @@ from app.services.promotion.state import PromotionStateService
 from app.services.promotion.status import PromotionStatusStore
 from app.services.recovery.orchestrator import RecoveryOrchestrator
 from app.services.runtime.factory import build_runtime_services
+from app.services.signals.engine import SignalEngine
+from app.services.signals.features import MarketFeatureCalculator
+from app.services.regime.engine import RegimeEngine
+from app.services.sizing.engine import SizingEngine
+from app.services.trading.decision import TradeDecisionService
 
 
 def create_app(
@@ -42,6 +48,7 @@ def create_app(
     promotion_state_service: PromotionStateService | None = None,
     promotion_history_store: PromotionHistoryStore | None = None,
     promotion_status_store: PromotionStatusStore | None = None,
+    trade_decision_service: TradeDecisionService | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     restart_notifier: RestartNotifier | None = None,
     hard_stop_notifier: HardStopNotifier | None = None,
@@ -94,6 +101,20 @@ def create_app(
         dashboard_summary_service=dashboard_summary_service,
         dashboard_summary_facade=dashboard_summary_facade,
     )
+    if trade_decision_service is None:
+        trade_decision_service = TradeDecisionService(
+            feature_calculator=MarketFeatureCalculator(),
+            signal_engine=SignalEngine(
+                learning_service=learning_service,
+                trading_mode=settings.trading_mode,
+            ),
+            regime_engine=RegimeEngine(),
+            sizing_engine=SizingEngine(
+                min_cash_reserve=100000.0,
+                max_spread_bps=15.0,
+                max_slippage_bps=20.0,
+            ),
+        )
 
     boot_state = runtime_services.runtime_service.start()
 
@@ -118,6 +139,11 @@ def create_app(
         build_promotion_router(
             promotion_review_service=promotion_services.review_service,
             promotion_state_service=promotion_services.state_service,
+        ),
+    )
+    app.include_router(
+        build_decision_router(
+            trade_decision_service=trade_decision_service,
         ),
     )
     return app

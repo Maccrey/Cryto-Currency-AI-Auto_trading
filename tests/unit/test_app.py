@@ -53,6 +53,21 @@ class LearningServiceStub:
         self.events.append(event)
 
 
+class TradeDecisionServiceStub:
+    def evaluate(self, request):
+        self.request = request
+        return self
+
+    @staticmethod
+    def to_payload(result) -> dict[str, object]:
+        return {
+            "features": {"ret_1s": 0.001},
+            "signal": {"level": "strong", "blocked": False},
+            "regime": {"label": "risk_on", "entry_allowed": True},
+            "sizing": {"allowed": True, "buy_amount": 154000.0},
+        }
+
+
 def test_health_endpoint_reports_valid_mode(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
@@ -124,6 +139,64 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
         "hard_stop": False,
         "trading_ready": True,
         "promotion_ready": False,
+    }
+
+
+def test_decision_entry_endpoint_returns_trade_decision_payload(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    trade_decision_service = TradeDecisionServiceStub()
+
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            trade_decision_service=trade_decision_service,
+        ),
+    )
+
+    response = client.post(
+        "/decision/entry",
+        json={
+            "prices": [800.0, 806.0, 813.0, 820.0],
+            "traded_values": [800000.0, 850000.0, 1200000.0, 2100000.0],
+            "spread_bps": 8.0,
+            "orderbook_imbalance": 0.24,
+            "liquidity_score": 0.9,
+            "regime_score": 0.78,
+            "current_price": 820.0,
+            "slippage_bps": 10.0,
+            "portfolio": {
+                "cash_balance": 500000.0,
+                "asset_currency": "XRP",
+                "asset_balance": 0.0,
+                "avg_buy_price": 0.0,
+            },
+            "safe_mode": False,
+            "recent_loss_streak": 0,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "decision": {
+            "features": {"ret_1s": 0.001},
+            "signal": {"level": "strong", "blocked": False},
+            "regime": {"label": "risk_on", "entry_allowed": True},
+            "sizing": {"allowed": True, "buy_amount": 154000.0},
+        },
     }
 
 
