@@ -4,8 +4,10 @@ from collections.abc import Callable
 from datetime import datetime
 
 from fastapi import FastAPI
-from pydantic import BaseModel
 
+from app.api.routes.dashboard import build_dashboard_router
+from app.api.routes.health import build_health_router
+from app.api.routes.promotion import build_promotion_router
 from app.core.logging import configure_logging
 from app.core.settings import load_settings
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
@@ -23,21 +25,9 @@ from app.services.promotion.history import PromotionHistoryStore
 from app.services.promotion.review import PromotionReviewService
 from app.services.promotion.runner import PromotionRunner
 from app.services.promotion.state import PromotionStateService
-from app.services.runtime.factory import build_runtime_services
 from app.services.promotion.status import PromotionStatusStore
 from app.services.recovery.orchestrator import RecoveryOrchestrator
-
-
-class PromotionReviewPayload(BaseModel):
-    market: str
-    demo_days: int
-    total_trades: int
-    profit_factor: float
-    max_drawdown: float
-    stoploss_failures: int
-    approval_granted: bool
-    approved_by: str
-    activated_at: str
+from app.services.runtime.factory import build_runtime_services
 
 
 def create_app(
@@ -64,15 +54,15 @@ def create_app(
     if learning_service is None:
         learning_service = LearningService(log_dir=settings.learning_log_dir)
 
-    app = FastAPI(title=settings.app_name)
     if promotion_dashboard_service is None:
         promotion_dashboard_service = PromotionDashboardService()
+
     notification_services = build_notification_services(
         boot_notification_dispatcher=boot_notification_dispatcher,
         restart_notifier=restart_notifier,
         hard_stop_notifier=hard_stop_notifier,
     )
-    boot_notification_dispatcher = notification_services.boot_notification_dispatcher
+
     runtime_services = build_runtime_services(
         app_name=settings.app_name,
         trading_mode=settings.trading_mode,
@@ -82,11 +72,11 @@ def create_app(
         trade_coin=settings.trade_coin,
         trade_market=settings.trade_market,
         timestamp_provider=timestamp_provider,
-        boot_notification_dispatcher=boot_notification_dispatcher,
+        boot_notification_dispatcher=notification_services.boot_notification_dispatcher,
         learning_service=learning_service,
         recovery_orchestrator=recovery_orchestrator,
     )
-    recovery_orchestrator = runtime_services.recovery_orchestrator
+
     promotion_services = build_promotion_services(
         trading_mode=settings.trading_mode,
         learning_service=learning_service,
@@ -98,63 +88,38 @@ def create_app(
         promotion_history_store=promotion_history_store,
         promotion_status_store=promotion_status_store,
     )
-    promotion_runner = promotion_services.runner
-    promotion_state_service = promotion_services.state_service
-    promotion_dashboard_facade = promotion_services.dashboard_facade
-    promotion_review_service = promotion_services.review_service
+
     dashboard_services = build_dashboard_services(
-        promotion_dashboard_facade=promotion_dashboard_facade,
+        promotion_dashboard_facade=promotion_services.dashboard_facade,
         dashboard_summary_service=dashboard_summary_service,
         dashboard_summary_facade=dashboard_summary_facade,
     )
-    dashboard_summary_facade = dashboard_services.summary_facade
 
     boot_state = runtime_services.runtime_service.start()
 
-    @app.get("/health")
-    def health() -> dict[str, object]:
-        return {
-            "status": "ok" if boot_state.trading_ready else "degraded",
-            "mode": settings.trading_mode,
-            "learning_enabled": settings.learning_enabled,
-            "safe_mode": boot_state.safe_mode,
-            "hard_stop": boot_state.hard_stop,
-            "trading_ready": boot_state.trading_ready,
-            "failure_stage": boot_state.failure_stage,
-        }
-
-    @app.get("/dashboard/summary")
-    def dashboard_summary() -> dict[str, object]:
-        return dashboard_summary_facade.build_response(
+    app = FastAPI(title=settings.app_name)
+    app.include_router(
+        build_health_router(
             boot_state=boot_state,
             trading_mode=settings.trading_mode,
             learning_enabled=settings.learning_enabled,
-        )
-
-    @app.get("/dashboard/promotion")
-    def dashboard_promotion() -> dict[str, object]:
-        return promotion_dashboard_facade.build_current_response()
-
-    @app.get("/dashboard/promotion/history")
-    def dashboard_promotion_history() -> dict[str, object]:
-        return promotion_dashboard_facade.build_history_response()
-
-    @app.post("/promotion/review")
-    def promotion_review(payload: PromotionReviewPayload) -> dict[str, object]:
-        return promotion_review_service.review(
-            promotion_review_service.build_command(
-                payload.model_dump(),
-            ),
-        )
-
-    @app.get("/promotion/status")
-    def promotion_status() -> dict[str, object]:
-        return promotion_state_service.build_status_response()
-
-    @app.get("/promotion/history")
-    def promotion_history() -> dict[str, object]:
-        return promotion_state_service.build_history_response()
-
+        ),
+    )
+    app.include_router(
+        build_dashboard_router(
+            boot_state=boot_state,
+            trading_mode=settings.trading_mode,
+            learning_enabled=settings.learning_enabled,
+            dashboard_summary_facade=dashboard_services.summary_facade,
+            promotion_dashboard_facade=promotion_services.dashboard_facade,
+        ),
+    )
+    app.include_router(
+        build_promotion_router(
+            promotion_review_service=promotion_services.review_service,
+            promotion_state_service=promotion_services.state_service,
+        ),
+    )
     return app
 
 
