@@ -27,6 +27,7 @@ from app.services.learning.service import LearningService
 from app.services.market.store import MarketPriceStore
 from app.services.notification.factory import build_notification_services
 from app.services.dashboard.overlay import StopLossOverlayService
+from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.exit import PositionExitService
 from app.services.position.risk import PositionRiskService
 from app.services.position.store import CurrentPositionStore
@@ -74,6 +75,7 @@ def create_app(
     position_exit_service: PositionExitService | None = None,
     position_store: CurrentPositionStore | None = None,
     execution_ledger: ExecutionLedger | None = None,
+    position_lifecycle_ledger: PositionLifecycleLedger | None = None,
     market_price_store: MarketPriceStore | None = None,
     trade_fill_notifier: TelegramNotifier | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
@@ -123,6 +125,9 @@ def create_app(
         promotion_status_store=promotion_status_store,
     )
     execution_ledger = execution_ledger or ExecutionLedger()
+    position_lifecycle_ledger = position_lifecycle_ledger or PositionLifecycleLedger(
+        timestamp_provider=timestamp_provider,
+    )
 
     market_price_store = market_price_store or MarketPriceStore(
         timestamp_provider=timestamp_provider,
@@ -161,6 +166,7 @@ def create_app(
         market=settings.trade_market,
         promotion_dashboard_facade=promotion_services.dashboard_facade,
         execution_ledger=execution_ledger,
+        position_lifecycle_ledger=position_lifecycle_ledger,
         position_store=position_store,
         market_price_store=market_price_store,
         dashboard_summary_service=dashboard_summary_service,
@@ -181,6 +187,7 @@ def create_app(
             learning_service=learning_service,
             telegram_notifier=trade_fill_notifier,
             execution_ledger=execution_ledger,
+            position_lifecycle_ledger=position_lifecycle_ledger,
         )
     if post_fill_service is None:
         post_fill_service = PostFillService(
@@ -197,6 +204,7 @@ def create_app(
             position_store=position_store,
             telegram_notifier=trade_fill_notifier,
             execution_ledger=execution_ledger,
+            position_lifecycle_ledger=position_lifecycle_ledger,
         )
 
     app = FastAPI(title=settings.app_name)
@@ -215,6 +223,7 @@ def create_app(
             dashboard_summary_facade=dashboard_services.summary_facade,
             dashboard_market_facade=dashboard_services.market_facade,
             dashboard_executions_facade=dashboard_services.executions_facade,
+            dashboard_positions_facade=dashboard_services.positions_facade,
             promotion_dashboard_facade=promotion_services.dashboard_facade,
         ),
     )

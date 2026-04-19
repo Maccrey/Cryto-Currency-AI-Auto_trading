@@ -7,6 +7,7 @@ from app.integrations.telegram.notifier import TelegramNotifier
 from app.services.execution.demo import FillResult, OrderIntent
 from app.services.execution.ledger import ExecutionLedger
 from app.services.learning.service import LearningEvent, LearningService
+from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.hard_stop import HardStopMonitor
 from app.services.risk.post_entry import PostEntryValidator
@@ -26,6 +27,7 @@ class PositionExitService:
         learning_service: LearningService | None = None,
         telegram_notifier: TelegramNotifier | None = None,
         execution_ledger: ExecutionLedger | None = None,
+        position_lifecycle_ledger: PositionLifecycleLedger | None = None,
     ) -> None:
         self._position_store = position_store
         self._hard_stop_monitor = hard_stop_monitor
@@ -35,6 +37,7 @@ class PositionExitService:
         self._learning_service = learning_service
         self._telegram_notifier = telegram_notifier
         self._execution_ledger = execution_ledger
+        self._position_lifecycle_ledger = position_lifecycle_ledger
 
     def evaluate_and_execute(
         self,
@@ -187,5 +190,17 @@ class PositionExitService:
             )
         if self._execution_ledger is not None and isinstance(execution, FillResult):
             self._execution_ledger.record_fill(execution, reason_code=reason_code)
+        if self._position_lifecycle_ledger is not None:
+            if max(remaining_quantity, 0.0) <= 0:
+                lifecycle_position = position
+                event_type = "closed"
+            else:
+                lifecycle_position = replace(position, quantity=max(remaining_quantity, 0.0))
+                event_type = "reduced"
+            self._position_lifecycle_ledger.record(
+                event_type=event_type,
+                position=lifecycle_position,
+                reason_code=reason_code,
+            )
         if self._telegram_notifier is not None and hasattr(execution, "filled_price"):
             self._telegram_notifier.notify_fill(execution)

@@ -1,5 +1,6 @@
 from app.services.execution.demo import DemoExecutor
 from app.services.learning.service import LearningEvent
+from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.exit import PositionExitService
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.hard_stop import HardStopMonitor
@@ -60,6 +61,9 @@ def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
     store = CurrentPositionStore()
     learning_service = LearningServiceStub()
     telegram_notifier = TelegramNotifierStub()
+    lifecycle_ledger = PositionLifecycleLedger(
+        timestamp_provider=lambda: "2026-04-19T21:30:00+09:00",
+    )
     store.save(
         PositionSnapshot(
             market="KRW-XRP",
@@ -81,6 +85,7 @@ def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
         trading_mode="demo",
         learning_service=learning_service,
         telegram_notifier=telegram_notifier,
+        position_lifecycle_ledger=lifecycle_ledger,
     )
 
     result = service.evaluate_and_execute(
@@ -105,10 +110,16 @@ def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
     assert learning_service.events[0].payload["trigger_type"] == "hard_stop"
     assert len(telegram_notifier.fills) == 1
     assert telegram_notifier.fills[0].is_stop_loss is True
+    records = lifecycle_ledger.list_records()
+    assert len(records) == 1
+    assert records[0].event_type == "closed"
 
 
 def test_position_exit_service_updates_position_after_partial_post_entry_exit() -> None:
     store = CurrentPositionStore()
+    lifecycle_ledger = PositionLifecycleLedger(
+        timestamp_provider=lambda: "2026-04-19T21:31:00+09:00",
+    )
     store.save(
         PositionSnapshot(
             market="KRW-XRP",
@@ -122,7 +133,14 @@ def test_position_exit_service_updates_position_after_partial_post_entry_exit() 
             stop_loss_reason=None,
         ),
     )
-    service = _build_service(store)
+    service = PositionExitService(
+        position_store=store,
+        hard_stop_monitor=HardStopMonitor(),
+        post_entry_validator=PostEntryValidator(),
+        executor=DemoExecutor(live_order_gateway=ForbiddenLiveOrderGateway()),
+        trading_mode="demo",
+        position_lifecycle_ledger=lifecycle_ledger,
+    )
 
     result = service.evaluate_and_execute(
         current_price=830.0,
@@ -141,3 +159,6 @@ def test_position_exit_service_updates_position_after_partial_post_entry_exit() 
     assert result["position"]["quantity"] == 50.0
     assert store.get() is not None
     assert store.get().quantity == 50.0
+    records = lifecycle_ledger.list_records()
+    assert len(records) == 1
+    assert records[0].event_type == "reduced"

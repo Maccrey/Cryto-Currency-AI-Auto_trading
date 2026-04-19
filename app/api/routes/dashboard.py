@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.services.dashboard.executions_facade import DashboardExecutionsFacade
 from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.market_facade import DashboardMarketFacade
+from app.services.dashboard.positions_facade import DashboardPositionsFacade
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.recovery.orchestrator import BootState
 
@@ -17,6 +18,7 @@ def build_dashboard_router(
     dashboard_summary_facade: DashboardSummaryFacade,
     dashboard_market_facade: DashboardMarketFacade,
     dashboard_executions_facade: DashboardExecutionsFacade,
+    dashboard_positions_facade: DashboardPositionsFacade,
     promotion_dashboard_facade: PromotionDashboardFacade,
 ) -> APIRouter:
     router = APIRouter(prefix="/dashboard")
@@ -38,6 +40,10 @@ def build_dashboard_router(
     @router.get("/executions")
     def dashboard_executions(limit: int = 20) -> dict[str, object]:
         return dashboard_executions_facade.build_history_response(limit=limit)
+
+    @router.get("/positions/history")
+    def dashboard_positions_history(limit: int = 20) -> dict[str, object]:
+        return dashboard_positions_facade.build_history_response(limit=limit)
 
     @router.get("/promotion")
     def dashboard_promotion() -> dict[str, object]:

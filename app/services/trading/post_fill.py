@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from app.integrations.telegram.notifier import TelegramNotifier
 from app.services.execution.demo import FillResult
 from app.services.execution.ledger import ExecutionLedger
+from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.stop_loss import PositionSnapshot, StopLossInjector
 from app.services.trading.execution import TradeExecutionResult, TradeExecutionService
@@ -26,11 +27,13 @@ class PostFillService:
         position_store: CurrentPositionStore | None = None,
         telegram_notifier: TelegramNotifier | None = None,
         execution_ledger: ExecutionLedger | None = None,
+        position_lifecycle_ledger: PositionLifecycleLedger | None = None,
     ) -> None:
         self._stop_loss_injector = stop_loss_injector
         self._position_store = position_store
         self._telegram_notifier = telegram_notifier
         self._execution_ledger = execution_ledger
+        self._position_lifecycle_ledger = position_lifecycle_ledger
 
     def process(self, execution_result: TradeExecutionResult) -> PostFillResult:
         execution = execution_result.execution
@@ -59,6 +62,11 @@ class PostFillService:
         )
         if self._position_store is not None:
             self._position_store.save(position)
+        if self._position_lifecycle_ledger is not None:
+            self._position_lifecycle_ledger.record(
+                event_type="opened",
+                position=position,
+            )
         if self._execution_ledger is not None:
             self._execution_ledger.record_fill(execution)
         if self._telegram_notifier is not None:

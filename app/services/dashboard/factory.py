@@ -7,9 +7,12 @@ from app.services.dashboard.executions_facade import DashboardExecutionsFacade
 from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.market import DashboardMarketService
 from app.services.dashboard.market_facade import DashboardMarketFacade
+from app.services.dashboard.positions import DashboardPositionsService
+from app.services.dashboard.positions_facade import DashboardPositionsFacade
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.ledger import ExecutionLedger
 from app.services.market.store import MarketPriceStore
+from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.promotion.dashboard import PromotionDashboardFacade
 
@@ -19,6 +22,7 @@ class DashboardServices:
     summary_facade: DashboardSummaryFacade
     market_facade: DashboardMarketFacade
     executions_facade: DashboardExecutionsFacade
+    positions_facade: DashboardPositionsFacade
 
 
 def build_dashboard_services(
@@ -26,18 +30,22 @@ def build_dashboard_services(
     market: str,
     promotion_dashboard_facade: PromotionDashboardFacade,
     execution_ledger: ExecutionLedger | None = None,
+    position_lifecycle_ledger: PositionLifecycleLedger | None = None,
     position_store: CurrentPositionStore | None = None,
     market_price_store: MarketPriceStore | None = None,
     dashboard_summary_service: DashboardSummaryService | None = None,
     dashboard_market_service: DashboardMarketService | None = None,
     dashboard_executions_service: DashboardExecutionsService | None = None,
+    dashboard_positions_service: DashboardPositionsService | None = None,
     dashboard_summary_facade: DashboardSummaryFacade | None = None,
     dashboard_market_facade: DashboardMarketFacade | None = None,
     dashboard_executions_facade: DashboardExecutionsFacade | None = None,
+    dashboard_positions_facade: DashboardPositionsFacade | None = None,
 ) -> DashboardServices:
     summary_service = dashboard_summary_service or DashboardSummaryService()
     market_service = dashboard_market_service or DashboardMarketService()
     executions_service = dashboard_executions_service or DashboardExecutionsService()
+    positions_service = dashboard_positions_service or DashboardPositionsService()
     summary_facade = dashboard_summary_facade or DashboardSummaryFacade(
         dashboard_summary_service=summary_service,
         promotion_dashboard_facade=promotion_dashboard_facade,
@@ -58,8 +66,15 @@ def build_dashboard_services(
         execution_ledger=execution_ledger,
         dashboard_executions_service=executions_service,
     )
+    if position_lifecycle_ledger is None:
+        raise ValueError("position_lifecycle_ledger is required to build dashboard services")
+    positions_facade = dashboard_positions_facade or DashboardPositionsFacade(
+        position_lifecycle_ledger=position_lifecycle_ledger,
+        dashboard_positions_service=positions_service,
+    )
     return DashboardServices(
         summary_facade=summary_facade,
         market_facade=market_facade,
         executions_facade=executions_facade,
+        positions_facade=positions_facade,
     )

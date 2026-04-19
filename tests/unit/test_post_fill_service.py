@@ -1,5 +1,6 @@
 from app.services.execution.demo import DemoExecutor
 from app.services.portfolio.sync import PortfolioState
+from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.regime.engine import RegimeEngine
 from app.services.risk.stop_loss import StopLossInjector
@@ -65,6 +66,9 @@ def _build_execution_result(safe_mode: bool = False):
 def test_post_fill_service_injects_position_for_buy_fill() -> None:
     store = CurrentPositionStore()
     notifier = TelegramNotifierStub()
+    lifecycle_ledger = PositionLifecycleLedger(
+        timestamp_provider=lambda: "2026-04-19T21:20:00+09:00",
+    )
     service = PostFillService(
         stop_loss_injector=StopLossInjector(
             stop_loss_by_signal={
@@ -78,6 +82,7 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
         ),
         position_store=store,
         telegram_notifier=notifier,
+        position_lifecycle_ledger=lifecycle_ledger,
     )
 
     result = service.process(_build_execution_result())
@@ -89,6 +94,9 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
     assert len(notifier.fills) == 1
     assert notifier.fills[0].side == "buy"
     assert notifier.fills[0].is_stop_loss is False
+    records = lifecycle_ledger.list_records()
+    assert len(records) == 1
+    assert records[0].event_type == "opened"
 
 
 def test_post_fill_service_skips_position_when_execution_blocked() -> None:
