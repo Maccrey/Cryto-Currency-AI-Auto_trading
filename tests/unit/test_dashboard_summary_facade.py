@@ -3,6 +3,7 @@ from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.demo import FillResult
 from app.services.execution.ledger import ExecutionLedger
+from app.services.learning.service import LearningEvent, LearningService
 from app.services.market.store import MarketPriceStore
 from app.services.position.store import CurrentPositionStore
 from app.services.promotion.approval import PromotionApprovalResult
@@ -71,6 +72,9 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
         "recent_stop_loss_reason": None,
         "trading_mode": "demo",
         "learning_enabled": True,
+        "last_learning_event": None,
+        "learning_signal_count": 0,
+        "learning_fill_count": 0,
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -140,6 +144,9 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
     assert payload["stop_loss_count"] == 1
     assert payload["recent_stop_loss_reason"] == "STOP_LOSS_PRICE_HIT"
     assert payload["realized_pnl"] < 0.0
+    assert payload["last_learning_event"] is None
+    assert payload["learning_signal_count"] == 0
+    assert payload["learning_fill_count"] == 0
 
 
 def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() -> None:
@@ -189,3 +196,61 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
     )
 
     assert payload["unrealized_pnl"] == 2500.0
+    assert payload["last_learning_event"] is None
+
+
+def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
+    learning_service = LearningService(log_dir=tmp_path)
+    learning_service.record_many(
+        [
+            LearningEvent(
+                event_name="signal_generated",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"level": "strong"},
+            ),
+            LearningEvent(
+                event_name="fill_result",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"side": "buy"},
+            ),
+            LearningEvent(
+                event_name="position_opened",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"quantity": 100.0},
+            ),
+        ],
+    )
+    facade = DashboardSummaryFacade(
+        dashboard_summary_service=DashboardSummaryService(),
+        promotion_dashboard_facade=PromotionDashboardFacade(
+            promotion_state_service=PromotionStateService(),
+            promotion_dashboard_service=PromotionDashboardService(),
+        ),
+        learning_service=learning_service,
+    )
+    boot_state = BootState(
+        safe_mode=False,
+        hard_stop=False,
+        trading_ready=True,
+        failure_stage=None,
+        portfolio_state=PortfolioState(
+            cash_balance=250000.0,
+            asset_currency="XRP",
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+        ),
+        reconcile_result={"open_order_count": 0},
+    )
+
+    payload = facade.build_response(
+        boot_state=boot_state,
+        trading_mode="demo",
+        learning_enabled=True,
+    )
+
+    assert payload["last_learning_event"] == "position_opened"
+    assert payload["learning_signal_count"] == 1
+    assert payload["learning_fill_count"] == 1

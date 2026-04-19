@@ -57,6 +57,7 @@ def build_dashboard_services(
     summary_facade = dashboard_summary_facade or DashboardSummaryFacade(
         dashboard_summary_service=summary_service,
         promotion_dashboard_facade=promotion_dashboard_facade,
+        learning_service=learning_service,
         execution_ledger=execution_ledger,
         position_store=position_store,
         market_price_store=market_price_store,

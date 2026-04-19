@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.services.dashboard.factory import build_dashboard_services
 from app.services.dashboard.executions_facade import DashboardExecutionsFacade
 from app.services.dashboard.facade import DashboardSummaryFacade
@@ -14,7 +16,7 @@ from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.promotion.state import PromotionStateService
 
 
-def test_build_dashboard_services_creates_default_summary_facade(tmp_path) -> None:
+def test_build_dashboard_services_creates_default_summary_facade(tmp_path: Path) -> None:
     services = build_dashboard_services(
         market="KRW-XRP",
         promotion_dashboard_facade=PromotionDashboardFacade(
@@ -34,7 +36,7 @@ def test_build_dashboard_services_creates_default_summary_facade(tmp_path) -> No
     assert isinstance(services.learning_facade, DashboardLearningFacade)
 
 
-def test_build_dashboard_services_reuses_injected_summary_facade(tmp_path) -> None:
+def test_build_dashboard_services_reuses_injected_summary_facade(tmp_path: Path) -> None:
     promotion_facade = PromotionDashboardFacade(
         promotion_state_service=PromotionStateService(),
         promotion_dashboard_service=PromotionDashboardService(),

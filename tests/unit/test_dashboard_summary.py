@@ -31,6 +31,9 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         sell_count=3,
         stop_loss_count=1,
         recent_stop_loss_reason="STOP_LOSS_PRICE_HIT",
+        last_learning_event=None,
+        learning_signal_count=0,
+        learning_fill_count=0,
         promotion_ready=False,
     )
 
@@ -45,6 +48,9 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         recent_stop_loss_reason="STOP_LOSS_PRICE_HIT",
         trading_mode="demo",
         learning_enabled=True,
+        last_learning_event=None,
+        learning_signal_count=0,
+        learning_fill_count=0,
         safe_mode=True,
         hard_stop=True,
         trading_ready=False,

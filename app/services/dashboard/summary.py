@@ -17,6 +17,9 @@ class DashboardSummary:
     recent_stop_loss_reason: str | None
     trading_mode: str
     learning_enabled: bool
+    last_learning_event: str | None
+    learning_signal_count: int
+    learning_fill_count: int
     safe_mode: bool
     hard_stop: bool
     trading_ready: bool
@@ -38,6 +41,9 @@ class DashboardSummaryService:
         sell_count: int,
         stop_loss_count: int,
         recent_stop_loss_reason: str | None,
+        last_learning_event: str | None,
+        learning_signal_count: int,
+        learning_fill_count: int,
         promotion_ready: bool,
     ) -> DashboardSummary:
         portfolio = boot_state.portfolio_state
@@ -52,6 +58,9 @@ class DashboardSummaryService:
             recent_stop_loss_reason=recent_stop_loss_reason,
             trading_mode=trading_mode,
             learning_enabled=learning_enabled,
+            last_learning_event=last_learning_event,
+            learning_signal_count=learning_signal_count,
+            learning_fill_count=learning_fill_count,
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,

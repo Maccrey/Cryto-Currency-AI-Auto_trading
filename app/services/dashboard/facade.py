@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.services.execution.ledger import ExecutionLedger
 from app.services.dashboard.summary import DashboardSummaryService
+from app.services.learning.service import LearningService
 from app.services.market.store import MarketPriceStore
 from app.services.position.store import CurrentPositionStore
 from app.services.promotion.dashboard import PromotionDashboardFacade
@@ -16,12 +17,14 @@ class DashboardSummaryFacade:
         *,
         dashboard_summary_service: DashboardSummaryService,
         promotion_dashboard_facade: PromotionDashboardFacade,
+        learning_service: LearningService | None = None,
         execution_ledger: ExecutionLedger | None = None,
         position_store: CurrentPositionStore | None = None,
         market_price_store: MarketPriceStore | None = None,
     ) -> None:
         self._dashboard_summary_service = dashboard_summary_service
         self._promotion_dashboard_facade = promotion_dashboard_facade
+        self._learning_service = learning_service
         self._execution_ledger = execution_ledger
         self._position_store = position_store
         self._market_price_store = market_price_store
@@ -34,6 +37,14 @@ class DashboardSummaryFacade:
         learning_enabled: bool,
     ) -> dict[str, object]:
         ledger_summary = None if self._execution_ledger is None else self._execution_ledger.summarize()
+        recent_learning_events = [] if self._learning_service is None else self._learning_service.recent_events()
+        last_learning_event = None if not recent_learning_events else recent_learning_events[-1].event_name
+        learning_signal_count = sum(
+            1 for event in recent_learning_events if event.event_name.startswith("signal_")
+        )
+        learning_fill_count = sum(
+            1 for event in recent_learning_events if event.event_name.startswith("fill_")
+        )
         unrealized_pnl = 0.0
         if self._position_store is not None and self._market_price_store is not None:
             position = self._position_store.get()
@@ -54,6 +65,9 @@ class DashboardSummaryFacade:
             sell_count=0 if ledger_summary is None else ledger_summary.sell_count,
             stop_loss_count=0 if ledger_summary is None else ledger_summary.stop_loss_count,
             recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+            last_learning_event=last_learning_event,
+            learning_signal_count=learning_signal_count,
+            learning_fill_count=learning_fill_count,
             promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
         )
         if isinstance(summary, dict):
