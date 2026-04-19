@@ -434,6 +434,30 @@ def test_position_endpoints_return_saved_position_and_overlay(monkeypatch) -> No
         == "STOP_LOSS_EXPECTATION_FAILED"
     )
 
+    exit_response = client.post(
+        "/position/exit",
+        json={
+            "current_price": position_response.json()["position"]["stop_loss_price"] - 0.24,
+            "elapsed_sec": 181,
+            "momentum_score": 0.41,
+            "orderbook_imbalance": -0.12,
+        },
+    )
+
+    assert exit_response.status_code == 200
+    assert exit_response.json()["status"] == "ok"
+    assert exit_response.json()["trigger"] == {
+        "type": "hard_stop",
+        "reason_code": "STOP_LOSS_PRICE_HIT",
+        "exit_ratio": 1.0,
+    }
+    assert exit_response.json()["execution"]["side"] == "sell"
+    assert exit_response.json()["execution"]["is_stop_loss"] is True
+    assert client.get("/position/current").json() == {
+        "status": "empty",
+        "position": None,
+    }
+
 
 def test_startup_sync_failure_keeps_safe_mode(monkeypatch) -> None:
     class FailingBootOrchestrator:

@@ -23,6 +23,7 @@ from app.services.execution.factory import ExecutionFactory
 from app.services.learning.service import LearningService
 from app.services.notification.factory import build_notification_services
 from app.services.dashboard.overlay import StopLossOverlayService
+from app.services.position.exit import PositionExitService
 from app.services.position.risk import PositionRiskService
 from app.services.position.store import CurrentPositionStore
 from app.services.promotion.dashboard import PromotionDashboardFacade
@@ -66,6 +67,7 @@ def create_app(
     trade_decision_service: TradeDecisionService | None = None,
     trade_execution_service: TradeExecutionService | None = None,
     post_fill_service: PostFillService | None = None,
+    position_exit_service: PositionExitService | None = None,
     position_store: CurrentPositionStore | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     restart_notifier: RestartNotifier | None = None,
@@ -135,15 +137,16 @@ def create_app(
         )
 
     boot_state = runtime_services.runtime_service.start()
+    executor = ExecutionFactory(
+        live_order_gateway=NoOpLiveOrderGateway(),
+    ).create(
+        trading_mode=settings.trading_mode,
+        safe_mode=boot_state.safe_mode,
+        hard_stop=boot_state.hard_stop,
+    )
     if trade_execution_service is None:
         trade_execution_service = TradeExecutionService(
-            executor=ExecutionFactory(
-                live_order_gateway=NoOpLiveOrderGateway(),
-            ).create(
-                trading_mode=settings.trading_mode,
-                safe_mode=boot_state.safe_mode,
-                hard_stop=boot_state.hard_stop,
-            ),
+            executor=executor,
             market=settings.trade_market,
         )
     if position_store is None:
@@ -153,6 +156,13 @@ def create_app(
         hard_stop_monitor=HardStopMonitor(),
         post_entry_validator=PostEntryValidator(),
     )
+    if position_exit_service is None:
+        position_exit_service = PositionExitService(
+            position_store=position_store,
+            hard_stop_monitor=HardStopMonitor(),
+            post_entry_validator=PostEntryValidator(),
+            executor=executor,
+        )
     if post_fill_service is None:
         post_fill_service = PostFillService(
             stop_loss_injector=StopLossInjector(
@@ -203,6 +213,7 @@ def create_app(
             position_store=position_store,
             stop_loss_overlay_service=StopLossOverlayService(),
             position_risk_service=position_risk_service,
+            position_exit_service=position_exit_service,
         ),
     )
     return app
