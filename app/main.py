@@ -20,6 +20,7 @@ from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.factory import build_dashboard_services
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
+from app.services.execution.ledger import ExecutionLedger
 from app.services.execution.factory import ExecutionFactory
 from app.services.learning.service import LearningService
 from app.services.notification.factory import build_notification_services
@@ -70,6 +71,7 @@ def create_app(
     post_fill_service: PostFillService | None = None,
     position_exit_service: PositionExitService | None = None,
     position_store: CurrentPositionStore | None = None,
+    execution_ledger: ExecutionLedger | None = None,
     trade_fill_notifier: TelegramNotifier | None = None,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     restart_notifier: RestartNotifier | None = None,
@@ -117,9 +119,11 @@ def create_app(
         promotion_history_store=promotion_history_store,
         promotion_status_store=promotion_status_store,
     )
+    execution_ledger = execution_ledger or ExecutionLedger()
 
     dashboard_services = build_dashboard_services(
         promotion_dashboard_facade=promotion_services.dashboard_facade,
+        execution_ledger=execution_ledger,
         dashboard_summary_service=dashboard_summary_service,
         dashboard_summary_facade=dashboard_summary_facade,
     )
@@ -167,6 +171,7 @@ def create_app(
             trading_mode=settings.trading_mode,
             learning_service=learning_service,
             telegram_notifier=trade_fill_notifier,
+            execution_ledger=execution_ledger,
         )
     if post_fill_service is None:
         post_fill_service = PostFillService(
@@ -182,6 +187,7 @@ def create_app(
             ),
             position_store=position_store,
             telegram_notifier=trade_fill_notifier,
+            execution_ledger=execution_ledger,
         )
 
     app = FastAPI(title=settings.app_name)

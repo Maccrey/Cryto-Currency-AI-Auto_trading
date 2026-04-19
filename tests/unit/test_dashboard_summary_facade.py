@@ -1,6 +1,8 @@
 from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
+from app.services.execution.demo import FillResult
+from app.services.execution.ledger import ExecutionLedger
 from app.services.promotion.approval import PromotionApprovalResult
 from app.services.promotion.evaluator import PromotionEvaluation
 from app.services.promotion.runner import PromotionRunResult
@@ -71,3 +73,67 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
         "trading_ready": True,
         "promotion_ready": True,
     }
+
+
+def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
+    ledger = ExecutionLedger()
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=820.0,
+            filled_quantity=100.0,
+            fee=34.12,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="sell",
+            filled_price=805.0,
+            filled_quantity=100.0,
+            fee=33.5,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=True,
+        ),
+        reason_code="STOP_LOSS_PRICE_HIT",
+    )
+    facade = DashboardSummaryFacade(
+        dashboard_summary_service=DashboardSummaryService(),
+        promotion_dashboard_facade=PromotionDashboardFacade(
+            promotion_state_service=PromotionStateService(),
+            promotion_dashboard_service=PromotionDashboardService(),
+        ),
+        execution_ledger=ledger,
+    )
+    boot_state = BootState(
+        safe_mode=False,
+        hard_stop=False,
+        trading_ready=True,
+        failure_stage=None,
+        portfolio_state=PortfolioState(
+            cash_balance=250000.0,
+            asset_currency="XRP",
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+        ),
+        reconcile_result={"open_order_count": 0},
+    )
+
+    payload = facade.build_response(
+        boot_state=boot_state,
+        trading_mode="demo",
+        learning_enabled=True,
+    )
+
+    assert payload["buy_count"] == 1
+    assert payload["sell_count"] == 1
+    assert payload["stop_loss_count"] == 1
+    assert payload["recent_stop_loss_reason"] == "STOP_LOSS_PRICE_HIT"
+    assert payload["realized_pnl"] < 0.0

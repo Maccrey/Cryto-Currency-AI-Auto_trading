@@ -4,7 +4,8 @@ from dataclasses import asdict, replace
 from typing import Any
 
 from app.integrations.telegram.notifier import TelegramNotifier
-from app.services.execution.demo import OrderIntent
+from app.services.execution.demo import FillResult, OrderIntent
+from app.services.execution.ledger import ExecutionLedger
 from app.services.learning.service import LearningEvent, LearningService
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.hard_stop import HardStopMonitor
@@ -24,6 +25,7 @@ class PositionExitService:
         trading_mode: str,
         learning_service: LearningService | None = None,
         telegram_notifier: TelegramNotifier | None = None,
+        execution_ledger: ExecutionLedger | None = None,
     ) -> None:
         self._position_store = position_store
         self._hard_stop_monitor = hard_stop_monitor
@@ -32,6 +34,7 @@ class PositionExitService:
         self._trading_mode = trading_mode
         self._learning_service = learning_service
         self._telegram_notifier = telegram_notifier
+        self._execution_ledger = execution_ledger
 
     def evaluate_and_execute(
         self,
@@ -182,5 +185,7 @@ class PositionExitService:
                     },
                 ),
             )
+        if self._execution_ledger is not None and isinstance(execution, FillResult):
+            self._execution_ledger.record_fill(execution, reason_code=reason_code)
         if self._telegram_notifier is not None and hasattr(execution, "filled_price"):
             self._telegram_notifier.notify_fill(execution)
