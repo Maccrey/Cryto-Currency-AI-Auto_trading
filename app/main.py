@@ -20,6 +20,7 @@ from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningService
 from app.services.portfolio.sync import PortfolioSyncService
 from app.services.promotion.approval import PromotionApprovalFlow
+from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.promotion.evaluator import PromotionEvaluator
 from app.services.promotion.history import PromotionHistoryStore
 from app.services.promotion.lifecycle import PromotionLifecycleService
@@ -53,6 +54,7 @@ def create_app(
     dashboard_summary_service: DashboardSummaryService | None = None,
     learning_service: LearningService | None = None,
     promotion_runner: PromotionRunner | None = None,
+    promotion_dashboard_facade: PromotionDashboardFacade | None = None,
     promotion_review_service: PromotionReviewService | None = None,
     promotion_state_service: PromotionStateService | None = None,
     promotion_history_store: PromotionHistoryStore | None = None,
@@ -117,6 +119,11 @@ def create_app(
             status_store=promotion_status_store,
             history_store=promotion_history_store,
         )
+    if promotion_dashboard_facade is None:
+        promotion_dashboard_facade = PromotionDashboardFacade(
+            promotion_state_service=promotion_state_service,
+            promotion_dashboard_service=promotion_dashboard_service,
+        )
     if promotion_review_service is None:
         promotion_review_service = PromotionReviewService(
             promotion_runner=promotion_runner,
@@ -159,7 +166,7 @@ def create_app(
             sell_count=0,
             stop_loss_count=0,
             recent_stop_loss_reason=None,
-            promotion_ready=promotion_state_service.is_ready_for_review(),
+            promotion_ready=promotion_dashboard_facade.is_ready_for_review(),
         )
         if isinstance(summary, dict):
             return summary
@@ -167,33 +174,11 @@ def create_app(
 
     @app.get("/dashboard/promotion")
     def dashboard_promotion() -> dict[str, object]:
-        promotion = promotion_dashboard_service.build_current(
-            promotion_state_service.get_latest(),
-        )
-        if promotion is None:
-            return {
-                "status": "empty",
-                "promotion": None,
-            }
-        return {
-            "status": "ok",
-            "promotion": promotion_dashboard_service.to_payload(promotion),
-        }
+        return promotion_dashboard_facade.build_current_response()
 
     @app.get("/dashboard/promotion/history")
     def dashboard_promotion_history() -> dict[str, object]:
-        history = promotion_dashboard_service.build_history(
-            promotion_state_service.list_history(),
-        )
-        if not history:
-            return {
-                "status": "empty",
-                "history": [],
-            }
-        return {
-            "status": "ok",
-            "history": promotion_dashboard_service.to_history_payload(history),
-        }
+        return promotion_dashboard_facade.build_history_response()
 
     @app.post("/promotion/review")
     def promotion_review(payload: PromotionReviewPayload) -> dict[str, object]:
