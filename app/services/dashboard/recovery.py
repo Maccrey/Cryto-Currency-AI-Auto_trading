@@ -12,6 +12,8 @@ class DashboardRecovery:
     hard_stop: bool
     trading_ready: bool
     failure_stage: str | None
+    restart_count: int | None
+    blocked_reason: str | None
     last_restart_detected_at: str | None
     last_recovery_completed_at: str | None
     hard_stop_triggered_at: str | None
@@ -31,6 +33,7 @@ class DashboardRecoveryService:
         boot_state: BootState,
         events: list[LearningEvent],
     ) -> DashboardRecovery:
+        reconcile_result = boot_state.reconcile_result or {}
         last_restart_detected_at = next(
             (
                 event.recorded_at
@@ -70,6 +73,8 @@ class DashboardRecoveryService:
             hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,
             failure_stage=boot_state.failure_stage,
+            restart_count=reconcile_result.get("restart_count"),
+            blocked_reason=reconcile_result.get("blocked_reason"),
             last_restart_detected_at=last_restart_detected_at,
             last_recovery_completed_at=last_recovery_completed_at,
             hard_stop_triggered_at=hard_stop_triggered_at,

@@ -46,6 +46,8 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
     assert response["recovery"]["hard_stop"] is False
     assert response["recovery"]["trading_ready"] is True
     assert response["recovery"]["failure_stage"] is None
+    assert response["recovery"]["restart_count"] is None
+    assert response["recovery"]["blocked_reason"] is None
     assert response["recovery"]["last_restart_detected_at"] == "2026-04-20T09:00:00+09:00"
     assert response["recovery"]["last_recovery_completed_at"] == "2026-04-20T09:00:05+09:00"
     assert response["recovery"]["hard_stop_triggered_at"] is None
@@ -86,7 +88,10 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
             trading_ready=False,
             failure_stage="hard_stop",
             portfolio_state=None,
-            reconcile_result={"restart_count": 3},
+            reconcile_result={
+                "restart_count": 3,
+                "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
+            },
         ),
         learning_service=learning_service,
         dashboard_recovery_service=DashboardRecoveryService(),
@@ -96,6 +101,8 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
 
     assert response["recovery"]["hard_stop"] is True
     assert response["recovery"]["failure_stage"] == "hard_stop"
+    assert response["recovery"]["restart_count"] == 3
+    assert response["recovery"]["blocked_reason"] == "RESTART_THRESHOLD_EXCEEDED"
     assert response["recovery"]["hard_stop_triggered_at"] == "2026-04-20T09:10:01+09:00"
     assert [event["event_name"] for event in response["recovery"]["recent_hard_stop_events"]] == [
         "hard_stop_triggered",
