@@ -1232,6 +1232,18 @@ def test_dashboard_recovery_endpoint_returns_recovery_payload(monkeypatch) -> No
     assert response.json()["recovery"]["last_restart_detected_at"] == "2026-04-20T10:00:00+09:00"
     assert response.json()["recovery"]["hard_stop_triggered_at"] is None
     assert response.json()["recovery"]["recent_events"][0]["event_name"] == "restart_detected"
+    assert response.json()["recovery"]["recent_recovery_timeline"] == [
+        {
+            "event_name": "restart_detected",
+            "occurred_at": "2026-04-20T10:00:00+09:00",
+            "app_name": "test-app",
+            "trading_mode": None,
+            "safe_mode": None,
+            "trading_ready": None,
+            "failure_stage": None,
+            "open_order_count": None,
+        },
+    ]
     assert response.json()["recovery"]["recent_hard_stop_events"] == []
     assert response.json()["recovery"]["recent_hard_stop_timeline"] == []
 

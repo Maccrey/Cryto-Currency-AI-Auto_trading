@@ -18,6 +18,7 @@ class DashboardRecovery:
     last_recovery_completed_at: str | None
     hard_stop_triggered_at: str | None
     recent_events: list[dict[str, object]]
+    recent_recovery_timeline: list[dict[str, object]]
     recent_hard_stop_events: list[dict[str, object]]
     recent_hard_stop_timeline: list[dict[str, object]]
 
@@ -64,6 +65,20 @@ class DashboardRecoveryService:
             for event in events
             if event.event_name in self.RECOVERY_EVENT_NAMES
         ]
+        recent_recovery_timeline = [
+            {
+                "event_name": event.event_name,
+                "occurred_at": event.recorded_at,
+                "app_name": event.payload.get("app_name"),
+                "trading_mode": event.payload.get("trading_mode"),
+                "safe_mode": event.payload.get("safe_mode"),
+                "trading_ready": event.payload.get("trading_ready"),
+                "failure_stage": event.payload.get("failure_stage"),
+                "open_order_count": event.payload.get("open_order_count"),
+            }
+            for event in events
+            if event.event_name in self.RECOVERY_EVENT_NAMES
+        ]
         recent_hard_stop_events = [
             asdict(event)
             for event in events
@@ -89,6 +104,7 @@ class DashboardRecoveryService:
             last_recovery_completed_at=last_recovery_completed_at,
             hard_stop_triggered_at=hard_stop_triggered_at,
             recent_events=recent_events,
+            recent_recovery_timeline=recent_recovery_timeline,
             recent_hard_stop_events=recent_hard_stop_events,
             recent_hard_stop_timeline=recent_hard_stop_timeline,
         )
