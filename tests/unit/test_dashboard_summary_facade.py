@@ -80,6 +80,8 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
         "last_fill_recorded_at": None,
         "last_position_event": None,
         "last_promotion_reviewed_at": "2026-04-19T18:00:00+09:00",
+        "last_restart_detected_at": None,
+        "last_recovery_completed_at": None,
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -156,6 +158,8 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
     assert payload["last_fill_recorded_at"] is None
     assert payload["last_position_event"] is None
     assert payload["last_promotion_reviewed_at"] is None
+    assert payload["last_restart_detected_at"] is None
+    assert payload["last_recovery_completed_at"] is None
 
 
 def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() -> None:
@@ -210,6 +214,8 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
     assert payload["last_fill_recorded_at"] is None
     assert payload["last_position_event"] is None
     assert payload["last_promotion_reviewed_at"] is None
+    assert payload["last_restart_detected_at"] is None
+    assert payload["last_recovery_completed_at"] is None
 
 
 def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
@@ -227,6 +233,18 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
                 market="KRW-XRP",
                 mode="demo",
                 payload={"side": "buy"},
+            ),
+            LearningEvent(
+                event_name="restart_detected",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"app_name": "test-app"},
+            ),
+            LearningEvent(
+                event_name="recovery_completed",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"trading_ready": True},
             ),
             LearningEvent(
                 event_name="position_opened",
@@ -306,3 +324,5 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
     assert payload["last_fill_recorded_at"] is not None
     assert payload["last_position_event"] == "opened"
     assert payload["last_promotion_reviewed_at"] == "2026-04-19T20:00:03+09:00"
+    assert payload["last_restart_detected_at"] is not None
+    assert payload["last_recovery_completed_at"] is not None

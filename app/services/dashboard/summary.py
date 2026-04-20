@@ -24,6 +24,8 @@ class DashboardSummary:
     last_fill_recorded_at: str | None
     last_position_event: str | None
     last_promotion_reviewed_at: str | None
+    last_restart_detected_at: str | None
+    last_recovery_completed_at: str | None
     safe_mode: bool
     hard_stop: bool
     trading_ready: bool
@@ -52,6 +54,8 @@ class DashboardSummaryService:
         last_fill_recorded_at: str | None,
         last_position_event: str | None,
         last_promotion_reviewed_at: str | None,
+        last_restart_detected_at: str | None,
+        last_recovery_completed_at: str | None,
         promotion_ready: bool,
     ) -> DashboardSummary:
         portfolio = boot_state.portfolio_state
@@ -73,6 +77,8 @@ class DashboardSummaryService:
             last_fill_recorded_at=last_fill_recorded_at,
             last_position_event=last_position_event,
             last_promotion_reviewed_at=last_promotion_reviewed_at,
+            last_restart_detected_at=last_restart_detected_at,
+            last_recovery_completed_at=last_recovery_completed_at,
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,

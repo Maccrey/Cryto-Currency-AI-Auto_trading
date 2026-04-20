@@ -64,6 +64,22 @@ class DashboardSummaryFacade:
             ),
             None,
         )
+        last_restart_detected_at = next(
+            (
+                event.recorded_at
+                for event in reversed(recent_learning_events)
+                if event.event_name == "restart_detected"
+            ),
+            None,
+        )
+        last_recovery_completed_at = next(
+            (
+                event.recorded_at
+                for event in reversed(recent_learning_events)
+                if event.event_name == "recovery_completed"
+            ),
+            None,
+        )
         position_records = (
             [] if self._position_lifecycle_ledger is None else self._position_lifecycle_ledger.list_records(limit=1)
         )
@@ -95,6 +111,8 @@ class DashboardSummaryFacade:
             last_fill_recorded_at=last_fill_recorded_at,
             last_position_event=last_position_event,
             last_promotion_reviewed_at=self._promotion_dashboard_facade.latest_reviewed_at(),
+            last_restart_detected_at=last_restart_detected_at,
+            last_recovery_completed_at=last_recovery_completed_at,
             promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
         )
         if isinstance(summary, dict):

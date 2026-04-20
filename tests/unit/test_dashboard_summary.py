@@ -38,6 +38,8 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         last_fill_recorded_at=None,
         last_position_event=None,
         last_promotion_reviewed_at=None,
+        last_restart_detected_at=None,
+        last_recovery_completed_at=None,
         promotion_ready=False,
     )
 
@@ -59,6 +61,8 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         last_fill_recorded_at=None,
         last_position_event=None,
         last_promotion_reviewed_at=None,
+        last_restart_detected_at=None,
+        last_recovery_completed_at=None,
         safe_mode=True,
         hard_stop=True,
         trading_ready=False,
