@@ -59,6 +59,7 @@ def build_dashboard_services(
         promotion_dashboard_facade=promotion_dashboard_facade,
         learning_service=learning_service,
         execution_ledger=execution_ledger,
+        position_lifecycle_ledger=position_lifecycle_ledger,
         position_store=position_store,
         market_price_store=market_price_store,
     )

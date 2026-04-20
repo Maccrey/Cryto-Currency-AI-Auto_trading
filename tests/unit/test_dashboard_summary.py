@@ -36,6 +36,8 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         learning_fill_count=0,
         last_signal_recorded_at=None,
         last_fill_recorded_at=None,
+        last_position_event=None,
+        last_promotion_reviewed_at=None,
         promotion_ready=False,
     )
 
@@ -55,6 +57,8 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         learning_fill_count=0,
         last_signal_recorded_at=None,
         last_fill_recorded_at=None,
+        last_position_event=None,
+        last_promotion_reviewed_at=None,
         safe_mode=True,
         hard_stop=True,
         trading_ready=False,

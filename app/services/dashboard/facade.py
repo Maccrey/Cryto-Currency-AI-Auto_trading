@@ -4,6 +4,7 @@ from app.services.execution.ledger import ExecutionLedger
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningService
 from app.services.market.store import MarketPriceStore
+from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.recovery.orchestrator import BootState
@@ -19,6 +20,7 @@ class DashboardSummaryFacade:
         promotion_dashboard_facade: PromotionDashboardFacade,
         learning_service: LearningService | None = None,
         execution_ledger: ExecutionLedger | None = None,
+        position_lifecycle_ledger: PositionLifecycleLedger | None = None,
         position_store: CurrentPositionStore | None = None,
         market_price_store: MarketPriceStore | None = None,
     ) -> None:
@@ -26,6 +28,7 @@ class DashboardSummaryFacade:
         self._promotion_dashboard_facade = promotion_dashboard_facade
         self._learning_service = learning_service
         self._execution_ledger = execution_ledger
+        self._position_lifecycle_ledger = position_lifecycle_ledger
         self._position_store = position_store
         self._market_price_store = market_price_store
 
@@ -61,6 +64,10 @@ class DashboardSummaryFacade:
             ),
             None,
         )
+        position_records = (
+            [] if self._position_lifecycle_ledger is None else self._position_lifecycle_ledger.list_records(limit=1)
+        )
+        last_position_event = None if not position_records else position_records[-1].event_type
         unrealized_pnl = 0.0
         if self._position_store is not None and self._market_price_store is not None:
             position = self._position_store.get()
@@ -86,6 +93,8 @@ class DashboardSummaryFacade:
             learning_fill_count=learning_fill_count,
             last_signal_recorded_at=last_signal_recorded_at,
             last_fill_recorded_at=last_fill_recorded_at,
+            last_position_event=last_position_event,
+            last_promotion_reviewed_at=self._promotion_dashboard_facade.latest_reviewed_at(),
             promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
         )
         if isinstance(summary, dict):

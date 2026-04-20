@@ -5,6 +5,7 @@ from app.services.execution.demo import FillResult
 from app.services.execution.ledger import ExecutionLedger
 from app.services.learning.service import LearningEvent, LearningService
 from app.services.market.store import MarketPriceStore
+from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.promotion.approval import PromotionApprovalResult
 from app.services.promotion.evaluator import PromotionEvaluation
@@ -77,6 +78,8 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
         "learning_fill_count": 0,
         "last_signal_recorded_at": None,
         "last_fill_recorded_at": None,
+        "last_position_event": None,
+        "last_promotion_reviewed_at": "2026-04-19T18:00:00+09:00",
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -151,6 +154,8 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
     assert payload["learning_fill_count"] == 0
     assert payload["last_signal_recorded_at"] is None
     assert payload["last_fill_recorded_at"] is None
+    assert payload["last_position_event"] is None
+    assert payload["last_promotion_reviewed_at"] is None
 
 
 def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() -> None:
@@ -203,6 +208,8 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
     assert payload["last_learning_event"] is None
     assert payload["last_signal_recorded_at"] is None
     assert payload["last_fill_recorded_at"] is None
+    assert payload["last_position_event"] is None
+    assert payload["last_promotion_reviewed_at"] is None
 
 
 def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
@@ -229,13 +236,48 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             ),
         ],
     )
+    position_lifecycle_ledger = PositionLifecycleLedger(
+        timestamp_provider=lambda: "2026-04-19T20:00:02+09:00",
+    )
+    position_lifecycle_ledger.record(
+        event_type="opened",
+        position=PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="strong",
+            entry_price=820.0,
+            quantity=100.0,
+            stop_loss_price=805.24,
+            stop_loss_pct=0.018,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    promotion_state_service = PromotionStateService()
+    promotion_state_service.save_review(
+        market="KRW-XRP",
+        reviewed_at="2026-04-19T20:00:03+09:00",
+        result=PromotionRunResult(
+            evaluation=PromotionEvaluation(
+                status="READY_FOR_REVIEW",
+                approved=False,
+                rejection_reasons=[],
+            ),
+            approval_result=PromotionApprovalResult(
+                live_enabled=True,
+                safe_mode_entry=True,
+                reason_code=None,
+            ),
+        ),
+    )
     facade = DashboardSummaryFacade(
         dashboard_summary_service=DashboardSummaryService(),
         promotion_dashboard_facade=PromotionDashboardFacade(
-            promotion_state_service=PromotionStateService(),
+            promotion_state_service=promotion_state_service,
             promotion_dashboard_service=PromotionDashboardService(),
         ),
         learning_service=learning_service,
+        position_lifecycle_ledger=position_lifecycle_ledger,
     )
     boot_state = BootState(
         safe_mode=False,
@@ -262,3 +304,5 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
     assert payload["learning_fill_count"] == 1
     assert payload["last_signal_recorded_at"] is not None
     assert payload["last_fill_recorded_at"] is not None
+    assert payload["last_position_event"] == "opened"
+    assert payload["last_promotion_reviewed_at"] == "2026-04-19T20:00:03+09:00"

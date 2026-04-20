@@ -19,6 +19,12 @@ class PromotionDashboardFacade:
     def is_ready_for_review(self) -> bool:
         return self._promotion_state_service.is_ready_for_review()
 
+    def latest_reviewed_at(self) -> str | None:
+        latest = self._promotion_state_service.get_latest()
+        if latest is None:
+            return None
+        return latest.reviewed_at
+
     def build_current_response(self) -> dict[str, object]:
         promotion = self._promotion_dashboard_service.build_current(
             self._promotion_state_service.get_latest(),
