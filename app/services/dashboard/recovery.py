@@ -10,6 +10,7 @@ from app.services.recovery.orchestrator import BootState
 class DashboardRecovery:
     state_label: str
     state_message: str
+    recommended_action: str
     safe_mode: bool
     hard_stop: bool
     trading_ready: bool
@@ -136,9 +137,14 @@ class DashboardRecoveryService:
             boot_state=boot_state,
             blocked_reason=reconcile_result.get("blocked_reason"),
         )
+        recommended_action = self._derive_recommended_action(
+            boot_state=boot_state,
+            blocked_reason=reconcile_result.get("blocked_reason"),
+        )
         current_state_summary = {
             "state_label": state_label,
             "state_message": state_message,
+            "recommended_action": recommended_action,
             "safe_mode": boot_state.safe_mode,
             "hard_stop": boot_state.hard_stop,
             "trading_ready": boot_state.trading_ready,
@@ -152,6 +158,7 @@ class DashboardRecoveryService:
         return DashboardRecovery(
             state_label=state_label,
             state_message=state_message,
+            recommended_action=recommended_action,
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,
@@ -200,3 +207,23 @@ class DashboardRecoveryService:
         if boot_state.trading_ready:
             return "정상 복구가 완료되어 거래 가능 상태입니다."
         return "복구 상태가 불안정하여 추가 확인이 필요합니다."
+
+    @staticmethod
+    def _derive_recommended_action(
+        *,
+        boot_state: BootState,
+        blocked_reason: str | None,
+    ) -> str:
+        if boot_state.hard_stop:
+            if blocked_reason:
+                return f"재시작 원인과 인프라 상태를 점검한 뒤 수동으로 HARD_STOP 해제를 검토하세요: {blocked_reason}"
+            return "재시작 원인과 인프라 상태를 점검한 뒤 수동으로 HARD_STOP 해제를 검토하세요."
+        if boot_state.failure_stage == "portfolio_sync":
+            return "업비트 계정 동기화와 인증 키 상태를 점검한 뒤 재기동을 시도하세요."
+        if boot_state.failure_stage == "open_order_reconcile":
+            return "미체결 주문 조회 경로와 네트워크 상태를 확인한 뒤 재기동을 시도하세요."
+        if boot_state.safe_mode:
+            return "SAFE_MODE 해제 전 복구 실패 원인을 점검하세요."
+        if boot_state.trading_ready:
+            return "추가 조치 없이 운영을 지속할 수 있습니다."
+        return "복구 로그와 최근 운영 이벤트를 확인해 원인을 파악하세요."
