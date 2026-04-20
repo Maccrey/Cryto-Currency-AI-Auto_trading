@@ -79,6 +79,32 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
     ]
     assert response["recovery"]["recent_hard_stop_events"] == []
     assert response["recovery"]["recent_hard_stop_timeline"] == []
+    assert response["recovery"]["recovery_timeline"] == [
+        {
+            "event_name": "restart_detected",
+            "occurred_at": "2026-04-20T09:00:00+09:00",
+            "app_name": "test-app",
+            "trading_mode": None,
+            "safe_mode": None,
+            "trading_ready": None,
+            "failure_stage": None,
+            "open_order_count": None,
+            "restart_count": None,
+            "blocked_reason": None,
+        },
+        {
+            "event_name": "recovery_completed",
+            "occurred_at": "2026-04-20T09:00:05+09:00",
+            "app_name": None,
+            "trading_mode": None,
+            "safe_mode": None,
+            "trading_ready": True,
+            "failure_stage": None,
+            "open_order_count": None,
+            "restart_count": None,
+            "blocked_reason": None,
+        },
+    ]
 
 
 def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) -> None:
@@ -144,7 +170,34 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
     ]
     assert response["recovery"]["recent_hard_stop_timeline"] == [
         {
+            "event_name": "hard_stop_triggered",
             "triggered_at": "2026-04-20T09:10:01+09:00",
+            "restart_count": 3,
+            "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
+        },
+    ]
+    assert response["recovery"]["recovery_timeline"] == [
+        {
+            "event_name": "restart_detected",
+            "occurred_at": "2026-04-20T09:10:00+09:00",
+            "app_name": "test-app",
+            "trading_mode": None,
+            "safe_mode": None,
+            "trading_ready": None,
+            "failure_stage": None,
+            "open_order_count": None,
+            "restart_count": None,
+            "blocked_reason": None,
+        },
+        {
+            "event_name": "hard_stop_triggered",
+            "occurred_at": "2026-04-20T09:10:01+09:00",
+            "app_name": None,
+            "trading_mode": None,
+            "safe_mode": None,
+            "trading_ready": None,
+            "failure_stage": "hard_stop",
+            "open_order_count": None,
             "restart_count": 3,
             "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
         },
