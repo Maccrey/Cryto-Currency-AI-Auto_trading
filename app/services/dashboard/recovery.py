@@ -19,6 +19,7 @@ class DashboardRecovery:
     hard_stop_triggered_at: str | None
     recent_events: list[dict[str, object]]
     recent_hard_stop_events: list[dict[str, object]]
+    recent_hard_stop_timeline: list[dict[str, object]]
 
 
 class DashboardRecoveryService:
@@ -68,6 +69,15 @@ class DashboardRecoveryService:
             for event in events
             if event.event_name in self.HARD_STOP_EVENT_NAMES
         ]
+        recent_hard_stop_timeline = [
+            {
+                "triggered_at": event.recorded_at,
+                "restart_count": event.payload.get("restart_count"),
+                "blocked_reason": event.payload.get("blocked_reason"),
+            }
+            for event in events
+            if event.event_name in self.HARD_STOP_EVENT_NAMES
+        ]
         return DashboardRecovery(
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
@@ -80,6 +90,7 @@ class DashboardRecoveryService:
             hard_stop_triggered_at=hard_stop_triggered_at,
             recent_events=recent_events,
             recent_hard_stop_events=recent_hard_stop_events,
+            recent_hard_stop_timeline=recent_hard_stop_timeline,
         )
 
     @staticmethod

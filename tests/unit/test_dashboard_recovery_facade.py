@@ -56,6 +56,7 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
         "recovery_completed",
     ]
     assert response["recovery"]["recent_hard_stop_events"] == []
+    assert response["recovery"]["recent_hard_stop_timeline"] == []
 
 
 def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) -> None:
@@ -106,4 +107,11 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
     assert response["recovery"]["hard_stop_triggered_at"] == "2026-04-20T09:10:01+09:00"
     assert [event["event_name"] for event in response["recovery"]["recent_hard_stop_events"]] == [
         "hard_stop_triggered",
+    ]
+    assert response["recovery"]["recent_hard_stop_timeline"] == [
+        {
+            "triggered_at": "2026-04-20T09:10:01+09:00",
+            "restart_count": 3,
+            "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
+        },
     ]

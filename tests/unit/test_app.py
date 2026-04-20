@@ -1233,6 +1233,7 @@ def test_dashboard_recovery_endpoint_returns_recovery_payload(monkeypatch) -> No
     assert response.json()["recovery"]["hard_stop_triggered_at"] is None
     assert response.json()["recovery"]["recent_events"][0]["event_name"] == "restart_detected"
     assert response.json()["recovery"]["recent_hard_stop_events"] == []
+    assert response.json()["recovery"]["recent_hard_stop_timeline"] == []
 
 
 def test_dashboard_executions_endpoint_returns_recent_fill_history(monkeypatch) -> None:
