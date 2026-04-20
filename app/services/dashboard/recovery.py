@@ -9,6 +9,7 @@ from app.services.recovery.orchestrator import BootState
 @dataclass(frozen=True)
 class DashboardRecovery:
     state_label: str
+    state_message: str
     safe_mode: bool
     hard_stop: bool
     trading_ready: bool
@@ -131,8 +132,13 @@ class DashboardRecoveryService:
             key=lambda event: str(event["occurred_at"]),
         )
         state_label = self._derive_state_label(boot_state)
+        state_message = self._derive_state_message(
+            boot_state=boot_state,
+            blocked_reason=reconcile_result.get("blocked_reason"),
+        )
         current_state_summary = {
             "state_label": state_label,
+            "state_message": state_message,
             "safe_mode": boot_state.safe_mode,
             "hard_stop": boot_state.hard_stop,
             "trading_ready": boot_state.trading_ready,
@@ -145,6 +151,7 @@ class DashboardRecoveryService:
         }
         return DashboardRecovery(
             state_label=state_label,
+            state_message=state_message,
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,
@@ -175,3 +182,21 @@ class DashboardRecoveryService:
         if boot_state.trading_ready:
             return "OK"
         return "DEGRADED"
+
+    @staticmethod
+    def _derive_state_message(
+        *,
+        boot_state: BootState,
+        blocked_reason: str | None,
+    ) -> str:
+        if boot_state.hard_stop:
+            if blocked_reason:
+                return f"재시작 한도 초과로 HARD_STOP 상태입니다: {blocked_reason}"
+            return "재시작 한도 초과로 HARD_STOP 상태입니다."
+        if boot_state.safe_mode:
+            if boot_state.failure_stage:
+                return f"복구 실패로 SAFE_MODE 상태입니다: {boot_state.failure_stage}"
+            return "SAFE_MODE 상태입니다."
+        if boot_state.trading_ready:
+            return "정상 복구가 완료되어 거래 가능 상태입니다."
+        return "복구 상태가 불안정하여 추가 확인이 필요합니다."

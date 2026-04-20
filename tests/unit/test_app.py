@@ -1225,6 +1225,7 @@ def test_dashboard_recovery_endpoint_returns_recovery_payload(monkeypatch) -> No
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["recovery"]["state_label"] == "OK"
+    assert response.json()["recovery"]["state_message"] == "정상 복구가 완료되어 거래 가능 상태입니다."
     assert response.json()["recovery"]["safe_mode"] is False
     assert response.json()["recovery"]["hard_stop"] is False
     assert response.json()["recovery"]["trading_ready"] is True
@@ -1263,6 +1264,7 @@ def test_dashboard_recovery_endpoint_returns_recovery_payload(monkeypatch) -> No
     ]
     assert response.json()["recovery"]["current_state_summary"] == {
         "state_label": "OK",
+        "state_message": "정상 복구가 완료되어 거래 가능 상태입니다.",
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
