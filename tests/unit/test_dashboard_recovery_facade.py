@@ -42,6 +42,7 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
     response = facade.build_response(limit=5)
 
     assert response["status"] == "ok"
+    assert response["recovery"]["state_label"] == "OK"
     assert response["recovery"]["safe_mode"] is False
     assert response["recovery"]["hard_stop"] is False
     assert response["recovery"]["trading_ready"] is True
@@ -106,6 +107,7 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
         },
     ]
     assert response["recovery"]["current_state_summary"] == {
+        "state_label": "OK",
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -160,6 +162,7 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
     response = facade.build_response(limit=5)
 
     assert response["recovery"]["hard_stop"] is True
+    assert response["recovery"]["state_label"] == "HARD_STOP"
     assert response["recovery"]["failure_stage"] == "hard_stop"
     assert response["recovery"]["restart_count"] == 3
     assert response["recovery"]["blocked_reason"] == "RESTART_THRESHOLD_EXCEEDED"
@@ -214,6 +217,7 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
         },
     ]
     assert response["recovery"]["current_state_summary"] == {
+        "state_label": "HARD_STOP",
         "safe_mode": True,
         "hard_stop": True,
         "trading_ready": False,

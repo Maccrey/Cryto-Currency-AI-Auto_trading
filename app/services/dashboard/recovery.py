@@ -8,6 +8,7 @@ from app.services.recovery.orchestrator import BootState
 
 @dataclass(frozen=True)
 class DashboardRecovery:
+    state_label: str
     safe_mode: bool
     hard_stop: bool
     trading_ready: bool
@@ -129,7 +130,9 @@ class DashboardRecoveryService:
             ],
             key=lambda event: str(event["occurred_at"]),
         )
+        state_label = self._derive_state_label(boot_state)
         current_state_summary = {
+            "state_label": state_label,
             "safe_mode": boot_state.safe_mode,
             "hard_stop": boot_state.hard_stop,
             "trading_ready": boot_state.trading_ready,
@@ -141,6 +144,7 @@ class DashboardRecoveryService:
             "hard_stop_triggered_at": hard_stop_triggered_at,
         }
         return DashboardRecovery(
+            state_label=state_label,
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,
@@ -161,3 +165,13 @@ class DashboardRecoveryService:
     @staticmethod
     def to_payload(recovery: DashboardRecovery) -> dict[str, object]:
         return asdict(recovery)
+
+    @staticmethod
+    def _derive_state_label(boot_state: BootState) -> str:
+        if boot_state.hard_stop:
+            return "HARD_STOP"
+        if boot_state.safe_mode:
+            return "SAFE_MODE"
+        if boot_state.trading_ready:
+            return "OK"
+        return "DEGRADED"
