@@ -120,3 +120,31 @@ def test_recovery_orchestrator_enters_hard_stop_when_restart_threshold_is_hit() 
         "restart_count": 1,
         "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
     }
+
+
+def test_recovery_orchestrator_records_hard_stop_learning_event() -> None:
+    class StubLearningService:
+        def __init__(self) -> None:
+            self.events = []
+
+        def record(self, event) -> None:
+            self.events.append(event)
+
+    learning_service = StubLearningService()
+    orchestrator = RecoveryOrchestrator(
+        app_name="upbit-auto-trader",
+        trading_mode="live",
+        portfolio_sync_service=SuccessfulPortfolioSyncService(),
+        open_order_reconciler=SuccessfulOpenOrderReconciler(),
+        restart_store=StubRestartStore(),
+        restart_counter=RestartCounter(threshold=1),
+        learning_service=learning_service,
+    )
+
+    state = orchestrator.boot()
+
+    assert state.hard_stop is True
+    assert [event.event_name for event in learning_service.events] == [
+        "restart_detected",
+        "hard_stop_triggered",
+    ]

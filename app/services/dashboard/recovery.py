@@ -14,13 +14,16 @@ class DashboardRecovery:
     failure_stage: str | None
     last_restart_detected_at: str | None
     last_recovery_completed_at: str | None
+    hard_stop_triggered_at: str | None
     recent_events: list[dict[str, object]]
+    recent_hard_stop_events: list[dict[str, object]]
 
 
 class DashboardRecoveryService:
     """Build dashboard-friendly recovery state payloads."""
 
     RECOVERY_EVENT_NAMES = {"restart_detected", "recovery_completed"}
+    HARD_STOP_EVENT_NAMES = {"hard_stop_triggered"}
 
     def build(
         self,
@@ -44,10 +47,23 @@ class DashboardRecoveryService:
             ),
             None,
         )
+        hard_stop_triggered_at = next(
+            (
+                event.recorded_at
+                for event in reversed(events)
+                if event.event_name == "hard_stop_triggered"
+            ),
+            None,
+        )
         recent_events = [
             asdict(event)
             for event in events
             if event.event_name in self.RECOVERY_EVENT_NAMES
+        ]
+        recent_hard_stop_events = [
+            asdict(event)
+            for event in events
+            if event.event_name in self.HARD_STOP_EVENT_NAMES
         ]
         return DashboardRecovery(
             safe_mode=boot_state.safe_mode,
@@ -56,7 +72,9 @@ class DashboardRecoveryService:
             failure_stage=boot_state.failure_stage,
             last_restart_detected_at=last_restart_detected_at,
             last_recovery_completed_at=last_recovery_completed_at,
+            hard_stop_triggered_at=hard_stop_triggered_at,
             recent_events=recent_events,
+            recent_hard_stop_events=recent_hard_stop_events,
         )
 
     @staticmethod

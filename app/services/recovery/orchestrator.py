@@ -76,6 +76,13 @@ class RecoveryOrchestrator:
         if self._restart_counter is not None:
             hard_stop = self._restart_counter.record_restart()
             if hard_stop.hard_stop:
+                self._record_learning_event(
+                    "hard_stop_triggered",
+                    {
+                        "restart_count": hard_stop.restart_count,
+                        "blocked_reason": hard_stop.blocked_reason,
+                    },
+                )
                 return BootState(
                     safe_mode=True,
                     hard_stop=True,

@@ -5,6 +5,7 @@ from app.services.learning.service import LearningEvent
 from app.services.portfolio.sync import PortfolioState
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
+from app.services.recovery.hard_stop import RestartCounter
 from app.services.recovery.orchestrator import RecoveryOrchestrator
 from app.services.risk.hard_stop import HardStopMonitor
 from app.services.risk.post_entry import PostEntryValidator
@@ -120,6 +121,27 @@ def test_recovery_orchestrator_records_restart_and_recovery_events() -> None:
     assert [event.event_name for event in learning_service.events] == [
         "restart_detected",
         "recovery_completed",
+    ]
+
+
+def test_recovery_orchestrator_records_hard_stop_trigger_event() -> None:
+    learning_service = StubLearningService()
+    orchestrator = RecoveryOrchestrator(
+        app_name="upbit-auto-trader",
+        trading_mode="demo",
+        portfolio_sync_service=SuccessfulPortfolioSyncService(),
+        open_order_reconciler=SuccessfulOpenOrderReconciler(),
+        restart_store=StubRestartStore(),
+        restart_counter=RestartCounter(threshold=1),
+        learning_service=learning_service,
+    )
+
+    state = orchestrator.boot()
+
+    assert state.hard_stop is True
+    assert [event.event_name for event in learning_service.events] == [
+        "restart_detected",
+        "hard_stop_triggered",
     ]
 
 
