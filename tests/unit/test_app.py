@@ -61,6 +61,11 @@ class LearningServiceStub:
     def record(self, event: LearningEvent) -> None:
         self.events.append(event)
 
+    def recent_events(self, *, limit: int | None = None) -> list[LearningEvent]:
+        if limit is None or limit >= len(self.events):
+            return list(self.events)
+        return self.events[-limit:]
+
 
 class TelegramNotifierStub:
     def __init__(self) -> None:
@@ -1177,6 +1182,53 @@ def test_dashboard_learning_health_endpoint_returns_category_summary(monkeypatch
         "fills": 1,
         "positions": 1,
     }
+
+
+def test_dashboard_recovery_endpoint_returns_recovery_payload(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            from app.services.recovery.orchestrator import BootState
+
+            return BootState(
+                safe_mode=False,
+                hard_stop=False,
+                trading_ready=True,
+                failure_stage=None,
+                portfolio_state=None,
+                reconcile_result=None,
+            )
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
+    learning_service = LearningServiceStub()
+    learning_service.record(
+        LearningEvent(
+            event_name="restart_detected",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"app_name": "test-app"},
+            recorded_at="2026-04-20T10:00:00+09:00",
+        ),
+    )
+
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            learning_service=learning_service,
+            timestamp_provider=lambda: "2026-04-20T10:00:00+09:00",
+        ),
+    )
+
+    response = client.get("/dashboard/recovery")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["recovery"]["safe_mode"] is False
+    assert response.json()["recovery"]["hard_stop"] is False
+    assert response.json()["recovery"]["trading_ready"] is True
+    assert response.json()["recovery"]["last_restart_detected_at"] == "2026-04-20T10:00:00+09:00"
+    assert response.json()["recovery"]["recent_events"][0]["event_name"] == "restart_detected"
 
 
 def test_dashboard_executions_endpoint_returns_recent_fill_history(monkeypatch) -> None:

@@ -6,6 +6,7 @@ from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.learning_facade import DashboardLearningFacade
 from app.services.dashboard.market_facade import DashboardMarketFacade
 from app.services.dashboard.positions_facade import DashboardPositionsFacade
+from app.services.dashboard.recovery_facade import DashboardRecoveryFacade
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.ledger import ExecutionLedger
@@ -14,11 +15,20 @@ from app.services.market.store import MarketPriceStore
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.promotion.state import PromotionStateService
+from app.services.recovery.orchestrator import BootState
 
 
 def test_build_dashboard_services_creates_default_summary_facade(tmp_path: Path) -> None:
     services = build_dashboard_services(
         market="KRW-XRP",
+        boot_state=BootState(
+            safe_mode=False,
+            hard_stop=False,
+            trading_ready=True,
+            failure_stage=None,
+            portfolio_state=None,
+            reconcile_result=None,
+        ),
         promotion_dashboard_facade=PromotionDashboardFacade(
             promotion_state_service=PromotionStateService(),
             promotion_dashboard_service=PromotionDashboardService(),
@@ -34,6 +44,7 @@ def test_build_dashboard_services_creates_default_summary_facade(tmp_path: Path)
     assert isinstance(services.executions_facade, DashboardExecutionsFacade)
     assert isinstance(services.positions_facade, DashboardPositionsFacade)
     assert isinstance(services.learning_facade, DashboardLearningFacade)
+    assert isinstance(services.recovery_facade, DashboardRecoveryFacade)
 
 
 def test_build_dashboard_services_reuses_injected_summary_facade(tmp_path: Path) -> None:
@@ -48,6 +59,14 @@ def test_build_dashboard_services_reuses_injected_summary_facade(tmp_path: Path)
 
     services = build_dashboard_services(
         market="KRW-XRP",
+        boot_state=BootState(
+            safe_mode=False,
+            hard_stop=False,
+            trading_ready=True,
+            failure_stage=None,
+            portfolio_state=None,
+            reconcile_result=None,
+        ),
         promotion_dashboard_facade=promotion_facade,
         learning_service=LearningService(log_dir=tmp_path),
         execution_ledger=ExecutionLedger(),

@@ -7,6 +7,7 @@ from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.learning_facade import DashboardLearningFacade
 from app.services.dashboard.market_facade import DashboardMarketFacade
 from app.services.dashboard.positions_facade import DashboardPositionsFacade
+from app.services.dashboard.recovery_facade import DashboardRecoveryFacade
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.recovery.orchestrator import BootState
 
@@ -21,6 +22,7 @@ def build_dashboard_router(
     dashboard_executions_facade: DashboardExecutionsFacade,
     dashboard_positions_facade: DashboardPositionsFacade,
     dashboard_learning_facade: DashboardLearningFacade,
+    dashboard_recovery_facade: DashboardRecoveryFacade,
     promotion_dashboard_facade: PromotionDashboardFacade,
 ) -> APIRouter:
     router = APIRouter(prefix="/dashboard")
@@ -54,6 +56,10 @@ def build_dashboard_router(
     @router.get("/learning/health")
     def dashboard_learning_health(limit: int = 50) -> dict[str, object]:
         return dashboard_learning_facade.build_health_response(limit=limit)
+
+    @router.get("/recovery")
+    def dashboard_recovery(limit: int = 20) -> dict[str, object]:
+        return dashboard_recovery_facade.build_response(limit=limit)
 
     @router.get("/promotion")
     def dashboard_promotion() -> dict[str, object]:

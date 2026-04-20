@@ -11,6 +11,8 @@ from app.services.dashboard.market import DashboardMarketService
 from app.services.dashboard.market_facade import DashboardMarketFacade
 from app.services.dashboard.positions import DashboardPositionsService
 from app.services.dashboard.positions_facade import DashboardPositionsFacade
+from app.services.dashboard.recovery import DashboardRecoveryService
+from app.services.dashboard.recovery_facade import DashboardRecoveryFacade
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.ledger import ExecutionLedger
 from app.services.learning.service import LearningService
@@ -27,11 +29,13 @@ class DashboardServices:
     executions_facade: DashboardExecutionsFacade
     positions_facade: DashboardPositionsFacade
     learning_facade: DashboardLearningFacade
+    recovery_facade: DashboardRecoveryFacade
 
 
 def build_dashboard_services(
     *,
     market: str,
+    boot_state,
     promotion_dashboard_facade: PromotionDashboardFacade,
     learning_service: LearningService,
     execution_ledger: ExecutionLedger | None = None,
@@ -43,17 +47,20 @@ def build_dashboard_services(
     dashboard_executions_service: DashboardExecutionsService | None = None,
     dashboard_positions_service: DashboardPositionsService | None = None,
     dashboard_learning_service: DashboardLearningService | None = None,
+    dashboard_recovery_service: DashboardRecoveryService | None = None,
     dashboard_summary_facade: DashboardSummaryFacade | None = None,
     dashboard_market_facade: DashboardMarketFacade | None = None,
     dashboard_executions_facade: DashboardExecutionsFacade | None = None,
     dashboard_positions_facade: DashboardPositionsFacade | None = None,
     dashboard_learning_facade: DashboardLearningFacade | None = None,
+    dashboard_recovery_facade: DashboardRecoveryFacade | None = None,
 ) -> DashboardServices:
     summary_service = dashboard_summary_service or DashboardSummaryService()
     market_service = dashboard_market_service or DashboardMarketService()
     executions_service = dashboard_executions_service or DashboardExecutionsService()
     positions_service = dashboard_positions_service or DashboardPositionsService()
     learning_dashboard_service = dashboard_learning_service or DashboardLearningService()
+    recovery_service = dashboard_recovery_service or DashboardRecoveryService()
     summary_facade = dashboard_summary_facade or DashboardSummaryFacade(
         dashboard_summary_service=summary_service,
         promotion_dashboard_facade=promotion_dashboard_facade,
@@ -86,10 +93,16 @@ def build_dashboard_services(
         learning_service=learning_service,
         dashboard_learning_service=learning_dashboard_service,
     )
+    recovery_facade = dashboard_recovery_facade or DashboardRecoveryFacade(
+        boot_state=boot_state,
+        learning_service=learning_service,
+        dashboard_recovery_service=recovery_service,
+    )
     return DashboardServices(
         summary_facade=summary_facade,
         market_facade=market_facade,
         executions_facade=executions_facade,
         positions_facade=positions_facade,
         learning_facade=learning_facade,
+        recovery_facade=recovery_facade,
     )
