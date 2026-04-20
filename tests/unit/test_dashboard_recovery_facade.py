@@ -105,6 +105,17 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
             "blocked_reason": None,
         },
     ]
+    assert response["recovery"]["current_state_summary"] == {
+        "safe_mode": False,
+        "hard_stop": False,
+        "trading_ready": True,
+        "failure_stage": None,
+        "restart_count": None,
+        "blocked_reason": None,
+        "last_restart_detected_at": "2026-04-20T09:00:00+09:00",
+        "last_recovery_completed_at": "2026-04-20T09:00:05+09:00",
+        "hard_stop_triggered_at": None,
+    }
 
 
 def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) -> None:
@@ -202,3 +213,14 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
             "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
         },
     ]
+    assert response["recovery"]["current_state_summary"] == {
+        "safe_mode": True,
+        "hard_stop": True,
+        "trading_ready": False,
+        "failure_stage": "hard_stop",
+        "restart_count": 3,
+        "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
+        "last_restart_detected_at": "2026-04-20T09:10:00+09:00",
+        "last_recovery_completed_at": None,
+        "hard_stop_triggered_at": "2026-04-20T09:10:01+09:00",
+    }

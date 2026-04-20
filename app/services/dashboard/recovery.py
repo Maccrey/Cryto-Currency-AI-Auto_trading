@@ -22,6 +22,7 @@ class DashboardRecovery:
     recent_hard_stop_events: list[dict[str, object]]
     recent_hard_stop_timeline: list[dict[str, object]]
     recovery_timeline: list[dict[str, object]]
+    current_state_summary: dict[str, object]
 
 
 class DashboardRecoveryService:
@@ -128,6 +129,17 @@ class DashboardRecoveryService:
             ],
             key=lambda event: str(event["occurred_at"]),
         )
+        current_state_summary = {
+            "safe_mode": boot_state.safe_mode,
+            "hard_stop": boot_state.hard_stop,
+            "trading_ready": boot_state.trading_ready,
+            "failure_stage": boot_state.failure_stage,
+            "restart_count": reconcile_result.get("restart_count"),
+            "blocked_reason": reconcile_result.get("blocked_reason"),
+            "last_restart_detected_at": last_restart_detected_at,
+            "last_recovery_completed_at": last_recovery_completed_at,
+            "hard_stop_triggered_at": hard_stop_triggered_at,
+        }
         return DashboardRecovery(
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
@@ -143,6 +155,7 @@ class DashboardRecoveryService:
             recent_hard_stop_events=recent_hard_stop_events,
             recent_hard_stop_timeline=recent_hard_stop_timeline,
             recovery_timeline=recovery_timeline,
+            current_state_summary=current_state_summary,
         )
 
     @staticmethod

@@ -1260,6 +1260,17 @@ def test_dashboard_recovery_endpoint_returns_recovery_payload(monkeypatch) -> No
             "blocked_reason": None,
         },
     ]
+    assert response.json()["recovery"]["current_state_summary"] == {
+        "safe_mode": False,
+        "hard_stop": False,
+        "trading_ready": True,
+        "failure_stage": None,
+        "restart_count": None,
+        "blocked_reason": None,
+        "last_restart_detected_at": "2026-04-20T10:00:00+09:00",
+        "last_recovery_completed_at": None,
+        "hard_stop_triggered_at": None,
+    }
 
 
 def test_dashboard_executions_endpoint_returns_recent_fill_history(monkeypatch) -> None:
