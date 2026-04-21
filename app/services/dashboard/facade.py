@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from typing import Callable
+
 from app.services.execution.ledger import ExecutionLedger
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningService
@@ -23,6 +26,7 @@ class DashboardSummaryFacade:
         position_lifecycle_ledger: PositionLifecycleLedger | None = None,
         position_store: CurrentPositionStore | None = None,
         market_price_store: MarketPriceStore | None = None,
+        timestamp_provider: Callable[[], str] | None = None,
     ) -> None:
         self._dashboard_summary_service = dashboard_summary_service
         self._promotion_dashboard_facade = promotion_dashboard_facade
@@ -31,6 +35,9 @@ class DashboardSummaryFacade:
         self._position_lifecycle_ledger = position_lifecycle_ledger
         self._position_store = position_store
         self._market_price_store = market_price_store
+        self._timestamp_provider = timestamp_provider or (
+            lambda: datetime.now(timezone.utc).isoformat()
+        )
 
     def build_response(
         self,
@@ -148,6 +155,10 @@ class DashboardSummaryFacade:
             last_recovery_completed_at=last_recovery_completed_at,
             last_promotion_reviewed_at=self._promotion_dashboard_facade.latest_reviewed_at(),
         )
+        section_stale = self._build_section_stale(
+            section_updated_at=section_updated_at,
+            current_time=self._timestamp_provider(),
+        )
         summary = self._dashboard_summary_service.build(
             boot_state=boot_state,
             trading_mode=trading_mode,
@@ -174,6 +185,7 @@ class DashboardSummaryFacade:
                 section_recommended_action=section_recommended_action,
                 section_metrics=section_metrics,
                 section_updated_at=section_updated_at,
+                section_stale=section_stale,
             ),
             section_state_label=section_state_label,
             section_severity=section_severity,
@@ -230,6 +242,7 @@ class DashboardSummaryFacade:
         section_recommended_action: dict[str, str],
         section_metrics: dict[str, dict[str, object]],
         section_updated_at: dict[str, str | None],
+        section_stale: dict[str, bool],
     ) -> list[dict[str, object]]:
         ordered_section_keys = ("trading", "learning", "recovery", "promotion")
         ordered_section_names = {
@@ -247,6 +260,7 @@ class DashboardSummaryFacade:
                 "state_message": section_state_message[key],
                 "recommended_action": section_recommended_action[key],
                 "updated_at": section_updated_at[key],
+                "stale": section_stale[key],
                 "metrics": section_metrics[key],
                 "metric_items": DashboardSummaryFacade._build_section_metric_items(
                     key=key,
@@ -315,6 +329,50 @@ class DashboardSummaryFacade:
             "recovery": last_recovery_completed_at or last_restart_detected_at,
             "promotion": last_promotion_reviewed_at,
         }
+
+    @staticmethod
+    def _build_section_stale(
+        *,
+        section_updated_at: dict[str, str | None],
+        current_time: str,
+    ) -> dict[str, bool]:
+        freshness_windows = {
+            "trading": 300,
+            "learning": 300,
+            "recovery": 600,
+            "promotion": 86400,
+        }
+        current_timestamp = DashboardSummaryFacade._parse_timestamp(current_time)
+        return {
+            key: DashboardSummaryFacade._is_stale(
+                updated_at=updated_at,
+                current_timestamp=current_timestamp,
+                freshness_window_sec=freshness_windows[key],
+            )
+            for key, updated_at in section_updated_at.items()
+        }
+
+    @staticmethod
+    def _is_stale(
+        *,
+        updated_at: str | None,
+        current_timestamp: datetime | None,
+        freshness_window_sec: int,
+    ) -> bool:
+        if updated_at is None or current_timestamp is None:
+            return True
+        updated_timestamp = DashboardSummaryFacade._parse_timestamp(updated_at)
+        if updated_timestamp is None:
+            return True
+        age_seconds = (current_timestamp - updated_timestamp).total_seconds()
+        return age_seconds > freshness_window_sec
+
+    @staticmethod
+    def _parse_timestamp(timestamp: str) -> datetime | None:
+        try:
+            return datetime.fromisoformat(timestamp)
+        except ValueError:
+            return None
 
     @staticmethod
     def _build_section_metrics(

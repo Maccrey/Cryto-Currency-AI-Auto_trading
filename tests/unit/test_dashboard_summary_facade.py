@@ -41,6 +41,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
             promotion_state_service=promotion_state_service,
             promotion_dashboard_service=PromotionDashboardService(),
         ),
+        timestamp_provider=lambda: "2026-04-19T20:00:00+09:00",
     )
     boot_state = BootState(
         safe_mode=False,
@@ -91,6 +92,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "state_message": "최근 체결 기준 거래 리스크 이상이 없습니다.",
                 "recommended_action": "현재 거래 섹션은 모니터링만 유지하세요.",
                 "updated_at": None,
+                "stale": True,
                 "metrics": {
                     "buy_count": 0,
                     "sell_count": 0,
@@ -116,6 +118,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
                 "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
                 "updated_at": None,
+                "stale": True,
                 "metrics": {
                     "last_learning_event": None,
                     "learning_signal_count": 0,
@@ -139,6 +142,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "state_message": "복구 상태가 정상입니다.",
                 "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
                 "updated_at": None,
+                "stale": True,
                 "metrics": {
                     "safe_mode": False,
                     "hard_stop": False,
@@ -164,6 +168,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "state_message": "실거래 승격 검토 준비가 완료되었습니다.",
                 "recommended_action": "승격 검토 또는 수동 승인 절차를 진행하세요.",
                 "updated_at": "2026-04-19T18:00:00+09:00",
+                "stale": False,
                 "metrics": {
                     "promotion_ready": True,
                     "last_promotion_reviewed_at": "2026-04-19T18:00:00+09:00",
@@ -241,6 +246,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             promotion_dashboard_service=PromotionDashboardService(),
         ),
         execution_ledger=ledger,
+        timestamp_provider=lambda: "2026-04-19T20:00:00+09:00",
     )
     boot_state = BootState(
         safe_mode=False,
@@ -285,6 +291,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "state_message": "최근 손절 사유: STOP_LOSS_PRICE_HIT",
                 "recommended_action": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
                 "updated_at": None,
+                "stale": True,
                 "metrics": {
                 "buy_count": 1,
                 "sell_count": 1,
@@ -310,6 +317,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
             "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
             "updated_at": None,
+            "stale": True,
             "metrics": {
                 "last_learning_event": None,
                 "learning_signal_count": 0,
@@ -333,6 +341,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "state_message": "복구 상태가 정상입니다.",
             "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
             "updated_at": None,
+            "stale": True,
             "metrics": {
                 "safe_mode": False,
                 "hard_stop": False,
@@ -358,6 +367,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "state_message": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
             "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
             "updated_at": None,
+            "stale": True,
             "metrics": {
                 "promotion_ready": False,
                 "last_promotion_reviewed_at": None,
@@ -419,6 +429,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
         ),
         position_store=position_store,
         market_price_store=market_price_store,
+        timestamp_provider=lambda: "2026-04-19T20:00:00+09:00",
     )
     boot_state = BootState(
         safe_mode=False,
@@ -457,6 +468,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "state_message": "최근 체결 기준 거래 리스크 이상이 없습니다.",
             "recommended_action": "현재 거래 섹션은 모니터링만 유지하세요.",
             "updated_at": payload["last_fill_recorded_at"],
+            "stale": True,
             "metrics": {
                 "buy_count": 0,
                 "sell_count": 0,
@@ -482,6 +494,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
             "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
             "updated_at": None,
+            "stale": True,
             "metrics": {
                 "last_learning_event": None,
                 "learning_signal_count": 0,
@@ -505,6 +518,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "state_message": "복구 상태가 정상입니다.",
             "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
             "updated_at": None,
+            "stale": True,
             "metrics": {
                 "safe_mode": False,
                 "hard_stop": False,
@@ -530,6 +544,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "state_message": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
             "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
             "updated_at": None,
+            "stale": True,
             "metrics": {
                 "promotion_ready": False,
                 "last_promotion_reviewed_at": None,
@@ -575,30 +590,35 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
                 market="KRW-XRP",
                 mode="demo",
                 payload={"level": "strong"},
+                recorded_at="2026-04-19T20:00:00+09:00",
             ),
             LearningEvent(
                 event_name="fill_result",
                 market="KRW-XRP",
                 mode="demo",
                 payload={"side": "buy"},
+                recorded_at="2026-04-19T20:00:01+09:00",
             ),
             LearningEvent(
                 event_name="restart_detected",
                 market="KRW-XRP",
                 mode="demo",
                 payload={"app_name": "test-app"},
+                recorded_at="2026-04-19T20:00:03+09:00",
             ),
             LearningEvent(
                 event_name="recovery_completed",
                 market="KRW-XRP",
                 mode="demo",
                 payload={"trading_ready": True},
+                recorded_at="2026-04-19T20:00:04+09:00",
             ),
             LearningEvent(
                 event_name="position_opened",
                 market="KRW-XRP",
                 mode="demo",
                 payload={"quantity": 100.0},
+                recorded_at="2026-04-19T20:00:05+09:00",
             ),
         ],
     )
@@ -644,6 +664,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
         ),
         learning_service=learning_service,
         position_lifecycle_ledger=position_lifecycle_ledger,
+        timestamp_provider=lambda: "2026-04-19T20:05:00+09:00",
     )
     boot_state = BootState(
         safe_mode=False,
@@ -683,6 +704,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "state_message": "최근 체결 기준 거래 리스크 이상이 없습니다.",
             "recommended_action": "현재 거래 섹션은 모니터링만 유지하세요.",
             "updated_at": payload["last_fill_recorded_at"],
+            "stale": False,
             "metrics": {
                 "buy_count": 0,
                 "sell_count": 0,
@@ -708,6 +730,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
             "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
             "updated_at": payload["last_fill_recorded_at"],
+            "stale": False,
             "metrics": {
                 "last_learning_event": "position_opened",
                 "learning_signal_count": 1,
@@ -731,6 +754,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "state_message": "복구 상태가 정상입니다.",
             "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
             "updated_at": payload["last_recovery_completed_at"],
+            "stale": False,
             "metrics": {
                 "safe_mode": False,
                 "hard_stop": False,
@@ -756,6 +780,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "state_message": "실거래 승격 검토 준비가 완료되었습니다.",
             "recommended_action": "승격 검토 또는 수동 승인 절차를 진행하세요.",
             "updated_at": "2026-04-19T20:00:03+09:00",
+            "stale": False,
             "metrics": {
                 "promotion_ready": True,
                 "last_promotion_reviewed_at": "2026-04-19T20:00:03+09:00",
