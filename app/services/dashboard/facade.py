@@ -417,6 +417,10 @@ class DashboardSummaryFacade:
                     label=label,
                     value=metrics[metric_key],
                 ),
+                "recommended_action": DashboardSummaryFacade._resolve_metric_recommended_action(
+                    key=metric_key,
+                    value=metrics[metric_key],
+                ),
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
@@ -478,6 +482,53 @@ class DashboardSummaryFacade:
         return f"{label} {value}"
 
     @staticmethod
+    def _resolve_metric_recommended_action(
+        *,
+        key: str,
+        value: object,
+    ) -> str:
+        if key == "stop_loss_count":
+            return (
+                "최근 손절 흐름과 청산 원인을 점검하세요."
+                if isinstance(value, (int, float)) and value > 0
+                else "손절 카운트를 계속 모니터링하세요."
+            )
+        if key in {"realized_pnl", "unrealized_pnl"}:
+            if isinstance(value, (int, float)) and value < 0:
+                return "손익 악화 원인과 리스크 설정을 점검하세요."
+            return "손익 흐름을 유지하며 모니터링하세요."
+        if key == "recent_stop_loss_reason":
+            return "최근 손절 사유를 검토하고 재진입 조건을 점검하세요." if value is not None else "손절 사유 발생 여부만 모니터링하세요."
+        if key == "safe_mode":
+            return "SAFE_MODE 해제 전까지 원인 분석을 진행하세요." if value is True else "현재 복구 상태를 유지하며 모니터링하세요."
+        if key == "hard_stop":
+            return "하드스톱 해제 전까지 수동 점검과 원인 분석을 진행하세요." if value is True else "하드스톱 조건 발생 여부를 계속 모니터링하세요."
+        if key == "trading_ready":
+            return "거래 준비 상태를 유지하세요." if value is True else "거래 준비 실패 원인을 점검하세요."
+        if key == "promotion_ready":
+            return "승격 검토 또는 승인 절차를 진행하세요." if value is True else "승격 기준 미달 항목을 보완하세요."
+        if key == "failure_stage":
+            return "실패 단계 원인을 확인하고 복구 절차를 점검하세요." if value is not None else "현재 실패 단계 없이 정상 상태를 유지하세요."
+        if key in {"updated_at", "age_sec"}:
+            return "최근 갱신 시각을 기준으로 데이터 freshness를 모니터링하세요." if value is not None else "데이터 갱신 경로를 확인하세요."
+        if key == "freshness_window_sec":
+            return "freshness 기준 시간을 참고해 데이터 지연 여부를 판단하세요."
+        if key in {
+            "buy_count",
+            "sell_count",
+            "learning_signal_count",
+            "learning_fill_count",
+            "last_learning_event",
+            "last_signal_recorded_at",
+            "last_fill_recorded_at",
+            "last_restart_detected_at",
+            "last_recovery_completed_at",
+            "last_promotion_reviewed_at",
+        }:
+            return "현재 기록 흐름을 유지하며 모니터링하세요." if value is not None else "해당 기록 경로를 확인하세요."
+        return "현재 메트릭 상태를 유지하며 모니터링하세요."
+
+    @staticmethod
     def _build_section_freshness_metric_items(
         *,
         updated_at: str | None,
@@ -494,6 +545,10 @@ class DashboardSummaryFacade:
                     label="Updated At",
                     value=updated_at,
                 ),
+                "recommended_action": DashboardSummaryFacade._resolve_metric_recommended_action(
+                    key="updated_at",
+                    value=updated_at,
+                ),
                 "value": updated_at,
             },
             {
@@ -505,6 +560,10 @@ class DashboardSummaryFacade:
                     label="Age Seconds",
                     value=age_sec,
                 ),
+                "recommended_action": DashboardSummaryFacade._resolve_metric_recommended_action(
+                    key="age_sec",
+                    value=age_sec,
+                ),
                 "value": age_sec,
             },
             {
@@ -514,6 +573,10 @@ class DashboardSummaryFacade:
                 "state_message": DashboardSummaryFacade._resolve_metric_state_message(
                     key="freshness_window_sec",
                     label="Freshness Window Seconds",
+                    value=freshness_window_sec,
+                ),
+                "recommended_action": DashboardSummaryFacade._resolve_metric_recommended_action(
+                    key="freshness_window_sec",
                     value=freshness_window_sec,
                 ),
                 "value": freshness_window_sec,
