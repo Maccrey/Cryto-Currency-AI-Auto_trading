@@ -1240,6 +1240,7 @@ def test_dashboard_recovery_endpoint_returns_recovery_payload(monkeypatch) -> No
         {
             "event_name": "restart_detected",
             "occurred_at": "2026-04-20T10:00:00+09:00",
+            "severity": "warning",
             "app_name": "test-app",
             "trading_mode": None,
             "safe_mode": None,
@@ -1254,6 +1255,7 @@ def test_dashboard_recovery_endpoint_returns_recovery_payload(monkeypatch) -> No
         {
             "event_name": "restart_detected",
             "occurred_at": "2026-04-20T10:00:00+09:00",
+            "severity": "warning",
             "app_name": "test-app",
             "trading_mode": None,
             "safe_mode": None,

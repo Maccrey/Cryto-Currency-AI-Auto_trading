@@ -63,6 +63,7 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
         {
             "event_name": "restart_detected",
             "occurred_at": "2026-04-20T09:00:00+09:00",
+            "severity": "warning",
             "app_name": "test-app",
             "trading_mode": None,
             "safe_mode": None,
@@ -73,6 +74,7 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
         {
             "event_name": "recovery_completed",
             "occurred_at": "2026-04-20T09:00:05+09:00",
+            "severity": "info",
             "app_name": None,
             "trading_mode": None,
             "safe_mode": None,
@@ -87,6 +89,7 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
         {
             "event_name": "restart_detected",
             "occurred_at": "2026-04-20T09:00:00+09:00",
+            "severity": "warning",
             "app_name": "test-app",
             "trading_mode": None,
             "safe_mode": None,
@@ -99,6 +102,7 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
         {
             "event_name": "recovery_completed",
             "occurred_at": "2026-04-20T09:00:05+09:00",
+            "severity": "info",
             "app_name": None,
             "trading_mode": None,
             "safe_mode": None,
@@ -186,6 +190,7 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
         {
             "event_name": "restart_detected",
             "occurred_at": "2026-04-20T09:10:00+09:00",
+            "severity": "warning",
             "app_name": "test-app",
             "trading_mode": None,
             "safe_mode": None,
@@ -201,6 +206,7 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
         {
             "event_name": "hard_stop_triggered",
             "triggered_at": "2026-04-20T09:10:01+09:00",
+            "severity": "critical",
             "restart_count": 3,
             "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
         },
@@ -209,6 +215,7 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
         {
             "event_name": "restart_detected",
             "occurred_at": "2026-04-20T09:10:00+09:00",
+            "severity": "warning",
             "app_name": "test-app",
             "trading_mode": None,
             "safe_mode": None,
@@ -221,6 +228,7 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
         {
             "event_name": "hard_stop_triggered",
             "occurred_at": "2026-04-20T09:10:01+09:00",
+            "severity": "critical",
             "app_name": None,
             "trading_mode": None,
             "safe_mode": None,

@@ -75,6 +75,7 @@ class DashboardRecoveryService:
             {
                 "event_name": event.event_name,
                 "occurred_at": event.recorded_at,
+                "severity": self._derive_event_severity(event.event_name),
                 "app_name": event.payload.get("app_name"),
                 "trading_mode": event.payload.get("trading_mode"),
                 "safe_mode": event.payload.get("safe_mode"),
@@ -94,6 +95,7 @@ class DashboardRecoveryService:
             {
                 "event_name": event.event_name,
                 "triggered_at": event.recorded_at,
+                "severity": self._derive_event_severity(event.event_name),
                 "restart_count": event.payload.get("restart_count"),
                 "blocked_reason": event.payload.get("blocked_reason"),
             }
@@ -105,6 +107,7 @@ class DashboardRecoveryService:
                 {
                     "event_name": event["event_name"],
                     "occurred_at": event["occurred_at"],
+                    "severity": self._derive_event_severity(event["event_name"]),
                     "app_name": event["app_name"],
                     "trading_mode": event["trading_mode"],
                     "safe_mode": event["safe_mode"],
@@ -120,6 +123,7 @@ class DashboardRecoveryService:
                 {
                     "event_name": event["event_name"],
                     "occurred_at": event["triggered_at"],
+                    "severity": self._derive_event_severity(event["event_name"]),
                     "app_name": None,
                     "trading_mode": None,
                     "safe_mode": None,
@@ -239,5 +243,13 @@ class DashboardRecoveryService:
         if boot_state.safe_mode or boot_state.failure_stage is not None:
             return "warning"
         if boot_state.trading_ready:
+            return "info"
+        return "warning"
+
+    @staticmethod
+    def _derive_event_severity(event_name: str) -> str:
+        if event_name == "hard_stop_triggered":
+            return "critical"
+        if event_name == "recovery_completed":
             return "info"
         return "warning"
