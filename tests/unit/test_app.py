@@ -1029,6 +1029,8 @@ def test_dashboard_market_endpoint_returns_market_summary(monkeypatch) -> None:
         "market": "KRW-XRP",
         "summary": {
             "market": "KRW-XRP",
+            "state_label": "UP",
+            "state_message": "최근 구간 기준 상승 흐름입니다.",
             "current_price": 830.0,
             "recorded_at": "2026-04-19T20:40:02+09:00",
             "recent_change_pct": 0.0061,
