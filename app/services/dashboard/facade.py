@@ -421,6 +421,10 @@ class DashboardSummaryFacade:
                     key=metric_key,
                     value=metrics[metric_key],
                 ),
+                "recommended_action_label": DashboardSummaryFacade._resolve_metric_recommended_action_label(
+                    key=metric_key,
+                    value=metrics[metric_key],
+                ),
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
@@ -529,6 +533,51 @@ class DashboardSummaryFacade:
         return "현재 메트릭 상태를 유지하며 모니터링하세요."
 
     @staticmethod
+    def _resolve_metric_recommended_action_label(
+        *,
+        key: str,
+        value: object,
+    ) -> str:
+        if key == "stop_loss_count":
+            return (
+                "REVIEW_STOP_LOSS"
+                if isinstance(value, (int, float)) and value > 0
+                else "MONITOR_STOP_LOSS"
+            )
+        if key in {"realized_pnl", "unrealized_pnl"}:
+            return "REVIEW_PNL" if isinstance(value, (int, float)) and value < 0 else "MONITOR_PNL"
+        if key == "recent_stop_loss_reason":
+            return "REVIEW_STOP_LOSS_REASON" if value is not None else "MONITOR_STOP_LOSS_REASON"
+        if key == "safe_mode":
+            return "CHECK_SAFE_MODE" if value is True else "MONITOR_RECOVERY"
+        if key == "hard_stop":
+            return "CHECK_HARD_STOP" if value is True else "MONITOR_HARD_STOP"
+        if key == "trading_ready":
+            return "MAINTAIN_TRADING_READY" if value is True else "CHECK_TRADING_READY"
+        if key == "promotion_ready":
+            return "PROCEED_PROMOTION" if value is True else "IMPROVE_PROMOTION"
+        if key == "failure_stage":
+            return "CHECK_FAILURE_STAGE" if value is not None else "MAINTAIN_NORMAL_STATE"
+        if key in {"updated_at", "age_sec"}:
+            return "MONITOR_FRESHNESS" if value is not None else "CHECK_DATA_SOURCE"
+        if key == "freshness_window_sec":
+            return "REFERENCE_FRESHNESS_WINDOW"
+        if key in {
+            "buy_count",
+            "sell_count",
+            "learning_signal_count",
+            "learning_fill_count",
+            "last_learning_event",
+            "last_signal_recorded_at",
+            "last_fill_recorded_at",
+            "last_restart_detected_at",
+            "last_recovery_completed_at",
+            "last_promotion_reviewed_at",
+        }:
+            return "MONITOR_ACTIVITY" if value is not None else "CHECK_ACTIVITY_SOURCE"
+        return "MONITOR_METRIC"
+
+    @staticmethod
     def _build_section_freshness_metric_items(
         *,
         updated_at: str | None,
@@ -549,6 +598,10 @@ class DashboardSummaryFacade:
                     key="updated_at",
                     value=updated_at,
                 ),
+                "recommended_action_label": DashboardSummaryFacade._resolve_metric_recommended_action_label(
+                    key="updated_at",
+                    value=updated_at,
+                ),
                 "value": updated_at,
             },
             {
@@ -564,6 +617,10 @@ class DashboardSummaryFacade:
                     key="age_sec",
                     value=age_sec,
                 ),
+                "recommended_action_label": DashboardSummaryFacade._resolve_metric_recommended_action_label(
+                    key="age_sec",
+                    value=age_sec,
+                ),
                 "value": age_sec,
             },
             {
@@ -576,6 +633,10 @@ class DashboardSummaryFacade:
                     value=freshness_window_sec,
                 ),
                 "recommended_action": DashboardSummaryFacade._resolve_metric_recommended_action(
+                    key="freshness_window_sec",
+                    value=freshness_window_sec,
+                ),
+                "recommended_action_label": DashboardSummaryFacade._resolve_metric_recommended_action_label(
                     key="freshness_window_sec",
                     value=freshness_window_sec,
                 ),
