@@ -175,6 +175,9 @@ class DashboardSummaryFacade:
             section_updated_at=section_updated_at,
             section_stale=section_stale,
         )
+        section_freshness_message = self._build_section_freshness_message(
+            section_freshness_state=section_freshness_state,
+        )
         section_freshness_window_sec = self._build_section_freshness_window_sec()
         summary = self._dashboard_summary_service.build(
             boot_state=boot_state,
@@ -205,6 +208,7 @@ class DashboardSummaryFacade:
                 section_stale=section_stale,
                 section_age_sec=section_age_sec,
                 section_freshness_state=section_freshness_state,
+                section_freshness_message=section_freshness_message,
                 section_freshness_window_sec=section_freshness_window_sec,
             ),
             section_state_label=section_state_label,
@@ -265,6 +269,7 @@ class DashboardSummaryFacade:
         section_stale: dict[str, bool],
         section_age_sec: dict[str, int | None],
         section_freshness_state: dict[str, str],
+        section_freshness_message: dict[str, str],
         section_freshness_window_sec: dict[str, int],
     ) -> list[dict[str, object]]:
         ordered_section_keys = ("trading", "learning", "recovery", "promotion")
@@ -286,6 +291,7 @@ class DashboardSummaryFacade:
                 "stale": section_stale[key],
                 "age_sec": section_age_sec[key],
                 "freshness_state": section_freshness_state[key],
+                "freshness_message": section_freshness_message[key],
                 "freshness_window_sec": section_freshness_window_sec[key],
                 "metrics": section_metrics[key],
                 "metric_items": DashboardSummaryFacade._build_section_metric_items(
@@ -388,6 +394,21 @@ class DashboardSummaryFacade:
                 stale=section_stale[key],
             )
             for key in section_updated_at
+        }
+
+    @staticmethod
+    def _build_section_freshness_message(
+        *,
+        section_freshness_state: dict[str, str],
+    ) -> dict[str, str]:
+        messages = {
+            "missing": "데이터 없음",
+            "stale": "갱신 지연",
+            "fresh": "최근 데이터",
+        }
+        return {
+            key: messages[state]
+            for key, state in section_freshness_state.items()
         }
 
     @staticmethod

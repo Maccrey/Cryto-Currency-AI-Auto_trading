@@ -49,6 +49,7 @@ class SummaryStubService:
                     "stale": False,
                     "age_sec": 299,
                     "freshness_state": "fresh",
+                    "freshness_message": "최근 데이터",
                     "freshness_window_sec": 300,
                     "metrics": {
                         "buy_count": 4,
@@ -78,6 +79,7 @@ class SummaryStubService:
                     "stale": False,
                     "age_sec": 299,
                     "freshness_state": "fresh",
+                    "freshness_message": "최근 데이터",
                     "freshness_window_sec": 300,
                     "metrics": {
                         "last_learning_event": "position_opened",
@@ -105,6 +107,7 @@ class SummaryStubService:
                     "stale": False,
                     "age_sec": 296,
                     "freshness_state": "fresh",
+                    "freshness_message": "최근 데이터",
                     "freshness_window_sec": 600,
                     "metrics": {
                         "safe_mode": False,
@@ -134,6 +137,7 @@ class SummaryStubService:
                     "stale": False,
                     "age_sec": 298,
                     "freshness_state": "fresh",
+                    "freshness_message": "최근 데이터",
                     "freshness_window_sec": 86400,
                     "metrics": {
                         "promotion_ready": False,
@@ -365,6 +369,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "stale": False,
                 "age_sec": 299,
                 "freshness_state": "fresh",
+                "freshness_message": "최근 데이터",
                 "freshness_window_sec": 300,
                 "metrics": {
                     "buy_count": 4,
@@ -394,6 +399,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "stale": False,
                 "age_sec": 299,
                 "freshness_state": "fresh",
+                "freshness_message": "최근 데이터",
                 "freshness_window_sec": 300,
                 "metrics": {
                     "last_learning_event": "position_opened",
@@ -421,6 +427,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "stale": False,
                 "age_sec": 296,
                 "freshness_state": "fresh",
+                "freshness_message": "최근 데이터",
                 "freshness_window_sec": 600,
                 "metrics": {
                     "safe_mode": False,
@@ -450,6 +457,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "stale": False,
                 "age_sec": 298,
                 "freshness_state": "fresh",
+                "freshness_message": "최근 데이터",
                 "freshness_window_sec": 86400,
                 "metrics": {
                     "promotion_ready": False,
