@@ -93,6 +93,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "recommended_action": "현재 거래 섹션은 모니터링만 유지하세요.",
                 "updated_at": None,
                 "stale": True,
+                "age_sec": None,
                 "freshness_window_sec": 300,
                 "metrics": {
                     "buy_count": 0,
@@ -120,6 +121,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
                 "updated_at": None,
                 "stale": True,
+                "age_sec": None,
                 "freshness_window_sec": 300,
                 "metrics": {
                     "last_learning_event": None,
@@ -145,6 +147,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
                 "updated_at": None,
                 "stale": True,
+                "age_sec": None,
                 "freshness_window_sec": 600,
                 "metrics": {
                     "safe_mode": False,
@@ -172,6 +175,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "recommended_action": "승격 검토 또는 수동 승인 절차를 진행하세요.",
                 "updated_at": "2026-04-19T18:00:00+09:00",
                 "stale": False,
+                "age_sec": 7200,
                 "freshness_window_sec": 86400,
                 "metrics": {
                     "promotion_ready": True,
@@ -296,6 +300,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "recommended_action": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
                 "updated_at": None,
                 "stale": True,
+                "age_sec": None,
                 "freshness_window_sec": 300,
                 "metrics": {
                 "buy_count": 1,
@@ -323,6 +328,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
             "updated_at": None,
             "stale": True,
+            "age_sec": None,
             "freshness_window_sec": 300,
             "metrics": {
                 "last_learning_event": None,
@@ -348,6 +354,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
             "updated_at": None,
             "stale": True,
+            "age_sec": None,
             "freshness_window_sec": 600,
             "metrics": {
                 "safe_mode": False,
@@ -375,6 +382,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
             "updated_at": None,
             "stale": True,
+            "age_sec": None,
             "freshness_window_sec": 86400,
             "metrics": {
                 "promotion_ready": False,
@@ -477,6 +485,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "recommended_action": "현재 거래 섹션은 모니터링만 유지하세요.",
             "updated_at": payload["last_fill_recorded_at"],
             "stale": True,
+            "age_sec": None,
             "freshness_window_sec": 300,
             "metrics": {
                 "buy_count": 0,
@@ -504,6 +513,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
             "updated_at": None,
             "stale": True,
+            "age_sec": None,
             "freshness_window_sec": 300,
             "metrics": {
                 "last_learning_event": None,
@@ -529,6 +539,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
             "updated_at": None,
             "stale": True,
+            "age_sec": None,
             "freshness_window_sec": 600,
             "metrics": {
                 "safe_mode": False,
@@ -556,6 +567,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
             "updated_at": None,
             "stale": True,
+            "age_sec": None,
             "freshness_window_sec": 86400,
             "metrics": {
                 "promotion_ready": False,
@@ -717,6 +729,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "recommended_action": "현재 거래 섹션은 모니터링만 유지하세요.",
             "updated_at": payload["last_fill_recorded_at"],
             "stale": False,
+            "age_sec": 299,
             "freshness_window_sec": 300,
             "metrics": {
                 "buy_count": 0,
@@ -744,6 +757,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
             "updated_at": payload["last_fill_recorded_at"],
             "stale": False,
+            "age_sec": 299,
             "freshness_window_sec": 300,
             "metrics": {
                 "last_learning_event": "position_opened",
@@ -769,6 +783,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
             "updated_at": payload["last_recovery_completed_at"],
             "stale": False,
+            "age_sec": 296,
             "freshness_window_sec": 600,
             "metrics": {
                 "safe_mode": False,
@@ -796,6 +811,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "recommended_action": "승격 검토 또는 수동 승인 절차를 진행하세요.",
             "updated_at": "2026-04-19T20:00:03+09:00",
             "stale": False,
+            "age_sec": 297,
             "freshness_window_sec": 86400,
             "metrics": {
                 "promotion_ready": True,
