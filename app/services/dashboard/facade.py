@@ -431,6 +431,14 @@ class DashboardSummaryFacade:
                         value=metrics[metric_key],
                     )
                 ),
+                "action_priority": DashboardSummaryFacade._resolve_metric_action_priority(
+                    DashboardSummaryFacade._resolve_metric_action_group(
+                        DashboardSummaryFacade._resolve_metric_recommended_action_label(
+                            key=metric_key,
+                            value=metrics[metric_key],
+                        )
+                    )
+                ),
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
@@ -598,6 +606,14 @@ class DashboardSummaryFacade:
         return "monitor"
 
     @staticmethod
+    def _resolve_metric_action_priority(action_group: str) -> str:
+        if action_group in {"proceed", "review", "check"}:
+            return "high"
+        if action_group == "reference":
+            return "medium"
+        return "low"
+
+    @staticmethod
     def _build_section_freshness_metric_items(
         *,
         updated_at: str | None,
@@ -628,6 +644,14 @@ class DashboardSummaryFacade:
                         value=updated_at,
                     )
                 ),
+                "action_priority": DashboardSummaryFacade._resolve_metric_action_priority(
+                    DashboardSummaryFacade._resolve_metric_action_group(
+                        DashboardSummaryFacade._resolve_metric_recommended_action_label(
+                            key="updated_at",
+                            value=updated_at,
+                        )
+                    )
+                ),
                 "value": updated_at,
             },
             {
@@ -653,6 +677,14 @@ class DashboardSummaryFacade:
                         value=age_sec,
                     )
                 ),
+                "action_priority": DashboardSummaryFacade._resolve_metric_action_priority(
+                    DashboardSummaryFacade._resolve_metric_action_group(
+                        DashboardSummaryFacade._resolve_metric_recommended_action_label(
+                            key="age_sec",
+                            value=age_sec,
+                        )
+                    )
+                ),
                 "value": age_sec,
             },
             {
@@ -676,6 +708,14 @@ class DashboardSummaryFacade:
                     DashboardSummaryFacade._resolve_metric_recommended_action_label(
                         key="freshness_window_sec",
                         value=freshness_window_sec,
+                    )
+                ),
+                "action_priority": DashboardSummaryFacade._resolve_metric_action_priority(
+                    DashboardSummaryFacade._resolve_metric_action_group(
+                        DashboardSummaryFacade._resolve_metric_recommended_action_label(
+                            key="freshness_window_sec",
+                            value=freshness_window_sec,
+                        )
                     )
                 ),
                 "value": freshness_window_sec,
