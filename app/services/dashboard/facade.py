@@ -127,6 +127,13 @@ class DashboardSummaryFacade:
                 promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
                 recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
             ),
+            section_recommended_action=self._build_section_recommended_action(
+                boot_state=boot_state,
+                learning_enabled=learning_enabled,
+                last_learning_event=last_learning_event,
+                promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
+                recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+            ),
             promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
         )
         if isinstance(summary, dict):
@@ -195,6 +202,46 @@ class DashboardSummaryFacade:
             promotion = "실거래 승격 검토 준비가 완료되었습니다."
         else:
             promotion = "실거래 승격 검토 준비가 아직 완료되지 않았습니다."
+
+        return {
+            "trading": trading,
+            "learning": learning,
+            "recovery": recovery,
+            "promotion": promotion,
+        }
+
+    @staticmethod
+    def _build_section_recommended_action(
+        *,
+        boot_state: BootState,
+        learning_enabled: bool,
+        last_learning_event: str | None,
+        promotion_ready: bool,
+        recent_stop_loss_reason: str | None,
+    ) -> dict[str, str]:
+        if recent_stop_loss_reason is None:
+            trading = "현재 거래 섹션은 모니터링만 유지하세요."
+        else:
+            trading = "최근 손절 발생 원인과 청산 흐름을 점검하세요."
+
+        if boot_state.hard_stop:
+            recovery = "하드스톱 해제 전까지 수동 점검과 원인 분석을 진행하세요."
+        elif boot_state.safe_mode or boot_state.failure_stage is not None:
+            recovery = "복구 실패 지점을 확인하고 안전 모드 해제 조건을 점검하세요."
+        else:
+            recovery = "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요."
+
+        if last_learning_event == "hard_stop_triggered":
+            learning = "하드스톱 관련 학습 이벤트 적재 상태를 우선 확인하세요."
+        elif learning_enabled:
+            learning = "학습 로그 적재가 유지되는지만 주기적으로 확인하세요."
+        else:
+            learning = "학습 기능 활성화 여부와 설정값을 다시 확인하세요."
+
+        if promotion_ready:
+            promotion = "승격 검토 또는 수동 승인 절차를 진행하세요."
+        else:
+            promotion = "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요."
 
         return {
             "trading": trading,

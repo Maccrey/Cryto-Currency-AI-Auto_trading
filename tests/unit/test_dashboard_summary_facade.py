@@ -94,6 +94,12 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
             "recovery": "복구 상태가 정상입니다.",
             "promotion": "실거래 승격 검토 준비가 완료되었습니다.",
         },
+        "section_recommended_action": {
+            "trading": "현재 거래 섹션은 모니터링만 유지하세요.",
+            "learning": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+            "recovery": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+            "promotion": "승격 검토 또는 수동 승인 절차를 진행하세요.",
+        },
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -184,6 +190,12 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
         "recovery": "복구 상태가 정상입니다.",
         "promotion": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
     }
+    assert payload["section_recommended_action"] == {
+        "trading": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
+        "learning": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+        "recovery": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+        "promotion": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
+    }
 
 
 def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() -> None:
@@ -251,6 +263,12 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
         "learning": "학습 이벤트 기록이 활성화되어 있습니다.",
         "recovery": "복구 상태가 정상입니다.",
         "promotion": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
+    }
+    assert payload["section_recommended_action"] == {
+        "trading": "현재 거래 섹션은 모니터링만 유지하세요.",
+        "learning": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+        "recovery": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+        "promotion": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
     }
 
 
@@ -373,4 +391,10 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
         "learning": "학습 이벤트 기록이 활성화되어 있습니다.",
         "recovery": "복구 상태가 정상입니다.",
         "promotion": "실거래 승격 검토 준비가 완료되었습니다.",
+    }
+    assert payload["section_recommended_action"] == {
+        "trading": "현재 거래 섹션은 모니터링만 유지하세요.",
+        "learning": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+        "recovery": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+        "promotion": "승격 검토 또는 수동 승인 절차를 진행하세요.",
     }

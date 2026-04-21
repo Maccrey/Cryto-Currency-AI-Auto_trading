@@ -53,6 +53,12 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
             "recovery": "하드스톱이 활성화되어 수동 개입이 필요합니다.",
             "promotion": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
         },
+        section_recommended_action={
+            "trading": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
+            "learning": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+            "recovery": "하드스톱 해제 전까지 수동 점검과 원인 분석을 진행하세요.",
+            "promotion": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
+        },
     )
 
     assert summary == DashboardSummary(
@@ -86,6 +92,12 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
             "learning": "학습 이벤트 기록이 활성화되어 있습니다.",
             "recovery": "하드스톱이 활성화되어 수동 개입이 필요합니다.",
             "promotion": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
+        },
+        section_recommended_action={
+            "trading": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
+            "learning": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+            "recovery": "하드스톱 해제 전까지 수동 점검과 원인 분석을 진행하세요.",
+            "promotion": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
         },
         safe_mode=True,
         hard_stop=True,
