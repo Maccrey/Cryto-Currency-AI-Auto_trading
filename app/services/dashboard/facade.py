@@ -171,6 +171,10 @@ class DashboardSummaryFacade:
             section_updated_at=section_updated_at,
             current_time=current_time,
         )
+        section_freshness_state = self._build_section_freshness_state(
+            section_updated_at=section_updated_at,
+            section_stale=section_stale,
+        )
         section_freshness_window_sec = self._build_section_freshness_window_sec()
         summary = self._dashboard_summary_service.build(
             boot_state=boot_state,
@@ -200,6 +204,7 @@ class DashboardSummaryFacade:
                 section_updated_at=section_updated_at,
                 section_stale=section_stale,
                 section_age_sec=section_age_sec,
+                section_freshness_state=section_freshness_state,
                 section_freshness_window_sec=section_freshness_window_sec,
             ),
             section_state_label=section_state_label,
@@ -259,6 +264,7 @@ class DashboardSummaryFacade:
         section_updated_at: dict[str, str | None],
         section_stale: dict[str, bool],
         section_age_sec: dict[str, int | None],
+        section_freshness_state: dict[str, str],
         section_freshness_window_sec: dict[str, int],
     ) -> list[dict[str, object]]:
         ordered_section_keys = ("trading", "learning", "recovery", "promotion")
@@ -279,6 +285,7 @@ class DashboardSummaryFacade:
                 "updated_at": section_updated_at[key],
                 "stale": section_stale[key],
                 "age_sec": section_age_sec[key],
+                "freshness_state": section_freshness_state[key],
                 "freshness_window_sec": section_freshness_window_sec[key],
                 "metrics": section_metrics[key],
                 "metric_items": DashboardSummaryFacade._build_section_metric_items(
@@ -370,6 +377,20 @@ class DashboardSummaryFacade:
         return dict(cls._SECTION_FRESHNESS_WINDOWS)
 
     @staticmethod
+    def _build_section_freshness_state(
+        *,
+        section_updated_at: dict[str, str | None],
+        section_stale: dict[str, bool],
+    ) -> dict[str, str]:
+        return {
+            key: DashboardSummaryFacade._resolve_freshness_state(
+                updated_at=section_updated_at[key],
+                stale=section_stale[key],
+            )
+            for key in section_updated_at
+        }
+
+    @staticmethod
     def _build_section_age_sec(
         *,
         section_updated_at: dict[str, str | None],
@@ -411,6 +432,16 @@ class DashboardSummaryFacade:
         if updated_timestamp is None:
             return None
         return max(0, int((current_timestamp - updated_timestamp).total_seconds()))
+
+    @staticmethod
+    def _resolve_freshness_state(
+        *,
+        updated_at: str | None,
+        stale: bool,
+    ) -> str:
+        if updated_at is None:
+            return "missing"
+        return "stale" if stale else "fresh"
 
     @staticmethod
     def _parse_timestamp(timestamp: str) -> datetime | None:

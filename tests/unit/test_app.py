@@ -48,6 +48,7 @@ class SummaryStubService:
                     "updated_at": "2026-04-19T20:00:01+09:00",
                     "stale": False,
                     "age_sec": 299,
+                    "freshness_state": "fresh",
                     "freshness_window_sec": 300,
                     "metrics": {
                         "buy_count": 4,
@@ -76,6 +77,7 @@ class SummaryStubService:
                     "updated_at": "2026-04-19T20:00:01+09:00",
                     "stale": False,
                     "age_sec": 299,
+                    "freshness_state": "fresh",
                     "freshness_window_sec": 300,
                     "metrics": {
                         "last_learning_event": "position_opened",
@@ -102,6 +104,7 @@ class SummaryStubService:
                     "updated_at": "2026-04-19T20:00:04+09:00",
                     "stale": False,
                     "age_sec": 296,
+                    "freshness_state": "fresh",
                     "freshness_window_sec": 600,
                     "metrics": {
                         "safe_mode": False,
@@ -130,6 +133,7 @@ class SummaryStubService:
                     "updated_at": "2026-04-19T20:00:02+09:00",
                     "stale": False,
                     "age_sec": 298,
+                    "freshness_state": "fresh",
                     "freshness_window_sec": 86400,
                     "metrics": {
                         "promotion_ready": False,
@@ -360,6 +364,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "updated_at": "2026-04-19T20:00:01+09:00",
                 "stale": False,
                 "age_sec": 299,
+                "freshness_state": "fresh",
                 "freshness_window_sec": 300,
                 "metrics": {
                     "buy_count": 4,
@@ -388,6 +393,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "updated_at": "2026-04-19T20:00:01+09:00",
                 "stale": False,
                 "age_sec": 299,
+                "freshness_state": "fresh",
                 "freshness_window_sec": 300,
                 "metrics": {
                     "last_learning_event": "position_opened",
@@ -414,6 +420,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "updated_at": "2026-04-19T20:00:04+09:00",
                 "stale": False,
                 "age_sec": 296,
+                "freshness_state": "fresh",
                 "freshness_window_sec": 600,
                 "metrics": {
                     "safe_mode": False,
@@ -442,6 +449,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "updated_at": "2026-04-19T20:00:02+09:00",
                 "stale": False,
                 "age_sec": 298,
+                "freshness_state": "fresh",
                 "freshness_window_sec": 86400,
                 "metrics": {
                     "promotion_ready": False,
