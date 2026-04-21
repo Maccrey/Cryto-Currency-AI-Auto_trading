@@ -96,6 +96,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -127,6 +128,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -156,6 +158,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 600,
                 "metrics": {
@@ -187,6 +190,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "age_sec": 7200,
                 "freshness_state": "fresh",
                 "freshness_message": "최근 데이터",
+                "freshness_label": "RECENT",
                 "freshness_severity": "info",
                 "freshness_window_sec": 86400,
                 "metrics": {
@@ -315,6 +319,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -346,6 +351,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "age_sec": None,
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
+            "freshness_label": "MISSING",
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
             "metrics": {
@@ -375,6 +381,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "age_sec": None,
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
+            "freshness_label": "MISSING",
             "freshness_severity": "warning",
             "freshness_window_sec": 600,
             "metrics": {
@@ -406,6 +413,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "age_sec": None,
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
+            "freshness_label": "MISSING",
             "freshness_severity": "warning",
             "freshness_window_sec": 86400,
             "metrics": {
@@ -512,6 +520,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "age_sec": None,
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
+            "freshness_label": "MISSING",
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
             "metrics": {
@@ -543,6 +552,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "age_sec": None,
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
+            "freshness_label": "MISSING",
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
             "metrics": {
@@ -572,6 +582,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "age_sec": None,
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
+            "freshness_label": "MISSING",
             "freshness_severity": "warning",
             "freshness_window_sec": 600,
             "metrics": {
@@ -603,6 +614,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "age_sec": None,
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
+            "freshness_label": "MISSING",
             "freshness_severity": "warning",
             "freshness_window_sec": 86400,
             "metrics": {
@@ -768,6 +780,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "age_sec": 299,
             "freshness_state": "fresh",
             "freshness_message": "최근 데이터",
+            "freshness_label": "RECENT",
             "freshness_severity": "info",
             "freshness_window_sec": 300,
             "metrics": {
@@ -799,6 +812,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "age_sec": 299,
             "freshness_state": "fresh",
             "freshness_message": "최근 데이터",
+            "freshness_label": "RECENT",
             "freshness_severity": "info",
             "freshness_window_sec": 300,
             "metrics": {
@@ -828,6 +842,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "age_sec": 296,
             "freshness_state": "fresh",
             "freshness_message": "최근 데이터",
+            "freshness_label": "RECENT",
             "freshness_severity": "info",
             "freshness_window_sec": 600,
             "metrics": {
@@ -859,6 +874,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "age_sec": 297,
             "freshness_state": "fresh",
             "freshness_message": "최근 데이터",
+            "freshness_label": "RECENT",
             "freshness_severity": "info",
             "freshness_window_sec": 86400,
             "metrics": {

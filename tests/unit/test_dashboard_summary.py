@@ -54,6 +54,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -85,6 +86,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -114,6 +116,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 600,
                 "metrics": {
@@ -145,6 +148,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 86400,
                 "metrics": {
@@ -216,6 +220,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -247,6 +252,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -276,6 +282,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 600,
                 "metrics": {
@@ -307,6 +314,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "age_sec": None,
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
+                "freshness_label": "MISSING",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 86400,
                 "metrics": {
