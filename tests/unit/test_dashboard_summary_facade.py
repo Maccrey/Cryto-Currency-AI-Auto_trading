@@ -101,9 +101,9 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 300},
                 ],
                 "metrics": {
                     "buy_count": 0,
@@ -139,9 +139,9 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 300},
                 ],
                 "metrics": {
                     "last_learning_event": None,
@@ -175,9 +175,9 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_severity": "warning",
                 "freshness_window_sec": 600,
                 "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 600},
                 ],
                 "metrics": {
                     "safe_mode": False,
@@ -213,9 +213,9 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_severity": "info",
                 "freshness_window_sec": 86400,
                 "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T18:00:00+09:00"},
-                    {"key": "age_sec", "label": "Age Seconds", "value": 7200},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": "2026-04-19T18:00:00+09:00"},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": 7200},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 86400},
                 ],
                 "metrics": {
                     "promotion_ready": True,
@@ -348,9 +348,9 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 300},
                 ],
                 "metrics": {
                 "buy_count": 1,
@@ -386,9 +386,9 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
             "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 300},
             ],
             "metrics": {
                 "last_learning_event": None,
@@ -422,9 +422,9 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "freshness_severity": "warning",
             "freshness_window_sec": 600,
             "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 600},
             ],
             "metrics": {
                 "safe_mode": False,
@@ -460,9 +460,9 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "freshness_severity": "warning",
             "freshness_window_sec": 86400,
             "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 86400},
             ],
             "metrics": {
                 "promotion_ready": False,
@@ -573,9 +573,9 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
             "freshness_metric_items": [
-                {"key": "updated_at", "label": "Updated At", "value": None},
-                {"key": "age_sec", "label": "Age Seconds", "value": None},
-                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 300},
             ],
             "metrics": {
                 "buy_count": 0,
@@ -611,9 +611,9 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
             "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 300},
             ],
             "metrics": {
                 "last_learning_event": None,
@@ -647,9 +647,9 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_severity": "warning",
             "freshness_window_sec": 600,
             "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 600},
             ],
             "metrics": {
                 "safe_mode": False,
@@ -685,9 +685,9 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_severity": "warning",
             "freshness_window_sec": 86400,
             "freshness_metric_items": [
-                    {"key": "updated_at", "label": "Updated At", "value": None},
-                    {"key": "age_sec", "label": "Age Seconds", "value": None},
-                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+                    {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 86400},
             ],
             "metrics": {
                 "promotion_ready": False,
@@ -857,9 +857,9 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_severity": "info",
             "freshness_window_sec": 300,
             "freshness_metric_items": [
-                {"key": "updated_at", "label": "Updated At", "value": payload["last_fill_recorded_at"]},
-                {"key": "age_sec", "label": "Age Seconds", "value": 299},
-                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": payload["last_fill_recorded_at"]},
+                {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": 299},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 300},
             ],
             "metrics": {
                 "buy_count": 0,
@@ -895,9 +895,9 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_severity": "info",
             "freshness_window_sec": 300,
             "freshness_metric_items": [
-                {"key": "updated_at", "label": "Updated At", "value": payload["last_fill_recorded_at"]},
-                {"key": "age_sec", "label": "Age Seconds", "value": 299},
-                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": payload["last_fill_recorded_at"]},
+                {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": 299},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 300},
             ],
             "metrics": {
                 "last_learning_event": "position_opened",
@@ -931,9 +931,9 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_severity": "info",
             "freshness_window_sec": 600,
             "freshness_metric_items": [
-                {"key": "updated_at", "label": "Updated At", "value": payload["last_recovery_completed_at"]},
-                {"key": "age_sec", "label": "Age Seconds", "value": 296},
-                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+                {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": payload["last_recovery_completed_at"]},
+                {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": 296},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 600},
             ],
             "metrics": {
                 "safe_mode": False,
@@ -969,9 +969,9 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_severity": "info",
             "freshness_window_sec": 86400,
             "freshness_metric_items": [
-                {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:03+09:00"},
-                {"key": "age_sec", "label": "Age Seconds", "value": 297},
-                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+                {"key": "updated_at", "label": "Updated At", "type": "timestamp", "value": "2026-04-19T20:00:03+09:00"},
+                {"key": "age_sec", "label": "Age Seconds", "type": "duration_sec", "value": 297},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "type": "window_sec", "value": 86400},
             ],
             "metrics": {
                 "promotion_ready": True,

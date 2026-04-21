@@ -380,16 +380,19 @@ class DashboardSummaryFacade:
             {
                 "key": "updated_at",
                 "label": "Updated At",
+                "type": "timestamp",
                 "value": updated_at,
             },
             {
                 "key": "age_sec",
                 "label": "Age Seconds",
+                "type": "duration_sec",
                 "value": age_sec,
             },
             {
                 "key": "freshness_window_sec",
                 "label": "Freshness Window Seconds",
+                "type": "window_sec",
                 "value": freshness_window_sec,
             },
         ]
