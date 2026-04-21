@@ -68,6 +68,8 @@ def test_dashboard_positions_facade_returns_recent_history() -> None:
         "history": [
             {
                 "event_type": "reduced",
+                "severity": "warning",
+                "state_message": "포지션이 부분 청산되었습니다.",
                 "market": "KRW-XRP",
                 "signal_level": "strong",
                 "entry_price": 820.0,

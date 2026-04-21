@@ -1413,7 +1413,11 @@ def test_dashboard_positions_history_endpoint_returns_position_lifecycle(monkeyp
     assert history_response.json()["status"] == "ok"
     assert len(history_response.json()["history"]) == 2
     assert history_response.json()["history"][0]["event_type"] == "opened"
+    assert history_response.json()["history"][0]["severity"] == "info"
+    assert history_response.json()["history"][0]["state_message"] == "포지션 진입이 완료되었습니다."
     assert history_response.json()["history"][1]["event_type"] == "closed"
+    assert history_response.json()["history"][1]["severity"] == "critical"
+    assert history_response.json()["history"][1]["state_message"] == "손절 조건 충족으로 포지션이 종료되었습니다."
     assert history_response.json()["history"][1]["reason_code"] == "STOP_LOSS_PRICE_HIT"
 
 
