@@ -113,6 +113,13 @@ class DashboardSummaryFacade:
             last_promotion_reviewed_at=self._promotion_dashboard_facade.latest_reviewed_at(),
             last_restart_detected_at=last_restart_detected_at,
             last_recovery_completed_at=last_recovery_completed_at,
+            section_state_label=self._build_section_state_label(
+                boot_state=boot_state,
+                learning_enabled=learning_enabled,
+                last_learning_event=last_learning_event,
+                promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
+                recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+            ),
             section_severity=self._build_section_severity(
                 boot_state=boot_state,
                 learning_enabled=learning_enabled,
@@ -139,6 +146,42 @@ class DashboardSummaryFacade:
         if isinstance(summary, dict):
             return summary
         return self._dashboard_summary_service.to_payload(summary)
+
+    @staticmethod
+    def _build_section_state_label(
+        *,
+        boot_state: BootState,
+        learning_enabled: bool,
+        last_learning_event: str | None,
+        promotion_ready: bool,
+        recent_stop_loss_reason: str | None,
+    ) -> dict[str, str]:
+        if recent_stop_loss_reason is None:
+            trading = "NORMAL"
+        else:
+            trading = "STOP_LOSS_TRIGGERED"
+
+        if boot_state.hard_stop:
+            recovery = "HARD_STOP"
+        elif boot_state.safe_mode or boot_state.failure_stage is not None:
+            recovery = "SAFE_MODE"
+        else:
+            recovery = "OK"
+
+        if last_learning_event == "hard_stop_triggered":
+            learning = "HARD_STOP_EVENT"
+        elif learning_enabled:
+            learning = "ACTIVE"
+        else:
+            learning = "DISABLED"
+
+        promotion = "READY" if promotion_ready else "NOT_READY"
+        return {
+            "trading": trading,
+            "learning": learning,
+            "recovery": recovery,
+            "promotion": promotion,
+        }
 
     @staticmethod
     def _build_section_severity(

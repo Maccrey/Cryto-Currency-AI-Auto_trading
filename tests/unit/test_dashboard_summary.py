@@ -41,6 +41,12 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         last_restart_detected_at=None,
         last_recovery_completed_at=None,
         promotion_ready=False,
+        section_state_label={
+            "trading": "STOP_LOSS_TRIGGERED",
+            "learning": "ACTIVE",
+            "recovery": "HARD_STOP",
+            "promotion": "NOT_READY",
+        },
         section_severity={
             "trading": "critical",
             "learning": "info",
@@ -81,6 +87,12 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         last_promotion_reviewed_at=None,
         last_restart_detected_at=None,
         last_recovery_completed_at=None,
+        section_state_label={
+            "trading": "STOP_LOSS_TRIGGERED",
+            "learning": "ACTIVE",
+            "recovery": "HARD_STOP",
+            "promotion": "NOT_READY",
+        },
         section_severity={
             "trading": "critical",
             "learning": "info",

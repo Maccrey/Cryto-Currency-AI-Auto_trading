@@ -37,6 +37,12 @@ class SummaryStubService:
             "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
             "last_restart_detected_at": "2026-04-19T20:00:03+09:00",
             "last_recovery_completed_at": "2026-04-19T20:00:04+09:00",
+            "section_state_label": {
+                "trading": "STOP_LOSS_TRIGGERED",
+                "learning": "ACTIVE",
+                "recovery": "OK",
+                "promotion": "NOT_READY",
+            },
             "section_severity": {
                 "trading": "critical",
                 "learning": "info",
@@ -239,6 +245,12 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
         "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
         "last_restart_detected_at": "2026-04-19T20:00:03+09:00",
         "last_recovery_completed_at": "2026-04-19T20:00:04+09:00",
+        "section_state_label": {
+            "trading": "STOP_LOSS_TRIGGERED",
+            "learning": "ACTIVE",
+            "recovery": "OK",
+            "promotion": "NOT_READY",
+        },
         "section_severity": {
             "trading": "critical",
             "learning": "info",
