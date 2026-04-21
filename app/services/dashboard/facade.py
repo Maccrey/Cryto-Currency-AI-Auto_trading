@@ -141,6 +141,13 @@ class DashboardSummaryFacade:
             last_recovery_completed_at=last_recovery_completed_at,
             promotion_ready=promotion_ready,
         )
+        section_updated_at = self._build_section_updated_at(
+            last_fill_recorded_at=last_fill_recorded_at,
+            last_signal_recorded_at=last_signal_recorded_at,
+            last_restart_detected_at=last_restart_detected_at,
+            last_recovery_completed_at=last_recovery_completed_at,
+            last_promotion_reviewed_at=self._promotion_dashboard_facade.latest_reviewed_at(),
+        )
         summary = self._dashboard_summary_service.build(
             boot_state=boot_state,
             trading_mode=trading_mode,
@@ -166,6 +173,7 @@ class DashboardSummaryFacade:
                 section_state_message=section_state_message,
                 section_recommended_action=section_recommended_action,
                 section_metrics=section_metrics,
+                section_updated_at=section_updated_at,
             ),
             section_state_label=section_state_label,
             section_severity=section_severity,
@@ -221,6 +229,7 @@ class DashboardSummaryFacade:
         section_state_message: dict[str, str],
         section_recommended_action: dict[str, str],
         section_metrics: dict[str, dict[str, object]],
+        section_updated_at: dict[str, str | None],
     ) -> list[dict[str, object]]:
         ordered_section_keys = ("trading", "learning", "recovery", "promotion")
         ordered_section_names = {
@@ -237,6 +246,7 @@ class DashboardSummaryFacade:
                 "severity": section_severity[key],
                 "state_message": section_state_message[key],
                 "recommended_action": section_recommended_action[key],
+                "updated_at": section_updated_at[key],
                 "metrics": section_metrics[key],
                 "metric_items": DashboardSummaryFacade._build_section_metric_items(
                     key=key,
@@ -289,6 +299,22 @@ class DashboardSummaryFacade:
             }
             for metric_key, label in metric_labels[key]
         ]
+
+    @staticmethod
+    def _build_section_updated_at(
+        *,
+        last_fill_recorded_at: str | None,
+        last_signal_recorded_at: str | None,
+        last_restart_detected_at: str | None,
+        last_recovery_completed_at: str | None,
+        last_promotion_reviewed_at: str | None,
+    ) -> dict[str, str | None]:
+        return {
+            "trading": last_fill_recorded_at,
+            "learning": last_fill_recorded_at or last_signal_recorded_at,
+            "recovery": last_recovery_completed_at or last_restart_detected_at,
+            "promotion": last_promotion_reviewed_at,
+        }
 
     @staticmethod
     def _build_section_metrics(
