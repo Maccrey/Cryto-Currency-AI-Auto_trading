@@ -97,6 +97,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -129,6 +130,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -159,6 +161,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 600,
                 "metrics": {
@@ -191,6 +194,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_state": "fresh",
                 "freshness_message": "최근 데이터",
                 "freshness_label": "RECENT",
+                "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 86400,
                 "metrics": {
@@ -320,6 +324,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -352,6 +357,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
             "freshness_label": "MISSING",
+            "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
             "metrics": {
@@ -382,6 +388,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
             "freshness_label": "MISSING",
+            "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 600,
             "metrics": {
@@ -414,6 +421,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
             "freshness_label": "MISSING",
+            "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 86400,
             "metrics": {
@@ -521,6 +529,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
             "freshness_label": "MISSING",
+            "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
             "metrics": {
@@ -553,6 +562,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
             "freshness_label": "MISSING",
+            "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
             "metrics": {
@@ -583,6 +593,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
             "freshness_label": "MISSING",
+            "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 600,
             "metrics": {
@@ -615,6 +626,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_state": "missing",
             "freshness_message": "데이터 없음",
             "freshness_label": "MISSING",
+            "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 86400,
             "metrics": {
@@ -781,6 +793,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_state": "fresh",
             "freshness_message": "최근 데이터",
             "freshness_label": "RECENT",
+            "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
             "freshness_severity": "info",
             "freshness_window_sec": 300,
             "metrics": {
@@ -813,6 +826,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_state": "fresh",
             "freshness_message": "최근 데이터",
             "freshness_label": "RECENT",
+            "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
             "freshness_severity": "info",
             "freshness_window_sec": 300,
             "metrics": {
@@ -843,6 +857,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_state": "fresh",
             "freshness_message": "최근 데이터",
             "freshness_label": "RECENT",
+            "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
             "freshness_severity": "info",
             "freshness_window_sec": 600,
             "metrics": {
@@ -875,6 +890,7 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_state": "fresh",
             "freshness_message": "최근 데이터",
             "freshness_label": "RECENT",
+            "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
             "freshness_severity": "info",
             "freshness_window_sec": 86400,
             "metrics": {

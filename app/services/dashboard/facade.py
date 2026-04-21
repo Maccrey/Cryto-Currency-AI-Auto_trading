@@ -181,6 +181,9 @@ class DashboardSummaryFacade:
         section_freshness_label = self._build_section_freshness_label(
             section_freshness_state=section_freshness_state,
         )
+        section_freshness_recommended_action = self._build_section_freshness_recommended_action(
+            section_freshness_state=section_freshness_state,
+        )
         section_freshness_severity = self._build_section_freshness_severity(
             section_freshness_state=section_freshness_state,
         )
@@ -216,6 +219,7 @@ class DashboardSummaryFacade:
                 section_freshness_state=section_freshness_state,
                 section_freshness_message=section_freshness_message,
                 section_freshness_label=section_freshness_label,
+                section_freshness_recommended_action=section_freshness_recommended_action,
                 section_freshness_severity=section_freshness_severity,
                 section_freshness_window_sec=section_freshness_window_sec,
             ),
@@ -279,6 +283,7 @@ class DashboardSummaryFacade:
         section_freshness_state: dict[str, str],
         section_freshness_message: dict[str, str],
         section_freshness_label: dict[str, str],
+        section_freshness_recommended_action: dict[str, str],
         section_freshness_severity: dict[str, str],
         section_freshness_window_sec: dict[str, int],
     ) -> list[dict[str, object]]:
@@ -303,6 +308,7 @@ class DashboardSummaryFacade:
                 "freshness_state": section_freshness_state[key],
                 "freshness_message": section_freshness_message[key],
                 "freshness_label": section_freshness_label[key],
+                "freshness_recommended_action": section_freshness_recommended_action[key],
                 "freshness_severity": section_freshness_severity[key],
                 "freshness_window_sec": section_freshness_window_sec[key],
                 "metrics": section_metrics[key],
@@ -435,6 +441,21 @@ class DashboardSummaryFacade:
         }
         return {
             key: labels[state]
+            for key, state in section_freshness_state.items()
+        }
+
+    @staticmethod
+    def _build_section_freshness_recommended_action(
+        *,
+        section_freshness_state: dict[str, str],
+    ) -> dict[str, str]:
+        actions = {
+            "missing": "데이터 소스와 수집 경로를 확인하세요.",
+            "stale": "데이터 갱신 지연 원인을 점검하세요.",
+            "fresh": "현재 갱신 상태를 유지하며 모니터링하세요.",
+        }
+        return {
+            key: actions[state]
             for key, state in section_freshness_state.items()
         }
 

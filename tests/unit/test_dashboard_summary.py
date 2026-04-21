@@ -55,6 +55,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -87,6 +88,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -117,6 +119,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 600,
                 "metrics": {
@@ -149,6 +152,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 86400,
                 "metrics": {
@@ -221,6 +225,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -253,6 +258,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -283,6 +289,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 600,
                 "metrics": {
@@ -315,6 +322,7 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "freshness_state": "missing",
                 "freshness_message": "데이터 없음",
                 "freshness_label": "MISSING",
+                "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 86400,
                 "metrics": {

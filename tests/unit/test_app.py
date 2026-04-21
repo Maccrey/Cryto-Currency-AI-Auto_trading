@@ -51,6 +51,7 @@ class SummaryStubService:
                     "freshness_state": "fresh",
                     "freshness_message": "최근 데이터",
                     "freshness_label": "RECENT",
+                    "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                     "freshness_severity": "info",
                     "freshness_window_sec": 300,
                     "metrics": {
@@ -83,6 +84,7 @@ class SummaryStubService:
                     "freshness_state": "fresh",
                     "freshness_message": "최근 데이터",
                     "freshness_label": "RECENT",
+                    "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                     "freshness_severity": "info",
                     "freshness_window_sec": 300,
                     "metrics": {
@@ -113,6 +115,7 @@ class SummaryStubService:
                     "freshness_state": "fresh",
                     "freshness_message": "최근 데이터",
                     "freshness_label": "RECENT",
+                    "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                     "freshness_severity": "info",
                     "freshness_window_sec": 600,
                     "metrics": {
@@ -145,6 +148,7 @@ class SummaryStubService:
                     "freshness_state": "fresh",
                     "freshness_message": "최근 데이터",
                     "freshness_label": "RECENT",
+                    "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                     "freshness_severity": "info",
                     "freshness_window_sec": 86400,
                     "metrics": {
@@ -379,6 +383,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "freshness_state": "fresh",
                 "freshness_message": "최근 데이터",
                 "freshness_label": "RECENT",
+                "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -411,6 +416,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "freshness_state": "fresh",
                 "freshness_message": "최근 데이터",
                 "freshness_label": "RECENT",
+                "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 300,
                 "metrics": {
@@ -441,6 +447,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "freshness_state": "fresh",
                 "freshness_message": "최근 데이터",
                 "freshness_label": "RECENT",
+                "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 600,
                 "metrics": {
@@ -473,6 +480,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "freshness_state": "fresh",
                 "freshness_message": "최근 데이터",
                 "freshness_label": "RECENT",
+                "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 86400,
                 "metrics": {
