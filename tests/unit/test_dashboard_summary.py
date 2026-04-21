@@ -41,6 +41,12 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         last_restart_detected_at=None,
         last_recovery_completed_at=None,
         promotion_ready=False,
+        section_severity={
+            "trading": "critical",
+            "learning": "info",
+            "recovery": "critical",
+            "promotion": "warning",
+        },
     )
 
     assert summary == DashboardSummary(
@@ -67,4 +73,10 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         hard_stop=True,
         trading_ready=False,
         promotion_ready=False,
+        section_severity={
+            "trading": "critical",
+            "learning": "info",
+            "recovery": "critical",
+            "promotion": "warning",
+        },
     )

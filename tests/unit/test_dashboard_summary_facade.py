@@ -82,6 +82,12 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
         "last_promotion_reviewed_at": "2026-04-19T18:00:00+09:00",
         "last_restart_detected_at": None,
         "last_recovery_completed_at": None,
+        "section_severity": {
+            "trading": "info",
+            "learning": "info",
+            "recovery": "info",
+            "promotion": "info",
+        },
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -160,6 +166,12 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
     assert payload["last_promotion_reviewed_at"] is None
     assert payload["last_restart_detected_at"] is None
     assert payload["last_recovery_completed_at"] is None
+    assert payload["section_severity"] == {
+        "trading": "critical",
+        "learning": "info",
+        "recovery": "info",
+        "promotion": "warning",
+    }
 
 
 def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() -> None:
@@ -216,6 +228,12 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
     assert payload["last_promotion_reviewed_at"] is None
     assert payload["last_restart_detected_at"] is None
     assert payload["last_recovery_completed_at"] is None
+    assert payload["section_severity"] == {
+        "trading": "info",
+        "learning": "info",
+        "recovery": "info",
+        "promotion": "warning",
+    }
 
 
 def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
@@ -326,3 +344,9 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
     assert payload["last_promotion_reviewed_at"] == "2026-04-19T20:00:03+09:00"
     assert payload["last_restart_detected_at"] is not None
     assert payload["last_recovery_completed_at"] is not None
+    assert payload["section_severity"] == {
+        "trading": "info",
+        "learning": "info",
+        "recovery": "info",
+        "promotion": "info",
+    }

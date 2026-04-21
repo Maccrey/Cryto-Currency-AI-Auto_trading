@@ -26,6 +26,7 @@ class DashboardSummary:
     last_promotion_reviewed_at: str | None
     last_restart_detected_at: str | None
     last_recovery_completed_at: str | None
+    section_severity: dict[str, str]
     safe_mode: bool
     hard_stop: bool
     trading_ready: bool
@@ -56,6 +57,7 @@ class DashboardSummaryService:
         last_promotion_reviewed_at: str | None,
         last_restart_detected_at: str | None,
         last_recovery_completed_at: str | None,
+        section_severity: dict[str, str],
         promotion_ready: bool,
     ) -> DashboardSummary:
         portfolio = boot_state.portfolio_state
@@ -79,6 +81,7 @@ class DashboardSummaryService:
             last_promotion_reviewed_at=last_promotion_reviewed_at,
             last_restart_detected_at=last_restart_detected_at,
             last_recovery_completed_at=last_recovery_completed_at,
+            section_severity=section_severity,
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,

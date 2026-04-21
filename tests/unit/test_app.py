@@ -37,6 +37,12 @@ class SummaryStubService:
             "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
             "last_restart_detected_at": "2026-04-19T20:00:03+09:00",
             "last_recovery_completed_at": "2026-04-19T20:00:04+09:00",
+            "section_severity": {
+                "trading": "critical",
+                "learning": "info",
+                "recovery": "info",
+                "promotion": "warning",
+            },
             "safe_mode": False,
             "hard_stop": False,
             "trading_ready": True,
@@ -221,6 +227,12 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
         "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
         "last_restart_detected_at": "2026-04-19T20:00:03+09:00",
         "last_recovery_completed_at": "2026-04-19T20:00:04+09:00",
+        "section_severity": {
+            "trading": "critical",
+            "learning": "info",
+            "recovery": "info",
+            "promotion": "warning",
+        },
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -682,6 +694,7 @@ def test_summary_endpoint_reflects_runtime_execution_counts(monkeypatch) -> None
     assert summary_response.json()["stop_loss_count"] == 1
     assert summary_response.json()["recent_stop_loss_reason"] == "STOP_LOSS_PRICE_HIT"
     assert summary_response.json()["realized_pnl"] < 0.0
+    assert summary_response.json()["section_severity"]["trading"] == "critical"
 
 
 def test_summary_endpoint_reflects_unrealized_pnl_from_latest_price(monkeypatch) -> None:
@@ -744,6 +757,7 @@ def test_summary_endpoint_reflects_unrealized_pnl_from_latest_price(monkeypatch)
 
     assert summary_response.status_code == 200
     assert summary_response.json()["unrealized_pnl"] > 0.0
+    assert summary_response.json()["section_severity"]["trading"] == "info"
 
 
 def test_market_current_endpoint_returns_latest_snapshot(monkeypatch) -> None:
@@ -1980,6 +1994,7 @@ def test_dashboard_summary_reflects_last_promotion_review_status(monkeypatch) ->
 
     assert before_response.status_code == 200
     assert before_response.json()["promotion_ready"] is False
+    assert before_response.json()["section_severity"]["promotion"] == "warning"
 
     client.post(
         "/promotion/review",
@@ -2000,6 +2015,7 @@ def test_dashboard_summary_reflects_last_promotion_review_status(monkeypatch) ->
 
     assert after_response.status_code == 200
     assert after_response.json()["promotion_ready"] is True
+    assert after_response.json()["section_severity"]["promotion"] == "info"
 
 
 def test_dashboard_promotion_returns_empty_before_review(monkeypatch) -> None:

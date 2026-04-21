@@ -113,8 +113,45 @@ class DashboardSummaryFacade:
             last_promotion_reviewed_at=self._promotion_dashboard_facade.latest_reviewed_at(),
             last_restart_detected_at=last_restart_detected_at,
             last_recovery_completed_at=last_recovery_completed_at,
+            section_severity=self._build_section_severity(
+                boot_state=boot_state,
+                learning_enabled=learning_enabled,
+                last_learning_event=last_learning_event,
+                promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
+                recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+            ),
             promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
         )
         if isinstance(summary, dict):
             return summary
         return self._dashboard_summary_service.to_payload(summary)
+
+    @staticmethod
+    def _build_section_severity(
+        *,
+        boot_state: BootState,
+        learning_enabled: bool,
+        last_learning_event: str | None,
+        promotion_ready: bool,
+        recent_stop_loss_reason: str | None,
+    ) -> dict[str, str]:
+        trading = "critical" if recent_stop_loss_reason else "info"
+        if boot_state.hard_stop:
+            recovery = "critical"
+        elif boot_state.safe_mode or boot_state.failure_stage is not None:
+            recovery = "warning"
+        else:
+            recovery = "info"
+        if last_learning_event == "hard_stop_triggered":
+            learning = "critical"
+        elif learning_enabled:
+            learning = "info"
+        else:
+            learning = "warning"
+        promotion = "info" if promotion_ready else "warning"
+        return {
+            "trading": trading,
+            "learning": learning,
+            "recovery": recovery,
+            "promotion": promotion,
+        }
