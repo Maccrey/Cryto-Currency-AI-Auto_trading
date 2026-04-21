@@ -100,6 +100,11 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
+                "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                ],
                 "metrics": {
                     "buy_count": 0,
                     "sell_count": 0,
@@ -133,6 +138,11 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
+                "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                ],
                 "metrics": {
                     "last_learning_event": None,
                     "learning_signal_count": 0,
@@ -164,6 +174,11 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 600,
+                "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+                ],
                 "metrics": {
                     "safe_mode": False,
                     "hard_stop": False,
@@ -197,6 +212,11 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 86400,
+                "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T18:00:00+09:00"},
+                    {"key": "age_sec", "label": "Age Seconds", "value": 7200},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+                ],
                 "metrics": {
                     "promotion_ready": True,
                     "last_promotion_reviewed_at": "2026-04-19T18:00:00+09:00",
@@ -327,6 +347,11 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
                 "freshness_severity": "warning",
                 "freshness_window_sec": 300,
+                "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                ],
                 "metrics": {
                 "buy_count": 1,
                 "sell_count": 1,
@@ -360,6 +385,11 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
+            "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+            ],
             "metrics": {
                 "last_learning_event": None,
                 "learning_signal_count": 0,
@@ -391,6 +421,11 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 600,
+            "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+            ],
             "metrics": {
                 "safe_mode": False,
                 "hard_stop": False,
@@ -424,6 +459,11 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 86400,
+            "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+            ],
             "metrics": {
                 "promotion_ready": False,
                 "last_promotion_reviewed_at": None,
@@ -532,6 +572,11 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
+            "freshness_metric_items": [
+                {"key": "updated_at", "label": "Updated At", "value": None},
+                {"key": "age_sec", "label": "Age Seconds", "value": None},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+            ],
             "metrics": {
                 "buy_count": 0,
                 "sell_count": 0,
@@ -565,6 +610,11 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 300,
+            "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+            ],
             "metrics": {
                 "last_learning_event": None,
                 "learning_signal_count": 0,
@@ -596,6 +646,11 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 600,
+            "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+            ],
             "metrics": {
                 "safe_mode": False,
                 "hard_stop": False,
@@ -629,6 +684,11 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "freshness_recommended_action": "데이터 소스와 수집 경로를 확인하세요.",
             "freshness_severity": "warning",
             "freshness_window_sec": 86400,
+            "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": None},
+                    {"key": "age_sec", "label": "Age Seconds", "value": None},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+            ],
             "metrics": {
                 "promotion_ready": False,
                 "last_promotion_reviewed_at": None,
@@ -796,6 +856,11 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
             "freshness_severity": "info",
             "freshness_window_sec": 300,
+            "freshness_metric_items": [
+                {"key": "updated_at", "label": "Updated At", "value": payload["last_fill_recorded_at"]},
+                {"key": "age_sec", "label": "Age Seconds", "value": 299},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+            ],
             "metrics": {
                 "buy_count": 0,
                 "sell_count": 0,
@@ -829,6 +894,11 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
             "freshness_severity": "info",
             "freshness_window_sec": 300,
+            "freshness_metric_items": [
+                {"key": "updated_at", "label": "Updated At", "value": payload["last_fill_recorded_at"]},
+                {"key": "age_sec", "label": "Age Seconds", "value": 299},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+            ],
             "metrics": {
                 "last_learning_event": "position_opened",
                 "learning_signal_count": 1,
@@ -860,6 +930,11 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
             "freshness_severity": "info",
             "freshness_window_sec": 600,
+            "freshness_metric_items": [
+                {"key": "updated_at", "label": "Updated At", "value": payload["last_recovery_completed_at"]},
+                {"key": "age_sec", "label": "Age Seconds", "value": 296},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+            ],
             "metrics": {
                 "safe_mode": False,
                 "hard_stop": False,
@@ -893,6 +968,11 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
             "freshness_severity": "info",
             "freshness_window_sec": 86400,
+            "freshness_metric_items": [
+                {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:03+09:00"},
+                {"key": "age_sec", "label": "Age Seconds", "value": 297},
+                {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+            ],
             "metrics": {
                 "promotion_ready": True,
                 "last_promotion_reviewed_at": "2026-04-19T20:00:03+09:00",

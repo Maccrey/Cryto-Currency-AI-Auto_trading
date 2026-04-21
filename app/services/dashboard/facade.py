@@ -311,6 +311,11 @@ class DashboardSummaryFacade:
                 "freshness_recommended_action": section_freshness_recommended_action[key],
                 "freshness_severity": section_freshness_severity[key],
                 "freshness_window_sec": section_freshness_window_sec[key],
+                "freshness_metric_items": DashboardSummaryFacade._build_section_freshness_metric_items(
+                    updated_at=section_updated_at[key],
+                    age_sec=section_age_sec[key],
+                    freshness_window_sec=section_freshness_window_sec[key],
+                ),
                 "metrics": section_metrics[key],
                 "metric_items": DashboardSummaryFacade._build_section_metric_items(
                     key=key,
@@ -362,6 +367,31 @@ class DashboardSummaryFacade:
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
+        ]
+
+    @staticmethod
+    def _build_section_freshness_metric_items(
+        *,
+        updated_at: str | None,
+        age_sec: int | None,
+        freshness_window_sec: int,
+    ) -> list[dict[str, object]]:
+        return [
+            {
+                "key": "updated_at",
+                "label": "Updated At",
+                "value": updated_at,
+            },
+            {
+                "key": "age_sec",
+                "label": "Age Seconds",
+                "value": age_sec,
+            },
+            {
+                "key": "freshness_window_sec",
+                "label": "Freshness Window Seconds",
+                "value": freshness_window_sec,
+            },
         ]
 
     @staticmethod

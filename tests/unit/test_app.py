@@ -54,6 +54,11 @@ class SummaryStubService:
                     "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                     "freshness_severity": "info",
                     "freshness_window_sec": 300,
+                    "freshness_metric_items": [
+                        {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:01+09:00"},
+                        {"key": "age_sec", "label": "Age Seconds", "value": 299},
+                        {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                    ],
                     "metrics": {
                         "buy_count": 4,
                         "sell_count": 3,
@@ -87,6 +92,11 @@ class SummaryStubService:
                     "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                     "freshness_severity": "info",
                     "freshness_window_sec": 300,
+                    "freshness_metric_items": [
+                        {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:01+09:00"},
+                        {"key": "age_sec", "label": "Age Seconds", "value": 299},
+                        {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                    ],
                     "metrics": {
                         "last_learning_event": "position_opened",
                         "learning_signal_count": 3,
@@ -118,6 +128,11 @@ class SummaryStubService:
                     "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                     "freshness_severity": "info",
                     "freshness_window_sec": 600,
+                    "freshness_metric_items": [
+                        {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:04+09:00"},
+                        {"key": "age_sec", "label": "Age Seconds", "value": 296},
+                        {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+                    ],
                     "metrics": {
                         "safe_mode": False,
                         "hard_stop": False,
@@ -151,6 +166,11 @@ class SummaryStubService:
                     "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                     "freshness_severity": "info",
                     "freshness_window_sec": 86400,
+                    "freshness_metric_items": [
+                        {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:02+09:00"},
+                        {"key": "age_sec", "label": "Age Seconds", "value": 298},
+                        {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+                    ],
                     "metrics": {
                         "promotion_ready": False,
                         "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
@@ -386,6 +406,11 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 300,
+                "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:01+09:00"},
+                    {"key": "age_sec", "label": "Age Seconds", "value": 299},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                ],
                 "metrics": {
                     "buy_count": 4,
                     "sell_count": 3,
@@ -419,6 +444,11 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 300,
+                "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:01+09:00"},
+                    {"key": "age_sec", "label": "Age Seconds", "value": 299},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 300},
+                ],
                 "metrics": {
                     "last_learning_event": "position_opened",
                     "learning_signal_count": 3,
@@ -450,6 +480,11 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 600,
+                "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:04+09:00"},
+                    {"key": "age_sec", "label": "Age Seconds", "value": 296},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 600},
+                ],
                 "metrics": {
                     "safe_mode": False,
                     "hard_stop": False,
@@ -483,6 +518,11 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "freshness_recommended_action": "현재 갱신 상태를 유지하며 모니터링하세요.",
                 "freshness_severity": "info",
                 "freshness_window_sec": 86400,
+                "freshness_metric_items": [
+                    {"key": "updated_at", "label": "Updated At", "value": "2026-04-19T20:00:02+09:00"},
+                    {"key": "age_sec", "label": "Age Seconds", "value": 298},
+                    {"key": "freshness_window_sec", "label": "Freshness Window Seconds", "value": 86400},
+                ],
                 "metrics": {
                     "promotion_ready": False,
                     "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
