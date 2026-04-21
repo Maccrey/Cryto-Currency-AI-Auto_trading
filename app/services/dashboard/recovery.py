@@ -11,6 +11,7 @@ class DashboardRecovery:
     state_label: str
     state_message: str
     recommended_action: str
+    severity: str
     safe_mode: bool
     hard_stop: bool
     trading_ready: bool
@@ -137,6 +138,7 @@ class DashboardRecoveryService:
             boot_state=boot_state,
             blocked_reason=reconcile_result.get("blocked_reason"),
         )
+        severity = self._derive_severity(boot_state)
         recommended_action = self._derive_recommended_action(
             boot_state=boot_state,
             blocked_reason=reconcile_result.get("blocked_reason"),
@@ -145,6 +147,7 @@ class DashboardRecoveryService:
             "state_label": state_label,
             "state_message": state_message,
             "recommended_action": recommended_action,
+            "severity": severity,
             "safe_mode": boot_state.safe_mode,
             "hard_stop": boot_state.hard_stop,
             "trading_ready": boot_state.trading_ready,
@@ -159,6 +162,7 @@ class DashboardRecoveryService:
             state_label=state_label,
             state_message=state_message,
             recommended_action=recommended_action,
+            severity=severity,
             safe_mode=boot_state.safe_mode,
             hard_stop=boot_state.hard_stop,
             trading_ready=boot_state.trading_ready,
@@ -227,3 +231,13 @@ class DashboardRecoveryService:
         if boot_state.trading_ready:
             return "추가 조치 없이 운영을 지속할 수 있습니다."
         return "복구 로그와 최근 운영 이벤트를 확인해 원인을 파악하세요."
+
+    @staticmethod
+    def _derive_severity(boot_state: BootState) -> str:
+        if boot_state.hard_stop:
+            return "critical"
+        if boot_state.safe_mode or boot_state.failure_stage is not None:
+            return "warning"
+        if boot_state.trading_ready:
+            return "info"
+        return "warning"

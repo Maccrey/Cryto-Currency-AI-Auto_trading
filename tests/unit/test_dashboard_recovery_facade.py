@@ -45,6 +45,7 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
     assert response["recovery"]["state_label"] == "OK"
     assert response["recovery"]["state_message"] == "정상 복구가 완료되어 거래 가능 상태입니다."
     assert response["recovery"]["recommended_action"] == "추가 조치 없이 운영을 지속할 수 있습니다."
+    assert response["recovery"]["severity"] == "info"
     assert response["recovery"]["safe_mode"] is False
     assert response["recovery"]["hard_stop"] is False
     assert response["recovery"]["trading_ready"] is True
@@ -112,6 +113,7 @@ def test_dashboard_recovery_facade_returns_boot_state_and_recent_events(tmp_path
         "state_label": "OK",
         "state_message": "정상 복구가 완료되어 거래 가능 상태입니다.",
         "recommended_action": "추가 조치 없이 운영을 지속할 수 있습니다.",
+        "severity": "info",
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -175,6 +177,7 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
         response["recovery"]["recommended_action"]
         == "재시작 원인과 인프라 상태를 점검한 뒤 수동으로 HARD_STOP 해제를 검토하세요: RESTART_THRESHOLD_EXCEEDED"
     )
+    assert response["recovery"]["severity"] == "critical"
     assert response["recovery"]["failure_stage"] == "hard_stop"
     assert response["recovery"]["restart_count"] == 3
     assert response["recovery"]["blocked_reason"] == "RESTART_THRESHOLD_EXCEEDED"
@@ -232,6 +235,7 @@ def test_dashboard_recovery_facade_includes_hard_stop_history(tmp_path: Path) ->
         "state_label": "HARD_STOP",
         "state_message": "재시작 한도 초과로 HARD_STOP 상태입니다: RESTART_THRESHOLD_EXCEEDED",
         "recommended_action": "재시작 원인과 인프라 상태를 점검한 뒤 수동으로 HARD_STOP 해제를 검토하세요: RESTART_THRESHOLD_EXCEEDED",
+        "severity": "critical",
         "safe_mode": True,
         "hard_stop": True,
         "trading_ready": False,
