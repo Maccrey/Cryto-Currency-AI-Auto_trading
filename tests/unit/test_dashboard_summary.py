@@ -47,6 +47,12 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
             "recovery": "critical",
             "promotion": "warning",
         },
+        section_state_message={
+            "trading": "최근 손절 사유: STOP_LOSS_PRICE_HIT",
+            "learning": "학습 이벤트 기록이 활성화되어 있습니다.",
+            "recovery": "하드스톱이 활성화되어 수동 개입이 필요합니다.",
+            "promotion": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
+        },
     )
 
     assert summary == DashboardSummary(
@@ -69,14 +75,20 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         last_promotion_reviewed_at=None,
         last_restart_detected_at=None,
         last_recovery_completed_at=None,
-        safe_mode=True,
-        hard_stop=True,
-        trading_ready=False,
-        promotion_ready=False,
         section_severity={
             "trading": "critical",
             "learning": "info",
             "recovery": "critical",
             "promotion": "warning",
         },
+        section_state_message={
+            "trading": "최근 손절 사유: STOP_LOSS_PRICE_HIT",
+            "learning": "학습 이벤트 기록이 활성화되어 있습니다.",
+            "recovery": "하드스톱이 활성화되어 수동 개입이 필요합니다.",
+            "promotion": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
+        },
+        safe_mode=True,
+        hard_stop=True,
+        trading_ready=False,
+        promotion_ready=False,
     )

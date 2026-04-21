@@ -88,6 +88,12 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
             "recovery": "info",
             "promotion": "info",
         },
+        "section_state_message": {
+            "trading": "최근 체결 기준 거래 리스크 이상이 없습니다.",
+            "learning": "학습 이벤트 기록이 활성화되어 있습니다.",
+            "recovery": "복구 상태가 정상입니다.",
+            "promotion": "실거래 승격 검토 준비가 완료되었습니다.",
+        },
         "safe_mode": False,
         "hard_stop": False,
         "trading_ready": True,
@@ -172,6 +178,12 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
         "recovery": "info",
         "promotion": "warning",
     }
+    assert payload["section_state_message"] == {
+        "trading": "최근 손절 사유: STOP_LOSS_PRICE_HIT",
+        "learning": "학습 이벤트 기록이 활성화되어 있습니다.",
+        "recovery": "복구 상태가 정상입니다.",
+        "promotion": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
+    }
 
 
 def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() -> None:
@@ -233,6 +245,12 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
         "learning": "info",
         "recovery": "info",
         "promotion": "warning",
+    }
+    assert payload["section_state_message"] == {
+        "trading": "최근 체결 기준 거래 리스크 이상이 없습니다.",
+        "learning": "학습 이벤트 기록이 활성화되어 있습니다.",
+        "recovery": "복구 상태가 정상입니다.",
+        "promotion": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
     }
 
 
@@ -349,4 +367,10 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
         "learning": "info",
         "recovery": "info",
         "promotion": "info",
+    }
+    assert payload["section_state_message"] == {
+        "trading": "최근 체결 기준 거래 리스크 이상이 없습니다.",
+        "learning": "학습 이벤트 기록이 활성화되어 있습니다.",
+        "recovery": "복구 상태가 정상입니다.",
+        "promotion": "실거래 승격 검토 준비가 완료되었습니다.",
     }

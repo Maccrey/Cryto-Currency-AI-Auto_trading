@@ -120,6 +120,13 @@ class DashboardSummaryFacade:
                 promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
                 recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
             ),
+            section_state_message=self._build_section_state_message(
+                boot_state=boot_state,
+                learning_enabled=learning_enabled,
+                last_learning_event=last_learning_event,
+                promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
+                recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+            ),
             promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
         )
         if isinstance(summary, dict):
@@ -149,6 +156,46 @@ class DashboardSummaryFacade:
         else:
             learning = "warning"
         promotion = "info" if promotion_ready else "warning"
+        return {
+            "trading": trading,
+            "learning": learning,
+            "recovery": recovery,
+            "promotion": promotion,
+        }
+
+    @staticmethod
+    def _build_section_state_message(
+        *,
+        boot_state: BootState,
+        learning_enabled: bool,
+        last_learning_event: str | None,
+        promotion_ready: bool,
+        recent_stop_loss_reason: str | None,
+    ) -> dict[str, str]:
+        if recent_stop_loss_reason is None:
+            trading = "최근 체결 기준 거래 리스크 이상이 없습니다."
+        else:
+            trading = f"최근 손절 사유: {recent_stop_loss_reason}"
+
+        if boot_state.hard_stop:
+            recovery = "하드스톱이 활성화되어 수동 개입이 필요합니다."
+        elif boot_state.safe_mode or boot_state.failure_stage is not None:
+            recovery = "복구 경로에서 안전 모드가 유지되고 있습니다."
+        else:
+            recovery = "복구 상태가 정상입니다."
+
+        if last_learning_event == "hard_stop_triggered":
+            learning = "최근 학습 이벤트에 하드스톱 트리거가 기록되었습니다."
+        elif learning_enabled:
+            learning = "학습 이벤트 기록이 활성화되어 있습니다."
+        else:
+            learning = "학습 이벤트 기록이 비활성화되어 있습니다."
+
+        if promotion_ready:
+            promotion = "실거래 승격 검토 준비가 완료되었습니다."
+        else:
+            promotion = "실거래 승격 검토 준비가 아직 완료되지 않았습니다."
+
         return {
             "trading": trading,
             "learning": learning,
