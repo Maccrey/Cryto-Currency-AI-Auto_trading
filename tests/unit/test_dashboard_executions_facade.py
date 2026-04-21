@@ -60,6 +60,8 @@ def test_dashboard_executions_facade_returns_recent_execution_history() -> None:
             {
                 "market": "KRW-XRP",
                 "side": "sell",
+                "severity": "critical",
+                "state_message": "손절 매도 체결이 완료되었습니다.",
                 "filled_price": 805.0,
                 "filled_quantity": 100.0,
                 "fee": 33.5,

@@ -9,6 +9,8 @@ from app.services.execution.ledger import ExecutionLedgerRecord
 class DashboardExecutionEntry:
     market: str
     side: str
+    severity: str
+    state_message: str
     filled_price: float
     filled_quantity: float
     fee: float
@@ -30,6 +32,8 @@ class DashboardExecutionsService:
             DashboardExecutionEntry(
                 market=record.fill.market,
                 side=record.fill.side,
+                severity=self._derive_severity(record),
+                state_message=self._derive_state_message(record),
                 filled_price=record.fill.filled_price,
                 filled_quantity=record.fill.filled_quantity,
                 fee=record.fill.fee,
@@ -47,3 +51,17 @@ class DashboardExecutionsService:
         entries: list[DashboardExecutionEntry],
     ) -> list[dict[str, object]]:
         return [asdict(entry) for entry in entries]
+
+    @staticmethod
+    def _derive_severity(record: ExecutionLedgerRecord) -> str:
+        if record.fill.is_stop_loss:
+            return "critical"
+        return "info"
+
+    @staticmethod
+    def _derive_state_message(record: ExecutionLedgerRecord) -> str:
+        if record.fill.side == "buy":
+            return "매수 체결이 완료되었습니다."
+        if record.fill.is_stop_loss:
+            return "손절 매도 체결이 완료되었습니다."
+        return "매도 체결이 완료되었습니다."

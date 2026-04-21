@@ -1346,7 +1346,11 @@ def test_dashboard_executions_endpoint_returns_recent_fill_history(monkeypatch) 
     assert history_response.json()["status"] == "ok"
     assert len(history_response.json()["history"]) == 2
     assert history_response.json()["history"][0]["side"] == "buy"
+    assert history_response.json()["history"][0]["severity"] == "info"
+    assert history_response.json()["history"][0]["state_message"] == "매수 체결이 완료되었습니다."
     assert history_response.json()["history"][1]["side"] == "sell"
+    assert history_response.json()["history"][1]["severity"] == "critical"
+    assert history_response.json()["history"][1]["state_message"] == "손절 매도 체결이 완료되었습니다."
     assert history_response.json()["history"][1]["reason_code"] == "STOP_LOSS_PRICE_HIT"
 
 
