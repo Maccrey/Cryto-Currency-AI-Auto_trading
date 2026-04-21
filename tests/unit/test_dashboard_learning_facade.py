@@ -38,6 +38,8 @@ def test_dashboard_learning_facade_returns_summary_and_recent_events(tmp_path: P
 
     assert response["status"] == "ok"
     assert response["learning"]["total_events"] == 2
+    assert response["learning"]["severity"] == "info"
+    assert response["learning"]["state_message"] == "최근 학습 이벤트에 포지션 변화가 기록되었습니다."
     assert response["learning"]["last_event_name"] == "position_opened"
     assert response["learning"]["event_counts"] == {
         "fill_result": 1,
@@ -100,6 +102,8 @@ def test_dashboard_learning_facade_returns_health_summary(tmp_path: Path) -> Non
 
     assert response["status"] == "ok"
     assert response["health"]["total_events"] == 4
+    assert response["health"]["severity"] == "info"
+    assert response["health"]["state_message"] == "최근 학습 상태가 정상적으로 기록되고 있습니다."
     assert response["health"]["category_counts"] == {
         "signals": 1,
         "fills": 1,

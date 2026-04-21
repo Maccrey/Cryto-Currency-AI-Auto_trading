@@ -1110,6 +1110,8 @@ def test_dashboard_learning_endpoint_returns_learning_summary(monkeypatch) -> No
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["learning"]["total_events"] == 2
+    assert response.json()["learning"]["severity"] == "info"
+    assert response.json()["learning"]["state_message"] == "최근 학습 이벤트에 포지션 변화가 기록되었습니다."
     assert response.json()["learning"]["last_event_name"] == "position_opened"
     assert response.json()["learning"]["event_counts"] == {
         "fill_result": 1,
@@ -1180,6 +1182,8 @@ def test_dashboard_learning_health_endpoint_returns_category_summary(monkeypatch
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["health"]["total_events"] == 3
+    assert response.json()["health"]["severity"] == "info"
+    assert response.json()["health"]["state_message"] == "최근 학습 상태가 정상적으로 기록되고 있습니다."
     assert response.json()["health"]["category_counts"] == {
         "signals": 1,
         "fills": 1,
