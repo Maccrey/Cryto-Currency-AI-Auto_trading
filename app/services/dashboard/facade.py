@@ -381,11 +381,33 @@ class DashboardSummaryFacade:
             "promotion_ready": "boolean",
             "last_promotion_reviewed_at": "timestamp",
         }
+        metric_format_hints = {
+            "buy_count": "integer",
+            "sell_count": "integer",
+            "stop_loss_count": "integer",
+            "realized_pnl": "signed_currency",
+            "unrealized_pnl": "signed_currency",
+            "recent_stop_loss_reason": "plain_text",
+            "last_learning_event": "plain_text",
+            "learning_signal_count": "integer",
+            "learning_fill_count": "integer",
+            "last_signal_recorded_at": "datetime",
+            "last_fill_recorded_at": "datetime",
+            "safe_mode": "boolean_badge",
+            "hard_stop": "boolean_badge",
+            "trading_ready": "boolean_badge",
+            "failure_stage": "plain_text",
+            "last_restart_detected_at": "datetime",
+            "last_recovery_completed_at": "datetime",
+            "promotion_ready": "boolean_badge",
+            "last_promotion_reviewed_at": "datetime",
+        }
         return [
             {
                 "key": metric_key,
                 "label": label,
                 "type": metric_types[metric_key],
+                "format_hint": metric_format_hints[metric_key],
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
