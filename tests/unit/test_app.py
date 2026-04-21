@@ -53,6 +53,14 @@ class SummaryStubService:
                         "unrealized_pnl": -3200.0,
                         "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
                     },
+                    "metric_items": [
+                        {"key": "buy_count", "label": "Buy Count", "value": 4},
+                        {"key": "sell_count", "label": "Sell Count", "value": 3},
+                        {"key": "stop_loss_count", "label": "Stop Loss Count", "value": 1},
+                        {"key": "realized_pnl", "label": "Realized PnL", "value": 12500.0},
+                        {"key": "unrealized_pnl", "label": "Unrealized PnL", "value": -3200.0},
+                        {"key": "recent_stop_loss_reason", "label": "Recent Stop Loss Reason", "value": "STOP_LOSS_PRICE_HIT"},
+                    ],
                 },
                 {
                     "key": "learning",
@@ -68,6 +76,13 @@ class SummaryStubService:
                         "last_signal_recorded_at": "2026-04-19T20:00:00+09:00",
                         "last_fill_recorded_at": "2026-04-19T20:00:01+09:00",
                     },
+                    "metric_items": [
+                        {"key": "last_learning_event", "label": "Last Learning Event", "value": "position_opened"},
+                        {"key": "learning_signal_count", "label": "Signal Count", "value": 3},
+                        {"key": "learning_fill_count", "label": "Fill Count", "value": 2},
+                        {"key": "last_signal_recorded_at", "label": "Last Signal At", "value": "2026-04-19T20:00:00+09:00"},
+                        {"key": "last_fill_recorded_at", "label": "Last Fill At", "value": "2026-04-19T20:00:01+09:00"},
+                    ],
                 },
                 {
                     "key": "recovery",
@@ -84,6 +99,14 @@ class SummaryStubService:
                         "last_restart_detected_at": "2026-04-19T20:00:03+09:00",
                         "last_recovery_completed_at": "2026-04-19T20:00:04+09:00",
                     },
+                    "metric_items": [
+                        {"key": "safe_mode", "label": "Safe Mode", "value": False},
+                        {"key": "hard_stop", "label": "Hard Stop", "value": False},
+                        {"key": "trading_ready", "label": "Trading Ready", "value": True},
+                        {"key": "failure_stage", "label": "Failure Stage", "value": None},
+                        {"key": "last_restart_detected_at", "label": "Last Restart At", "value": "2026-04-19T20:00:03+09:00"},
+                        {"key": "last_recovery_completed_at", "label": "Last Recovery At", "value": "2026-04-19T20:00:04+09:00"},
+                    ],
                 },
                 {
                     "key": "promotion",
@@ -96,6 +119,10 @@ class SummaryStubService:
                         "promotion_ready": False,
                         "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
                     },
+                    "metric_items": [
+                        {"key": "promotion_ready", "label": "Promotion Ready", "value": False},
+                        {"key": "last_promotion_reviewed_at", "label": "Last Promotion Review At", "value": "2026-04-19T20:00:02+09:00"},
+                    ],
                 },
             ],
             "section_state_label": {
@@ -322,6 +349,14 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                     "unrealized_pnl": -3200.0,
                     "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
                 },
+                "metric_items": [
+                    {"key": "buy_count", "label": "Buy Count", "value": 4},
+                    {"key": "sell_count", "label": "Sell Count", "value": 3},
+                    {"key": "stop_loss_count", "label": "Stop Loss Count", "value": 1},
+                    {"key": "realized_pnl", "label": "Realized PnL", "value": 12500.0},
+                    {"key": "unrealized_pnl", "label": "Unrealized PnL", "value": -3200.0},
+                    {"key": "recent_stop_loss_reason", "label": "Recent Stop Loss Reason", "value": "STOP_LOSS_PRICE_HIT"},
+                ],
             },
             {
                 "key": "learning",
@@ -337,6 +372,13 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                     "last_signal_recorded_at": "2026-04-19T20:00:00+09:00",
                     "last_fill_recorded_at": "2026-04-19T20:00:01+09:00",
                 },
+                "metric_items": [
+                    {"key": "last_learning_event", "label": "Last Learning Event", "value": "position_opened"},
+                    {"key": "learning_signal_count", "label": "Signal Count", "value": 3},
+                    {"key": "learning_fill_count", "label": "Fill Count", "value": 2},
+                    {"key": "last_signal_recorded_at", "label": "Last Signal At", "value": "2026-04-19T20:00:00+09:00"},
+                    {"key": "last_fill_recorded_at", "label": "Last Fill At", "value": "2026-04-19T20:00:01+09:00"},
+                ],
             },
             {
                 "key": "recovery",
@@ -353,6 +395,14 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                     "last_restart_detected_at": "2026-04-19T20:00:03+09:00",
                     "last_recovery_completed_at": "2026-04-19T20:00:04+09:00",
                 },
+                "metric_items": [
+                    {"key": "safe_mode", "label": "Safe Mode", "value": False},
+                    {"key": "hard_stop", "label": "Hard Stop", "value": False},
+                    {"key": "trading_ready", "label": "Trading Ready", "value": True},
+                    {"key": "failure_stage", "label": "Failure Stage", "value": None},
+                    {"key": "last_restart_detected_at", "label": "Last Restart At", "value": "2026-04-19T20:00:03+09:00"},
+                    {"key": "last_recovery_completed_at", "label": "Last Recovery At", "value": "2026-04-19T20:00:04+09:00"},
+                ],
             },
             {
                 "key": "promotion",
@@ -365,6 +415,10 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                     "promotion_ready": False,
                     "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
                 },
+                "metric_items": [
+                    {"key": "promotion_ready", "label": "Promotion Ready", "value": False},
+                    {"key": "last_promotion_reviewed_at", "label": "Last Promotion Review At", "value": "2026-04-19T20:00:02+09:00"},
+                ],
             },
         ],
         "section_state_label": {

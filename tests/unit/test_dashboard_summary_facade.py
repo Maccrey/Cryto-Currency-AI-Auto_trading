@@ -98,6 +98,14 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                     "unrealized_pnl": 0.0,
                     "recent_stop_loss_reason": None,
                 },
+                "metric_items": [
+                    {"key": "buy_count", "label": "Buy Count", "value": 0},
+                    {"key": "sell_count", "label": "Sell Count", "value": 0},
+                    {"key": "stop_loss_count", "label": "Stop Loss Count", "value": 0},
+                    {"key": "realized_pnl", "label": "Realized PnL", "value": 0.0},
+                    {"key": "unrealized_pnl", "label": "Unrealized PnL", "value": 0.0},
+                    {"key": "recent_stop_loss_reason", "label": "Recent Stop Loss Reason", "value": None},
+                ],
             },
             {
                 "key": "learning",
@@ -113,6 +121,13 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                     "last_signal_recorded_at": None,
                     "last_fill_recorded_at": None,
                 },
+                "metric_items": [
+                    {"key": "last_learning_event", "label": "Last Learning Event", "value": None},
+                    {"key": "learning_signal_count", "label": "Signal Count", "value": 0},
+                    {"key": "learning_fill_count", "label": "Fill Count", "value": 0},
+                    {"key": "last_signal_recorded_at", "label": "Last Signal At", "value": None},
+                    {"key": "last_fill_recorded_at", "label": "Last Fill At", "value": None},
+                ],
             },
             {
                 "key": "recovery",
@@ -129,6 +144,14 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                     "last_restart_detected_at": None,
                     "last_recovery_completed_at": None,
                 },
+                "metric_items": [
+                    {"key": "safe_mode", "label": "Safe Mode", "value": False},
+                    {"key": "hard_stop", "label": "Hard Stop", "value": False},
+                    {"key": "trading_ready", "label": "Trading Ready", "value": True},
+                    {"key": "failure_stage", "label": "Failure Stage", "value": None},
+                    {"key": "last_restart_detected_at", "label": "Last Restart At", "value": None},
+                    {"key": "last_recovery_completed_at", "label": "Last Recovery At", "value": None},
+                ],
             },
             {
                 "key": "promotion",
@@ -141,6 +164,10 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                     "promotion_ready": True,
                     "last_promotion_reviewed_at": "2026-04-19T18:00:00+09:00",
                 },
+                "metric_items": [
+                    {"key": "promotion_ready", "label": "Promotion Ready", "value": True},
+                    {"key": "last_promotion_reviewed_at", "label": "Last Promotion Review At", "value": "2026-04-19T18:00:00+09:00"},
+                ],
             },
         ],
         "section_state_label": {
@@ -261,6 +288,14 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "unrealized_pnl": 0.0,
                 "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
             },
+            "metric_items": [
+                {"key": "buy_count", "label": "Buy Count", "value": 1},
+                {"key": "sell_count", "label": "Sell Count", "value": 1},
+                {"key": "stop_loss_count", "label": "Stop Loss Count", "value": 1},
+                {"key": "realized_pnl", "label": "Realized PnL", "value": payload["realized_pnl"]},
+                {"key": "unrealized_pnl", "label": "Unrealized PnL", "value": 0.0},
+                {"key": "recent_stop_loss_reason", "label": "Recent Stop Loss Reason", "value": "STOP_LOSS_PRICE_HIT"},
+            ],
         },
         {
             "key": "learning",
@@ -276,6 +311,13 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "last_signal_recorded_at": None,
                 "last_fill_recorded_at": None,
             },
+            "metric_items": [
+                {"key": "last_learning_event", "label": "Last Learning Event", "value": None},
+                {"key": "learning_signal_count", "label": "Signal Count", "value": 0},
+                {"key": "learning_fill_count", "label": "Fill Count", "value": 0},
+                {"key": "last_signal_recorded_at", "label": "Last Signal At", "value": None},
+                {"key": "last_fill_recorded_at", "label": "Last Fill At", "value": None},
+            ],
         },
         {
             "key": "recovery",
@@ -292,6 +334,14 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "last_restart_detected_at": None,
                 "last_recovery_completed_at": None,
             },
+            "metric_items": [
+                {"key": "safe_mode", "label": "Safe Mode", "value": False},
+                {"key": "hard_stop", "label": "Hard Stop", "value": False},
+                {"key": "trading_ready", "label": "Trading Ready", "value": True},
+                {"key": "failure_stage", "label": "Failure Stage", "value": None},
+                {"key": "last_restart_detected_at", "label": "Last Restart At", "value": None},
+                {"key": "last_recovery_completed_at", "label": "Last Recovery At", "value": None},
+            ],
         },
         {
             "key": "promotion",
@@ -304,6 +354,10 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
                 "promotion_ready": False,
                 "last_promotion_reviewed_at": None,
             },
+            "metric_items": [
+                {"key": "promotion_ready", "label": "Promotion Ready", "value": False},
+                {"key": "last_promotion_reviewed_at", "label": "Last Promotion Review At", "value": None},
+            ],
         },
     ]
     assert payload["section_state_label"] == {
@@ -402,6 +456,14 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
                 "unrealized_pnl": 2500.0,
                 "recent_stop_loss_reason": None,
             },
+            "metric_items": [
+                {"key": "buy_count", "label": "Buy Count", "value": 0},
+                {"key": "sell_count", "label": "Sell Count", "value": 0},
+                {"key": "stop_loss_count", "label": "Stop Loss Count", "value": 0},
+                {"key": "realized_pnl", "label": "Realized PnL", "value": 0.0},
+                {"key": "unrealized_pnl", "label": "Unrealized PnL", "value": 2500.0},
+                {"key": "recent_stop_loss_reason", "label": "Recent Stop Loss Reason", "value": None},
+            ],
         },
         {
             "key": "learning",
@@ -417,6 +479,13 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
                 "last_signal_recorded_at": None,
                 "last_fill_recorded_at": None,
             },
+            "metric_items": [
+                {"key": "last_learning_event", "label": "Last Learning Event", "value": None},
+                {"key": "learning_signal_count", "label": "Signal Count", "value": 0},
+                {"key": "learning_fill_count", "label": "Fill Count", "value": 0},
+                {"key": "last_signal_recorded_at", "label": "Last Signal At", "value": None},
+                {"key": "last_fill_recorded_at", "label": "Last Fill At", "value": None},
+            ],
         },
         {
             "key": "recovery",
@@ -433,6 +502,14 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
                 "last_restart_detected_at": None,
                 "last_recovery_completed_at": None,
             },
+            "metric_items": [
+                {"key": "safe_mode", "label": "Safe Mode", "value": False},
+                {"key": "hard_stop", "label": "Hard Stop", "value": False},
+                {"key": "trading_ready", "label": "Trading Ready", "value": True},
+                {"key": "failure_stage", "label": "Failure Stage", "value": None},
+                {"key": "last_restart_detected_at", "label": "Last Restart At", "value": None},
+                {"key": "last_recovery_completed_at", "label": "Last Recovery At", "value": None},
+            ],
         },
         {
             "key": "promotion",
@@ -445,6 +522,10 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
                 "promotion_ready": False,
                 "last_promotion_reviewed_at": None,
             },
+            "metric_items": [
+                {"key": "promotion_ready", "label": "Promotion Ready", "value": False},
+                {"key": "last_promotion_reviewed_at", "label": "Last Promotion Review At", "value": None},
+            ],
         },
     ]
     assert payload["section_state_label"] == {
@@ -597,6 +678,14 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
                 "unrealized_pnl": 0.0,
                 "recent_stop_loss_reason": None,
             },
+            "metric_items": [
+                {"key": "buy_count", "label": "Buy Count", "value": 0},
+                {"key": "sell_count", "label": "Sell Count", "value": 0},
+                {"key": "stop_loss_count", "label": "Stop Loss Count", "value": 0},
+                {"key": "realized_pnl", "label": "Realized PnL", "value": 0.0},
+                {"key": "unrealized_pnl", "label": "Unrealized PnL", "value": 0.0},
+                {"key": "recent_stop_loss_reason", "label": "Recent Stop Loss Reason", "value": None},
+            ],
         },
         {
             "key": "learning",
@@ -612,6 +701,13 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
                 "last_signal_recorded_at": payload["last_signal_recorded_at"],
                 "last_fill_recorded_at": payload["last_fill_recorded_at"],
             },
+            "metric_items": [
+                {"key": "last_learning_event", "label": "Last Learning Event", "value": "position_opened"},
+                {"key": "learning_signal_count", "label": "Signal Count", "value": 1},
+                {"key": "learning_fill_count", "label": "Fill Count", "value": 1},
+                {"key": "last_signal_recorded_at", "label": "Last Signal At", "value": payload["last_signal_recorded_at"]},
+                {"key": "last_fill_recorded_at", "label": "Last Fill At", "value": payload["last_fill_recorded_at"]},
+            ],
         },
         {
             "key": "recovery",
@@ -628,6 +724,14 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
                 "last_restart_detected_at": payload["last_restart_detected_at"],
                 "last_recovery_completed_at": payload["last_recovery_completed_at"],
             },
+            "metric_items": [
+                {"key": "safe_mode", "label": "Safe Mode", "value": False},
+                {"key": "hard_stop", "label": "Hard Stop", "value": False},
+                {"key": "trading_ready", "label": "Trading Ready", "value": True},
+                {"key": "failure_stage", "label": "Failure Stage", "value": None},
+                {"key": "last_restart_detected_at", "label": "Last Restart At", "value": payload["last_restart_detected_at"]},
+                {"key": "last_recovery_completed_at", "label": "Last Recovery At", "value": payload["last_recovery_completed_at"]},
+            ],
         },
         {
             "key": "promotion",
@@ -640,6 +744,10 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
                 "promotion_ready": True,
                 "last_promotion_reviewed_at": "2026-04-19T20:00:03+09:00",
             },
+            "metric_items": [
+                {"key": "promotion_ready", "label": "Promotion Ready", "value": True},
+                {"key": "last_promotion_reviewed_at", "label": "Last Promotion Review At", "value": "2026-04-19T20:00:03+09:00"},
+            ],
         },
     ]
     assert payload["section_state_label"] == {

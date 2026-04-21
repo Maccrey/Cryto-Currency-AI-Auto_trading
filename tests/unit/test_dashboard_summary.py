@@ -57,6 +57,14 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                     "unrealized_pnl": -3200.0,
                     "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
                 },
+                "metric_items": [
+                    {"key": "buy_count", "label": "Buy Count", "value": 4},
+                    {"key": "sell_count", "label": "Sell Count", "value": 3},
+                    {"key": "stop_loss_count", "label": "Stop Loss Count", "value": 1},
+                    {"key": "realized_pnl", "label": "Realized PnL", "value": 12500.0},
+                    {"key": "unrealized_pnl", "label": "Unrealized PnL", "value": -3200.0},
+                    {"key": "recent_stop_loss_reason", "label": "Recent Stop Loss Reason", "value": "STOP_LOSS_PRICE_HIT"},
+                ],
             },
             {
                 "key": "learning",
@@ -72,6 +80,13 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                     "last_signal_recorded_at": None,
                     "last_fill_recorded_at": None,
                 },
+                "metric_items": [
+                    {"key": "last_learning_event", "label": "Last Learning Event", "value": None},
+                    {"key": "learning_signal_count", "label": "Signal Count", "value": 0},
+                    {"key": "learning_fill_count", "label": "Fill Count", "value": 0},
+                    {"key": "last_signal_recorded_at", "label": "Last Signal At", "value": None},
+                    {"key": "last_fill_recorded_at", "label": "Last Fill At", "value": None},
+                ],
             },
             {
                 "key": "recovery",
@@ -88,6 +103,14 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                     "last_restart_detected_at": None,
                     "last_recovery_completed_at": None,
                 },
+                "metric_items": [
+                    {"key": "safe_mode", "label": "Safe Mode", "value": True},
+                    {"key": "hard_stop", "label": "Hard Stop", "value": True},
+                    {"key": "trading_ready", "label": "Trading Ready", "value": False},
+                    {"key": "failure_stage", "label": "Failure Stage", "value": "open_order_reconcile"},
+                    {"key": "last_restart_detected_at", "label": "Last Restart At", "value": None},
+                    {"key": "last_recovery_completed_at", "label": "Last Recovery At", "value": None},
+                ],
             },
             {
                 "key": "promotion",
@@ -100,6 +123,10 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                     "promotion_ready": False,
                     "last_promotion_reviewed_at": None,
                 },
+                "metric_items": [
+                    {"key": "promotion_ready", "label": "Promotion Ready", "value": False},
+                    {"key": "last_promotion_reviewed_at", "label": "Last Promotion Review At", "value": None},
+                ],
             },
         ],
         section_state_label={
@@ -164,6 +191,14 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                     "unrealized_pnl": -3200.0,
                     "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
                 },
+                "metric_items": [
+                    {"key": "buy_count", "label": "Buy Count", "value": 4},
+                    {"key": "sell_count", "label": "Sell Count", "value": 3},
+                    {"key": "stop_loss_count", "label": "Stop Loss Count", "value": 1},
+                    {"key": "realized_pnl", "label": "Realized PnL", "value": 12500.0},
+                    {"key": "unrealized_pnl", "label": "Unrealized PnL", "value": -3200.0},
+                    {"key": "recent_stop_loss_reason", "label": "Recent Stop Loss Reason", "value": "STOP_LOSS_PRICE_HIT"},
+                ],
             },
             {
                 "key": "learning",
@@ -179,6 +214,13 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                     "last_signal_recorded_at": None,
                     "last_fill_recorded_at": None,
                 },
+                "metric_items": [
+                    {"key": "last_learning_event", "label": "Last Learning Event", "value": None},
+                    {"key": "learning_signal_count", "label": "Signal Count", "value": 0},
+                    {"key": "learning_fill_count", "label": "Fill Count", "value": 0},
+                    {"key": "last_signal_recorded_at", "label": "Last Signal At", "value": None},
+                    {"key": "last_fill_recorded_at", "label": "Last Fill At", "value": None},
+                ],
             },
             {
                 "key": "recovery",
@@ -195,6 +237,14 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                     "last_restart_detected_at": None,
                     "last_recovery_completed_at": None,
                 },
+                "metric_items": [
+                    {"key": "safe_mode", "label": "Safe Mode", "value": True},
+                    {"key": "hard_stop", "label": "Hard Stop", "value": True},
+                    {"key": "trading_ready", "label": "Trading Ready", "value": False},
+                    {"key": "failure_stage", "label": "Failure Stage", "value": "open_order_reconcile"},
+                    {"key": "last_restart_detected_at", "label": "Last Restart At", "value": None},
+                    {"key": "last_recovery_completed_at", "label": "Last Recovery At", "value": None},
+                ],
             },
             {
                 "key": "promotion",
@@ -207,6 +257,10 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                     "promotion_ready": False,
                     "last_promotion_reviewed_at": None,
                 },
+                "metric_items": [
+                    {"key": "promotion_ready", "label": "Promotion Ready", "value": False},
+                    {"key": "last_promotion_reviewed_at", "label": "Last Promotion Review At", "value": None},
+                ],
             },
         ],
         section_state_label={

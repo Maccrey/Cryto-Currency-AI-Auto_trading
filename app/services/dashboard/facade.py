@@ -238,8 +238,56 @@ class DashboardSummaryFacade:
                 "state_message": section_state_message[key],
                 "recommended_action": section_recommended_action[key],
                 "metrics": section_metrics[key],
+                "metric_items": DashboardSummaryFacade._build_section_metric_items(
+                    key=key,
+                    metrics=section_metrics[key],
+                ),
             }
             for key in ordered_section_keys
+        ]
+
+    @staticmethod
+    def _build_section_metric_items(
+        *,
+        key: str,
+        metrics: dict[str, object],
+    ) -> list[dict[str, object]]:
+        metric_labels = {
+            "trading": [
+                ("buy_count", "Buy Count"),
+                ("sell_count", "Sell Count"),
+                ("stop_loss_count", "Stop Loss Count"),
+                ("realized_pnl", "Realized PnL"),
+                ("unrealized_pnl", "Unrealized PnL"),
+                ("recent_stop_loss_reason", "Recent Stop Loss Reason"),
+            ],
+            "learning": [
+                ("last_learning_event", "Last Learning Event"),
+                ("learning_signal_count", "Signal Count"),
+                ("learning_fill_count", "Fill Count"),
+                ("last_signal_recorded_at", "Last Signal At"),
+                ("last_fill_recorded_at", "Last Fill At"),
+            ],
+            "recovery": [
+                ("safe_mode", "Safe Mode"),
+                ("hard_stop", "Hard Stop"),
+                ("trading_ready", "Trading Ready"),
+                ("failure_stage", "Failure Stage"),
+                ("last_restart_detected_at", "Last Restart At"),
+                ("last_recovery_completed_at", "Last Recovery At"),
+            ],
+            "promotion": [
+                ("promotion_ready", "Promotion Ready"),
+                ("last_promotion_reviewed_at", "Last Promotion Review At"),
+            ],
+        }
+        return [
+            {
+                "key": metric_key,
+                "label": label,
+                "value": metrics[metric_key],
+            }
+            for metric_key, label in metric_labels[key]
         ]
 
     @staticmethod
