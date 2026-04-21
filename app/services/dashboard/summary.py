@@ -26,6 +26,7 @@ class DashboardSummary:
     last_promotion_reviewed_at: str | None
     last_restart_detected_at: str | None
     last_recovery_completed_at: str | None
+    sections: list[dict[str, str]]
     section_state_label: dict[str, str]
     section_severity: dict[str, str]
     section_state_message: dict[str, str]
@@ -60,6 +61,7 @@ class DashboardSummaryService:
         last_promotion_reviewed_at: str | None,
         last_restart_detected_at: str | None,
         last_recovery_completed_at: str | None,
+        sections: list[dict[str, str]],
         section_state_label: dict[str, str],
         section_severity: dict[str, str],
         section_state_message: dict[str, str],
@@ -87,6 +89,7 @@ class DashboardSummaryService:
             last_promotion_reviewed_at=last_promotion_reviewed_at,
             last_restart_detected_at=last_restart_detected_at,
             last_recovery_completed_at=last_recovery_completed_at,
+            sections=sections,
             section_state_label=section_state_label,
             section_severity=section_severity,
             section_state_message=section_state_message,

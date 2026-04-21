@@ -94,6 +94,35 @@ class DashboardSummaryFacade:
                         (latest_price - position.entry_price) * position.quantity,
                         2,
                     )
+        promotion_ready = self._promotion_dashboard_facade.is_ready_for_review()
+        section_state_label = self._build_section_state_label(
+            boot_state=boot_state,
+            learning_enabled=learning_enabled,
+            last_learning_event=last_learning_event,
+            promotion_ready=promotion_ready,
+            recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+        )
+        section_severity = self._build_section_severity(
+            boot_state=boot_state,
+            learning_enabled=learning_enabled,
+            last_learning_event=last_learning_event,
+            promotion_ready=promotion_ready,
+            recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+        )
+        section_state_message = self._build_section_state_message(
+            boot_state=boot_state,
+            learning_enabled=learning_enabled,
+            last_learning_event=last_learning_event,
+            promotion_ready=promotion_ready,
+            recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+        )
+        section_recommended_action = self._build_section_recommended_action(
+            boot_state=boot_state,
+            learning_enabled=learning_enabled,
+            last_learning_event=last_learning_event,
+            promotion_ready=promotion_ready,
+            recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+        )
         summary = self._dashboard_summary_service.build(
             boot_state=boot_state,
             trading_mode=trading_mode,
@@ -113,35 +142,17 @@ class DashboardSummaryFacade:
             last_promotion_reviewed_at=self._promotion_dashboard_facade.latest_reviewed_at(),
             last_restart_detected_at=last_restart_detected_at,
             last_recovery_completed_at=last_recovery_completed_at,
-            section_state_label=self._build_section_state_label(
-                boot_state=boot_state,
-                learning_enabled=learning_enabled,
-                last_learning_event=last_learning_event,
-                promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
-                recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+            sections=self._build_sections(
+                section_state_label=section_state_label,
+                section_severity=section_severity,
+                section_state_message=section_state_message,
+                section_recommended_action=section_recommended_action,
             ),
-            section_severity=self._build_section_severity(
-                boot_state=boot_state,
-                learning_enabled=learning_enabled,
-                last_learning_event=last_learning_event,
-                promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
-                recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
-            ),
-            section_state_message=self._build_section_state_message(
-                boot_state=boot_state,
-                learning_enabled=learning_enabled,
-                last_learning_event=last_learning_event,
-                promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
-                recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
-            ),
-            section_recommended_action=self._build_section_recommended_action(
-                boot_state=boot_state,
-                learning_enabled=learning_enabled,
-                last_learning_event=last_learning_event,
-                promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
-                recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
-            ),
-            promotion_ready=self._promotion_dashboard_facade.is_ready_for_review(),
+            section_state_label=section_state_label,
+            section_severity=section_severity,
+            section_state_message=section_state_message,
+            section_recommended_action=section_recommended_action,
+            promotion_ready=promotion_ready,
         )
         if isinstance(summary, dict):
             return summary
@@ -182,6 +193,33 @@ class DashboardSummaryFacade:
             "recovery": recovery,
             "promotion": promotion,
         }
+
+    @staticmethod
+    def _build_sections(
+        *,
+        section_state_label: dict[str, str],
+        section_severity: dict[str, str],
+        section_state_message: dict[str, str],
+        section_recommended_action: dict[str, str],
+    ) -> list[dict[str, str]]:
+        ordered_section_keys = ("trading", "learning", "recovery", "promotion")
+        ordered_section_names = {
+            "trading": "Trading",
+            "learning": "Learning",
+            "recovery": "Recovery",
+            "promotion": "Promotion",
+        }
+        return [
+            {
+                "key": key,
+                "name": ordered_section_names[key],
+                "state_label": section_state_label[key],
+                "severity": section_severity[key],
+                "state_message": section_state_message[key],
+                "recommended_action": section_recommended_action[key],
+            }
+            for key in ordered_section_keys
+        ]
 
     @staticmethod
     def _build_section_severity(
