@@ -360,10 +360,32 @@ class DashboardSummaryFacade:
                 ("last_promotion_reviewed_at", "Last Promotion Review At"),
             ],
         }
+        metric_types = {
+            "buy_count": "count",
+            "sell_count": "count",
+            "stop_loss_count": "count",
+            "realized_pnl": "pnl",
+            "unrealized_pnl": "pnl",
+            "recent_stop_loss_reason": "text",
+            "last_learning_event": "text",
+            "learning_signal_count": "count",
+            "learning_fill_count": "count",
+            "last_signal_recorded_at": "timestamp",
+            "last_fill_recorded_at": "timestamp",
+            "safe_mode": "boolean",
+            "hard_stop": "boolean",
+            "trading_ready": "boolean",
+            "failure_stage": "text",
+            "last_restart_detected_at": "timestamp",
+            "last_recovery_completed_at": "timestamp",
+            "promotion_ready": "boolean",
+            "last_promotion_reviewed_at": "timestamp",
+        }
         return [
             {
                 "key": metric_key,
                 "label": label,
+                "type": metric_types[metric_key],
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
