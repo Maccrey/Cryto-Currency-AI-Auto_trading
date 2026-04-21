@@ -412,6 +412,11 @@ class DashboardSummaryFacade:
                     key=metric_key,
                     value=metrics[metric_key],
                 ),
+                "state_message": DashboardSummaryFacade._resolve_metric_state_message(
+                    key=metric_key,
+                    label=label,
+                    value=metrics[metric_key],
+                ),
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
@@ -440,6 +445,39 @@ class DashboardSummaryFacade:
         return "info"
 
     @staticmethod
+    def _resolve_metric_state_message(
+        *,
+        key: str,
+        label: str,
+        value: object,
+    ) -> str:
+        if key in {
+            "buy_count",
+            "sell_count",
+            "stop_loss_count",
+            "learning_signal_count",
+            "learning_fill_count",
+        }:
+            return f"{label} {value}"
+        if key in {"realized_pnl", "unrealized_pnl"}:
+            if isinstance(value, (int, float)) and value < 0:
+                return f"{label} 손실 {value}"
+            if isinstance(value, (int, float)) and value > 0:
+                return f"{label} 이익 {value}"
+            return f"{label} {value}"
+        if key == "safe_mode":
+            return "Safe Mode 활성" if value is True else "Safe Mode 비활성"
+        if key == "hard_stop":
+            return "Hard Stop 활성" if value is True else "Hard Stop 비활성"
+        if key == "trading_ready":
+            return "Trading Ready 준비됨" if value is True else "Trading Ready 미준비"
+        if key == "promotion_ready":
+            return "Promotion Ready 준비됨" if value is True else "Promotion Ready 미준비"
+        if value is None:
+            return f"{label} 기록 없음"
+        return f"{label} {value}"
+
+    @staticmethod
     def _build_section_freshness_metric_items(
         *,
         updated_at: str | None,
@@ -451,18 +489,33 @@ class DashboardSummaryFacade:
                 "key": "updated_at",
                 "label": "Updated At",
                 "type": "timestamp",
+                "state_message": DashboardSummaryFacade._resolve_metric_state_message(
+                    key="updated_at",
+                    label="Updated At",
+                    value=updated_at,
+                ),
                 "value": updated_at,
             },
             {
                 "key": "age_sec",
                 "label": "Age Seconds",
                 "type": "duration_sec",
+                "state_message": DashboardSummaryFacade._resolve_metric_state_message(
+                    key="age_sec",
+                    label="Age Seconds",
+                    value=age_sec,
+                ),
                 "value": age_sec,
             },
             {
                 "key": "freshness_window_sec",
                 "label": "Freshness Window Seconds",
                 "type": "window_sec",
+                "state_message": DashboardSummaryFacade._resolve_metric_state_message(
+                    key="freshness_window_sec",
+                    label="Freshness Window Seconds",
+                    value=freshness_window_sec,
+                ),
                 "value": freshness_window_sec,
             },
         ]
