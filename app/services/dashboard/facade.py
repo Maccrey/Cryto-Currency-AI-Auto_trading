@@ -408,10 +408,36 @@ class DashboardSummaryFacade:
                 "label": label,
                 "type": metric_types[metric_key],
                 "format_hint": metric_format_hints[metric_key],
+                "severity": DashboardSummaryFacade._resolve_metric_severity(
+                    key=metric_key,
+                    value=metrics[metric_key],
+                ),
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
         ]
+
+    @staticmethod
+    def _resolve_metric_severity(
+        *,
+        key: str,
+        value: object,
+    ) -> str:
+        if key == "stop_loss_count":
+            return "critical" if isinstance(value, (int, float)) and value > 0 else "info"
+        if key in {"realized_pnl", "unrealized_pnl"}:
+            return "warning" if isinstance(value, (int, float)) and value < 0 else "info"
+        if key == "recent_stop_loss_reason":
+            return "critical" if value is not None else "info"
+        if key == "safe_mode":
+            return "warning" if value is True else "info"
+        if key == "hard_stop":
+            return "critical" if value is True else "info"
+        if key in {"trading_ready", "promotion_ready"}:
+            return "warning" if value is False else "info"
+        if key == "failure_stage":
+            return "warning" if value is not None else "info"
+        return "info"
 
     @staticmethod
     def _build_section_freshness_metric_items(
