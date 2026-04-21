@@ -49,6 +49,14 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "severity": "critical",
                 "state_message": "최근 손절 사유: STOP_LOSS_PRICE_HIT",
                 "recommended_action": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
+                "metrics": {
+                    "buy_count": 4,
+                    "sell_count": 3,
+                    "stop_loss_count": 1,
+                    "realized_pnl": 12500.0,
+                    "unrealized_pnl": -3200.0,
+                    "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
+                },
             },
             {
                 "key": "learning",
@@ -57,6 +65,13 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "severity": "info",
                 "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
                 "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+                "metrics": {
+                    "last_learning_event": None,
+                    "learning_signal_count": 0,
+                    "learning_fill_count": 0,
+                    "last_signal_recorded_at": None,
+                    "last_fill_recorded_at": None,
+                },
             },
             {
                 "key": "recovery",
@@ -65,6 +80,14 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "severity": "critical",
                 "state_message": "하드스톱이 활성화되어 수동 개입이 필요합니다.",
                 "recommended_action": "하드스톱 해제 전까지 수동 점검과 원인 분석을 진행하세요.",
+                "metrics": {
+                    "safe_mode": True,
+                    "hard_stop": True,
+                    "trading_ready": False,
+                    "failure_stage": "open_order_reconcile",
+                    "last_restart_detected_at": None,
+                    "last_recovery_completed_at": None,
+                },
             },
             {
                 "key": "promotion",
@@ -73,6 +96,10 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "severity": "warning",
                 "state_message": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
                 "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
+                "metrics": {
+                    "promotion_ready": False,
+                    "last_promotion_reviewed_at": None,
+                },
             },
         ],
         section_state_label={
@@ -129,6 +156,14 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "severity": "critical",
                 "state_message": "최근 손절 사유: STOP_LOSS_PRICE_HIT",
                 "recommended_action": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
+                "metrics": {
+                    "buy_count": 4,
+                    "sell_count": 3,
+                    "stop_loss_count": 1,
+                    "realized_pnl": 12500.0,
+                    "unrealized_pnl": -3200.0,
+                    "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
+                },
             },
             {
                 "key": "learning",
@@ -137,6 +172,13 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "severity": "info",
                 "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
                 "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+                "metrics": {
+                    "last_learning_event": None,
+                    "learning_signal_count": 0,
+                    "learning_fill_count": 0,
+                    "last_signal_recorded_at": None,
+                    "last_fill_recorded_at": None,
+                },
             },
             {
                 "key": "recovery",
@@ -145,6 +187,14 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "severity": "critical",
                 "state_message": "하드스톱이 활성화되어 수동 개입이 필요합니다.",
                 "recommended_action": "하드스톱 해제 전까지 수동 점검과 원인 분석을 진행하세요.",
+                "metrics": {
+                    "safe_mode": True,
+                    "hard_stop": True,
+                    "trading_ready": False,
+                    "failure_stage": "open_order_reconcile",
+                    "last_restart_detected_at": None,
+                    "last_recovery_completed_at": None,
+                },
             },
             {
                 "key": "promotion",
@@ -153,6 +203,10 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
                 "severity": "warning",
                 "state_message": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
                 "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
+                "metrics": {
+                    "promotion_ready": False,
+                    "last_promotion_reviewed_at": None,
+                },
             },
         ],
         section_state_label={

@@ -45,6 +45,14 @@ class SummaryStubService:
                     "severity": "critical",
                     "state_message": "최근 손절 사유: STOP_LOSS_PRICE_HIT",
                     "recommended_action": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
+                    "metrics": {
+                        "buy_count": 4,
+                        "sell_count": 3,
+                        "stop_loss_count": 1,
+                        "realized_pnl": 12500.0,
+                        "unrealized_pnl": -3200.0,
+                        "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
+                    },
                 },
                 {
                     "key": "learning",
@@ -53,6 +61,13 @@ class SummaryStubService:
                     "severity": "info",
                     "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
                     "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+                    "metrics": {
+                        "last_learning_event": "position_opened",
+                        "learning_signal_count": 3,
+                        "learning_fill_count": 2,
+                        "last_signal_recorded_at": "2026-04-19T20:00:00+09:00",
+                        "last_fill_recorded_at": "2026-04-19T20:00:01+09:00",
+                    },
                 },
                 {
                     "key": "recovery",
@@ -61,6 +76,14 @@ class SummaryStubService:
                     "severity": "info",
                     "state_message": "복구 상태가 정상입니다.",
                     "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+                    "metrics": {
+                        "safe_mode": False,
+                        "hard_stop": False,
+                        "trading_ready": True,
+                        "failure_stage": None,
+                        "last_restart_detected_at": "2026-04-19T20:00:03+09:00",
+                        "last_recovery_completed_at": "2026-04-19T20:00:04+09:00",
+                    },
                 },
                 {
                     "key": "promotion",
@@ -69,6 +92,10 @@ class SummaryStubService:
                     "severity": "warning",
                     "state_message": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
                     "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
+                    "metrics": {
+                        "promotion_ready": False,
+                        "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
+                    },
                 },
             ],
             "section_state_label": {
@@ -287,6 +314,14 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "severity": "critical",
                 "state_message": "최근 손절 사유: STOP_LOSS_PRICE_HIT",
                 "recommended_action": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
+                "metrics": {
+                    "buy_count": 4,
+                    "sell_count": 3,
+                    "stop_loss_count": 1,
+                    "realized_pnl": 12500.0,
+                    "unrealized_pnl": -3200.0,
+                    "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
+                },
             },
             {
                 "key": "learning",
@@ -295,6 +330,13 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "severity": "info",
                 "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
                 "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+                "metrics": {
+                    "last_learning_event": "position_opened",
+                    "learning_signal_count": 3,
+                    "learning_fill_count": 2,
+                    "last_signal_recorded_at": "2026-04-19T20:00:00+09:00",
+                    "last_fill_recorded_at": "2026-04-19T20:00:01+09:00",
+                },
             },
             {
                 "key": "recovery",
@@ -303,6 +345,14 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "severity": "info",
                 "state_message": "복구 상태가 정상입니다.",
                 "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+                "metrics": {
+                    "safe_mode": False,
+                    "hard_stop": False,
+                    "trading_ready": True,
+                    "failure_stage": None,
+                    "last_restart_detected_at": "2026-04-19T20:00:03+09:00",
+                    "last_recovery_completed_at": "2026-04-19T20:00:04+09:00",
+                },
             },
             {
                 "key": "promotion",
@@ -311,6 +361,10 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "severity": "warning",
                 "state_message": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
                 "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
+                "metrics": {
+                    "promotion_ready": False,
+                    "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
+                },
             },
         ],
         "section_state_label": {

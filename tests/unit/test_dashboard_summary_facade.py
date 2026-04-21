@@ -90,6 +90,14 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "severity": "info",
                 "state_message": "최근 체결 기준 거래 리스크 이상이 없습니다.",
                 "recommended_action": "현재 거래 섹션은 모니터링만 유지하세요.",
+                "metrics": {
+                    "buy_count": 0,
+                    "sell_count": 0,
+                    "stop_loss_count": 0,
+                    "realized_pnl": 0.0,
+                    "unrealized_pnl": 0.0,
+                    "recent_stop_loss_reason": None,
+                },
             },
             {
                 "key": "learning",
@@ -98,6 +106,13 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "severity": "info",
                 "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
                 "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+                "metrics": {
+                    "last_learning_event": None,
+                    "learning_signal_count": 0,
+                    "learning_fill_count": 0,
+                    "last_signal_recorded_at": None,
+                    "last_fill_recorded_at": None,
+                },
             },
             {
                 "key": "recovery",
@@ -106,6 +121,14 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "severity": "info",
                 "state_message": "복구 상태가 정상입니다.",
                 "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+                "metrics": {
+                    "safe_mode": False,
+                    "hard_stop": False,
+                    "trading_ready": True,
+                    "failure_stage": None,
+                    "last_restart_detected_at": None,
+                    "last_recovery_completed_at": None,
+                },
             },
             {
                 "key": "promotion",
@@ -114,6 +137,10 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
                 "severity": "info",
                 "state_message": "실거래 승격 검토 준비가 완료되었습니다.",
                 "recommended_action": "승격 검토 또는 수동 승인 절차를 진행하세요.",
+                "metrics": {
+                    "promotion_ready": True,
+                    "last_promotion_reviewed_at": "2026-04-19T18:00:00+09:00",
+                },
             },
         ],
         "section_state_label": {
@@ -226,6 +253,14 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "severity": "critical",
             "state_message": "최근 손절 사유: STOP_LOSS_PRICE_HIT",
             "recommended_action": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
+            "metrics": {
+                "buy_count": 1,
+                "sell_count": 1,
+                "stop_loss_count": 1,
+                "realized_pnl": payload["realized_pnl"],
+                "unrealized_pnl": 0.0,
+                "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
+            },
         },
         {
             "key": "learning",
@@ -234,6 +269,13 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "severity": "info",
             "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
             "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+            "metrics": {
+                "last_learning_event": None,
+                "learning_signal_count": 0,
+                "learning_fill_count": 0,
+                "last_signal_recorded_at": None,
+                "last_fill_recorded_at": None,
+            },
         },
         {
             "key": "recovery",
@@ -242,6 +284,14 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "severity": "info",
             "state_message": "복구 상태가 정상입니다.",
             "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+            "metrics": {
+                "safe_mode": False,
+                "hard_stop": False,
+                "trading_ready": True,
+                "failure_stage": None,
+                "last_restart_detected_at": None,
+                "last_recovery_completed_at": None,
+            },
         },
         {
             "key": "promotion",
@@ -250,6 +300,10 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
             "severity": "warning",
             "state_message": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
             "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
+            "metrics": {
+                "promotion_ready": False,
+                "last_promotion_reviewed_at": None,
+            },
         },
     ]
     assert payload["section_state_label"] == {
@@ -340,6 +394,14 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "severity": "info",
             "state_message": "최근 체결 기준 거래 리스크 이상이 없습니다.",
             "recommended_action": "현재 거래 섹션은 모니터링만 유지하세요.",
+            "metrics": {
+                "buy_count": 0,
+                "sell_count": 0,
+                "stop_loss_count": 0,
+                "realized_pnl": 0.0,
+                "unrealized_pnl": 2500.0,
+                "recent_stop_loss_reason": None,
+            },
         },
         {
             "key": "learning",
@@ -348,6 +410,13 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "severity": "info",
             "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
             "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+            "metrics": {
+                "last_learning_event": None,
+                "learning_signal_count": 0,
+                "learning_fill_count": 0,
+                "last_signal_recorded_at": None,
+                "last_fill_recorded_at": None,
+            },
         },
         {
             "key": "recovery",
@@ -356,6 +425,14 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "severity": "info",
             "state_message": "복구 상태가 정상입니다.",
             "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+            "metrics": {
+                "safe_mode": False,
+                "hard_stop": False,
+                "trading_ready": True,
+                "failure_stage": None,
+                "last_restart_detected_at": None,
+                "last_recovery_completed_at": None,
+            },
         },
         {
             "key": "promotion",
@@ -364,6 +441,10 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
             "severity": "warning",
             "state_message": "실거래 승격 검토 준비가 아직 완료되지 않았습니다.",
             "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
+            "metrics": {
+                "promotion_ready": False,
+                "last_promotion_reviewed_at": None,
+            },
         },
     ]
     assert payload["section_state_label"] == {
@@ -508,6 +589,14 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "severity": "info",
             "state_message": "최근 체결 기준 거래 리스크 이상이 없습니다.",
             "recommended_action": "현재 거래 섹션은 모니터링만 유지하세요.",
+            "metrics": {
+                "buy_count": 0,
+                "sell_count": 0,
+                "stop_loss_count": 0,
+                "realized_pnl": 0.0,
+                "unrealized_pnl": 0.0,
+                "recent_stop_loss_reason": None,
+            },
         },
         {
             "key": "learning",
@@ -516,6 +605,13 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "severity": "info",
             "state_message": "학습 이벤트 기록이 활성화되어 있습니다.",
             "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
+            "metrics": {
+                "last_learning_event": "position_opened",
+                "learning_signal_count": 1,
+                "learning_fill_count": 1,
+                "last_signal_recorded_at": payload["last_signal_recorded_at"],
+                "last_fill_recorded_at": payload["last_fill_recorded_at"],
+            },
         },
         {
             "key": "recovery",
@@ -524,6 +620,14 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "severity": "info",
             "state_message": "복구 상태가 정상입니다.",
             "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
+            "metrics": {
+                "safe_mode": False,
+                "hard_stop": False,
+                "trading_ready": True,
+                "failure_stage": None,
+                "last_restart_detected_at": payload["last_restart_detected_at"],
+                "last_recovery_completed_at": payload["last_recovery_completed_at"],
+            },
         },
         {
             "key": "promotion",
@@ -532,6 +636,10 @@ def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
             "severity": "info",
             "state_message": "실거래 승격 검토 준비가 완료되었습니다.",
             "recommended_action": "승격 검토 또는 수동 승인 절차를 진행하세요.",
+            "metrics": {
+                "promotion_ready": True,
+                "last_promotion_reviewed_at": "2026-04-19T20:00:03+09:00",
+            },
         },
     ]
     assert payload["section_state_label"] == {

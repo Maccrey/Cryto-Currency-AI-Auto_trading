@@ -123,6 +123,24 @@ class DashboardSummaryFacade:
             promotion_ready=promotion_ready,
             recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
         )
+        section_metrics = self._build_section_metrics(
+            boot_state=boot_state,
+            realized_pnl=0.0 if ledger_summary is None else ledger_summary.realized_pnl,
+            unrealized_pnl=unrealized_pnl,
+            buy_count=0 if ledger_summary is None else ledger_summary.buy_count,
+            sell_count=0 if ledger_summary is None else ledger_summary.sell_count,
+            stop_loss_count=0 if ledger_summary is None else ledger_summary.stop_loss_count,
+            recent_stop_loss_reason=None if ledger_summary is None else ledger_summary.recent_stop_loss_reason,
+            last_learning_event=last_learning_event,
+            learning_signal_count=learning_signal_count,
+            learning_fill_count=learning_fill_count,
+            last_signal_recorded_at=last_signal_recorded_at,
+            last_fill_recorded_at=last_fill_recorded_at,
+            last_promotion_reviewed_at=self._promotion_dashboard_facade.latest_reviewed_at(),
+            last_restart_detected_at=last_restart_detected_at,
+            last_recovery_completed_at=last_recovery_completed_at,
+            promotion_ready=promotion_ready,
+        )
         summary = self._dashboard_summary_service.build(
             boot_state=boot_state,
             trading_mode=trading_mode,
@@ -147,6 +165,7 @@ class DashboardSummaryFacade:
                 section_severity=section_severity,
                 section_state_message=section_state_message,
                 section_recommended_action=section_recommended_action,
+                section_metrics=section_metrics,
             ),
             section_state_label=section_state_label,
             section_severity=section_severity,
@@ -201,7 +220,8 @@ class DashboardSummaryFacade:
         section_severity: dict[str, str],
         section_state_message: dict[str, str],
         section_recommended_action: dict[str, str],
-    ) -> list[dict[str, str]]:
+        section_metrics: dict[str, dict[str, object]],
+    ) -> list[dict[str, object]]:
         ordered_section_keys = ("trading", "learning", "recovery", "promotion")
         ordered_section_names = {
             "trading": "Trading",
@@ -217,9 +237,60 @@ class DashboardSummaryFacade:
                 "severity": section_severity[key],
                 "state_message": section_state_message[key],
                 "recommended_action": section_recommended_action[key],
+                "metrics": section_metrics[key],
             }
             for key in ordered_section_keys
         ]
+
+    @staticmethod
+    def _build_section_metrics(
+        *,
+        boot_state: BootState,
+        realized_pnl: float,
+        unrealized_pnl: float,
+        buy_count: int,
+        sell_count: int,
+        stop_loss_count: int,
+        recent_stop_loss_reason: str | None,
+        last_learning_event: str | None,
+        learning_signal_count: int,
+        learning_fill_count: int,
+        last_signal_recorded_at: str | None,
+        last_fill_recorded_at: str | None,
+        last_promotion_reviewed_at: str | None,
+        last_restart_detected_at: str | None,
+        last_recovery_completed_at: str | None,
+        promotion_ready: bool,
+    ) -> dict[str, dict[str, object]]:
+        return {
+            "trading": {
+                "buy_count": buy_count,
+                "sell_count": sell_count,
+                "stop_loss_count": stop_loss_count,
+                "realized_pnl": realized_pnl,
+                "unrealized_pnl": unrealized_pnl,
+                "recent_stop_loss_reason": recent_stop_loss_reason,
+            },
+            "learning": {
+                "last_learning_event": last_learning_event,
+                "learning_signal_count": learning_signal_count,
+                "learning_fill_count": learning_fill_count,
+                "last_signal_recorded_at": last_signal_recorded_at,
+                "last_fill_recorded_at": last_fill_recorded_at,
+            },
+            "recovery": {
+                "safe_mode": boot_state.safe_mode,
+                "hard_stop": boot_state.hard_stop,
+                "trading_ready": boot_state.trading_ready,
+                "failure_stage": boot_state.failure_stage,
+                "last_restart_detected_at": last_restart_detected_at,
+                "last_recovery_completed_at": last_recovery_completed_at,
+            },
+            "promotion": {
+                "promotion_ready": promotion_ready,
+                "last_promotion_reviewed_at": last_promotion_reviewed_at,
+            },
+        }
 
     @staticmethod
     def _build_section_severity(
