@@ -47,6 +47,7 @@ class SummaryStubService:
                     "recommended_action": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
                     "updated_at": "2026-04-19T20:00:01+09:00",
                     "stale": False,
+                    "freshness_window_sec": 300,
                     "metrics": {
                         "buy_count": 4,
                         "sell_count": 3,
@@ -73,6 +74,7 @@ class SummaryStubService:
                     "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
                     "updated_at": "2026-04-19T20:00:01+09:00",
                     "stale": False,
+                    "freshness_window_sec": 300,
                     "metrics": {
                         "last_learning_event": "position_opened",
                         "learning_signal_count": 3,
@@ -97,6 +99,7 @@ class SummaryStubService:
                     "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
                     "updated_at": "2026-04-19T20:00:04+09:00",
                     "stale": False,
+                    "freshness_window_sec": 600,
                     "metrics": {
                         "safe_mode": False,
                         "hard_stop": False,
@@ -123,6 +126,7 @@ class SummaryStubService:
                     "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
                     "updated_at": "2026-04-19T20:00:02+09:00",
                     "stale": False,
+                    "freshness_window_sec": 86400,
                     "metrics": {
                         "promotion_ready": False,
                         "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",
@@ -351,6 +355,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "recommended_action": "최근 손절 발생 원인과 청산 흐름을 점검하세요.",
                 "updated_at": "2026-04-19T20:00:01+09:00",
                 "stale": False,
+                "freshness_window_sec": 300,
                 "metrics": {
                     "buy_count": 4,
                     "sell_count": 3,
@@ -377,6 +382,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "recommended_action": "학습 로그 적재가 유지되는지만 주기적으로 확인하세요.",
                 "updated_at": "2026-04-19T20:00:01+09:00",
                 "stale": False,
+                "freshness_window_sec": 300,
                 "metrics": {
                     "last_learning_event": "position_opened",
                     "learning_signal_count": 3,
@@ -401,6 +407,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "recommended_action": "현재 복구 상태를 유지하며 다음 재시작 이벤트를 모니터링하세요.",
                 "updated_at": "2026-04-19T20:00:04+09:00",
                 "stale": False,
+                "freshness_window_sec": 600,
                 "metrics": {
                     "safe_mode": False,
                     "hard_stop": False,
@@ -427,6 +434,7 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
                 "recommended_action": "승격 기준 미달 지표를 보완한 뒤 다시 검토하세요.",
                 "updated_at": "2026-04-19T20:00:02+09:00",
                 "stale": False,
+                "freshness_window_sec": 86400,
                 "metrics": {
                     "promotion_ready": False,
                     "last_promotion_reviewed_at": "2026-04-19T20:00:02+09:00",

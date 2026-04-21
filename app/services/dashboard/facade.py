@@ -16,6 +16,13 @@ from app.services.recovery.orchestrator import BootState
 class DashboardSummaryFacade:
     """Compose dashboard summary payloads from runtime and promotion state."""
 
+    _SECTION_FRESHNESS_WINDOWS = {
+        "trading": 300,
+        "learning": 300,
+        "recovery": 600,
+        "promotion": 86400,
+    }
+
     def __init__(
         self,
         *,
@@ -159,6 +166,7 @@ class DashboardSummaryFacade:
             section_updated_at=section_updated_at,
             current_time=self._timestamp_provider(),
         )
+        section_freshness_window_sec = self._build_section_freshness_window_sec()
         summary = self._dashboard_summary_service.build(
             boot_state=boot_state,
             trading_mode=trading_mode,
@@ -186,6 +194,7 @@ class DashboardSummaryFacade:
                 section_metrics=section_metrics,
                 section_updated_at=section_updated_at,
                 section_stale=section_stale,
+                section_freshness_window_sec=section_freshness_window_sec,
             ),
             section_state_label=section_state_label,
             section_severity=section_severity,
@@ -243,6 +252,7 @@ class DashboardSummaryFacade:
         section_metrics: dict[str, dict[str, object]],
         section_updated_at: dict[str, str | None],
         section_stale: dict[str, bool],
+        section_freshness_window_sec: dict[str, int],
     ) -> list[dict[str, object]]:
         ordered_section_keys = ("trading", "learning", "recovery", "promotion")
         ordered_section_names = {
@@ -261,6 +271,7 @@ class DashboardSummaryFacade:
                 "recommended_action": section_recommended_action[key],
                 "updated_at": section_updated_at[key],
                 "stale": section_stale[key],
+                "freshness_window_sec": section_freshness_window_sec[key],
                 "metrics": section_metrics[key],
                 "metric_items": DashboardSummaryFacade._build_section_metric_items(
                     key=key,
@@ -336,21 +347,19 @@ class DashboardSummaryFacade:
         section_updated_at: dict[str, str | None],
         current_time: str,
     ) -> dict[str, bool]:
-        freshness_windows = {
-            "trading": 300,
-            "learning": 300,
-            "recovery": 600,
-            "promotion": 86400,
-        }
         current_timestamp = DashboardSummaryFacade._parse_timestamp(current_time)
         return {
             key: DashboardSummaryFacade._is_stale(
                 updated_at=updated_at,
                 current_timestamp=current_timestamp,
-                freshness_window_sec=freshness_windows[key],
+                freshness_window_sec=DashboardSummaryFacade._SECTION_FRESHNESS_WINDOWS[key],
             )
             for key, updated_at in section_updated_at.items()
         }
+
+    @classmethod
+    def _build_section_freshness_window_sec(cls) -> dict[str, int]:
+        return dict(cls._SECTION_FRESHNESS_WINDOWS)
 
     @staticmethod
     def _is_stale(
