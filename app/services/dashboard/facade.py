@@ -302,6 +302,9 @@ class DashboardSummaryFacade:
                 "severity": section_severity[key],
                 "state_message": section_state_message[key],
                 "recommended_action": section_recommended_action[key],
+                "action_route": DashboardSummaryFacade._build_section_action_route(
+                    key=key,
+                ),
                 "updated_at": section_updated_at[key],
                 "stale": section_stale[key],
                 "age_sec": section_age_sec[key],
@@ -472,6 +475,39 @@ class DashboardSummaryFacade:
             }
             for metric_key, label in metric_labels[key]
         ]
+
+    @staticmethod
+    def _build_section_action_route(
+        *,
+        key: str,
+    ) -> dict[str, object]:
+        route_map = {
+            "trading": {
+                "url_key": "dashboard.executions",
+                "tab_key": "timeline",
+                "target": "execution_timeline",
+                "params": {"section": "trading"},
+            },
+            "learning": {
+                "url_key": "dashboard.learning",
+                "tab_key": "recent-events",
+                "target": "learning_recent_events",
+                "params": {"section": "learning"},
+            },
+            "recovery": {
+                "url_key": "dashboard.recovery",
+                "tab_key": "status",
+                "target": "recovery_status",
+                "params": {"section": "recovery"},
+            },
+            "promotion": {
+                "url_key": "dashboard.promotion",
+                "tab_key": "status",
+                "target": "promotion_status",
+                "params": {"section": "promotion"},
+            },
+        }
+        return route_map[key]
 
     @staticmethod
     def _resolve_metric_severity(
