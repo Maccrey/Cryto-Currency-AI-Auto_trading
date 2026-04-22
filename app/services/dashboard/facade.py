@@ -324,6 +324,17 @@ class DashboardSummaryFacade:
                 "freshness_recommended_action": section_freshness_recommended_action[key],
                 "freshness_severity": section_freshness_severity[key],
                 "freshness_window_sec": section_freshness_window_sec[key],
+                "freshness_state_object": DashboardSummaryFacade._build_section_freshness_snapshot(
+                    updated_at=section_updated_at[key],
+                    stale=section_stale[key],
+                    age_sec=section_age_sec[key],
+                    freshness_state=section_freshness_state[key],
+                    freshness_message=section_freshness_message[key],
+                    freshness_label=section_freshness_label[key],
+                    freshness_recommended_action=section_freshness_recommended_action[key],
+                    freshness_severity=section_freshness_severity[key],
+                    freshness_window_sec=section_freshness_window_sec[key],
+                ),
                 "freshness_metric_items": DashboardSummaryFacade._build_section_freshness_metric_items(
                     section_key=key,
                     updated_at=section_updated_at[key],
@@ -385,6 +396,31 @@ class DashboardSummaryFacade:
                     action_group,
                 ),
             },
+        }
+
+    @staticmethod
+    def _build_section_freshness_snapshot(
+        *,
+        updated_at: str | None,
+        stale: bool,
+        age_sec: int | None,
+        freshness_state: str,
+        freshness_message: str,
+        freshness_label: str,
+        freshness_recommended_action: str,
+        freshness_severity: str,
+        freshness_window_sec: int,
+    ) -> dict[str, object]:
+        return {
+            "updated_at": updated_at,
+            "stale": stale,
+            "age_sec": age_sec,
+            "freshness_state": freshness_state,
+            "freshness_message": freshness_message,
+            "freshness_label": freshness_label,
+            "freshness_recommended_action": freshness_recommended_action,
+            "freshness_severity": freshness_severity,
+            "freshness_window_sec": freshness_window_sec,
         }
 
     @staticmethod
