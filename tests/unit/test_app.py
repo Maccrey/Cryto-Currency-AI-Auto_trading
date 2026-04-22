@@ -373,6 +373,38 @@ class SummaryStubService:
             "stale_section_keys": [
                 section["key"] for section in payload["sections"] if section["stale"]
             ],
+            "meta_object": {
+                "counts": {
+                    "section_count": len(payload["sections"]),
+                    "card_count": len(payload["cards"]),
+                    "actionable_section_count": sum(
+                        1 for section in payload["sections"] if section["actionable"]
+                    ),
+                    "stale_section_count": sum(
+                        1 for section in payload["sections"] if section["stale"]
+                    ),
+                },
+                "keys": {
+                    "section_keys": [section["key"] for section in payload["sections"]],
+                    "card_keys": [card["key"] for card in payload["cards"]],
+                    "actionable_section_keys": [
+                        section["key"] for section in payload["sections"] if section["actionable"]
+                    ],
+                    "stale_section_keys": [
+                        section["key"] for section in payload["sections"] if section["stale"]
+                    ],
+                },
+                "severity_counts": {
+                    "info": sum(1 for section in payload["sections"] if section["severity"] == "info"),
+                    "warning": sum(1 for section in payload["sections"] if section["severity"] == "warning"),
+                    "critical": sum(1 for section in payload["sections"] if section["severity"] == "critical"),
+                },
+                "freshness_counts": {
+                    "fresh": sum(1 for section in payload["sections"] if section["freshness_state"] == "fresh"),
+                    "stale": sum(1 for section in payload["sections"] if section["freshness_state"] == "stale"),
+                    "missing": sum(1 for section in payload["sections"] if section["freshness_state"] == "missing"),
+                },
+            },
         }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],

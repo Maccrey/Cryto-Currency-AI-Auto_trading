@@ -325,6 +325,30 @@ class DashboardSummaryFacade:
             "freshness_counts": freshness_counts,
             "stale_section_count": stale_section_count,
             "stale_section_keys": stale_section_keys,
+            "meta_object": {
+                "counts": {
+                    "section_count": len(sections) if isinstance(sections, list) else 0,
+                    "card_count": len(cards) if isinstance(cards, list) else 0,
+                    "actionable_section_count": actionable_section_count,
+                    "stale_section_count": stale_section_count,
+                },
+                "keys": {
+                    "section_keys": [
+                        section.get("key")
+                        for section in sections
+                        if isinstance(section, dict)
+                    ] if isinstance(sections, list) else [],
+                    "card_keys": [
+                        card.get("key")
+                        for card in cards
+                        if isinstance(card, dict)
+                    ] if isinstance(cards, list) else [],
+                    "actionable_section_keys": actionable_section_keys,
+                    "stale_section_keys": stale_section_keys,
+                },
+                "severity_counts": severity_counts,
+                "freshness_counts": freshness_counts,
+            },
         }
 
     @staticmethod
