@@ -90,6 +90,14 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "card_count": len(normalized["cards"]),
         "section_keys": [section["key"] for section in normalized["sections"]],
         "card_keys": [card["key"] for card in normalized["cards"]],
+        "severity_counts": {
+            "info": sum(1 for section in normalized["sections"] if section["severity"] == "info"),
+            "warning": sum(1 for section in normalized["sections"] if section["severity"] == "warning"),
+            "critical": sum(1 for section in normalized["sections"] if section["severity"] == "critical"),
+        },
+        "actionable_section_count": sum(
+            1 for section in normalized["sections"] if section["actionable"]
+        ),
     }
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],

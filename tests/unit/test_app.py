@@ -351,6 +351,14 @@ class SummaryStubService:
             "card_count": len(payload["cards"]),
             "section_keys": [section["key"] for section in payload["sections"]],
             "card_keys": [card["key"] for card in payload["cards"]],
+            "severity_counts": {
+                "info": sum(1 for section in payload["sections"] if section["severity"] == "info"),
+                "warning": sum(1 for section in payload["sections"] if section["severity"] == "warning"),
+                "critical": sum(1 for section in payload["sections"] if section["severity"] == "critical"),
+            },
+            "actionable_section_count": sum(
+                1 for section in payload["sections"] if section["actionable"]
+            ),
         }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
