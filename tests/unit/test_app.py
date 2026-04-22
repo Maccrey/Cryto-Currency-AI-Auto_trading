@@ -346,6 +346,10 @@ class SummaryStubService:
             "card_order": payload["card_order"],
             "card_meta": payload["card_meta"],
         }
+        payload["dashboard_object"] = {
+            "summary": payload["summary_object"],
+            "cards": payload["cards_object"],
+        }
         return payload
 
 

@@ -250,6 +250,10 @@ class DashboardSummaryFacade:
                 "card_order": card_order,
                 "card_meta": card_meta,
             }
+        payload["dashboard_object"] = {
+            "summary": payload.get("summary_object"),
+            "cards": payload.get("cards_object"),
+        }
         return payload
 
     @staticmethod
