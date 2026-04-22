@@ -429,6 +429,10 @@ class SummaryStubService:
                 "data": payload["dashboard_meta"],
             },
         ]
+        payload["dashboard_panel_map"] = {
+            panel["key"]: panel
+            for panel in payload["dashboard_panels"]
+        }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
             "cards": payload["cards_object"],
@@ -436,6 +440,7 @@ class SummaryStubService:
             "order": payload["dashboard_order"],
             "labels": payload["dashboard_labels"],
             "panels": payload["dashboard_panels"],
+            "panel_map": payload["dashboard_panel_map"],
         }
         return payload
 

@@ -168,6 +168,10 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
             "data": normalized["dashboard_meta"],
         },
     ]
+    normalized["dashboard_panel_map"] = {
+        panel["key"]: panel
+        for panel in normalized["dashboard_panels"]
+    }
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],
         "cards": normalized["cards_object"],
@@ -175,6 +179,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "order": normalized["dashboard_order"],
         "labels": normalized["dashboard_labels"],
         "panels": normalized["dashboard_panels"],
+        "panel_map": normalized["dashboard_panel_map"],
     }
     return normalized
 

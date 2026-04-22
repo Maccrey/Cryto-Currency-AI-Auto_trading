@@ -274,6 +274,10 @@ class DashboardSummaryFacade:
                 "data": payload.get("dashboard_meta"),
             },
         ]
+        payload["dashboard_panel_map"] = {
+            panel["key"]: panel
+            for panel in payload["dashboard_panels"]
+        }
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
             "cards": payload.get("cards_object"),
@@ -281,6 +285,7 @@ class DashboardSummaryFacade:
             "order": payload.get("dashboard_order"),
             "labels": payload.get("dashboard_labels"),
             "panels": payload.get("dashboard_panels"),
+            "panel_map": payload.get("dashboard_panel_map"),
         }
         return payload
 
