@@ -302,6 +302,18 @@ class DashboardSummaryFacade:
                 },
             },
         }
+        payload["dashboard_navigation"] = {
+            "order": payload.get("dashboard_order"),
+            "labels": payload.get("dashboard_labels"),
+            "panels": [
+                {
+                    "key": panel["key"],
+                    "label": panel["label"],
+                    "index": index,
+                }
+                for index, panel in enumerate(payload["dashboard_panels"])
+            ],
+        }
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
             "cards": payload.get("cards_object"),
@@ -311,6 +323,7 @@ class DashboardSummaryFacade:
             "panels": payload.get("dashboard_panels"),
             "panel_map": payload.get("dashboard_panel_map"),
             "panel_meta": payload.get("dashboard_panel_meta"),
+            "navigation": payload.get("dashboard_navigation"),
         }
         return payload
 

@@ -457,6 +457,18 @@ class SummaryStubService:
                 },
             },
         }
+        payload["dashboard_navigation"] = {
+            "order": payload["dashboard_order"],
+            "labels": payload["dashboard_labels"],
+            "panels": [
+                {
+                    "key": panel["key"],
+                    "label": panel["label"],
+                    "index": index,
+                }
+                for index, panel in enumerate(payload["dashboard_panels"])
+            ],
+        }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
             "cards": payload["cards_object"],
@@ -466,6 +478,7 @@ class SummaryStubService:
             "panels": payload["dashboard_panels"],
             "panel_map": payload["dashboard_panel_map"],
             "panel_meta": payload["dashboard_panel_meta"],
+            "navigation": payload["dashboard_navigation"],
         }
         return payload
 

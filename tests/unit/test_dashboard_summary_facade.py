@@ -196,6 +196,18 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
             },
         },
     }
+    normalized["dashboard_navigation"] = {
+        "order": normalized["dashboard_order"],
+        "labels": normalized["dashboard_labels"],
+        "panels": [
+            {
+                "key": panel["key"],
+                "label": panel["label"],
+                "index": index,
+            }
+            for index, panel in enumerate(normalized["dashboard_panels"])
+        ],
+    }
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],
         "cards": normalized["cards_object"],
@@ -205,6 +217,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "panels": normalized["dashboard_panels"],
         "panel_map": normalized["dashboard_panel_map"],
         "panel_meta": normalized["dashboard_panel_meta"],
+        "navigation": normalized["dashboard_navigation"],
     }
     return normalized
 
