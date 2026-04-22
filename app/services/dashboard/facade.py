@@ -296,15 +296,15 @@ class DashboardSummaryFacade:
         }
         return [
             {
-                "key": key,
-                "name": ordered_section_names[key],
-                "state_label": section_state_label[key],
-                "severity": section_severity[key],
-                "state_message": section_state_message[key],
-                "recommended_action": section_recommended_action[key],
-                "action_route": DashboardSummaryFacade._build_section_action_route(
-                    key=key,
-                ),
+                **{
+                    "key": key,
+                    "name": ordered_section_names[key],
+                    "state_label": section_state_label[key],
+                    "severity": section_severity[key],
+                    "state_message": section_state_message[key],
+                    "recommended_action": section_recommended_action[key],
+                },
+                **DashboardSummaryFacade._build_section_route_fields(key=key),
                 "updated_at": section_updated_at[key],
                 "stale": section_stale[key],
                 "age_sec": section_age_sec[key],
@@ -328,6 +328,20 @@ class DashboardSummaryFacade:
             }
             for key in ordered_section_keys
         ]
+
+    @staticmethod
+    def _build_section_route_fields(
+        *,
+        key: str,
+    ) -> dict[str, object]:
+        action_route = DashboardSummaryFacade._build_section_action_route(key=key)
+        return {
+            "action_url_key": action_route["url_key"],
+            "action_tab_key": action_route["tab_key"],
+            "action_target": action_route["target"],
+            "action_params": action_route["params"],
+            "action_route": action_route,
+        }
 
     @staticmethod
     def _build_section_metric_items(
