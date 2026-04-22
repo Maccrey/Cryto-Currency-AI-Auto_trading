@@ -306,6 +306,30 @@ class SummaryStubService:
         ]
         payload["card_map"] = {card["key"]: card for card in payload["cards"]}
         payload["card_order"] = [card["key"] for card in payload["cards"]]
+        severity_counts = {"info": 0, "warning": 0, "critical": 0}
+        actionable_count = 0
+        stale_count = 0
+        for card in payload["cards"]:
+            severity = card["state"]["severity"]
+            if severity in severity_counts:
+                severity_counts[severity] += 1
+            if card["action"]["actionable"]:
+                actionable_count += 1
+            if card["freshness"]["stale"]:
+                stale_count += 1
+        payload["card_meta"] = {
+            "count": len(payload["cards"]),
+            "keys": [card["key"] for card in payload["cards"]],
+            "severity_counts": severity_counts,
+            "actionable_count": actionable_count,
+            "stale_count": stale_count,
+        }
+        payload["cards_object"] = {
+            "cards": payload["cards"],
+            "card_map": payload["card_map"],
+            "card_order": payload["card_order"],
+            "card_meta": payload["card_meta"],
+        }
         return payload
 
 

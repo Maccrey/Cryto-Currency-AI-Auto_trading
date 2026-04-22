@@ -236,9 +236,19 @@ class DashboardSummaryFacade:
         sections = payload.get("sections")
         if isinstance(sections, list):
             cards = self._build_cards(sections)
+            card_map = self._build_card_map(cards)
+            card_order = self._build_card_order(cards)
+            card_meta = self._build_card_meta(cards)
             payload["cards"] = cards
-            payload["card_map"] = self._build_card_map(cards)
-            payload["card_order"] = self._build_card_order(cards)
+            payload["card_map"] = card_map
+            payload["card_order"] = card_order
+            payload["card_meta"] = card_meta
+            payload["cards_object"] = {
+                "cards": cards,
+                "card_map": card_map,
+                "card_order": card_order,
+                "card_meta": card_meta,
+            }
         return payload
 
     @staticmethod
@@ -568,6 +578,29 @@ class DashboardSummaryFacade:
     @staticmethod
     def _build_card_order(cards: list[dict[str, object]]) -> list[str]:
         return [card["key"] for card in cards]
+
+    @staticmethod
+    def _build_card_meta(cards: list[dict[str, object]]) -> dict[str, object]:
+        severity_counts = {"info": 0, "warning": 0, "critical": 0}
+        actionable_count = 0
+        stale_count = 0
+
+        for card in cards:
+            severity = card["state"]["severity"]
+            if severity in severity_counts:
+                severity_counts[severity] += 1
+            if card["action"]["actionable"]:
+                actionable_count += 1
+            if card["freshness"]["stale"]:
+                stale_count += 1
+
+        return {
+            "count": len(cards),
+            "keys": [card["key"] for card in cards],
+            "severity_counts": severity_counts,
+            "actionable_count": actionable_count,
+            "stale_count": stale_count,
+        }
 
     @staticmethod
     def _resolve_section_recommended_action_label(

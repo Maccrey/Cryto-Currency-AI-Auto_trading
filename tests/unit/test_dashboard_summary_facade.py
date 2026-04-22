@@ -45,6 +45,30 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
     ]
     normalized["card_map"] = {card["key"]: card for card in normalized["cards"]}
     normalized["card_order"] = [card["key"] for card in normalized["cards"]]
+    severity_counts = {"info": 0, "warning": 0, "critical": 0}
+    actionable_count = 0
+    stale_count = 0
+    for card in normalized["cards"]:
+        severity = card["state"]["severity"]
+        if severity in severity_counts:
+            severity_counts[severity] += 1
+        if card["action"]["actionable"]:
+            actionable_count += 1
+        if card["freshness"]["stale"]:
+            stale_count += 1
+    normalized["card_meta"] = {
+        "count": len(normalized["cards"]),
+        "keys": [card["key"] for card in normalized["cards"]],
+        "severity_counts": severity_counts,
+        "actionable_count": actionable_count,
+        "stale_count": stale_count,
+    }
+    normalized["cards_object"] = {
+        "cards": normalized["cards"],
+        "card_map": normalized["card_map"],
+        "card_order": normalized["card_order"],
+        "card_meta": normalized["card_meta"],
+    }
     return normalized
 
 
