@@ -309,6 +309,12 @@ class DashboardSummaryFacade:
                     "severity": section_severity[key],
                     "state_message": section_state_message[key],
                     "recommended_action": section_recommended_action[key],
+                    "state_object": DashboardSummaryFacade._build_section_state_object(
+                        state_label=section_state_label[key],
+                        severity=section_severity[key],
+                        state_message=section_state_message[key],
+                        recommended_action=section_recommended_action[key],
+                    ),
                     "recommended_action_label": section_action_state["recommended_action_label"],
                     "action_group": section_action_state["action_group"],
                     "action_priority": section_action_state["action_priority"],
@@ -396,6 +402,21 @@ class DashboardSummaryFacade:
                     action_group,
                 ),
             },
+        }
+
+    @staticmethod
+    def _build_section_state_object(
+        *,
+        state_label: str,
+        severity: str,
+        state_message: str,
+        recommended_action: str,
+    ) -> dict[str, str]:
+        return {
+            "state_label": state_label,
+            "severity": severity,
+            "state_message": state_message,
+            "recommended_action": recommended_action,
         }
 
     @staticmethod
