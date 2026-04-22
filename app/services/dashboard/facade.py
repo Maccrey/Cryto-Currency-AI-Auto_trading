@@ -252,11 +252,17 @@ class DashboardSummaryFacade:
             }
         payload["dashboard_meta"] = self._build_dashboard_meta(payload)
         payload["dashboard_order"] = ["summary", "cards", "meta"]
+        payload["dashboard_labels"] = {
+            "summary": "Summary",
+            "cards": "Cards",
+            "meta": "Meta",
+        }
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
             "cards": payload.get("cards_object"),
             "meta": payload.get("dashboard_meta"),
             "order": payload.get("dashboard_order"),
+            "labels": payload.get("dashboard_labels"),
         }
         return payload
 
