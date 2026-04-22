@@ -85,9 +85,16 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "card_order": normalized["card_order"],
         "card_meta": normalized["card_meta"],
     }
+    normalized["dashboard_meta"] = {
+        "section_count": len(normalized["sections"]),
+        "card_count": len(normalized["cards"]),
+        "section_keys": [section["key"] for section in normalized["sections"]],
+        "card_keys": [card["key"] for card in normalized["cards"]],
+    }
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],
         "cards": normalized["cards_object"],
+        "meta": normalized["dashboard_meta"],
     }
     return normalized
 

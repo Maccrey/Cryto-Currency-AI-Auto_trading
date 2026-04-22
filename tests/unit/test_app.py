@@ -346,9 +346,16 @@ class SummaryStubService:
             "card_order": payload["card_order"],
             "card_meta": payload["card_meta"],
         }
+        payload["dashboard_meta"] = {
+            "section_count": len(payload["sections"]),
+            "card_count": len(payload["cards"]),
+            "section_keys": [section["key"] for section in payload["sections"]],
+            "card_keys": [card["key"] for card in payload["cards"]],
+        }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
             "cards": payload["cards_object"],
+            "meta": payload["dashboard_meta"],
         }
         return payload
 

@@ -250,9 +250,11 @@ class DashboardSummaryFacade:
                 "card_order": card_order,
                 "card_meta": card_meta,
             }
+        payload["dashboard_meta"] = self._build_dashboard_meta(payload)
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
             "cards": payload.get("cards_object"),
+            "meta": payload.get("dashboard_meta"),
         }
         return payload
 
@@ -273,6 +275,25 @@ class DashboardSummaryFacade:
             "safe_mode": payload.get("safe_mode"),
             "hard_stop": payload.get("hard_stop"),
             "trading_ready": payload.get("trading_ready"),
+        }
+
+    @staticmethod
+    def _build_dashboard_meta(payload: dict[str, object]) -> dict[str, object]:
+        sections = payload.get("sections")
+        cards = payload.get("cards")
+        return {
+            "section_count": len(sections) if isinstance(sections, list) else 0,
+            "card_count": len(cards) if isinstance(cards, list) else 0,
+            "section_keys": [
+                section.get("key")
+                for section in sections
+                if isinstance(section, dict)
+            ] if isinstance(sections, list) else [],
+            "card_keys": [
+                card.get("key")
+                for card in cards
+                if isinstance(card, dict)
+            ] if isinstance(cards, list) else [],
         }
 
     @staticmethod
