@@ -312,6 +312,7 @@ class DashboardSummaryFacade:
                 "freshness_severity": section_freshness_severity[key],
                 "freshness_window_sec": section_freshness_window_sec[key],
                 "freshness_metric_items": DashboardSummaryFacade._build_section_freshness_metric_items(
+                    section_key=key,
                     updated_at=section_updated_at[key],
                     age_sec=section_age_sec[key],
                     freshness_window_sec=section_freshness_window_sec[key],
@@ -446,6 +447,10 @@ class DashboardSummaryFacade:
                             value=metrics[metric_key],
                         )
                     )
+                ),
+                "action_url_key": DashboardSummaryFacade._resolve_metric_action_url_key(
+                    section_key=key,
+                    metric_key=metric_key,
                 ),
                 "value": metrics[metric_key],
             }
@@ -626,8 +631,46 @@ class DashboardSummaryFacade:
         return action_group in {"proceed", "review", "check"}
 
     @staticmethod
+    def _resolve_metric_action_url_key(
+        *,
+        section_key: str,
+        metric_key: str,
+    ) -> str:
+        metric_url_keys = {
+            "buy_count": "dashboard.executions",
+            "sell_count": "dashboard.executions",
+            "stop_loss_count": "dashboard.positions.history",
+            "realized_pnl": "dashboard.executions",
+            "unrealized_pnl": "dashboard.positions.current",
+            "recent_stop_loss_reason": "dashboard.positions.history",
+            "last_learning_event": "dashboard.learning",
+            "learning_signal_count": "dashboard.learning",
+            "learning_fill_count": "dashboard.learning",
+            "last_signal_recorded_at": "dashboard.learning",
+            "last_fill_recorded_at": "dashboard.learning",
+            "safe_mode": "dashboard.recovery",
+            "hard_stop": "dashboard.recovery",
+            "trading_ready": "dashboard.recovery",
+            "failure_stage": "dashboard.recovery",
+            "last_restart_detected_at": "dashboard.recovery",
+            "last_recovery_completed_at": "dashboard.recovery",
+            "promotion_ready": "dashboard.promotion",
+            "last_promotion_reviewed_at": "dashboard.promotion",
+        }
+        if metric_key in {"updated_at", "age_sec", "freshness_window_sec"}:
+            freshness_url_keys = {
+                "trading": "dashboard.market",
+                "learning": "dashboard.learning",
+                "recovery": "dashboard.recovery",
+                "promotion": "dashboard.promotion",
+            }
+            return freshness_url_keys[section_key]
+        return metric_url_keys[metric_key]
+
+    @staticmethod
     def _build_section_freshness_metric_items(
         *,
+        section_key: str,
         updated_at: str | None,
         age_sec: int | None,
         freshness_window_sec: int,
@@ -672,6 +715,10 @@ class DashboardSummaryFacade:
                         )
                     )
                 ),
+                "action_url_key": DashboardSummaryFacade._resolve_metric_action_url_key(
+                    section_key=section_key,
+                    metric_key="updated_at",
+                ),
                 "value": updated_at,
             },
             {
@@ -713,6 +760,10 @@ class DashboardSummaryFacade:
                         )
                     )
                 ),
+                "action_url_key": DashboardSummaryFacade._resolve_metric_action_url_key(
+                    section_key=section_key,
+                    metric_key="age_sec",
+                ),
                 "value": age_sec,
             },
             {
@@ -753,6 +804,10 @@ class DashboardSummaryFacade:
                             value=freshness_window_sec,
                         )
                     )
+                ),
+                "action_url_key": DashboardSummaryFacade._resolve_metric_action_url_key(
+                    section_key=section_key,
+                    metric_key="freshness_window_sec",
                 ),
                 "value": freshness_window_sec,
             },
