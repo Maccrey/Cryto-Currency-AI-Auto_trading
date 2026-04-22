@@ -359,6 +359,9 @@ class SummaryStubService:
             "actionable_section_count": sum(
                 1 for section in payload["sections"] if section["actionable"]
             ),
+            "actionable_section_keys": [
+                section["key"] for section in payload["sections"] if section["actionable"]
+            ],
             "freshness_counts": {
                 "fresh": sum(1 for section in payload["sections"] if section["freshness_state"] == "fresh"),
                 "stale": sum(1 for section in payload["sections"] if section["freshness_state"] == "stale"),
@@ -367,6 +370,9 @@ class SummaryStubService:
             "stale_section_count": sum(
                 1 for section in payload["sections"] if section["stale"]
             ),
+            "stale_section_keys": [
+                section["key"] for section in payload["sections"] if section["stale"]
+            ],
         }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],

@@ -285,20 +285,27 @@ class DashboardSummaryFacade:
         actionable_section_count = 0
         freshness_counts = {"fresh": 0, "stale": 0, "missing": 0}
         stale_section_count = 0
+        actionable_section_keys: list[str] = []
+        stale_section_keys: list[str] = []
         if isinstance(sections, list):
             for section in sections:
                 if not isinstance(section, dict):
                     continue
+                section_key = section.get("key")
                 severity = section.get("severity")
                 if severity in severity_counts:
                     severity_counts[severity] += 1
                 if section.get("actionable"):
                     actionable_section_count += 1
+                    if isinstance(section_key, str):
+                        actionable_section_keys.append(section_key)
                 freshness_state = section.get("freshness_state")
                 if freshness_state in freshness_counts:
                     freshness_counts[freshness_state] += 1
                 if section.get("stale"):
                     stale_section_count += 1
+                    if isinstance(section_key, str):
+                        stale_section_keys.append(section_key)
         return {
             "section_count": len(sections) if isinstance(sections, list) else 0,
             "card_count": len(cards) if isinstance(cards, list) else 0,
@@ -314,8 +321,10 @@ class DashboardSummaryFacade:
             ] if isinstance(cards, list) else [],
             "severity_counts": severity_counts,
             "actionable_section_count": actionable_section_count,
+            "actionable_section_keys": actionable_section_keys,
             "freshness_counts": freshness_counts,
             "stale_section_count": stale_section_count,
+            "stale_section_keys": stale_section_keys,
         }
 
     @staticmethod
