@@ -296,6 +296,12 @@ class DashboardSummaryFacade:
         }
         return [
             {
+                **(
+                    section_action_state := DashboardSummaryFacade._build_section_action_state(
+                        key=key,
+                        state_label=section_state_label[key],
+                    )
+                ),
                 **{
                     "key": key,
                     "name": ordered_section_names[key],
@@ -303,32 +309,10 @@ class DashboardSummaryFacade:
                     "severity": section_severity[key],
                     "state_message": section_state_message[key],
                     "recommended_action": section_recommended_action[key],
-                    "recommended_action_label": DashboardSummaryFacade._resolve_section_recommended_action_label(
-                        key=key,
-                        state_label=section_state_label[key],
-                    ),
-                    "action_group": DashboardSummaryFacade._resolve_metric_action_group(
-                        DashboardSummaryFacade._resolve_section_recommended_action_label(
-                            key=key,
-                            state_label=section_state_label[key],
-                        ),
-                    ),
-                    "action_priority": DashboardSummaryFacade._resolve_metric_action_priority(
-                        DashboardSummaryFacade._resolve_metric_action_group(
-                            DashboardSummaryFacade._resolve_section_recommended_action_label(
-                                key=key,
-                                state_label=section_state_label[key],
-                            ),
-                        ),
-                    ),
-                    "actionable": DashboardSummaryFacade._resolve_metric_actionable(
-                        DashboardSummaryFacade._resolve_metric_action_group(
-                            DashboardSummaryFacade._resolve_section_recommended_action_label(
-                                key=key,
-                                state_label=section_state_label[key],
-                            ),
-                        ),
-                    ),
+                    "recommended_action_label": section_action_state["recommended_action_label"],
+                    "action_group": section_action_state["action_group"],
+                    "action_priority": section_action_state["action_priority"],
+                    "actionable": section_action_state["actionable"],
                 },
                 **DashboardSummaryFacade._build_section_route_fields(key=key),
                 "updated_at": section_updated_at[key],
@@ -367,6 +351,40 @@ class DashboardSummaryFacade:
             "action_target": action_route["target"],
             "action_params": action_route["params"],
             "action_route": action_route,
+        }
+
+    @staticmethod
+    def _build_section_action_state(
+        *,
+        key: str,
+        state_label: str,
+    ) -> dict[str, object]:
+        recommended_action_label = DashboardSummaryFacade._resolve_section_recommended_action_label(
+            key=key,
+            state_label=state_label,
+        )
+        action_group = DashboardSummaryFacade._resolve_metric_action_group(
+            recommended_action_label,
+        )
+        return {
+            "recommended_action_label": recommended_action_label,
+            "action_group": action_group,
+            "action_priority": DashboardSummaryFacade._resolve_metric_action_priority(
+                action_group,
+            ),
+            "actionable": DashboardSummaryFacade._resolve_metric_actionable(
+                action_group,
+            ),
+            "action_state": {
+                "recommended_action_label": recommended_action_label,
+                "action_group": action_group,
+                "action_priority": DashboardSummaryFacade._resolve_metric_action_priority(
+                    action_group,
+                ),
+                "actionable": DashboardSummaryFacade._resolve_metric_actionable(
+                    action_group,
+                ),
+            },
         }
 
     @staticmethod
