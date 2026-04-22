@@ -456,6 +456,10 @@ class DashboardSummaryFacade:
                     section_key=key,
                     metric_key=metric_key,
                 ),
+                "action_params": DashboardSummaryFacade._resolve_metric_action_params(
+                    section_key=key,
+                    metric_key=metric_key,
+                ),
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
@@ -709,6 +713,41 @@ class DashboardSummaryFacade:
         return metric_tab_keys[metric_key]
 
     @staticmethod
+    def _resolve_metric_action_params(
+        *,
+        section_key: str,
+        metric_key: str,
+    ) -> dict[str, object]:
+        metric_params = {
+            "buy_count": {"focus_metric": "buy_count"},
+            "sell_count": {"focus_metric": "sell_count"},
+            "stop_loss_count": {"focus_metric": "stop_loss_count", "highlight_reason": True},
+            "realized_pnl": {"focus_metric": "realized_pnl"},
+            "unrealized_pnl": {"focus_metric": "unrealized_pnl"},
+            "recent_stop_loss_reason": {"focus_metric": "recent_stop_loss_reason", "highlight_reason": True},
+            "last_learning_event": {"focus_metric": "last_learning_event"},
+            "learning_signal_count": {"focus_metric": "learning_signal_count", "event_type": "signal"},
+            "learning_fill_count": {"focus_metric": "learning_fill_count", "event_type": "fill"},
+            "last_signal_recorded_at": {"focus_metric": "last_signal_recorded_at", "event_type": "signal"},
+            "last_fill_recorded_at": {"focus_metric": "last_fill_recorded_at", "event_type": "fill"},
+            "safe_mode": {"focus_metric": "safe_mode"},
+            "hard_stop": {"focus_metric": "hard_stop"},
+            "trading_ready": {"focus_metric": "trading_ready"},
+            "failure_stage": {"focus_metric": "failure_stage"},
+            "last_restart_detected_at": {"focus_metric": "last_restart_detected_at", "event_type": "restart_detected"},
+            "last_recovery_completed_at": {"focus_metric": "last_recovery_completed_at", "event_type": "recovery_completed"},
+            "promotion_ready": {"focus_metric": "promotion_ready"},
+            "last_promotion_reviewed_at": {"focus_metric": "last_promotion_reviewed_at"},
+        }
+        if metric_key in {"updated_at", "age_sec", "freshness_window_sec"}:
+            return {
+                "focus_metric": metric_key,
+                "section": section_key,
+                "kind": "freshness",
+            }
+        return metric_params[metric_key]
+
+    @staticmethod
     def _build_section_freshness_metric_items(
         *,
         section_key: str,
@@ -764,6 +803,10 @@ class DashboardSummaryFacade:
                     section_key=section_key,
                     metric_key="updated_at",
                 ),
+                "action_params": DashboardSummaryFacade._resolve_metric_action_params(
+                    section_key=section_key,
+                    metric_key="updated_at",
+                ),
                 "value": updated_at,
             },
             {
@@ -813,6 +856,10 @@ class DashboardSummaryFacade:
                     section_key=section_key,
                     metric_key="age_sec",
                 ),
+                "action_params": DashboardSummaryFacade._resolve_metric_action_params(
+                    section_key=section_key,
+                    metric_key="age_sec",
+                ),
                 "value": age_sec,
             },
             {
@@ -859,6 +906,10 @@ class DashboardSummaryFacade:
                     metric_key="freshness_window_sec",
                 ),
                 "action_tab_key": DashboardSummaryFacade._resolve_metric_action_tab_key(
+                    section_key=section_key,
+                    metric_key="freshness_window_sec",
+                ),
+                "action_params": DashboardSummaryFacade._resolve_metric_action_params(
                     section_key=section_key,
                     metric_key="freshness_window_sec",
                 ),
