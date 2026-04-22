@@ -145,10 +145,12 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
             },
         },
     }
+    normalized["dashboard_order"] = ["summary", "cards", "meta"]
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],
         "cards": normalized["cards_object"],
         "meta": normalized["dashboard_meta"],
+        "order": normalized["dashboard_order"],
     }
     return normalized
 

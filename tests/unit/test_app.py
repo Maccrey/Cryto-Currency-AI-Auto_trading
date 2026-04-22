@@ -406,10 +406,12 @@ class SummaryStubService:
                 },
             },
         }
+        payload["dashboard_order"] = ["summary", "cards", "meta"]
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
             "cards": payload["cards_object"],
             "meta": payload["dashboard_meta"],
+            "order": payload["dashboard_order"],
         }
         return payload
 
