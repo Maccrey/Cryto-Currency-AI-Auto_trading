@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
@@ -15,6 +17,21 @@ from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.portfolio.sync import PortfolioState
 from app.services.recovery.orchestrator import BootState
 from app.services.risk.stop_loss import PositionSnapshot
+
+
+def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
+    normalized = deepcopy(payload)
+    for section in normalized["sections"]:
+        section["card_object"] = {
+            "state": section["section_objects"]["state"],
+            "action": section["section_objects"]["action"],
+            "freshness": section["section_objects"]["freshness"],
+            "route": section["section_objects"]["route"],
+            "metrics": section["metrics"],
+            "metric_items": section["metric_items"],
+            "freshness_metric_items": section["freshness_metric_items"],
+        }
+    return normalized
 
 
 def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
@@ -63,7 +80,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
         learning_enabled=True,
     )
 
-    assert payload == {
+    assert payload == _with_section_card_objects({
         "coin_balance": 180.5,
         "cash_balance": 250000.0,
         "realized_pnl": 0.0,
@@ -327,7 +344,7 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
         "hard_stop": False,
         "trading_ready": True,
         "promotion_ready": True,
-    }
+    })
 
 
 def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
@@ -515,7 +532,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
     assert payload["last_promotion_reviewed_at"] is None
     assert payload["last_restart_detected_at"] is None
     assert payload["last_recovery_completed_at"] is None
-    assert payload["sections"] == [
+    assert payload["sections"] == _with_section_card_objects({"sections": [
         {
             "key": "trading",
             "name": "Trading",
@@ -730,7 +747,7 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
                 {"key": "last_promotion_reviewed_at", "label": "Last Promotion Review At", "type": "timestamp", "format_hint": "datetime", "severity": "info", "state_message": 'Last Promotion Review At 기록 없음', "recommended_action": '해당 기록 경로를 확인하세요.', "recommended_action_label": 'CHECK_ACTIVITY_SOURCE', "action_group": 'check', "action_priority": 'high', "actionable": True, "action_url_key": "dashboard.promotion", "action_tab_key": "status", "action_target": "promotion_status", "action_params": {"focus_metric": "last_promotion_reviewed_at"}, "action_route": {"url_key": "dashboard.promotion", "tab_key": "status", "target": "promotion_status", "params": {"focus_metric": "last_promotion_reviewed_at"}}, "value": None},
             ],
         },
-    ]
+    ]})["sections"]
     assert payload["section_state_label"] == {
         "trading": "NORMAL",
         "learning": "ACTIVE",

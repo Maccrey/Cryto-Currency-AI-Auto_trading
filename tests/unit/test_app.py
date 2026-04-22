@@ -17,7 +17,7 @@ class BootNotificationDispatcherStub:
 
 class SummaryStubService:
     def build(self, **kwargs):
-        return {
+        payload = {
             "coin_balance": 180.5,
             "cash_balance": 250000.0,
             "realized_pnl": 12500.0,
@@ -282,6 +282,17 @@ class SummaryStubService:
             "trading_ready": True,
             "promotion_ready": False,
         }
+        for section in payload["sections"]:
+            section["card_object"] = {
+                "state": section["section_objects"]["state"],
+                "action": section["section_objects"]["action"],
+                "freshness": section["section_objects"]["freshness"],
+                "route": section["section_objects"]["route"],
+                "metrics": section["metrics"],
+                "metric_items": section["metric_items"],
+                "freshness_metric_items": section["freshness_metric_items"],
+            }
+        return payload
 
 
 class PromotionRunnerStub:
