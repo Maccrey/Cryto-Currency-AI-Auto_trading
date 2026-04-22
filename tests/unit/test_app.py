@@ -469,6 +469,10 @@ class SummaryStubService:
                 for index, panel in enumerate(payload["dashboard_panels"])
             ],
         }
+        payload["dashboard_navigation_map"] = {
+            panel["key"]: panel
+            for panel in payload["dashboard_navigation"]["panels"]
+        }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
             "cards": payload["cards_object"],
@@ -479,6 +483,7 @@ class SummaryStubService:
             "panel_map": payload["dashboard_panel_map"],
             "panel_meta": payload["dashboard_panel_meta"],
             "navigation": payload["dashboard_navigation"],
+            "navigation_map": payload["dashboard_navigation_map"],
         }
         return payload
 
