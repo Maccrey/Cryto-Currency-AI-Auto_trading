@@ -456,6 +456,10 @@ class DashboardSummaryFacade:
                     section_key=key,
                     metric_key=metric_key,
                 ),
+                "action_target": DashboardSummaryFacade._resolve_metric_action_target(
+                    section_key=key,
+                    metric_key=metric_key,
+                ),
                 "action_params": DashboardSummaryFacade._resolve_metric_action_params(
                     section_key=key,
                     metric_key=metric_key,
@@ -713,6 +717,43 @@ class DashboardSummaryFacade:
         return metric_tab_keys[metric_key]
 
     @staticmethod
+    def _resolve_metric_action_target(
+        *,
+        section_key: str,
+        metric_key: str,
+    ) -> str:
+        metric_targets = {
+            "buy_count": "execution_timeline",
+            "sell_count": "execution_timeline",
+            "stop_loss_count": "position_history",
+            "realized_pnl": "execution_timeline",
+            "unrealized_pnl": "current_position",
+            "recent_stop_loss_reason": "position_history",
+            "last_learning_event": "learning_recent_events",
+            "learning_signal_count": "learning_recent_events",
+            "learning_fill_count": "learning_recent_events",
+            "last_signal_recorded_at": "learning_recent_events",
+            "last_fill_recorded_at": "learning_recent_events",
+            "safe_mode": "recovery_status",
+            "hard_stop": "recovery_status",
+            "trading_ready": "recovery_status",
+            "failure_stage": "recovery_status",
+            "last_restart_detected_at": "recovery_timeline",
+            "last_recovery_completed_at": "recovery_timeline",
+            "promotion_ready": "promotion_status",
+            "last_promotion_reviewed_at": "promotion_status",
+        }
+        if metric_key in {"updated_at", "age_sec", "freshness_window_sec"}:
+            freshness_targets = {
+                "trading": "market_overview",
+                "learning": "learning_recent_events",
+                "recovery": "recovery_status",
+                "promotion": "promotion_status",
+            }
+            return freshness_targets[section_key]
+        return metric_targets[metric_key]
+
+    @staticmethod
     def _resolve_metric_action_params(
         *,
         section_key: str,
@@ -803,6 +844,10 @@ class DashboardSummaryFacade:
                     section_key=section_key,
                     metric_key="updated_at",
                 ),
+                "action_target": DashboardSummaryFacade._resolve_metric_action_target(
+                    section_key=section_key,
+                    metric_key="updated_at",
+                ),
                 "action_params": DashboardSummaryFacade._resolve_metric_action_params(
                     section_key=section_key,
                     metric_key="updated_at",
@@ -856,6 +901,10 @@ class DashboardSummaryFacade:
                     section_key=section_key,
                     metric_key="age_sec",
                 ),
+                "action_target": DashboardSummaryFacade._resolve_metric_action_target(
+                    section_key=section_key,
+                    metric_key="age_sec",
+                ),
                 "action_params": DashboardSummaryFacade._resolve_metric_action_params(
                     section_key=section_key,
                     metric_key="age_sec",
@@ -906,6 +955,10 @@ class DashboardSummaryFacade:
                     metric_key="freshness_window_sec",
                 ),
                 "action_tab_key": DashboardSummaryFacade._resolve_metric_action_tab_key(
+                    section_key=section_key,
+                    metric_key="freshness_window_sec",
+                ),
+                "action_target": DashboardSummaryFacade._resolve_metric_action_target(
                     section_key=section_key,
                     metric_key="freshness_window_sec",
                 ),
