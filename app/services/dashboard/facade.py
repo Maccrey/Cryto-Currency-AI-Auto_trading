@@ -303,6 +303,32 @@ class DashboardSummaryFacade:
                     "severity": section_severity[key],
                     "state_message": section_state_message[key],
                     "recommended_action": section_recommended_action[key],
+                    "recommended_action_label": DashboardSummaryFacade._resolve_section_recommended_action_label(
+                        key=key,
+                        state_label=section_state_label[key],
+                    ),
+                    "action_group": DashboardSummaryFacade._resolve_metric_action_group(
+                        DashboardSummaryFacade._resolve_section_recommended_action_label(
+                            key=key,
+                            state_label=section_state_label[key],
+                        ),
+                    ),
+                    "action_priority": DashboardSummaryFacade._resolve_metric_action_priority(
+                        DashboardSummaryFacade._resolve_metric_action_group(
+                            DashboardSummaryFacade._resolve_section_recommended_action_label(
+                                key=key,
+                                state_label=section_state_label[key],
+                            ),
+                        ),
+                    ),
+                    "actionable": DashboardSummaryFacade._resolve_metric_actionable(
+                        DashboardSummaryFacade._resolve_metric_action_group(
+                            DashboardSummaryFacade._resolve_section_recommended_action_label(
+                                key=key,
+                                state_label=section_state_label[key],
+                            ),
+                        ),
+                    ),
                 },
                 **DashboardSummaryFacade._build_section_route_fields(key=key),
                 "updated_at": section_updated_at[key],
@@ -342,6 +368,22 @@ class DashboardSummaryFacade:
             "action_params": action_route["params"],
             "action_route": action_route,
         }
+
+    @staticmethod
+    def _resolve_section_recommended_action_label(
+        *,
+        key: str,
+        state_label: str,
+    ) -> str:
+        if key == "trading":
+            return "REVIEW_TRADING_SECTION" if state_label == "STOP_LOSS_TRIGGERED" else "MONITOR_TRADING_SECTION"
+        if key == "learning":
+            return "MONITOR_LEARNING_SECTION" if state_label == "ACTIVE" else "CHECK_LEARNING_SECTION"
+        if key == "recovery":
+            return "CHECK_RECOVERY_SECTION" if state_label in {"SAFE_MODE", "HARD_STOP", "DEGRADED"} else "MONITOR_RECOVERY_SECTION"
+        if key == "promotion":
+            return "PROCEED_PROMOTION_SECTION" if state_label == "READY" else "IMPROVE_PROMOTION_SECTION"
+        return "MONITOR_SECTION"
 
     @staticmethod
     def _build_section_metric_items(
