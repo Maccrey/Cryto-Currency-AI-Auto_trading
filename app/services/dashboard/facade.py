@@ -464,6 +464,10 @@ class DashboardSummaryFacade:
                     section_key=key,
                     metric_key=metric_key,
                 ),
+                "action_route": DashboardSummaryFacade._build_metric_action_route(
+                    section_key=key,
+                    metric_key=metric_key,
+                ),
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
@@ -789,6 +793,31 @@ class DashboardSummaryFacade:
         return metric_params[metric_key]
 
     @staticmethod
+    def _build_metric_action_route(
+        *,
+        section_key: str,
+        metric_key: str,
+    ) -> dict[str, object]:
+        return {
+            "url_key": DashboardSummaryFacade._resolve_metric_action_url_key(
+                section_key=section_key,
+                metric_key=metric_key,
+            ),
+            "tab_key": DashboardSummaryFacade._resolve_metric_action_tab_key(
+                section_key=section_key,
+                metric_key=metric_key,
+            ),
+            "target": DashboardSummaryFacade._resolve_metric_action_target(
+                section_key=section_key,
+                metric_key=metric_key,
+            ),
+            "params": DashboardSummaryFacade._resolve_metric_action_params(
+                section_key=section_key,
+                metric_key=metric_key,
+            ),
+        }
+
+    @staticmethod
     def _build_section_freshness_metric_items(
         *,
         section_key: str,
@@ -852,6 +881,10 @@ class DashboardSummaryFacade:
                     section_key=section_key,
                     metric_key="updated_at",
                 ),
+                "action_route": DashboardSummaryFacade._build_metric_action_route(
+                    section_key=section_key,
+                    metric_key="updated_at",
+                ),
                 "value": updated_at,
             },
             {
@@ -909,6 +942,10 @@ class DashboardSummaryFacade:
                     section_key=section_key,
                     metric_key="age_sec",
                 ),
+                "action_route": DashboardSummaryFacade._build_metric_action_route(
+                    section_key=section_key,
+                    metric_key="age_sec",
+                ),
                 "value": age_sec,
             },
             {
@@ -963,6 +1000,10 @@ class DashboardSummaryFacade:
                     metric_key="freshness_window_sec",
                 ),
                 "action_params": DashboardSummaryFacade._resolve_metric_action_params(
+                    section_key=section_key,
+                    metric_key="freshness_window_sec",
+                ),
+                "action_route": DashboardSummaryFacade._build_metric_action_route(
                     section_key=section_key,
                     metric_key="freshness_window_sec",
                 ),
