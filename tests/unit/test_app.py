@@ -433,6 +433,10 @@ class SummaryStubService:
             panel["key"]: panel
             for panel in payload["dashboard_panels"]
         }
+        payload["dashboard_panel_meta"] = {
+            "count": len(payload["dashboard_panels"]),
+            "keys": [panel["key"] for panel in payload["dashboard_panels"]],
+        }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
             "cards": payload["cards_object"],
@@ -441,6 +445,7 @@ class SummaryStubService:
             "labels": payload["dashboard_labels"],
             "panels": payload["dashboard_panels"],
             "panel_map": payload["dashboard_panel_map"],
+            "panel_meta": payload["dashboard_panel_meta"],
         }
         return payload
 
