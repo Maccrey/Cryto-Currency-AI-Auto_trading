@@ -230,8 +230,13 @@ class DashboardSummaryFacade:
             promotion_ready=promotion_ready,
         )
         if isinstance(summary, dict):
-            return summary
-        return self._dashboard_summary_service.to_payload(summary)
+            payload = dict(summary)
+        else:
+            payload = self._dashboard_summary_service.to_payload(summary)
+        sections = payload.get("sections")
+        if isinstance(sections, list):
+            payload["cards"] = self._build_cards(sections)
+        return payload
 
     @staticmethod
     def _build_section_state_label(
@@ -535,6 +540,23 @@ class DashboardSummaryFacade:
                 freshness_window_sec=freshness_window_sec,
             ),
         }
+
+    @staticmethod
+    def _build_cards(sections: list[dict[str, object]]) -> list[dict[str, object]]:
+        cards: list[dict[str, object]] = []
+        for section in sections:
+            cards.append(
+                {
+                    "key": section["key"],
+                    "name": section["name"],
+                    "card": section["card_object"],
+                    "state": section["state_object"],
+                    "action": section["action_state"],
+                    "freshness": section["freshness_state_object"],
+                    "route": section["action_route"],
+                },
+            )
+        return cards
 
     @staticmethod
     def _resolve_section_recommended_action_label(

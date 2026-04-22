@@ -292,6 +292,18 @@ class SummaryStubService:
                 "metric_items": section["metric_items"],
                 "freshness_metric_items": section["freshness_metric_items"],
             }
+        payload["cards"] = [
+            {
+                "key": section["key"],
+                "name": section["name"],
+                "card": section["card_object"],
+                "state": section["state_object"],
+                "action": section["action_state"],
+                "freshness": section["freshness_state_object"],
+                "route": section["action_route"],
+            }
+            for section in payload["sections"]
+        ]
         return payload
 
 
