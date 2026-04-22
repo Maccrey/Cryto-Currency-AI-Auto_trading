@@ -412,12 +412,30 @@ class SummaryStubService:
             "cards": "Cards",
             "meta": "Meta",
         }
+        payload["dashboard_panels"] = [
+            {
+                "key": "summary",
+                "label": payload["dashboard_labels"]["summary"],
+                "data": payload["summary_object"],
+            },
+            {
+                "key": "cards",
+                "label": payload["dashboard_labels"]["cards"],
+                "data": payload["cards_object"],
+            },
+            {
+                "key": "meta",
+                "label": payload["dashboard_labels"]["meta"],
+                "data": payload["dashboard_meta"],
+            },
+        ]
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
             "cards": payload["cards_object"],
             "meta": payload["dashboard_meta"],
             "order": payload["dashboard_order"],
             "labels": payload["dashboard_labels"],
+            "panels": payload["dashboard_panels"],
         }
         return payload
 

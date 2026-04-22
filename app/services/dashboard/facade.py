@@ -257,12 +257,30 @@ class DashboardSummaryFacade:
             "cards": "Cards",
             "meta": "Meta",
         }
+        payload["dashboard_panels"] = [
+            {
+                "key": "summary",
+                "label": payload["dashboard_labels"]["summary"],
+                "data": payload.get("summary_object"),
+            },
+            {
+                "key": "cards",
+                "label": payload["dashboard_labels"]["cards"],
+                "data": payload.get("cards_object"),
+            },
+            {
+                "key": "meta",
+                "label": payload["dashboard_labels"]["meta"],
+                "data": payload.get("dashboard_meta"),
+            },
+        ]
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
             "cards": payload.get("cards_object"),
             "meta": payload.get("dashboard_meta"),
             "order": payload.get("dashboard_order"),
             "labels": payload.get("dashboard_labels"),
+            "panels": payload.get("dashboard_panels"),
         }
         return payload
 
