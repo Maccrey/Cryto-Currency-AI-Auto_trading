@@ -304,6 +304,7 @@ class SummaryStubService:
             }
             for section in payload["sections"]
         ]
+        payload["card_map"] = {card["key"]: card for card in payload["cards"]}
         return payload
 
 

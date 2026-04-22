@@ -235,7 +235,9 @@ class DashboardSummaryFacade:
             payload = self._dashboard_summary_service.to_payload(summary)
         sections = payload.get("sections")
         if isinstance(sections, list):
-            payload["cards"] = self._build_cards(sections)
+            cards = self._build_cards(sections)
+            payload["cards"] = cards
+            payload["card_map"] = self._build_card_map(cards)
         return payload
 
     @staticmethod
@@ -557,6 +559,10 @@ class DashboardSummaryFacade:
                 },
             )
         return cards
+
+    @staticmethod
+    def _build_card_map(cards: list[dict[str, object]]) -> dict[str, dict[str, object]]:
+        return {card["key"]: card for card in cards}
 
     @staticmethod
     def _resolve_section_recommended_action_label(
