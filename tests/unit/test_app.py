@@ -473,6 +473,17 @@ class SummaryStubService:
             panel["key"]: panel
             for panel in payload["dashboard_navigation"]["panels"]
         }
+        payload["dashboard_navigation_meta"] = {
+            "count": len(payload["dashboard_navigation"]["panels"]),
+            "keys": [
+                panel["key"]
+                for panel in payload["dashboard_navigation"]["panels"]
+            ],
+            "label_map": {
+                panel["key"]: panel["label"]
+                for panel in payload["dashboard_navigation"]["panels"]
+            },
+        }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
             "cards": payload["cards_object"],
@@ -484,6 +495,7 @@ class SummaryStubService:
             "panel_meta": payload["dashboard_panel_meta"],
             "navigation": payload["dashboard_navigation"],
             "navigation_map": payload["dashboard_navigation_map"],
+            "navigation_meta": payload["dashboard_navigation_meta"],
         }
         return payload
 

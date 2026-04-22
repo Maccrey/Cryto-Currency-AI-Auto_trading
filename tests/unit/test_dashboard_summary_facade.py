@@ -212,6 +212,17 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         panel["key"]: panel
         for panel in normalized["dashboard_navigation"]["panels"]
     }
+    normalized["dashboard_navigation_meta"] = {
+        "count": len(normalized["dashboard_navigation"]["panels"]),
+        "keys": [
+            panel["key"]
+            for panel in normalized["dashboard_navigation"]["panels"]
+        ],
+        "label_map": {
+            panel["key"]: panel["label"]
+            for panel in normalized["dashboard_navigation"]["panels"]
+        },
+    }
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],
         "cards": normalized["cards_object"],
@@ -223,6 +234,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "panel_meta": normalized["dashboard_panel_meta"],
         "navigation": normalized["dashboard_navigation"],
         "navigation_map": normalized["dashboard_navigation_map"],
+        "navigation_meta": normalized["dashboard_navigation_meta"],
     }
     return normalized
 
