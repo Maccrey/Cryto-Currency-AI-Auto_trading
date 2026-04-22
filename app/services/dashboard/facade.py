@@ -238,6 +238,7 @@ class DashboardSummaryFacade:
             cards = self._build_cards(sections)
             payload["cards"] = cards
             payload["card_map"] = self._build_card_map(cards)
+            payload["card_order"] = self._build_card_order(cards)
         return payload
 
     @staticmethod
@@ -563,6 +564,10 @@ class DashboardSummaryFacade:
     @staticmethod
     def _build_card_map(cards: list[dict[str, object]]) -> dict[str, dict[str, object]]:
         return {card["key"]: card for card in cards}
+
+    @staticmethod
+    def _build_card_order(cards: list[dict[str, object]]) -> list[str]:
+        return [card["key"] for card in cards]
 
     @staticmethod
     def _resolve_section_recommended_action_label(

@@ -44,6 +44,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         for section in normalized["sections"]
     ]
     normalized["card_map"] = {card["key"]: card for card in normalized["cards"]}
+    normalized["card_order"] = [card["key"] for card in normalized["cards"]]
     return normalized
 
 
