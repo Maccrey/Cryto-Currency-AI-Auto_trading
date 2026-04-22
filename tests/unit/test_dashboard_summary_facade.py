@@ -183,6 +183,18 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
             panel["key"]: index
             for index, panel in enumerate(normalized["dashboard_panels"])
         },
+        "meta_object": {
+            "count": len(normalized["dashboard_panels"]),
+            "keys": [panel["key"] for panel in normalized["dashboard_panels"]],
+            "label_map": {
+                panel["key"]: panel["label"]
+                for panel in normalized["dashboard_panels"]
+            },
+            "order_map": {
+                panel["key"]: index
+                for index, panel in enumerate(normalized["dashboard_panels"])
+            },
+        },
     }
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],

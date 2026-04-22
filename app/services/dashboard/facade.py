@@ -289,6 +289,18 @@ class DashboardSummaryFacade:
                 panel["key"]: index
                 for index, panel in enumerate(payload["dashboard_panels"])
             },
+            "meta_object": {
+                "count": len(payload["dashboard_panels"]),
+                "keys": [panel["key"] for panel in payload["dashboard_panels"]],
+                "label_map": {
+                    panel["key"]: panel["label"]
+                    for panel in payload["dashboard_panels"]
+                },
+                "order_map": {
+                    panel["key"]: index
+                    for index, panel in enumerate(payload["dashboard_panels"])
+                },
+            },
         }
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
