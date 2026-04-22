@@ -352,6 +352,27 @@ class DashboardSummaryFacade:
                     key=key,
                     metrics=section_metrics[key],
                 ),
+                "section_objects": {
+                    "state": DashboardSummaryFacade._build_section_state_object(
+                        state_label=section_state_label[key],
+                        severity=section_severity[key],
+                        state_message=section_state_message[key],
+                        recommended_action=section_recommended_action[key],
+                    ),
+                    "action": section_action_state["action_state"],
+                    "freshness": DashboardSummaryFacade._build_section_freshness_snapshot(
+                        updated_at=section_updated_at[key],
+                        stale=section_stale[key],
+                        age_sec=section_age_sec[key],
+                        freshness_state=section_freshness_state[key],
+                        freshness_message=section_freshness_message[key],
+                        freshness_label=section_freshness_label[key],
+                        freshness_recommended_action=section_freshness_recommended_action[key],
+                        freshness_severity=section_freshness_severity[key],
+                        freshness_window_sec=section_freshness_window_sec[key],
+                    ),
+                    "route": DashboardSummaryFacade._build_section_action_route(key=key),
+                },
             }
             for key in ordered_section_keys
         ]
