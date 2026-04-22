@@ -98,6 +98,14 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "actionable_section_count": sum(
             1 for section in normalized["sections"] if section["actionable"]
         ),
+        "freshness_counts": {
+            "fresh": sum(1 for section in normalized["sections"] if section["freshness_state"] == "fresh"),
+            "stale": sum(1 for section in normalized["sections"] if section["freshness_state"] == "stale"),
+            "missing": sum(1 for section in normalized["sections"] if section["freshness_state"] == "missing"),
+        },
+        "stale_section_count": sum(
+            1 for section in normalized["sections"] if section["stale"]
+        ),
     }
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],

@@ -283,6 +283,8 @@ class DashboardSummaryFacade:
         cards = payload.get("cards")
         severity_counts = {"info": 0, "warning": 0, "critical": 0}
         actionable_section_count = 0
+        freshness_counts = {"fresh": 0, "stale": 0, "missing": 0}
+        stale_section_count = 0
         if isinstance(sections, list):
             for section in sections:
                 if not isinstance(section, dict):
@@ -292,6 +294,11 @@ class DashboardSummaryFacade:
                     severity_counts[severity] += 1
                 if section.get("actionable"):
                     actionable_section_count += 1
+                freshness_state = section.get("freshness_state")
+                if freshness_state in freshness_counts:
+                    freshness_counts[freshness_state] += 1
+                if section.get("stale"):
+                    stale_section_count += 1
         return {
             "section_count": len(sections) if isinstance(sections, list) else 0,
             "card_count": len(cards) if isinstance(cards, list) else 0,
@@ -307,6 +314,8 @@ class DashboardSummaryFacade:
             ] if isinstance(cards, list) else [],
             "severity_counts": severity_counts,
             "actionable_section_count": actionable_section_count,
+            "freshness_counts": freshness_counts,
+            "stale_section_count": stale_section_count,
         }
 
     @staticmethod
