@@ -222,6 +222,17 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
             panel["key"]: panel["label"]
             for panel in normalized["dashboard_navigation"]["panels"]
         },
+        "meta_object": {
+            "count": len(normalized["dashboard_navigation"]["panels"]),
+            "keys": [
+                panel["key"]
+                for panel in normalized["dashboard_navigation"]["panels"]
+            ],
+            "label_map": {
+                panel["key"]: panel["label"]
+                for panel in normalized["dashboard_navigation"]["panels"]
+            },
+        },
     }
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],
