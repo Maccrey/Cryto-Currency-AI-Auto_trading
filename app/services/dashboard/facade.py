@@ -452,6 +452,10 @@ class DashboardSummaryFacade:
                     section_key=key,
                     metric_key=metric_key,
                 ),
+                "action_tab_key": DashboardSummaryFacade._resolve_metric_action_tab_key(
+                    section_key=key,
+                    metric_key=metric_key,
+                ),
                 "value": metrics[metric_key],
             }
             for metric_key, label in metric_labels[key]
@@ -668,6 +672,43 @@ class DashboardSummaryFacade:
         return metric_url_keys[metric_key]
 
     @staticmethod
+    def _resolve_metric_action_tab_key(
+        *,
+        section_key: str,
+        metric_key: str,
+    ) -> str:
+        metric_tab_keys = {
+            "buy_count": "timeline",
+            "sell_count": "timeline",
+            "stop_loss_count": "history",
+            "realized_pnl": "timeline",
+            "unrealized_pnl": "current",
+            "recent_stop_loss_reason": "history",
+            "last_learning_event": "recent-events",
+            "learning_signal_count": "recent-events",
+            "learning_fill_count": "recent-events",
+            "last_signal_recorded_at": "recent-events",
+            "last_fill_recorded_at": "recent-events",
+            "safe_mode": "status",
+            "hard_stop": "status",
+            "trading_ready": "status",
+            "failure_stage": "status",
+            "last_restart_detected_at": "timeline",
+            "last_recovery_completed_at": "timeline",
+            "promotion_ready": "status",
+            "last_promotion_reviewed_at": "status",
+        }
+        if metric_key in {"updated_at", "age_sec", "freshness_window_sec"}:
+            freshness_tab_keys = {
+                "trading": "overview",
+                "learning": "recent-events",
+                "recovery": "status",
+                "promotion": "status",
+            }
+            return freshness_tab_keys[section_key]
+        return metric_tab_keys[metric_key]
+
+    @staticmethod
     def _build_section_freshness_metric_items(
         *,
         section_key: str,
@@ -719,6 +760,10 @@ class DashboardSummaryFacade:
                     section_key=section_key,
                     metric_key="updated_at",
                 ),
+                "action_tab_key": DashboardSummaryFacade._resolve_metric_action_tab_key(
+                    section_key=section_key,
+                    metric_key="updated_at",
+                ),
                 "value": updated_at,
             },
             {
@@ -764,6 +809,10 @@ class DashboardSummaryFacade:
                     section_key=section_key,
                     metric_key="age_sec",
                 ),
+                "action_tab_key": DashboardSummaryFacade._resolve_metric_action_tab_key(
+                    section_key=section_key,
+                    metric_key="age_sec",
+                ),
                 "value": age_sec,
             },
             {
@@ -806,6 +855,10 @@ class DashboardSummaryFacade:
                     )
                 ),
                 "action_url_key": DashboardSummaryFacade._resolve_metric_action_url_key(
+                    section_key=section_key,
+                    metric_key="freshness_window_sec",
+                ),
+                "action_tab_key": DashboardSummaryFacade._resolve_metric_action_tab_key(
                     section_key=section_key,
                     metric_key="freshness_window_sec",
                 ),
