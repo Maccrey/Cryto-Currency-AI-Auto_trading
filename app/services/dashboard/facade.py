@@ -233,6 +233,7 @@ class DashboardSummaryFacade:
             payload = dict(summary)
         else:
             payload = self._dashboard_summary_service.to_payload(summary)
+        payload["summary_object"] = self._build_summary_object(payload)
         sections = payload.get("sections")
         if isinstance(sections, list):
             cards = self._build_cards(sections)
@@ -250,6 +251,25 @@ class DashboardSummaryFacade:
                 "card_meta": card_meta,
             }
         return payload
+
+    @staticmethod
+    def _build_summary_object(payload: dict[str, object]) -> dict[str, object]:
+        return {
+            "coin_balance": payload.get("coin_balance"),
+            "cash_balance": payload.get("cash_balance"),
+            "realized_pnl": payload.get("realized_pnl"),
+            "unrealized_pnl": payload.get("unrealized_pnl"),
+            "buy_count": payload.get("buy_count"),
+            "sell_count": payload.get("sell_count"),
+            "stop_loss_count": payload.get("stop_loss_count"),
+            "recent_stop_loss_reason": payload.get("recent_stop_loss_reason"),
+            "trading_mode": payload.get("trading_mode"),
+            "learning_enabled": payload.get("learning_enabled"),
+            "promotion_ready": payload.get("promotion_ready"),
+            "safe_mode": payload.get("safe_mode"),
+            "hard_stop": payload.get("hard_stop"),
+            "trading_ready": payload.get("trading_ready"),
+        }
 
     @staticmethod
     def _build_section_state_label(

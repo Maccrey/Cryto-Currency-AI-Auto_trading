@@ -324,6 +324,22 @@ class SummaryStubService:
             "actionable_count": actionable_count,
             "stale_count": stale_count,
         }
+        payload["summary_object"] = {
+            "coin_balance": payload.get("coin_balance"),
+            "cash_balance": payload.get("cash_balance"),
+            "realized_pnl": payload.get("realized_pnl"),
+            "unrealized_pnl": payload.get("unrealized_pnl"),
+            "buy_count": payload.get("buy_count"),
+            "sell_count": payload.get("sell_count"),
+            "stop_loss_count": payload.get("stop_loss_count"),
+            "recent_stop_loss_reason": payload.get("recent_stop_loss_reason"),
+            "trading_mode": payload.get("trading_mode"),
+            "learning_enabled": payload.get("learning_enabled"),
+            "promotion_ready": payload.get("promotion_ready"),
+            "safe_mode": payload.get("safe_mode"),
+            "hard_stop": payload.get("hard_stop"),
+            "trading_ready": payload.get("trading_ready"),
+        }
         payload["cards_object"] = {
             "cards": payload["cards"],
             "card_map": payload["card_map"],

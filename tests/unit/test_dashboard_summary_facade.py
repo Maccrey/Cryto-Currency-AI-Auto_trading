@@ -21,6 +21,22 @@ from app.services.risk.stop_loss import PositionSnapshot
 
 def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
     normalized = deepcopy(payload)
+    normalized["summary_object"] = {
+        "coin_balance": normalized.get("coin_balance"),
+        "cash_balance": normalized.get("cash_balance"),
+        "realized_pnl": normalized.get("realized_pnl"),
+        "unrealized_pnl": normalized.get("unrealized_pnl"),
+        "buy_count": normalized.get("buy_count"),
+        "sell_count": normalized.get("sell_count"),
+        "stop_loss_count": normalized.get("stop_loss_count"),
+        "recent_stop_loss_reason": normalized.get("recent_stop_loss_reason"),
+        "trading_mode": normalized.get("trading_mode"),
+        "learning_enabled": normalized.get("learning_enabled"),
+        "promotion_ready": normalized.get("promotion_ready"),
+        "safe_mode": normalized.get("safe_mode"),
+        "hard_stop": normalized.get("hard_stop"),
+        "trading_ready": normalized.get("trading_ready"),
+    }
     for section in normalized["sections"]:
         section["card_object"] = {
             "state": section["section_objects"]["state"],
