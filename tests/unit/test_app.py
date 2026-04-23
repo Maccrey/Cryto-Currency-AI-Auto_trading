@@ -609,12 +609,17 @@ class SummaryStubService:
             item["key"]: item
             for item in payload["dashboard_structure_lookup_items"]
         }
+        payload["dashboard_structure_lookup_item_index_map"] = {
+            item["key"]: index
+            for index, item in enumerate(payload["dashboard_structure_lookup_items"])
+        }
         payload["dashboard_structure_lookup_item_order"] = [
             item["key"] for item in payload["dashboard_structure_lookup_items"]
         ]
         payload["dashboard_structure_lookup_item_meta"] = {
             "count": len(payload["dashboard_structure_lookup_items"]),
             "keys": payload["dashboard_structure_lookup_item_order"],
+            "index_map": payload["dashboard_structure_lookup_item_index_map"],
         }
         payload["dashboard_structure_lookup_item_meta_object"] = {
             "meta": payload["dashboard_structure_lookup_item_meta"],
@@ -622,6 +627,7 @@ class SummaryStubService:
         payload["dashboard_structure_lookup_items_object"] = {
             "items": payload["dashboard_structure_lookup_items"],
             "item_map": payload["dashboard_structure_lookup_item_map"],
+            "item_index_map": payload["dashboard_structure_lookup_item_index_map"],
             "item_order": payload["dashboard_structure_lookup_item_order"],
             "item_meta": payload["dashboard_structure_lookup_item_meta"],
             "item_meta_object": payload["dashboard_structure_lookup_item_meta_object"],
@@ -631,6 +637,9 @@ class SummaryStubService:
         ]
         payload["dashboard_structure_lookup_object"]["item_map"] = payload[
             "dashboard_structure_lookup_item_map"
+        ]
+        payload["dashboard_structure_lookup_object"]["item_index_map"] = payload[
+            "dashboard_structure_lookup_item_index_map"
         ]
         payload["dashboard_structure_lookup_object"]["item_order"] = payload[
             "dashboard_structure_lookup_item_order"
@@ -680,6 +689,7 @@ class SummaryStubService:
             "structure_lookup_object": payload["dashboard_structure_lookup_object"],
             "structure_lookup_items": payload["dashboard_structure_lookup_items"],
             "structure_lookup_item_map": payload["dashboard_structure_lookup_item_map"],
+            "structure_lookup_item_index_map": payload["dashboard_structure_lookup_item_index_map"],
             "structure_lookup_item_order": payload["dashboard_structure_lookup_item_order"],
             "structure_lookup_item_meta": payload["dashboard_structure_lookup_item_meta"],
             "structure_lookup_item_meta_object": payload["dashboard_structure_lookup_item_meta_object"],
