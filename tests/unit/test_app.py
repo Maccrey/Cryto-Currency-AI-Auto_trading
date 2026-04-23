@@ -624,10 +624,15 @@ class SummaryStubService:
         payload["dashboard_structure_lookup_item_meta_object"] = {
             "meta": payload["dashboard_structure_lookup_item_meta"],
         }
+        payload["dashboard_structure_lookup_item_lookup_object"] = {
+            "item_map": payload["dashboard_structure_lookup_item_map"],
+            "item_index_map": payload["dashboard_structure_lookup_item_index_map"],
+        }
         payload["dashboard_structure_lookup_items_object"] = {
             "items": payload["dashboard_structure_lookup_items"],
             "item_map": payload["dashboard_structure_lookup_item_map"],
             "item_index_map": payload["dashboard_structure_lookup_item_index_map"],
+            "lookup": payload["dashboard_structure_lookup_item_lookup_object"],
             "item_order": payload["dashboard_structure_lookup_item_order"],
             "item_meta": payload["dashboard_structure_lookup_item_meta"],
             "item_meta_object": payload["dashboard_structure_lookup_item_meta_object"],
@@ -650,6 +655,9 @@ class SummaryStubService:
         payload["dashboard_structure_lookup_object"]["item_meta_object"] = payload[
             "dashboard_structure_lookup_item_meta_object"
         ]
+        payload["dashboard_structure_lookup_object"]["item_lookup_object"] = payload[
+            "dashboard_structure_lookup_item_lookup_object"
+        ]
         payload["dashboard_structure_lookup_object"]["items_object"] = payload[
             "dashboard_structure_lookup_items_object"
         ]
@@ -666,6 +674,7 @@ class SummaryStubService:
             "item_meta_object": payload["dashboard_structure_item_meta_object"],
             "lookup_item_meta": payload["dashboard_structure_lookup_item_meta"],
             "lookup_item_meta_object": payload["dashboard_structure_lookup_item_meta_object"],
+            "lookup_item_lookup_object": payload["dashboard_structure_lookup_item_lookup_object"],
             "lookup_items_object": payload["dashboard_structure_lookup_items_object"],
             "items_object": payload["dashboard_structure_items_object"],
         }
@@ -693,6 +702,7 @@ class SummaryStubService:
             "structure_lookup_item_order": payload["dashboard_structure_lookup_item_order"],
             "structure_lookup_item_meta": payload["dashboard_structure_lookup_item_meta"],
             "structure_lookup_item_meta_object": payload["dashboard_structure_lookup_item_meta_object"],
+            "structure_lookup_item_lookup_object": payload["dashboard_structure_lookup_item_lookup_object"],
             "structure_lookup_items_object": payload["dashboard_structure_lookup_items_object"],
             "structure_items": payload["dashboard_structure_items"],
             "structure_item_map": payload["dashboard_structure_item_map"],
