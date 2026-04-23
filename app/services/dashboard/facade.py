@@ -418,10 +418,15 @@ class DashboardSummaryFacade:
         payload["dashboard_structure_item_meta_object"] = {
             "meta": payload.get("dashboard_structure_item_meta"),
         }
+        payload["dashboard_structure_item_lookup_object"] = {
+            "item_map": payload.get("dashboard_structure_item_map"),
+            "item_index_map": payload.get("dashboard_structure_item_index_map"),
+        }
         payload["dashboard_structure_items_object"] = {
             "items": payload.get("dashboard_structure_items"),
             "item_map": payload.get("dashboard_structure_item_map"),
             "item_index_map": payload.get("dashboard_structure_item_index_map"),
+            "lookup": payload.get("dashboard_structure_item_lookup_object"),
             "item_order": payload.get("dashboard_structure_item_order"),
             "item_meta": payload.get("dashboard_structure_item_meta"),
             "item_meta_object": payload.get("dashboard_structure_item_meta_object"),
@@ -458,6 +463,7 @@ class DashboardSummaryFacade:
             "structure_items": payload.get("dashboard_structure_items"),
             "structure_item_map": payload.get("dashboard_structure_item_map"),
             "structure_item_index_map": payload.get("dashboard_structure_item_index_map"),
+            "structure_item_lookup_object": payload.get("dashboard_structure_item_lookup_object"),
             "structure_item_order": payload.get("dashboard_structure_item_order"),
             "structure_item_meta": payload.get("dashboard_structure_item_meta"),
             "structure_item_meta_object": payload.get("dashboard_structure_item_meta_object"),
