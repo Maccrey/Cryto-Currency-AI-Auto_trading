@@ -404,8 +404,13 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "keys": list(normalized["dashboard_structure_lookup_object"].keys()),
         "count": len(normalized["dashboard_structure_lookup_object"]),
     }
+    normalized["dashboard_structure_lookup_meta_map"] = {
+        key: normalized["dashboard_structure_lookup_meta"][key]
+        for key in normalized["dashboard_structure_lookup_meta"]
+    }
     normalized["dashboard_structure_lookup_meta_object"] = {
         "meta": normalized["dashboard_structure_lookup_meta"],
+        "meta_map": normalized["dashboard_structure_lookup_meta_map"],
     }
     normalized["dashboard_structure_object"] = {
         "structure": normalized["dashboard_structure"],
@@ -414,6 +419,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "structure_map": normalized["dashboard_structure_map"],
         "lookup_object": normalized["dashboard_structure_lookup_object"],
         "lookup_meta": normalized["dashboard_structure_lookup_meta"],
+        "lookup_meta_map": normalized["dashboard_structure_lookup_meta_map"],
         "lookup_meta_object": normalized["dashboard_structure_lookup_meta_object"],
         "items": normalized["dashboard_structure_items"],
         "item_map": normalized["dashboard_structure_item_map"],
@@ -445,6 +451,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "structure_map": normalized["dashboard_structure_map"],
         "structure_lookup_object": normalized["dashboard_structure_lookup_object"],
         "structure_lookup_meta": normalized["dashboard_structure_lookup_meta"],
+        "structure_lookup_meta_map": normalized["dashboard_structure_lookup_meta_map"],
         "structure_lookup_meta_object": normalized["dashboard_structure_lookup_meta_object"],
         "structure_lookup_items": normalized["dashboard_structure_lookup_items"],
         "structure_lookup_item_map": normalized["dashboard_structure_lookup_item_map"],
