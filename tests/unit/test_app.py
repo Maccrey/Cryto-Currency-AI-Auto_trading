@@ -487,6 +487,13 @@ class SummaryStubService:
                 panel["key"]: index
                 for index, panel in enumerate(payload["dashboard_navigation"]["panels"])
             },
+            "item_map": {
+                panel["key"]: {
+                    "label": panel["label"],
+                    "index": index,
+                }
+                for index, panel in enumerate(payload["dashboard_navigation"]["panels"])
+            },
             "meta_object": {
                 "count": len(payload["dashboard_navigation"]["panels"]),
                 "keys": [
@@ -499,6 +506,13 @@ class SummaryStubService:
                 },
                 "order_map": {
                     panel["key"]: index
+                    for index, panel in enumerate(payload["dashboard_navigation"]["panels"])
+                },
+                "item_map": {
+                    panel["key"]: {
+                        "label": panel["label"],
+                        "index": index,
+                    }
                     for index, panel in enumerate(payload["dashboard_navigation"]["panels"])
                 },
             },
