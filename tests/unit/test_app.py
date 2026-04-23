@@ -605,8 +605,15 @@ class SummaryStubService:
                 "value": payload["dashboard_structure_item_lookup_object"],
             },
         ]
+        payload["dashboard_structure_lookup_item_map"] = {
+            item["key"]: item
+            for item in payload["dashboard_structure_lookup_items"]
+        }
         payload["dashboard_structure_lookup_object"]["items"] = payload[
             "dashboard_structure_lookup_items"
+        ]
+        payload["dashboard_structure_lookup_object"]["item_map"] = payload[
+            "dashboard_structure_lookup_item_map"
         ]
         payload["dashboard_structure_object"] = {
             "structure": payload["dashboard_structure"],
@@ -640,6 +647,7 @@ class SummaryStubService:
             "structure_map": payload["dashboard_structure_map"],
             "structure_lookup_object": payload["dashboard_structure_lookup_object"],
             "structure_lookup_items": payload["dashboard_structure_lookup_items"],
+            "structure_lookup_item_map": payload["dashboard_structure_lookup_item_map"],
             "structure_items": payload["dashboard_structure_items"],
             "structure_item_map": payload["dashboard_structure_item_map"],
             "structure_item_index_map": payload["dashboard_structure_item_index_map"],

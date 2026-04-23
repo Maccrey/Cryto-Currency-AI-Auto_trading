@@ -450,8 +450,15 @@ class DashboardSummaryFacade:
                 "value": payload.get("dashboard_structure_item_lookup_object"),
             },
         ]
+        payload["dashboard_structure_lookup_item_map"] = {
+            item["key"]: item
+            for item in payload["dashboard_structure_lookup_items"]
+        }
         payload["dashboard_structure_lookup_object"]["items"] = payload.get(
             "dashboard_structure_lookup_items"
+        )
+        payload["dashboard_structure_lookup_object"]["item_map"] = payload.get(
+            "dashboard_structure_lookup_item_map"
         )
         payload["dashboard_structure_object"] = {
             "structure": payload.get("dashboard_structure"),
@@ -485,6 +492,7 @@ class DashboardSummaryFacade:
             "structure_map": payload.get("dashboard_structure_map"),
             "structure_lookup_object": payload.get("dashboard_structure_lookup_object"),
             "structure_lookup_items": payload.get("dashboard_structure_lookup_items"),
+            "structure_lookup_item_map": payload.get("dashboard_structure_lookup_item_map"),
             "structure_items": payload.get("dashboard_structure_items"),
             "structure_item_map": payload.get("dashboard_structure_item_map"),
             "structure_item_index_map": payload.get("dashboard_structure_item_index_map"),
