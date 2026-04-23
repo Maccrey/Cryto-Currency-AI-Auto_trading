@@ -464,6 +464,13 @@ class DashboardSummaryFacade:
         payload["dashboard_structure_lookup_item_meta_object"] = {
             "meta": payload.get("dashboard_structure_lookup_item_meta"),
         }
+        payload["dashboard_structure_lookup_items_object"] = {
+            "items": payload.get("dashboard_structure_lookup_items"),
+            "item_map": payload.get("dashboard_structure_lookup_item_map"),
+            "item_order": payload.get("dashboard_structure_lookup_item_order"),
+            "item_meta": payload.get("dashboard_structure_lookup_item_meta"),
+            "item_meta_object": payload.get("dashboard_structure_lookup_item_meta_object"),
+        }
         payload["dashboard_structure_lookup_object"]["items"] = payload.get(
             "dashboard_structure_lookup_items"
         )
@@ -479,6 +486,9 @@ class DashboardSummaryFacade:
         payload["dashboard_structure_lookup_object"]["item_meta_object"] = payload.get(
             "dashboard_structure_lookup_item_meta_object"
         )
+        payload["dashboard_structure_lookup_object"]["items_object"] = payload.get(
+            "dashboard_structure_lookup_items_object"
+        )
         payload["dashboard_structure_object"] = {
             "structure": payload.get("dashboard_structure"),
             "meta": payload.get("dashboard_structure_meta"),
@@ -492,6 +502,7 @@ class DashboardSummaryFacade:
             "item_meta_object": payload.get("dashboard_structure_item_meta_object"),
             "lookup_item_meta": payload.get("dashboard_structure_lookup_item_meta"),
             "lookup_item_meta_object": payload.get("dashboard_structure_lookup_item_meta_object"),
+            "lookup_items_object": payload.get("dashboard_structure_lookup_items_object"),
             "items_object": payload.get("dashboard_structure_items_object"),
         }
         payload["dashboard_object"] = {
@@ -517,6 +528,7 @@ class DashboardSummaryFacade:
             "structure_lookup_item_order": payload.get("dashboard_structure_lookup_item_order"),
             "structure_lookup_item_meta": payload.get("dashboard_structure_lookup_item_meta"),
             "structure_lookup_item_meta_object": payload.get("dashboard_structure_lookup_item_meta_object"),
+            "structure_lookup_items_object": payload.get("dashboard_structure_lookup_items_object"),
             "structure_items": payload.get("dashboard_structure_items"),
             "structure_item_map": payload.get("dashboard_structure_item_map"),
             "structure_item_index_map": payload.get("dashboard_structure_item_index_map"),

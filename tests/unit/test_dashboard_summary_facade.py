@@ -358,6 +358,13 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
     normalized["dashboard_structure_lookup_item_meta_object"] = {
         "meta": normalized["dashboard_structure_lookup_item_meta"],
     }
+    normalized["dashboard_structure_lookup_items_object"] = {
+        "items": normalized["dashboard_structure_lookup_items"],
+        "item_map": normalized["dashboard_structure_lookup_item_map"],
+        "item_order": normalized["dashboard_structure_lookup_item_order"],
+        "item_meta": normalized["dashboard_structure_lookup_item_meta"],
+        "item_meta_object": normalized["dashboard_structure_lookup_item_meta_object"],
+    }
     normalized["dashboard_structure_lookup_object"]["items"] = normalized[
         "dashboard_structure_lookup_items"
     ]
@@ -373,6 +380,9 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
     normalized["dashboard_structure_lookup_object"]["item_meta_object"] = normalized[
         "dashboard_structure_lookup_item_meta_object"
     ]
+    normalized["dashboard_structure_lookup_object"]["items_object"] = normalized[
+        "dashboard_structure_lookup_items_object"
+    ]
     normalized["dashboard_structure_object"] = {
         "structure": normalized["dashboard_structure"],
         "meta": normalized["dashboard_structure_meta"],
@@ -386,6 +396,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "item_meta_object": normalized["dashboard_structure_item_meta_object"],
         "lookup_item_meta": normalized["dashboard_structure_lookup_item_meta"],
         "lookup_item_meta_object": normalized["dashboard_structure_lookup_item_meta_object"],
+        "lookup_items_object": normalized["dashboard_structure_lookup_items_object"],
         "items_object": normalized["dashboard_structure_items_object"],
     }
     normalized["dashboard_object"] = {
@@ -411,6 +422,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "structure_lookup_item_order": normalized["dashboard_structure_lookup_item_order"],
         "structure_lookup_item_meta": normalized["dashboard_structure_lookup_item_meta"],
         "structure_lookup_item_meta_object": normalized["dashboard_structure_lookup_item_meta_object"],
+        "structure_lookup_items_object": normalized["dashboard_structure_lookup_items_object"],
         "structure_items": normalized["dashboard_structure_items"],
         "structure_item_map": normalized["dashboard_structure_item_map"],
         "structure_item_index_map": normalized["dashboard_structure_item_index_map"],
