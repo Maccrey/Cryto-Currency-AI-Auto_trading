@@ -506,12 +506,21 @@ class DashboardSummaryFacade:
         payload["dashboard_structure_lookup_object"]["items_object"] = payload.get(
             "dashboard_structure_lookup_items_object"
         )
+        payload["dashboard_structure_lookup_meta"] = {
+            "keys": list(payload["dashboard_structure_lookup_object"].keys()),
+            "count": len(payload["dashboard_structure_lookup_object"]),
+        }
+        payload["dashboard_structure_lookup_meta_object"] = {
+            "meta": payload.get("dashboard_structure_lookup_meta"),
+        }
         payload["dashboard_structure_object"] = {
             "structure": payload.get("dashboard_structure"),
             "meta": payload.get("dashboard_structure_meta"),
             "meta_object": payload.get("dashboard_structure_meta_object"),
             "structure_map": payload.get("dashboard_structure_map"),
             "lookup_object": payload.get("dashboard_structure_lookup_object"),
+            "lookup_meta": payload.get("dashboard_structure_lookup_meta"),
+            "lookup_meta_object": payload.get("dashboard_structure_lookup_meta_object"),
             "items": payload.get("dashboard_structure_items"),
             "item_map": payload.get("dashboard_structure_item_map"),
             "item_order": payload.get("dashboard_structure_item_order"),
@@ -541,6 +550,8 @@ class DashboardSummaryFacade:
             "structure_meta_object": payload.get("dashboard_structure_meta_object"),
             "structure_map": payload.get("dashboard_structure_map"),
             "structure_lookup_object": payload.get("dashboard_structure_lookup_object"),
+            "structure_lookup_meta": payload.get("dashboard_structure_lookup_meta"),
+            "structure_lookup_meta_object": payload.get("dashboard_structure_lookup_meta_object"),
             "structure_lookup_items": payload.get("dashboard_structure_lookup_items"),
             "structure_lookup_item_map": payload.get("dashboard_structure_lookup_item_map"),
             "structure_lookup_item_index_map": payload.get("dashboard_structure_lookup_item_index_map"),
