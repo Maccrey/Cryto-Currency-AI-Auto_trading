@@ -340,6 +340,11 @@ class DashboardSummaryFacade:
                 },
             },
         }
+        payload["dashboard_navigation_object"] = {
+            "navigation": payload.get("dashboard_navigation"),
+            "navigation_map": payload.get("dashboard_navigation_map"),
+            "navigation_meta": payload.get("dashboard_navigation_meta"),
+        }
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
             "cards": payload.get("cards_object"),
@@ -352,6 +357,7 @@ class DashboardSummaryFacade:
             "navigation": payload.get("dashboard_navigation"),
             "navigation_map": payload.get("dashboard_navigation_map"),
             "navigation_meta": payload.get("dashboard_navigation_meta"),
+            "navigation_object": payload.get("dashboard_navigation_object"),
         }
         return payload
 

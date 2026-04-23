@@ -234,6 +234,11 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
             },
         },
     }
+    normalized["dashboard_navigation_object"] = {
+        "navigation": normalized["dashboard_navigation"],
+        "navigation_map": normalized["dashboard_navigation_map"],
+        "navigation_meta": normalized["dashboard_navigation_meta"],
+    }
     normalized["dashboard_object"] = {
         "summary": normalized["summary_object"],
         "cards": normalized["cards_object"],
@@ -246,6 +251,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "navigation": normalized["dashboard_navigation"],
         "navigation_map": normalized["dashboard_navigation_map"],
         "navigation_meta": normalized["dashboard_navigation_meta"],
+        "navigation_object": normalized["dashboard_navigation_object"],
     }
     return normalized
 
