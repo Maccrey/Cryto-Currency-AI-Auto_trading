@@ -457,6 +457,10 @@ class DashboardSummaryFacade:
         payload["dashboard_structure_lookup_item_order"] = [
             item["key"] for item in payload["dashboard_structure_lookup_items"]
         ]
+        payload["dashboard_structure_lookup_item_meta"] = {
+            "count": len(payload["dashboard_structure_lookup_items"]),
+            "keys": payload.get("dashboard_structure_lookup_item_order"),
+        }
         payload["dashboard_structure_lookup_object"]["items"] = payload.get(
             "dashboard_structure_lookup_items"
         )
@@ -465,6 +469,9 @@ class DashboardSummaryFacade:
         )
         payload["dashboard_structure_lookup_object"]["item_order"] = payload.get(
             "dashboard_structure_lookup_item_order"
+        )
+        payload["dashboard_structure_lookup_object"]["item_meta"] = payload.get(
+            "dashboard_structure_lookup_item_meta"
         )
         payload["dashboard_structure_object"] = {
             "structure": payload.get("dashboard_structure"),
@@ -500,6 +507,7 @@ class DashboardSummaryFacade:
             "structure_lookup_items": payload.get("dashboard_structure_lookup_items"),
             "structure_lookup_item_map": payload.get("dashboard_structure_lookup_item_map"),
             "structure_lookup_item_order": payload.get("dashboard_structure_lookup_item_order"),
+            "structure_lookup_item_meta": payload.get("dashboard_structure_lookup_item_meta"),
             "structure_items": payload.get("dashboard_structure_items"),
             "structure_item_map": payload.get("dashboard_structure_item_map"),
             "structure_item_index_map": payload.get("dashboard_structure_item_index_map"),
