@@ -314,6 +314,7 @@ class DashboardSummaryFacade:
                 for index, panel in enumerate(payload["dashboard_panels"])
             ],
         }
+        payload["dashboard_navigation_items"] = payload["dashboard_navigation"]["panels"]
         payload["dashboard_navigation_map"] = {
             panel["key"]: panel
             for panel in payload["dashboard_navigation"]["panels"]
@@ -364,6 +365,7 @@ class DashboardSummaryFacade:
         }
         payload["dashboard_navigation_object"] = {
             "navigation": payload.get("dashboard_navigation"),
+            "items": payload.get("dashboard_navigation_items"),
             "navigation_map": payload.get("dashboard_navigation_map"),
             "navigation_meta": payload.get("dashboard_navigation_meta"),
         }
