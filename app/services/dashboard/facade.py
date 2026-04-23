@@ -369,6 +369,18 @@ class DashboardSummaryFacade:
             "navigation_map": payload.get("dashboard_navigation_map"),
             "navigation_meta": payload.get("dashboard_navigation_meta"),
         }
+        payload["dashboard_structure"] = {
+            "order": payload.get("dashboard_order"),
+            "labels": payload.get("dashboard_labels"),
+            "panels": payload.get("dashboard_panels"),
+            "panel_map": payload.get("dashboard_panel_map"),
+            "panel_meta": payload.get("dashboard_panel_meta"),
+            "navigation": payload.get("dashboard_navigation"),
+            "navigation_items": payload.get("dashboard_navigation_items"),
+            "navigation_map": payload.get("dashboard_navigation_map"),
+            "navigation_meta": payload.get("dashboard_navigation_meta"),
+            "navigation_object": payload.get("dashboard_navigation_object"),
+        }
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
             "cards": payload.get("cards_object"),
@@ -382,6 +394,7 @@ class DashboardSummaryFacade:
             "navigation_map": payload.get("dashboard_navigation_map"),
             "navigation_meta": payload.get("dashboard_navigation_meta"),
             "navigation_object": payload.get("dashboard_navigation_object"),
+            "structure": payload.get("dashboard_structure"),
         }
         return payload
 

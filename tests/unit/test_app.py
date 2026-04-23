@@ -524,6 +524,18 @@ class SummaryStubService:
             "navigation_map": payload["dashboard_navigation_map"],
             "navigation_meta": payload["dashboard_navigation_meta"],
         }
+        payload["dashboard_structure"] = {
+            "order": payload["dashboard_order"],
+            "labels": payload["dashboard_labels"],
+            "panels": payload["dashboard_panels"],
+            "panel_map": payload["dashboard_panel_map"],
+            "panel_meta": payload["dashboard_panel_meta"],
+            "navigation": payload["dashboard_navigation"],
+            "navigation_items": payload["dashboard_navigation_items"],
+            "navigation_map": payload["dashboard_navigation_map"],
+            "navigation_meta": payload["dashboard_navigation_meta"],
+            "navigation_object": payload["dashboard_navigation_object"],
+        }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
             "cards": payload["cards_object"],
@@ -537,6 +549,7 @@ class SummaryStubService:
             "navigation_map": payload["dashboard_navigation_map"],
             "navigation_meta": payload["dashboard_navigation_meta"],
             "navigation_object": payload["dashboard_navigation_object"],
+            "structure": payload["dashboard_structure"],
         }
         return payload
 
