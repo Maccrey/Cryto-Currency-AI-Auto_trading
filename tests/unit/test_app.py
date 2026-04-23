@@ -540,6 +540,9 @@ class SummaryStubService:
             "keys": list(payload["dashboard_structure"].keys()),
             "count": len(payload["dashboard_structure"]),
         }
+        payload["dashboard_structure_meta_object"] = {
+            "meta": payload["dashboard_structure_meta"],
+        }
         payload["dashboard_structure_map"] = {
             key: payload["dashboard_structure"][key]
             for key in payload["dashboard_structure"]
@@ -558,6 +561,7 @@ class SummaryStubService:
         payload["dashboard_structure_object"] = {
             "structure": payload["dashboard_structure"],
             "meta": payload["dashboard_structure_meta"],
+            "meta_object": payload["dashboard_structure_meta_object"],
             "structure_map": payload["dashboard_structure_map"],
             "items": payload["dashboard_structure_items"],
             "item_map": payload["dashboard_structure_item_map"],
@@ -577,6 +581,7 @@ class SummaryStubService:
             "navigation_object": payload["dashboard_navigation_object"],
             "structure": payload["dashboard_structure"],
             "structure_meta": payload["dashboard_structure_meta"],
+            "structure_meta_object": payload["dashboard_structure_meta_object"],
             "structure_map": payload["dashboard_structure_map"],
             "structure_items": payload["dashboard_structure_items"],
             "structure_item_map": payload["dashboard_structure_item_map"],
