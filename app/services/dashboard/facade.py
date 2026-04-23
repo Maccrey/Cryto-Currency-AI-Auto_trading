@@ -578,6 +578,13 @@ class DashboardSummaryFacade:
             "count": len(payload["dashboard_structure_lookup_meta_items_meta_items"]),
             "keys": payload.get("dashboard_structure_lookup_meta_items_meta_item_order"),
         }
+        payload["dashboard_structure_lookup_meta_items_meta_item_meta_object"] = {
+            "meta": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta"),
+        }
+        payload["dashboard_structure_lookup_meta_items_meta_item_meta_map"] = {
+            key: payload["dashboard_structure_lookup_meta_items_meta_item_meta"][key]
+            for key in payload["dashboard_structure_lookup_meta_items_meta_item_meta"]
+        }
         payload["dashboard_structure_lookup_meta_items_meta_object"] = {
             "meta": payload.get("dashboard_structure_lookup_meta_items_meta"),
             "meta_map": payload.get("dashboard_structure_lookup_meta_items_meta_map"),
@@ -585,6 +592,8 @@ class DashboardSummaryFacade:
             "meta_item_map": payload.get("dashboard_structure_lookup_meta_items_meta_item_map"),
             "meta_item_order": payload.get("dashboard_structure_lookup_meta_items_meta_item_order"),
             "meta_item_meta": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta"),
+            "meta_item_meta_object": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta_object"),
+            "meta_item_meta_map": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta_map"),
         }
         payload["dashboard_structure_lookup_meta_object"] = {
             "meta": payload.get("dashboard_structure_lookup_meta"),
@@ -602,6 +611,8 @@ class DashboardSummaryFacade:
             "meta_items_meta_item_map": payload.get("dashboard_structure_lookup_meta_items_meta_item_map"),
             "meta_items_meta_item_order": payload.get("dashboard_structure_lookup_meta_items_meta_item_order"),
             "meta_items_meta_item_meta": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta"),
+            "meta_items_meta_item_meta_object": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta_object"),
+            "meta_items_meta_item_meta_map": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta_map"),
         }
         payload["dashboard_structure_object"] = {
             "structure": payload.get("dashboard_structure"),
@@ -626,6 +637,8 @@ class DashboardSummaryFacade:
             "lookup_meta_items_meta_item_map": payload.get("dashboard_structure_lookup_meta_items_meta_item_map"),
             "lookup_meta_items_meta_item_order": payload.get("dashboard_structure_lookup_meta_items_meta_item_order"),
             "lookup_meta_items_meta_item_meta": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta"),
+            "lookup_meta_items_meta_item_meta_object": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta_object"),
+            "lookup_meta_items_meta_item_meta_map": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta_map"),
             "lookup_meta_object": payload.get("dashboard_structure_lookup_meta_object"),
             "items": payload.get("dashboard_structure_items"),
             "item_map": payload.get("dashboard_structure_item_map"),
@@ -673,6 +686,8 @@ class DashboardSummaryFacade:
             "structure_lookup_meta_items_meta_item_map": payload.get("dashboard_structure_lookup_meta_items_meta_item_map"),
             "structure_lookup_meta_items_meta_item_order": payload.get("dashboard_structure_lookup_meta_items_meta_item_order"),
             "structure_lookup_meta_items_meta_item_meta": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta"),
+            "structure_lookup_meta_items_meta_item_meta_object": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta_object"),
+            "structure_lookup_meta_items_meta_item_meta_map": payload.get("dashboard_structure_lookup_meta_items_meta_item_meta_map"),
             "structure_lookup_meta_object": payload.get("dashboard_structure_lookup_meta_object"),
             "structure_lookup_items": payload.get("dashboard_structure_lookup_items"),
             "structure_lookup_item_map": payload.get("dashboard_structure_lookup_item_map"),
