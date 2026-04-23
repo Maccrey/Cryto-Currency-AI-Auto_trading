@@ -532,6 +532,10 @@ class DashboardSummaryFacade:
             item["key"]: index
             for index, item in enumerate(payload["dashboard_structure_lookup_meta_items"])
         }
+        payload["dashboard_structure_lookup_meta_item_lookup_object"] = {
+            "item_map": payload.get("dashboard_structure_lookup_meta_item_map"),
+            "item_index_map": payload.get("dashboard_structure_lookup_meta_item_index_map"),
+        }
         payload["dashboard_structure_lookup_meta_item_meta"] = {
             "count": len(payload["dashboard_structure_lookup_meta_items"]),
             "keys": payload.get("dashboard_structure_lookup_meta_item_order"),
@@ -544,6 +548,7 @@ class DashboardSummaryFacade:
             "item_map": payload.get("dashboard_structure_lookup_meta_item_map"),
             "item_order": payload.get("dashboard_structure_lookup_meta_item_order"),
             "item_index_map": payload.get("dashboard_structure_lookup_meta_item_index_map"),
+            "lookup": payload.get("dashboard_structure_lookup_meta_item_lookup_object"),
             "item_meta": payload.get("dashboard_structure_lookup_meta_item_meta"),
             "item_meta_object": payload.get("dashboard_structure_lookup_meta_item_meta_object"),
         }
@@ -569,6 +574,7 @@ class DashboardSummaryFacade:
             "lookup_meta_item_map": payload.get("dashboard_structure_lookup_meta_item_map"),
             "lookup_meta_item_order": payload.get("dashboard_structure_lookup_meta_item_order"),
             "lookup_meta_item_index_map": payload.get("dashboard_structure_lookup_meta_item_index_map"),
+            "lookup_meta_item_lookup_object": payload.get("dashboard_structure_lookup_meta_item_lookup_object"),
             "lookup_meta_item_meta": payload.get("dashboard_structure_lookup_meta_item_meta"),
             "lookup_meta_item_meta_object": payload.get("dashboard_structure_lookup_meta_item_meta_object"),
             "lookup_meta_items_object": payload.get("dashboard_structure_lookup_meta_items_object"),
@@ -608,6 +614,7 @@ class DashboardSummaryFacade:
             "structure_lookup_meta_item_map": payload.get("dashboard_structure_lookup_meta_item_map"),
             "structure_lookup_meta_item_order": payload.get("dashboard_structure_lookup_meta_item_order"),
             "structure_lookup_meta_item_index_map": payload.get("dashboard_structure_lookup_meta_item_index_map"),
+            "structure_lookup_meta_item_lookup_object": payload.get("dashboard_structure_lookup_meta_item_lookup_object"),
             "structure_lookup_meta_item_meta": payload.get("dashboard_structure_lookup_meta_item_meta"),
             "structure_lookup_meta_item_meta_object": payload.get("dashboard_structure_lookup_meta_item_meta_object"),
             "structure_lookup_meta_items_object": payload.get("dashboard_structure_lookup_meta_items_object"),

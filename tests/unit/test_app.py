@@ -687,6 +687,10 @@ class SummaryStubService:
             item["key"]: index
             for index, item in enumerate(payload["dashboard_structure_lookup_meta_items"])
         }
+        payload["dashboard_structure_lookup_meta_item_lookup_object"] = {
+            "item_map": payload["dashboard_structure_lookup_meta_item_map"],
+            "item_index_map": payload["dashboard_structure_lookup_meta_item_index_map"],
+        }
         payload["dashboard_structure_lookup_meta_item_meta"] = {
             "count": len(payload["dashboard_structure_lookup_meta_items"]),
             "keys": payload["dashboard_structure_lookup_meta_item_order"],
@@ -699,6 +703,7 @@ class SummaryStubService:
             "item_map": payload["dashboard_structure_lookup_meta_item_map"],
             "item_order": payload["dashboard_structure_lookup_meta_item_order"],
             "item_index_map": payload["dashboard_structure_lookup_meta_item_index_map"],
+            "lookup": payload["dashboard_structure_lookup_meta_item_lookup_object"],
             "item_meta": payload["dashboard_structure_lookup_meta_item_meta"],
             "item_meta_object": payload["dashboard_structure_lookup_meta_item_meta_object"],
         }
@@ -724,6 +729,7 @@ class SummaryStubService:
             "lookup_meta_item_map": payload["dashboard_structure_lookup_meta_item_map"],
             "lookup_meta_item_order": payload["dashboard_structure_lookup_meta_item_order"],
             "lookup_meta_item_index_map": payload["dashboard_structure_lookup_meta_item_index_map"],
+            "lookup_meta_item_lookup_object": payload["dashboard_structure_lookup_meta_item_lookup_object"],
             "lookup_meta_item_meta": payload["dashboard_structure_lookup_meta_item_meta"],
             "lookup_meta_item_meta_object": payload["dashboard_structure_lookup_meta_item_meta_object"],
             "lookup_meta_items_object": payload["dashboard_structure_lookup_meta_items_object"],
@@ -763,6 +769,7 @@ class SummaryStubService:
             "structure_lookup_meta_item_map": payload["dashboard_structure_lookup_meta_item_map"],
             "structure_lookup_meta_item_order": payload["dashboard_structure_lookup_meta_item_order"],
             "structure_lookup_meta_item_index_map": payload["dashboard_structure_lookup_meta_item_index_map"],
+            "structure_lookup_meta_item_lookup_object": payload["dashboard_structure_lookup_meta_item_lookup_object"],
             "structure_lookup_meta_item_meta": payload["dashboard_structure_lookup_meta_item_meta"],
             "structure_lookup_meta_item_meta_object": payload["dashboard_structure_lookup_meta_item_meta_object"],
             "structure_lookup_meta_items_object": payload["dashboard_structure_lookup_meta_items_object"],
