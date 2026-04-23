@@ -385,6 +385,10 @@ class DashboardSummaryFacade:
             "keys": list(payload["dashboard_structure"].keys()),
             "count": len(payload["dashboard_structure"]),
         }
+        payload["dashboard_structure_object"] = {
+            "structure": payload.get("dashboard_structure"),
+            "meta": payload.get("dashboard_structure_meta"),
+        }
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
             "cards": payload.get("cards_object"),
@@ -400,6 +404,7 @@ class DashboardSummaryFacade:
             "navigation_object": payload.get("dashboard_navigation_object"),
             "structure": payload.get("dashboard_structure"),
             "structure_meta": payload.get("dashboard_structure_meta"),
+            "structure_object": payload.get("dashboard_structure_object"),
         }
         return payload
 
