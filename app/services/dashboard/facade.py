@@ -403,12 +403,17 @@ class DashboardSummaryFacade:
             item["key"]: item
             for item in payload["dashboard_structure_items"]
         }
+        payload["dashboard_structure_item_index_map"] = {
+            item["key"]: index
+            for index, item in enumerate(payload["dashboard_structure_items"])
+        }
         payload["dashboard_structure_item_order"] = [
             item["key"] for item in payload["dashboard_structure_items"]
         ]
         payload["dashboard_structure_item_meta"] = {
             "count": len(payload["dashboard_structure_items"]),
             "keys": payload.get("dashboard_structure_item_order"),
+            "index_map": payload.get("dashboard_structure_item_index_map"),
         }
         payload["dashboard_structure_item_meta_object"] = {
             "meta": payload.get("dashboard_structure_item_meta"),
@@ -416,6 +421,7 @@ class DashboardSummaryFacade:
         payload["dashboard_structure_items_object"] = {
             "items": payload.get("dashboard_structure_items"),
             "item_map": payload.get("dashboard_structure_item_map"),
+            "item_index_map": payload.get("dashboard_structure_item_index_map"),
             "item_order": payload.get("dashboard_structure_item_order"),
             "item_meta": payload.get("dashboard_structure_item_meta"),
             "item_meta_object": payload.get("dashboard_structure_item_meta_object"),
@@ -451,6 +457,7 @@ class DashboardSummaryFacade:
             "structure_map": payload.get("dashboard_structure_map"),
             "structure_items": payload.get("dashboard_structure_items"),
             "structure_item_map": payload.get("dashboard_structure_item_map"),
+            "structure_item_index_map": payload.get("dashboard_structure_item_index_map"),
             "structure_item_order": payload.get("dashboard_structure_item_order"),
             "structure_item_meta": payload.get("dashboard_structure_item_meta"),
             "structure_item_meta_object": payload.get("dashboard_structure_item_meta_object"),
