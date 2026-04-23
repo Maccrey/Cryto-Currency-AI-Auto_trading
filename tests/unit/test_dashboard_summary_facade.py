@@ -348,11 +348,17 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         item["key"]: item
         for item in normalized["dashboard_structure_lookup_items"]
     }
+    normalized["dashboard_structure_lookup_item_order"] = [
+        item["key"] for item in normalized["dashboard_structure_lookup_items"]
+    ]
     normalized["dashboard_structure_lookup_object"]["items"] = normalized[
         "dashboard_structure_lookup_items"
     ]
     normalized["dashboard_structure_lookup_object"]["item_map"] = normalized[
         "dashboard_structure_lookup_item_map"
+    ]
+    normalized["dashboard_structure_lookup_object"]["item_order"] = normalized[
+        "dashboard_structure_lookup_item_order"
     ]
     normalized["dashboard_structure_object"] = {
         "structure": normalized["dashboard_structure"],
@@ -387,6 +393,7 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
         "structure_lookup_object": normalized["dashboard_structure_lookup_object"],
         "structure_lookup_items": normalized["dashboard_structure_lookup_items"],
         "structure_lookup_item_map": normalized["dashboard_structure_lookup_item_map"],
+        "structure_lookup_item_order": normalized["dashboard_structure_lookup_item_order"],
         "structure_items": normalized["dashboard_structure_items"],
         "structure_item_map": normalized["dashboard_structure_item_map"],
         "structure_item_index_map": normalized["dashboard_structure_item_index_map"],
