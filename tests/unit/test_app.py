@@ -747,6 +747,10 @@ class SummaryStubService:
             }
             for key in payload["dashboard_structure_lookup_meta_items_meta_item_meta"]
         ]
+        payload["dashboard_structure_lookup_meta_items_meta_item_meta_item_map"] = {
+            item["key"]: item
+            for item in payload["dashboard_structure_lookup_meta_items_meta_item_meta_items"]
+        }
         payload["dashboard_structure_lookup_meta_items_meta_object"] = {
             "meta": payload["dashboard_structure_lookup_meta_items_meta"],
             "meta_map": payload["dashboard_structure_lookup_meta_items_meta_map"],
@@ -757,6 +761,7 @@ class SummaryStubService:
             "meta_item_meta_object": payload["dashboard_structure_lookup_meta_items_meta_item_meta_object"],
             "meta_item_meta_map": payload["dashboard_structure_lookup_meta_items_meta_item_meta_map"],
             "meta_item_meta_items": payload["dashboard_structure_lookup_meta_items_meta_item_meta_items"],
+            "meta_item_meta_item_map": payload["dashboard_structure_lookup_meta_items_meta_item_meta_item_map"],
         }
         payload["dashboard_structure_lookup_meta_object"] = {
             "meta": payload["dashboard_structure_lookup_meta"],
@@ -777,6 +782,7 @@ class SummaryStubService:
             "meta_items_meta_item_meta_object": payload["dashboard_structure_lookup_meta_items_meta_item_meta_object"],
             "meta_items_meta_item_meta_map": payload["dashboard_structure_lookup_meta_items_meta_item_meta_map"],
             "meta_items_meta_item_meta_items": payload["dashboard_structure_lookup_meta_items_meta_item_meta_items"],
+            "meta_items_meta_item_meta_item_map": payload["dashboard_structure_lookup_meta_items_meta_item_meta_item_map"],
         }
         payload["dashboard_structure_object"] = {
             "structure": payload["dashboard_structure"],
@@ -804,6 +810,7 @@ class SummaryStubService:
             "lookup_meta_items_meta_item_meta_object": payload["dashboard_structure_lookup_meta_items_meta_item_meta_object"],
             "lookup_meta_items_meta_item_meta_map": payload["dashboard_structure_lookup_meta_items_meta_item_meta_map"],
             "lookup_meta_items_meta_item_meta_items": payload["dashboard_structure_lookup_meta_items_meta_item_meta_items"],
+            "lookup_meta_items_meta_item_meta_item_map": payload["dashboard_structure_lookup_meta_items_meta_item_meta_item_map"],
             "lookup_meta_object": payload["dashboard_structure_lookup_meta_object"],
             "items": payload["dashboard_structure_items"],
             "item_map": payload["dashboard_structure_item_map"],
@@ -854,6 +861,7 @@ class SummaryStubService:
             "structure_lookup_meta_items_meta_item_meta_object": payload["dashboard_structure_lookup_meta_items_meta_item_meta_object"],
             "structure_lookup_meta_items_meta_item_meta_map": payload["dashboard_structure_lookup_meta_items_meta_item_meta_map"],
             "structure_lookup_meta_items_meta_item_meta_items": payload["dashboard_structure_lookup_meta_items_meta_item_meta_items"],
+            "structure_lookup_meta_items_meta_item_meta_item_map": payload["dashboard_structure_lookup_meta_items_meta_item_meta_item_map"],
             "structure_lookup_meta_object": payload["dashboard_structure_lookup_meta_object"],
             "structure_lookup_items": payload["dashboard_structure_lookup_items"],
             "structure_lookup_item_map": payload["dashboard_structure_lookup_item_map"],
