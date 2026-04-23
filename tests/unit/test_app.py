@@ -558,6 +558,9 @@ class SummaryStubService:
             item["key"]: item
             for item in payload["dashboard_structure_items"]
         }
+        payload["dashboard_structure_item_order"] = [
+            item["key"] for item in payload["dashboard_structure_items"]
+        ]
         payload["dashboard_structure_object"] = {
             "structure": payload["dashboard_structure"],
             "meta": payload["dashboard_structure_meta"],
@@ -565,6 +568,7 @@ class SummaryStubService:
             "structure_map": payload["dashboard_structure_map"],
             "items": payload["dashboard_structure_items"],
             "item_map": payload["dashboard_structure_item_map"],
+            "item_order": payload["dashboard_structure_item_order"],
         }
         payload["dashboard_object"] = {
             "summary": payload["summary_object"],
@@ -585,6 +589,7 @@ class SummaryStubService:
             "structure_map": payload["dashboard_structure_map"],
             "structure_items": payload["dashboard_structure_items"],
             "structure_item_map": payload["dashboard_structure_item_map"],
+            "structure_item_order": payload["dashboard_structure_item_order"],
             "structure_object": payload["dashboard_structure_object"],
         }
         return payload
