@@ -389,10 +389,18 @@ class DashboardSummaryFacade:
             key: payload["dashboard_structure"][key]
             for key in payload["dashboard_structure"]
         }
+        payload["dashboard_structure_items"] = [
+            {
+                "key": key,
+                "value": payload["dashboard_structure"][key],
+            }
+            for key in payload["dashboard_structure"]
+        ]
         payload["dashboard_structure_object"] = {
             "structure": payload.get("dashboard_structure"),
             "meta": payload.get("dashboard_structure_meta"),
             "structure_map": payload.get("dashboard_structure_map"),
+            "items": payload.get("dashboard_structure_items"),
         }
         payload["dashboard_object"] = {
             "summary": payload.get("summary_object"),
@@ -410,6 +418,7 @@ class DashboardSummaryFacade:
             "structure": payload.get("dashboard_structure"),
             "structure_meta": payload.get("dashboard_structure_meta"),
             "structure_map": payload.get("dashboard_structure_map"),
+            "structure_items": payload.get("dashboard_structure_items"),
             "structure_object": payload.get("dashboard_structure_object"),
         }
         return payload
