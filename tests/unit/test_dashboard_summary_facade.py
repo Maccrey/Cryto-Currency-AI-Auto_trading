@@ -222,6 +222,10 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
             panel["key"]: panel["label"]
             for panel in normalized["dashboard_navigation"]["panels"]
         },
+        "order_map": {
+            panel["key"]: index
+            for index, panel in enumerate(normalized["dashboard_navigation"]["panels"])
+        },
         "meta_object": {
             "count": len(normalized["dashboard_navigation"]["panels"]),
             "keys": [
@@ -231,6 +235,10 @@ def _with_section_card_objects(payload: dict[str, object]) -> dict[str, object]:
             "label_map": {
                 panel["key"]: panel["label"]
                 for panel in normalized["dashboard_navigation"]["panels"]
+            },
+            "order_map": {
+                panel["key"]: index
+                for index, panel in enumerate(normalized["dashboard_navigation"]["panels"])
             },
         },
     }

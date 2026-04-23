@@ -328,6 +328,10 @@ class DashboardSummaryFacade:
                 panel["key"]: panel["label"]
                 for panel in payload["dashboard_navigation"]["panels"]
             },
+            "order_map": {
+                panel["key"]: index
+                for index, panel in enumerate(payload["dashboard_navigation"]["panels"])
+            },
             "meta_object": {
                 "count": len(payload["dashboard_navigation"]["panels"]),
                 "keys": [
@@ -337,6 +341,10 @@ class DashboardSummaryFacade:
                 "label_map": {
                     panel["key"]: panel["label"]
                     for panel in payload["dashboard_navigation"]["panels"]
+                },
+                "order_map": {
+                    panel["key"]: index
+                    for index, panel in enumerate(payload["dashboard_navigation"]["panels"])
                 },
             },
         }
