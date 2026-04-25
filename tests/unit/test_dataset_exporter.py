@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from app.services.learning.dataset import DatasetExporter
+from app.services.learning.dataset import (
+    DatasetExporter,
+    DatasetPipeline,
+    ParquetDatasetWriter,
+    RawLearningLogReader,
+)
 from app.services.learning.service import LearningEvent, LearningService
 
 
@@ -86,3 +91,39 @@ def test_dataset_exporter_raises_on_missing_jsonl(tmp_path: Path) -> None:
         assert "missing.jsonl" in str(exc)
     else:
         raise AssertionError("Expected FileNotFoundError for missing learning jsonl")
+
+
+def test_dataset_exporter_accepts_raw_log_dataset_pipeline(tmp_path: Path) -> None:
+    jsonl_path = tmp_path / "learning.jsonl"
+    jsonl_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "event_name": "signal_generated",
+                        "market": "KRW-XRP",
+                        "mode": "demo",
+                        "payload": {"level": "strong"},
+                        "recorded_at": "2026-04-19T10:00:00+00:00",
+                    },
+                ),
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    dataset_dir = tmp_path / "dataset"
+    exporter = DatasetExporter(
+        dataset_dir=dataset_dir,
+        dataset_pipeline=DatasetPipeline(
+            raw_log_reader=RawLearningLogReader(),
+            dataset_writer=ParquetDatasetWriter(),
+        ),
+    )
+
+    parquet_path = exporter.export(jsonl_path)
+
+    frame = pd.read_parquet(parquet_path)
+    assert parquet_path == dataset_dir / "learning.parquet"
+    assert frame.loc[0, "event_name"] == "signal_generated"
+    assert frame.loc[0, "payload.level"] == "strong"

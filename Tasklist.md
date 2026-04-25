@@ -1,8 +1,8 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 116개
-  - 미완료: 21개
+  - 완료: 117개
+  - 미완료: 20개
   - 전체: 137개
  
 ## 1. 작업 원칙
@@ -216,7 +216,7 @@
 ### 데이터셋 변환
 - [x] [Fail] 일별 JSONL을 Parquet 데이터셋으로 변환할 수 있어야 한다
 - [x] [Code] dataset exporter 구현
-- [ ] [Refactor] raw log / dataset pipeline 분리
+- [x] [Refactor] raw log / dataset pipeline 분리
 
 ### replay 테스트
 - [x] [Fail] 과거 tick fixture 재생으로 전략 결과를 검증할 수 있어야 한다
