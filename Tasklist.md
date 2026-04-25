@@ -1,8 +1,8 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - ㅅ완료: 107개
-  - 미완료: 30개
+  - ㅅ완료: 113개
+  - 미완료: 24개
   - 전체: 137개
  
 ## 1. 작업 원칙
@@ -128,15 +128,15 @@
 
 ### 기대 불일치 손절
 - [x] [Fail] validation window 내 최소 기대 상승률 미달이면 손절 또는 축소 청산이 발생해야 한다
-- [ ] [Fail] 손절 사유가 DB와 알림에 기록되어야 한다
+- [x] [Fail] 손절 사유가 DB와 알림에 기록되어야 한다
 - [x] [Code] post-entry validator 구현
-- [ ] [Refactor] expectation failure ruleset 분리
+- [x] [Refactor] expectation failure ruleset 분리
 - [x] [Contract] risk event codes 고정
 
 ### 재진입 차단
 - [x] [Fail] 손절 직후 재진입 block 시간 내에는 같은 종목 재진입이 거절되어야 한다
 - [x] [Code] reentry blocker 구현
-- [ ] [Refactor] cooldown / reentry policy 분리
+- [x] [Refactor] cooldown / reentry policy 분리
 
 ---
 
@@ -146,7 +146,7 @@
 - [x] [Fail] `demo` 모드에서 실주문 API가 호출되면 테스트가 실패해야 한다
 - [x] [Code] virtual order executor 구현
 - [x] [Code] virtual fill simulator 구현
-- [ ] [Refactor] execution interface 추상화
+- [x] [Refactor] execution interface 추상화
 - [x] [Contract] order intent schema 고정
 
 ### live 실행기
@@ -164,13 +164,13 @@
 ### 체결 알림
 - [x] [Fail] 매수/매도/손절 체결 시 텔레그램 메시지가 전송되어야 한다
 - [x] [Code] notifier 구현
-- [ ] [Refactor] 메시지 템플릿 분리
+- [x] [Refactor] 메시지 템플릿 분리
 - [x] [Contract] message payload schema 고정
 
 ### 재기동 알림
 - [x] [Fail] 재기동 후 복구 완료 시 텔레그램으로 재기동 정보가 전송되어야 한다
 - [x] [Code] restart notifier 구현
-- [ ] [Refactor] restart message builder 분리
+- [x] [Refactor] restart message builder 분리
 
 ### 승격 알림
 - [x] [Fail] 승격 가능 상태가 되면 PROMOTION READY 메시지가 전송되어야 한다

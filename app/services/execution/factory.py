@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.services.execution.demo import DemoExecutor
+from app.services.execution.interface import ExecutionExecutor
 from app.services.execution.live import LiveExecutor
 
 
@@ -13,7 +14,7 @@ class ExecutionFactory:
         self._live_order_gateway = live_order_gateway
         self._learning_service = learning_service
 
-    def create(self, *, trading_mode: str, safe_mode: bool, hard_stop: bool = False):
+    def create(self, *, trading_mode: str, safe_mode: bool, hard_stop: bool = False) -> ExecutionExecutor:
         if trading_mode == "live":
             return LiveExecutor(
                 live_order_gateway=self._live_order_gateway,

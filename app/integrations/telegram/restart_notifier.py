@@ -5,31 +5,11 @@ from typing import Any
 from app.services.recovery.orchestrator import BootState
 
 
-class RestartNotifier:
-    """Send restart and recovery summaries through Telegram."""
+class RestartMessageBuilder:
+    """Build Telegram restart and recovery summary messages."""
 
-    def __init__(self, *, gateway: Any) -> None:
-        self._gateway = gateway
-
-    def notify_restarted(
+    def build(
         self,
-        *,
-        app_name: str,
-        restarted_at: str,
-        cause: str,
-        boot_state: BootState,
-    ) -> None:
-        self._gateway.send_message(
-            self._build_message(
-                app_name=app_name,
-                restarted_at=restarted_at,
-                cause=cause,
-                boot_state=boot_state,
-            ),
-        )
-
-    @staticmethod
-    def _build_message(
         *,
         app_name: str,
         restarted_at: str,
@@ -52,4 +32,34 @@ class RestartNotifier:
             f"cash_balance={cash_balance}\n"
             f"asset_currency={asset_currency}\n"
             f"asset_balance={asset_balance}"
+        )
+
+
+class RestartNotifier:
+    """Send restart and recovery summaries through Telegram."""
+
+    def __init__(
+        self,
+        *,
+        gateway: Any,
+        message_builder: RestartMessageBuilder | None = None,
+    ) -> None:
+        self._gateway = gateway
+        self._message_builder = message_builder or RestartMessageBuilder()
+
+    def notify_restarted(
+        self,
+        *,
+        app_name: str,
+        restarted_at: str,
+        cause: str,
+        boot_state: BootState,
+    ) -> None:
+        self._gateway.send_message(
+            self._message_builder.build(
+                app_name=app_name,
+                restarted_at=restarted_at,
+                cause=cause,
+                boot_state=boot_state,
+            ),
         )

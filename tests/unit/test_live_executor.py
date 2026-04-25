@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.services.execution.demo import OrderIntent
 from app.services.execution.factory import ExecutionFactory
+from app.services.execution.interface import ExecutionExecutor
 from app.services.execution.live import LiveExecutor, LiveExecutionResult
 
 
@@ -153,6 +154,8 @@ def test_execution_factory_returns_executor_by_mode() -> None:
 
     assert demo_executor.__class__.__name__ == "DemoExecutor"
     assert live_executor.__class__.__name__ == "LiveExecutor"
+    assert isinstance(demo_executor, ExecutionExecutor)
+    assert isinstance(live_executor, ExecutionExecutor)
     demo_executor.execute(
         OrderIntent(
             market="KRW-XRP",

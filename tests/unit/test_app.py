@@ -910,9 +910,11 @@ class LearningServiceStub:
 class TelegramNotifierStub:
     def __init__(self) -> None:
         self.fills = []
+        self.reason_codes = []
 
-    def notify_fill(self, fill) -> None:
+    def notify_fill(self, fill, *, reason_code=None) -> None:
         self.fills.append(fill)
+        self.reason_codes.append(reason_code)
 
 
 class TradeDecisionServiceStub:
@@ -1432,6 +1434,7 @@ def test_position_exit_records_learning_event_and_notifies_fill(monkeypatch) -> 
     assert trade_fill_notifier.fills[0].side == "buy"
     assert trade_fill_notifier.fills[-1].side == "sell"
     assert trade_fill_notifier.fills[-1].is_stop_loss is True
+    assert trade_fill_notifier.reason_codes[-1] == "STOP_LOSS_PRICE_HIT"
     assert [event.event_name for event in learning_service.events][-4:] == [
         "position_opened",
         "fill_result",

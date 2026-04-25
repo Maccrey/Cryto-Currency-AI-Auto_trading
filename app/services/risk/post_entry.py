@@ -14,8 +14,42 @@ class PostEntryDecision:
     unrealized_return_pct: float
 
 
+@dataclass(frozen=True)
+class PostEntryExpectationRuleset:
+    """Decide how to exit when a new position misses post-entry expectations."""
+
+    momentum_reversal_threshold: float = 0.35
+    liquidity_dropped_threshold: float = -0.2
+
+    def evaluate(
+        self,
+        *,
+        position: PositionSnapshot,
+        unrealized_return_pct: float,
+        momentum_score: float,
+        orderbook_imbalance: float,
+    ) -> tuple[float, str] | None:
+        if unrealized_return_pct < position.min_expected_return_pct:
+            return (1.0, "STOP_LOSS_EXPECTATION_FAILED")
+
+        if momentum_score < self.momentum_reversal_threshold:
+            return (0.5, "STOP_LOSS_MOMENTUM_REVERSAL")
+
+        if orderbook_imbalance < self.liquidity_dropped_threshold:
+            return (0.5, "STOP_LOSS_LIQUIDITY_DROPPED")
+
+        return None
+
+
 class PostEntryValidator:
     """Validate whether a freshly opened position is behaving as expected."""
+
+    def __init__(
+        self,
+        *,
+        expectation_ruleset: PostEntryExpectationRuleset | None = None,
+    ) -> None:
+        self._expectation_ruleset = expectation_ruleset or PostEntryExpectationRuleset()
 
     def evaluate(
         self,
@@ -37,30 +71,19 @@ class PostEntryValidator:
                 unrealized_return_pct=unrealized_return_pct,
             )
 
-        if unrealized_return_pct < position.min_expected_return_pct:
+        exit_rule = self._expectation_ruleset.evaluate(
+            position=position,
+            unrealized_return_pct=unrealized_return_pct,
+            momentum_score=momentum_score,
+            orderbook_imbalance=orderbook_imbalance,
+        )
+        if exit_rule is not None:
+            exit_ratio, reason_code = exit_rule
             return PostEntryDecision(
                 triggered=True,
                 order_side="sell",
-                exit_ratio=1.0,
-                reason_code="STOP_LOSS_EXPECTATION_FAILED",
-                unrealized_return_pct=unrealized_return_pct,
-            )
-
-        if momentum_score < 0.35:
-            return PostEntryDecision(
-                triggered=True,
-                order_side="sell",
-                exit_ratio=0.5,
-                reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
-                unrealized_return_pct=unrealized_return_pct,
-            )
-
-        if orderbook_imbalance < -0.2:
-            return PostEntryDecision(
-                triggered=True,
-                order_side="sell",
-                exit_ratio=0.5,
-                reason_code="STOP_LOSS_LIQUIDITY_DROPPED",
+                exit_ratio=exit_ratio,
+                reason_code=reason_code,
                 unrealized_return_pct=unrealized_return_pct,
             )
 

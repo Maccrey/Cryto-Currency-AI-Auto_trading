@@ -219,4 +219,4 @@ class PositionExitService:
                 reason_code=reason_code,
             )
         if self._telegram_notifier is not None and hasattr(execution, "filled_price"):
-            self._telegram_notifier.notify_fill(execution)
+            self._telegram_notifier.notify_fill(execution, reason_code=reason_code)

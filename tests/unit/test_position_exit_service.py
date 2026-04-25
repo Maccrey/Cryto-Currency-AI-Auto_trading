@@ -24,9 +24,11 @@ class LearningServiceStub:
 class TelegramNotifierStub:
     def __init__(self) -> None:
         self.fills = []
+        self.reason_codes = []
 
-    def notify_fill(self, fill) -> None:
+    def notify_fill(self, fill, *, reason_code=None) -> None:
         self.fills.append(fill)
+        self.reason_codes.append(reason_code)
 
 
 def _build_service(store: CurrentPositionStore) -> PositionExitService:
@@ -113,9 +115,11 @@ def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
     assert learning_service.events[1].payload["event_type"] == "closed"
     assert len(telegram_notifier.fills) == 1
     assert telegram_notifier.fills[0].is_stop_loss is True
+    assert telegram_notifier.reason_codes == ["STOP_LOSS_PRICE_HIT"]
     records = lifecycle_ledger.list_records()
     assert len(records) == 1
     assert records[0].event_type == "closed"
+    assert records[0].reason_code == "STOP_LOSS_PRICE_HIT"
 
 
 def test_position_exit_service_updates_position_after_partial_post_entry_exit() -> None:

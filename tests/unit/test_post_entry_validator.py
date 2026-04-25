@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from app.services.risk.post_entry import PostEntryDecision, PostEntryValidator
+from app.services.risk.post_entry import (
+    PostEntryDecision,
+    PostEntryExpectationRuleset,
+    PostEntryValidator,
+)
 from app.services.risk.stop_loss import PositionSnapshot
 
 
@@ -65,3 +69,38 @@ def test_post_entry_validator_does_not_trigger_before_validation_window() -> Non
         unrealized_return_pct=0.0006,
     )
 
+
+def test_post_entry_validator_accepts_custom_expectation_ruleset() -> None:
+    validator = PostEntryValidator(
+        expectation_ruleset=PostEntryExpectationRuleset(
+            momentum_reversal_threshold=0.45,
+            liquidity_dropped_threshold=-0.2,
+        ),
+    )
+    position = PositionSnapshot(
+        market="KRW-XRP",
+        signal_level="strong",
+        entry_price=820.0,
+        quantity=190.5,
+        stop_loss_price=805.24,
+        stop_loss_pct=0.018,
+        validation_window_sec=180,
+        min_expected_return_pct=0.004,
+        stop_loss_reason=None,
+    )
+
+    decision = validator.evaluate(
+        position=position,
+        current_price=825.0,
+        elapsed_sec=181,
+        momentum_score=0.44,
+        orderbook_imbalance=0.02,
+    )
+
+    assert decision == PostEntryDecision(
+        triggered=True,
+        order_side="sell",
+        exit_ratio=0.5,
+        reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
+        unrealized_return_pct=0.0061,
+    )
