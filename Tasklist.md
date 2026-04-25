@@ -1,8 +1,8 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 117개
-  - 미완료: 20개
+  - 완료: 118개
+  - 미완료: 19개
   - 전체: 137개
  
 ## 1. 작업 원칙
@@ -93,7 +93,7 @@
 - [x] [Fail] 저유동성 구간에서는 신호가 차단되어야 한다
 - [x] [Code] feature 계산 구현
 - [x] [Code] signal engine 구현
-- [ ] [Refactor] reason code 생성기 분리
+- [x] [Refactor] reason code 생성기 분리
 - [x] [Contract] signal schema 고정
 
 ### 국면 평가

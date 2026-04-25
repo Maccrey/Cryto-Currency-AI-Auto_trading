@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.signals.engine import SignalDecision, SignalEngine
+from app.services.signals.engine import SignalDecision, SignalEngine, SignalReasonCodeGenerator
 from app.services.signals.features import FeatureSnapshot
 
 
@@ -50,3 +50,26 @@ def test_signal_engine_blocks_signal_in_low_liquidity_zone() -> None:
     assert decision.level == "weak"
     assert "LOW_LIQUIDITY_BLOCKED" in decision.reason_codes
 
+
+def test_signal_engine_accepts_reason_code_generator() -> None:
+    engine = SignalEngine(reason_code_generator=SignalReasonCodeGenerator())
+    features = FeatureSnapshot(
+        ret_1s=0.004,
+        ret_5s=0.012,
+        ret_30s=0.029,
+        volume_multiple=2.4,
+        traded_value_multiple=2.1,
+        spread_bps=8.0,
+        orderbook_imbalance=0.32,
+        short_volatility=0.011,
+        regime_score=0.68,
+        liquidity_score=0.74,
+    )
+
+    decision = engine.evaluate(features)
+
+    assert decision.reason_codes == [
+        "MOMENTUM_BREAKOUT",
+        "VALUE_ACCELERATION",
+        "ORDERBOOK_SUPPORT",
+    ]

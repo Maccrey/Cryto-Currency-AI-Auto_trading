@@ -14,26 +14,15 @@ class SignalDecision:
     reason_codes: list[str]
 
 
-class SignalEngine:
-    """Translate feature snapshots into normalized entry signals."""
+class SignalReasonCodeGenerator:
+    """Build stable reason codes for signal decisions."""
 
-    def __init__(self, *, learning_service=None, trading_mode: str = "demo") -> None:
-        self._learning_service = learning_service
-        self._trading_mode = trading_mode
-
-    def evaluate(self, features: FeatureSnapshot) -> SignalDecision:
+    def blocked(self, features: FeatureSnapshot) -> list[str]:
         if features.liquidity_score < 0.2:
-            decision = SignalDecision(
-                level="weak",
-                score=round(self._score(features), 2),
-                blocked=True,
-                reason_codes=["LOW_LIQUIDITY_BLOCKED"],
-            )
-            self._record_learning_event(features, decision)
-            return decision
+            return ["LOW_LIQUIDITY_BLOCKED"]
+        return []
 
-        score = round(self._score(features), 2)
-        level = self._score_to_level(score)
+    def generated(self, features: FeatureSnapshot) -> list[str]:
         reason_codes = []
         if features.ret_30s >= 0.02:
             reason_codes.append("MOMENTUM_BREAKOUT")
@@ -41,12 +30,42 @@ class SignalEngine:
             reason_codes.append("VALUE_ACCELERATION")
         if features.orderbook_imbalance > 0.2:
             reason_codes.append("ORDERBOOK_SUPPORT")
+        return reason_codes
+
+
+class SignalEngine:
+    """Translate feature snapshots into normalized entry signals."""
+
+    def __init__(
+        self,
+        *,
+        learning_service=None,
+        trading_mode: str = "demo",
+        reason_code_generator: SignalReasonCodeGenerator | None = None,
+    ) -> None:
+        self._learning_service = learning_service
+        self._trading_mode = trading_mode
+        self._reason_code_generator = reason_code_generator or SignalReasonCodeGenerator()
+
+    def evaluate(self, features: FeatureSnapshot) -> SignalDecision:
+        if features.liquidity_score < 0.2:
+            decision = SignalDecision(
+                level="weak",
+                score=round(self._score(features), 2),
+                blocked=True,
+                reason_codes=self._reason_code_generator.blocked(features),
+            )
+            self._record_learning_event(features, decision)
+            return decision
+
+        score = round(self._score(features), 2)
+        level = self._score_to_level(score)
 
         decision = SignalDecision(
             level=level,
             score=score,
             blocked=False,
-            reason_codes=reason_codes,
+            reason_codes=self._reason_code_generator.generated(features),
         )
         self._record_learning_event(features, decision)
         return decision
