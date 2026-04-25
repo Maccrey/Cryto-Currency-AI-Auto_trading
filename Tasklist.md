@@ -1,8 +1,8 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 115개
-  - 미완료: 22개
+  - 완료: 116개
+  - 미완료: 21개
   - 전체: 137개
  
 ## 1. 작업 원칙
@@ -210,7 +210,7 @@
 - [x] [Fail] fill / stop loss / restart / promotion 이벤트도 저장되어야 한다
 - [x] [Code] learning service 구현
 - [x] [Code] JSONL exporter 구현
-- [ ] [Refactor] event serializer 분리
+- [x] [Refactor] event serializer 분리
 - [x] [Contract] learning event schema 고정
 
 ### 데이터셋 변환

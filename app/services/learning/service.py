@@ -17,17 +17,33 @@ class LearningEvent:
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
+class LearningEventSerializer:
+    """Serialize learning events into stable JSONL row payloads."""
+
+    def to_payload(self, event: LearningEvent) -> dict[str, Any]:
+        return asdict(event)
+
+    def to_json_line(self, event: LearningEvent) -> str:
+        return json.dumps(self.to_payload(event), ensure_ascii=True)
+
+
 class JsonlLearningExporter:
     """Append learning events to a single JSONL file."""
 
-    def __init__(self, *, log_dir: Path) -> None:
+    def __init__(
+        self,
+        *,
+        log_dir: Path,
+        event_serializer: LearningEventSerializer | None = None,
+    ) -> None:
         self._log_dir = log_dir
         self._log_dir.mkdir(parents=True, exist_ok=True)
         self._log_path = self._log_dir / "learning.jsonl"
+        self._event_serializer = event_serializer or LearningEventSerializer()
 
     def export(self, event: LearningEvent) -> None:
         with self._log_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(asdict(event), ensure_ascii=True))
+            handle.write(self._event_serializer.to_json_line(event))
             handle.write("\n")
 
 
@@ -59,8 +75,13 @@ class LearningService:
         *,
         log_dir: Path,
         event_store: LearningEventStore | None = None,
+        event_serializer: LearningEventSerializer | None = None,
     ) -> None:
-        self._exporter = JsonlLearningExporter(log_dir=log_dir)
+        self._event_serializer = event_serializer or LearningEventSerializer()
+        self._exporter = JsonlLearningExporter(
+            log_dir=log_dir,
+            event_serializer=self._event_serializer,
+        )
         self._event_store = event_store or LearningEventStore()
 
     def record(self, event: LearningEvent) -> None:

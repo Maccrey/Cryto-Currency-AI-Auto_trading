@@ -3,7 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.services.learning.service import LearningEvent, LearningService
+from app.services.learning.service import (
+    LearningEvent,
+    LearningEventSerializer,
+    LearningService,
+)
 
 
 def test_learning_service_persists_decision_event_as_jsonl(tmp_path: Path) -> None:
@@ -80,3 +84,23 @@ def test_learning_service_keeps_recent_events_in_memory(tmp_path: Path) -> None:
     assert len(payload) == 1
     assert payload[0]["event_name"] == "position_opened"
     assert payload[0]["payload"]["quantity"] == 120.0
+
+
+def test_learning_service_accepts_event_serializer(tmp_path: Path) -> None:
+    service = LearningService(
+        log_dir=tmp_path,
+        event_serializer=LearningEventSerializer(),
+    )
+
+    service.record(
+        LearningEvent(
+            event_name="promotion_ready",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"profit_factor": 1.8},
+        ),
+    )
+
+    row = json.loads((tmp_path / "learning.jsonl").read_text(encoding="utf-8").strip())
+    assert row["event_name"] == "promotion_ready"
+    assert row["payload"] == {"profit_factor": 1.8}
