@@ -17,8 +17,23 @@ class DashboardMarket:
     history: list[dict[str, object]]
 
 
-class DashboardMarketService:
-    """Build dashboard-friendly market state payloads."""
+class DashboardChartFeed:
+    """Build chart-ready market history payloads."""
+
+    def build(
+        self,
+        *,
+        history: list[MarketPriceSnapshot],
+        market_price_store: MarketPriceStore,
+    ) -> list[dict[str, object]]:
+        return [market_price_store.to_payload(item) for item in history]
+
+
+class DashboardMarketSummaryFeed:
+    """Build dashboard-friendly market summary payloads."""
+
+    def __init__(self, *, chart_feed: DashboardChartFeed | None = None) -> None:
+        self._chart_feed = chart_feed or DashboardChartFeed()
 
     def build(
         self,
@@ -48,7 +63,10 @@ class DashboardMarketService:
             current_price=snapshot.price,
             recorded_at=snapshot.recorded_at,
             recent_change_pct=recent_change_pct,
-            history=[market_price_store.to_payload(item) for item in history],
+            history=self._chart_feed.build(
+                history=history,
+                market_price_store=market_price_store,
+            ),
         )
 
     @staticmethod
@@ -76,3 +94,7 @@ class DashboardMarketService:
         if recent_change_pct < 0:
             return "warning"
         return "info"
+
+
+class DashboardMarketService(DashboardMarketSummaryFeed):
+    """Backward-compatible market summary service."""

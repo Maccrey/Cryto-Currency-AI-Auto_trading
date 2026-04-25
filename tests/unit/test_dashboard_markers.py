@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from app.services.dashboard.markers import ChartMarker, DashboardMarkerService, TradeEvent
+from app.services.dashboard.markers import (
+    ChartMarker,
+    DashboardMarkerService,
+    MarkerTooltipSchema,
+    TradeEvent,
+)
 
 
 def test_dashboard_marker_service_builds_buy_marker_with_blue_color() -> None:
@@ -71,3 +76,26 @@ def test_dashboard_marker_service_builds_stop_loss_marker_with_yellow_color() ->
     assert marker.color == "yellow"
     assert marker.tooltip["stop_loss_price"] == 805.24
 
+
+def test_dashboard_marker_service_accepts_tooltip_schema() -> None:
+    service = DashboardMarkerService(tooltip_schema=MarkerTooltipSchema())
+
+    marker = service.build_marker(
+        TradeEvent(
+            event_type="sell",
+            market="KRW-XRP",
+            price=835.0,
+            quantity=100.0,
+            timestamp="2026-04-18T12:45:00+09:00",
+            reason="TAKE_PROFIT",
+            stop_loss_price=None,
+        ),
+    )
+
+    assert marker.tooltip == {
+        "market": "KRW-XRP",
+        "price": 835.0,
+        "quantity": 100.0,
+        "reason": "TAKE_PROFIT",
+        "stop_loss_price": None,
+    }

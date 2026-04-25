@@ -1,4 +1,8 @@
-from app.services.dashboard.market import DashboardMarketService
+from app.services.dashboard.market import (
+    DashboardChartFeed,
+    DashboardMarketService,
+    DashboardMarketSummaryFeed,
+)
 from app.services.dashboard.market_facade import DashboardMarketFacade
 from app.services.market.store import MarketPriceStore
 
@@ -66,6 +70,44 @@ def test_dashboard_market_facade_returns_current_price_change_and_history() -> N
             ],
         },
     }
+
+
+def test_dashboard_market_service_splits_summary_and_chart_feeds() -> None:
+    timestamps = iter(
+        [
+            "2026-04-19T20:32:00+09:00",
+            "2026-04-19T20:32:01+09:00",
+        ],
+    )
+    store = MarketPriceStore(
+        timestamp_provider=lambda: next(timestamps),
+    )
+    first = store.save(market="KRW-XRP", price=820.0)
+    latest = store.save(market="KRW-XRP", price=830.0)
+    chart_feed = DashboardChartFeed()
+    summary_feed = DashboardMarketSummaryFeed(chart_feed=chart_feed)
+
+    summary = summary_feed.build(
+        snapshot=latest,
+        history=[first, latest],
+        market_price_store=store,
+    )
+
+    assert summary is not None
+    assert summary.current_price == 830.0
+    assert summary.recent_change_pct == 0.0122
+    assert summary.history == [
+        {
+            "market": "KRW-XRP",
+            "price": 820.0,
+            "recorded_at": "2026-04-19T20:32:00+09:00",
+        },
+        {
+            "market": "KRW-XRP",
+            "price": 830.0,
+            "recorded_at": "2026-04-19T20:32:01+09:00",
+        },
+    ]
 
 
 def test_dashboard_market_facade_marks_downtrend_as_warning() -> None:

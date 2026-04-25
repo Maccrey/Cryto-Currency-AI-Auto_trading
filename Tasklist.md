@@ -1,8 +1,8 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - ㅅ완료: 113개
-  - 미완료: 24개
+  - 완료: 115개
+  - 미완료: 22개
   - 전체: 137개
  
 ## 1. 작업 원칙
@@ -10,6 +10,7 @@
 - 실패 테스트 없이 기능 구현 금지
 - `demo/live + always-on learning` 구조를 깨는 변경 금지
 - Git 커밋 메시지는 반드시 한국어
+- 구현 완료 후 테스트 통과를 확인하고 한국어 커밋을 생성해야 한다
 - 커밋 전에 테스트 통과 확인 필수
 
 ---
@@ -187,7 +188,7 @@
 - [x] [Fail] 손절 매도 마커는 노란색이어야 한다
 - [x] [Fail] 각 마커 툴팁이 요구 필드를 모두 포함해야 한다
 - [x] [Code] marker renderer 구현
-- [ ] [Refactor] tooltip schema 분리
+- [x] [Refactor] tooltip schema 분리
 - [x] [Contract] dashboard event payload schema 고정
 
 ### 손절 라인
@@ -198,7 +199,7 @@
 ### 하단 패널
 - [x] [Fail] 보유 코인, 보유 현금, 손익, 카운트, 모드, 학습 상태가 표시되어야 한다
 - [x] [Code] summary panel API 구현
-- [ ] [Refactor] chart feed / summary feed 분리
+- [x] [Refactor] chart feed / summary feed 분리
 
 ---
 
