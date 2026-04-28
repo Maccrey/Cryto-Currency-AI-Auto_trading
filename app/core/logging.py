@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+COMMON_LOG_FIELDS: dict[str, Any] = {}
 
 
 class JsonlFileHandler(logging.Handler):
@@ -21,6 +24,7 @@ class JsonlFileHandler(logging.Handler):
             event = {"message": record.getMessage()}
 
         payload = {
+            **COMMON_LOG_FIELDS,
             **event,
             "logger": record.name,
             "level": record.levelname,
@@ -32,14 +36,49 @@ class JsonlFileHandler(logging.Handler):
             handle.write("\n")
 
 
-def configure_logging(log_dir: Path) -> None:
+def configure_logging(
+    log_dir: Path,
+    *,
+    app_name: str = "upbit-auto-trader",
+    trading_mode: str = "demo",
+    learning_enabled: bool = True,
+) -> None:
+    COMMON_LOG_FIELDS.clear()
+    COMMON_LOG_FIELDS.update(
+        {
+            "app_name": app_name,
+            "trading_mode": trading_mode,
+            "learning_enabled": learning_enabled,
+        },
+    )
     decision_logger = logging.getLogger("decision")
     decision_logger.setLevel(logging.INFO)
     decision_logger.propagate = False
     decision_logger.handlers.clear()
     decision_logger.addHandler(JsonlFileHandler(log_dir / "decision.jsonl"))
+    configure_structlog()
+
+
+def configure_structlog() -> None:
+    structlog = sys.modules.get("structlog")
+    if structlog is None:
+        try:
+            import structlog as imported_structlog
+        except ModuleNotFoundError:
+            return
+        structlog = imported_structlog
+
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso", utc=True),
+            structlog.processors.add_log_level,
+            structlog.processors.JSONRenderer(),
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
 
 
 def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
-

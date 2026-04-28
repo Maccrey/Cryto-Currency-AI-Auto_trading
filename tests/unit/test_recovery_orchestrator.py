@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.services.portfolio.sync import PortfolioState
 from app.services.recovery.hard_stop import RestartCounter
-from app.services.recovery.orchestrator import RecoveryOrchestrator
+from app.services.recovery.orchestrator import FileRestartStateStore, RecoveryOrchestrator
 
 
 class StubRestartStore:
@@ -148,3 +148,23 @@ def test_recovery_orchestrator_records_hard_stop_learning_event() -> None:
         "restart_detected",
         "hard_stop_triggered",
     ]
+
+
+def test_file_restart_state_store_persists_latest_boot_state(tmp_path) -> None:
+    store = FileRestartStateStore(tmp_path / "restart-state.json")
+    orchestrator = RecoveryOrchestrator(
+        app_name="upbit-auto-trader",
+        trading_mode="live",
+        portfolio_sync_service=SuccessfulPortfolioSyncService(),
+        open_order_reconciler=SuccessfulOpenOrderReconciler(),
+        restart_store=store,
+    )
+
+    state = orchestrator.boot()
+
+    persisted = store.load_latest()
+    assert state.trading_ready is True
+    assert persisted["event_name"] == "recovery_completed"
+    assert persisted["safe_mode"] is False
+    assert persisted["trading_ready"] is True
+    assert persisted["reconcile_result"] == {"open_order_count": 0}

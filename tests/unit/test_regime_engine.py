@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.regime.engine import RegimeEngine, RegimeSnapshot
+from app.services.regime.engine import RegimeEngine, RegimeScorer, RegimeSnapshot
 from app.services.signals.features import FeatureSnapshot
 
 
@@ -89,3 +89,23 @@ def test_regime_engine_blocks_entry_during_safe_mode() -> None:
     assert snapshot.size_multiplier == 0.0
     assert "SAFE_MODE_ACTIVE" in snapshot.reason_codes
 
+
+def test_regime_score_calculation_is_reusable() -> None:
+    features = FeatureSnapshot(
+        ret_1s=0.003,
+        ret_5s=0.011,
+        ret_30s=0.024,
+        volume_multiple=2.1,
+        traded_value_multiple=2.0,
+        spread_bps=7.0,
+        orderbook_imbalance=0.24,
+        short_volatility=0.008,
+        regime_score=0.77,
+        liquidity_score=0.86,
+    )
+
+    scorer = RegimeScorer()
+    engine = RegimeEngine(scorer=scorer)
+
+    assert scorer.score(features, recent_loss_streak=0) == 0.75
+    assert engine.evaluate(features, recent_loss_streak=0, safe_mode=False).score == 0.75

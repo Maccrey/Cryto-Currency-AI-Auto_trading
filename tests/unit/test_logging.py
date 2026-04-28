@@ -6,7 +6,12 @@ from app.core.logging import configure_logging, get_logger
 
 
 def test_decision_log_is_written_as_json(tmp_path: Path) -> None:
-    configure_logging(log_dir=tmp_path)
+    configure_logging(
+        log_dir=tmp_path,
+        app_name="upbit-auto-trader",
+        trading_mode="demo",
+        learning_enabled=True,
+    )
 
     logger = get_logger("decision")
     logger.info(
@@ -31,4 +36,25 @@ def test_decision_log_is_written_as_json(tmp_path: Path) -> None:
     assert payload["learning_enabled"] is True
     assert payload["logger"] == "decision"
     assert payload["level"] == "INFO"
+    assert payload["app_name"] == "upbit-auto-trader"
+    assert payload["trading_mode"] == "demo"
 
+
+def test_common_log_fields_do_not_override_event_values(tmp_path: Path) -> None:
+    configure_logging(
+        log_dir=tmp_path,
+        app_name="upbit-auto-trader",
+        trading_mode="live",
+        learning_enabled=True,
+    )
+
+    logger = get_logger("decision")
+    logger.info(
+        "custom_event",
+        extra={"event": {"event_name": "custom_event", "trading_mode": "demo"}},
+    )
+
+    payload = json.loads((tmp_path / "decision.jsonl").read_text().strip())
+    assert payload["event_name"] == "custom_event"
+    assert payload["trading_mode"] == "demo"
+    assert payload["app_name"] == "upbit-auto-trader"

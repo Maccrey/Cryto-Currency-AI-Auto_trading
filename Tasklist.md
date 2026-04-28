@@ -1,8 +1,8 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 118개
-  - 미완료: 19개
+  - 완료: 137개
+  - 미완료: 0개
   - 전체: 137개
  
 ## 1. 작업 원칙
@@ -45,14 +45,14 @@
 - [x] [Code] pydantic settings 구현
 - [x] [Code] mode validator 구현
 - [x] [Refactor] settings loader 분리
-- [ ] [Contract] ENV_SPEC.md와 코드 설정 스키마 일치
+- [x] [Contract] ENV_SPEC.md와 코드 설정 스키마 일치
 
 ### 구조화 로깅
 - [x] [Fail] 핵심 이벤트 로그가 JSON 구조로 저장되어야 한다
-- [ ] [Code] structlog 설정
+- [x] [Code] structlog 설정
 - [x] [Code] decision log writer 구현
-- [ ] [Refactor] 공통 로그 필드 주입기 구현
-- [ ] [Contract] decision log schema 문서화
+- [x] [Refactor] 공통 로그 필드 주입기 구현
+- [x] [Contract] decision log schema 문서화
 
 ### Git / TDD 규칙
 - [x] [Code] pre-commit에 테스트/린트 훅 추가
@@ -99,7 +99,7 @@
 ### 국면 평가
 - [x] [Fail] risk_off 국면에서는 size가 줄어야 한다
 - [x] [Code] regime engine 구현
-- [ ] [Refactor] regime score 계산 공통화
+- [x] [Refactor] regime score 계산 공통화
 - [x] [Contract] regime snapshot schema 고정
 
 ### 비중 계산
@@ -107,7 +107,7 @@
 - [x] [Fail] reserve cash 이하로는 매수 금액이 계산되면 안 된다
 - [x] [Fail] spread/slippage 초과 시 주문이 차단되어야 한다
 - [x] [Code] sizing engine 구현
-- [ ] [Refactor] buy/sell sizing policy 분리
+- [x] [Refactor] buy/sell sizing policy 분리
 - [x] [Contract] sizing result schema 고정
 
 ---
@@ -124,7 +124,7 @@
 ### 가격 손절
 - [x] [Fail] 현재가가 stop_loss_price 이하가 되면 손절 주문이 생성되어야 한다
 - [x] [Code] hard stop monitor 구현
-- [ ] [Refactor] 일반 매도와 손절 매도 실행기 분리
+- [x] [Refactor] 일반 매도와 손절 매도 실행기 분리
 - [x] [Contract] stop loss event schema 고정
 
 ### 기대 불일치 손절
@@ -154,9 +154,9 @@
 - [x] [Fail] `live` 모드에서만 실주문이 허용되어야 한다
 - [x] [Fail] SAFE_MODE 상태에서는 주문이 차단되어야 한다
 - [x] [Code] live executor 구현
-- [ ] [Code] precheck / orders/test 연동 구현
+- [x] [Code] precheck / orders/test 연동 구현
 - [x] [Refactor] executor factory 구현
-- [ ] [Contract] live order state machine 문서화
+- [x] [Contract] live order state machine 문서화
 
 ---
 
@@ -232,9 +232,9 @@
 - [x] [Fail] 잔고 sync 전에 거래가 시작되면 안 된다
 - [x] [Fail] 오픈오더 reconcile 실패 시 SAFE_MODE 유지해야 한다
 - [x] [Code] recovery orchestrator 구현
-- [ ] [Code] restart state persistence 구현
+- [x] [Code] restart state persistence 구현
 - [x] [Refactor] boot sequence 단계 분리
-- [ ] [Contract] RUNBOOK과 절차 일치
+- [x] [Contract] RUNBOOK과 절차 일치
 
 ### HARD_STOP
 - [x] [Fail] 연속 재기동 횟수가 기준을 넘으면 HARD_STOP 상태여야 한다
@@ -250,8 +250,8 @@
 - [x] [Fail] PF 또는 MDD 기준 미달이면 거부되어야 한다
 - [x] [Fail] 손절 오작동이 있으면 거부되어야 한다
 - [x] [Code] promotion evaluator 구현
-- [ ] [Refactor] metrics aggregator 분리
-- [ ] [Contract] promotion_evaluations schema 고정
+- [x] [Refactor] metrics aggregator 분리
+- [x] [Contract] promotion_evaluations schema 고정
 
 ### 승인 워크플로
 - [x] [Fail] 승인 전 live 활성화가 되면 안 된다
@@ -261,16 +261,16 @@
 ---
 
 ## 13. 문서 동기화 체크
-- [ ] PRD 변경 시 Tasklist 업데이트
-- [ ] 전략 변경 시 STRATEGY_SPEC 업데이트
-- [ ] .env 변경 시 ENV_SPEC 업데이트
-- [ ] 운영 절차 변경 시 RUNBOOK 업데이트
-- [ ] Codex 작업 규칙 변경 시 CODEX_HARNESS 업데이트
+- [x] PRD 변경 시 Tasklist 업데이트
+- [x] 전략 변경 시 STRATEGY_SPEC 업데이트
+- [x] .env 변경 시 ENV_SPEC 업데이트
+- [x] 운영 절차 변경 시 RUNBOOK 업데이트
+- [x] Codex 작업 규칙 변경 시 CODEX_HARNESS 업데이트
 
 ---
 
 ## 14. Git / 커밋 체크리스트
-- [ ] 실패 테스트 먼저 작성
+- [x] 실패 테스트 먼저 작성
 - [x] 테스트 통과 확인
 - [x] 문서 업데이트 반영
 - [x] 한국어 커밋 메시지 작성

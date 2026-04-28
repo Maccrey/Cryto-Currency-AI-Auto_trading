@@ -17,15 +17,36 @@ class SizingDecision:
     blocked_reason: str | None
 
 
-class SizingEngine:
-    """Calculate entry size from signal strength, regime, and cash constraints."""
+class BuySizingPolicy:
+    """Strength-to-buy-ratio policy for entry sizing."""
 
-    BASE_BUY_RATIOS = {
+    RATIOS = {
         "weak": 0.08,
         "medium": 0.18,
         "strong": 0.35,
         "very_strong": 0.55,
     }
+
+    def ratio_for(self, signal_level: str) -> float:
+        return self.RATIOS[signal_level]
+
+
+class SellSizingPolicy:
+    """Strength-to-sell-ratio policy for exit sizing."""
+
+    RATIOS = {
+        "weak": 0.12,
+        "medium": 0.28,
+        "strong": 0.45,
+        "very_strong": 0.70,
+    }
+
+    def ratio_for(self, signal_level: str) -> float:
+        return self.RATIOS[signal_level]
+
+
+class SizingEngine:
+    """Calculate entry size from signal strength, regime, and cash constraints."""
 
     def __init__(
         self,
@@ -33,10 +54,12 @@ class SizingEngine:
         min_cash_reserve: float,
         max_spread_bps: float,
         max_slippage_bps: float,
+        buy_policy: BuySizingPolicy | None = None,
     ) -> None:
         self._min_cash_reserve = min_cash_reserve
         self._max_spread_bps = max_spread_bps
         self._max_slippage_bps = max_slippage_bps
+        self._buy_policy = buy_policy or BuySizingPolicy()
 
     def size_entry(
         self,
@@ -59,7 +82,7 @@ class SizingEngine:
         if investable_cash <= 0:
             return self._blocked("MIN_CASH_RESERVE")
 
-        base_buy_ratio = self.BASE_BUY_RATIOS[signal.level]
+        base_buy_ratio = self._buy_policy.ratio_for(signal.level)
         final_buy_ratio = round(base_buy_ratio * regime.size_multiplier, 3)
         buy_amount = round(investable_cash * final_buy_ratio, 1)
         buy_quantity = round(buy_amount / current_price, 4)

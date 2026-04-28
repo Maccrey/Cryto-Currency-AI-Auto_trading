@@ -13,6 +13,44 @@ from app.services.risk.hard_stop import HardStopMonitor
 from app.services.risk.post_entry import PostEntryValidator
 
 
+class RegularSellExecutor:
+    """Execute non-stop-loss sell orders."""
+
+    def __init__(self, *, executor: Any) -> None:
+        self._executor = executor
+
+    def execute(self, *, market: str, price: float, quantity: float) -> Any:
+        return self._executor.execute(
+            OrderIntent(
+                market=market,
+                side="sell",
+                price=price,
+                quantity=quantity,
+                order_type="market",
+                is_stop_loss=False,
+            ),
+        )
+
+
+class StopLossSellExecutor:
+    """Execute sell orders that must be tracked as stop-loss exits."""
+
+    def __init__(self, *, executor: Any) -> None:
+        self._executor = executor
+
+    def execute(self, *, market: str, price: float, quantity: float) -> Any:
+        return self._executor.execute(
+            OrderIntent(
+                market=market,
+                side="sell",
+                price=price,
+                quantity=quantity,
+                order_type="market",
+                is_stop_loss=True,
+            ),
+        )
+
+
 class PositionExitService:
     """Evaluate active position exits and execute them against the current executor."""
 
@@ -33,6 +71,7 @@ class PositionExitService:
         self._hard_stop_monitor = hard_stop_monitor
         self._post_entry_validator = post_entry_validator
         self._executor = executor
+        self._stop_loss_sell_executor = StopLossSellExecutor(executor=executor)
         self._trading_mode = trading_mode
         self._learning_service = learning_service
         self._telegram_notifier = telegram_notifier
@@ -61,15 +100,10 @@ class PositionExitService:
             current_price=current_price,
         )
         if hard_stop.triggered:
-            execution = self._executor.execute(
-                OrderIntent(
-                    market=position.market,
-                    side=hard_stop.order_side,
-                    price=hard_stop.trigger_price,
-                    quantity=hard_stop.quantity,
-                    order_type="market",
-                    is_stop_loss=True,
-                ),
+            execution = self._stop_loss_sell_executor.execute(
+                market=position.market,
+                price=hard_stop.trigger_price,
+                quantity=hard_stop.quantity,
             )
             self._position_store.clear()
             self._record_exit_event(
@@ -111,15 +145,10 @@ class PositionExitService:
             }
 
         exit_quantity = round(position.quantity * post_entry.exit_ratio, 8)
-        execution = self._executor.execute(
-            OrderIntent(
-                market=position.market,
-                side=post_entry.order_side,
-                price=current_price,
-                quantity=exit_quantity,
-                order_type="market",
-                is_stop_loss=True,
-            ),
+        execution = self._stop_loss_sell_executor.execute(
+            market=position.market,
+            price=current_price,
+            quantity=exit_quantity,
         )
         remaining_quantity = round(position.quantity - exit_quantity, 8)
         if remaining_quantity <= 0:

@@ -53,6 +53,7 @@
 -> supervisor/systemd/docker restart
 -> 앱 재부팅
 -> restart event 저장
+-> restart state 파일 갱신
 -> 포트폴리오 sync
 -> 오픈오더 reconcile
 -> 손절 상태 복원
@@ -67,6 +68,7 @@
 - 현재 보유 코인 수량
 - 미체결 주문 존재 여부
 - 손절가 복원 여부
+- restart state의 마지막 `recovery_completed` 여부
 - learning service 작동 여부
 - dashboard 연결 상태
 - telegram 전송 상태
@@ -204,6 +206,19 @@
 - [ ] 텔레그램 성공률 기준 충족
 - [ ] 수동 승인 완료 또는 자동 승격 허용
 
+### live order state machine
+```text
+order_intent
+-> LIVE_MODE_REQUIRED 검사
+-> SAFE_MODE_ACTIVE 검사
+-> HARD_STOP_ACTIVE 검사
+-> /v1/orders/test precheck
+-> place_order
+-> wait | done | cancel | blocked
+```
+
+차단 사유는 `LIVE_MODE_REQUIRED`, `SAFE_MODE_ACTIVE`, `HARD_STOP_ACTIVE`, 또는 `/v1/orders/test` 응답의 `reason` 값을 사용한다.
+
 ---
 
 ## 11. 승격 평가 운영
@@ -242,6 +257,40 @@
 - restart_detected
 - recovery_completed
 - promotion_evaluated
+
+### decision log schema
+```json
+{
+  "event_name": "signal_generated",
+  "market": "KRW-XRP",
+  "mode": "demo",
+  "learning_enabled": true,
+  "app_name": "upbit-auto-trader",
+  "trading_mode": "demo",
+  "logger": "decision",
+  "level": "INFO",
+  "timestamp": "2026-04-28T00:00:00+00:00"
+}
+```
+
+공통 필드 `app_name`, `trading_mode`, `learning_enabled`, `logger`, `level`, `timestamp`는 로그 핸들러가 주입한다. 이벤트 payload가 같은 이름의 값을 제공하면 이벤트 payload 값을 우선한다.
+
+### promotion_evaluations schema
+```json
+{
+  "status": "READY_FOR_REVIEW",
+  "approved": false,
+  "rejection_reasons": [],
+  "metrics": {
+    "demo_days": 14,
+    "total_trades": 100,
+    "win_rate": 0.52,
+    "profit_factor": 1.2,
+    "max_drawdown": 0.08,
+    "stoploss_failures": 0
+  }
+}
+```
 
 ### 운영 점검 항목
 - 로그 디렉터리 writable 여부

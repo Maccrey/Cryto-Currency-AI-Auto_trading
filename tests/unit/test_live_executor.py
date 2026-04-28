@@ -9,6 +9,27 @@ from app.services.execution.live import LiveExecutor, LiveExecutionResult
 class StubLiveOrderGateway:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
+        self.precheck_calls: list[dict[str, object]] = []
+
+    def test_order(
+        self,
+        *,
+        market: str,
+        side: str,
+        price: float,
+        quantity: float,
+        order_type: str,
+    ) -> dict[str, object]:
+        self.precheck_calls.append(
+            {
+                "market": market,
+                "side": side,
+                "price": price,
+                "quantity": quantity,
+                "order_type": order_type,
+            },
+        )
+        return {"ok": True}
 
     def place_order(
         self,
@@ -75,11 +96,46 @@ def test_live_executor_places_order_only_in_live_mode() -> None:
             "order_type": "limit",
         }
     ]
+    assert gateway.precheck_calls == gateway.calls
     assert result == LiveExecutionResult(
         accepted=True,
         order_id="live-order-1",
         status="wait",
         blocked_reason=None,
+    )
+
+
+def test_live_executor_blocks_order_when_precheck_fails() -> None:
+    class FailingPrecheckGateway(StubLiveOrderGateway):
+        def test_order(self, **kwargs) -> dict[str, object]:
+            self.precheck_calls.append(kwargs)
+            return {"ok": False, "reason": "INSUFFICIENT_BALANCE"}
+
+    gateway = FailingPrecheckGateway()
+    executor = LiveExecutor(
+        live_order_gateway=gateway,
+        trading_mode="live",
+        safe_mode=False,
+        hard_stop=False,
+    )
+
+    result = executor.execute(
+        OrderIntent(
+            market="KRW-XRP",
+            side="buy",
+            price=820.0,
+            quantity=120.5,
+            order_type="limit",
+            is_stop_loss=False,
+        ),
+    )
+
+    assert gateway.calls == []
+    assert result == LiveExecutionResult(
+        accepted=False,
+        order_id=None,
+        status="blocked",
+        blocked_reason="INSUFFICIENT_BALANCE",
     )
 
 

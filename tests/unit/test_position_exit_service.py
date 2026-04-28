@@ -1,7 +1,7 @@
 from app.services.execution.demo import DemoExecutor
 from app.services.learning.service import LearningEvent
 from app.services.position.ledger import PositionLifecycleLedger
-from app.services.position.exit import PositionExitService
+from app.services.position.exit import PositionExitService, RegularSellExecutor, StopLossSellExecutor
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.hard_stop import HardStopMonitor
 from app.services.risk.post_entry import PostEntryValidator
@@ -169,3 +169,23 @@ def test_position_exit_service_updates_position_after_partial_post_entry_exit() 
     records = lifecycle_ledger.list_records()
     assert len(records) == 1
     assert records[0].event_type == "reduced"
+
+
+def test_regular_and_stop_loss_sell_executors_set_stop_loss_flag() -> None:
+    class RecordingExecutor:
+        def __init__(self) -> None:
+            self.intents = []
+
+        def execute(self, intent):
+            self.intents.append(intent)
+            return intent
+
+    executor = RecordingExecutor()
+    regular = RegularSellExecutor(executor=executor)
+    stop_loss = StopLossSellExecutor(executor=executor)
+
+    regular.execute(market="KRW-XRP", price=830.0, quantity=10.0)
+    stop_loss.execute(market="KRW-XRP", price=805.0, quantity=10.0)
+
+    assert executor.intents[0].is_stop_loss is False
+    assert executor.intents[1].is_stop_loss is True

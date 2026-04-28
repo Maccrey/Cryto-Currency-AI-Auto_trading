@@ -53,6 +53,10 @@ class LiveExecutor:
                 blocked_reason="HARD_STOP_ACTIVE",
             )
 
+        precheck = self._precheck(intent)
+        if precheck is not None:
+            return precheck
+
         response = self._live_order_gateway.place_order(
             market=intent.market,
             side=intent.side,
@@ -65,4 +69,26 @@ class LiveExecutor:
             order_id=str(response["uuid"]),
             status=str(response["state"]),
             blocked_reason=None,
+        )
+
+    def _precheck(self, intent: OrderIntent) -> LiveExecutionResult | None:
+        test_order = getattr(self._live_order_gateway, "test_order", None)
+        if test_order is None:
+            return None
+
+        response = test_order(
+            market=intent.market,
+            side=intent.side,
+            price=intent.price,
+            quantity=intent.quantity,
+            order_type=intent.order_type,
+        )
+        if response.get("ok") is True:
+            return None
+
+        return LiveExecutionResult(
+            accepted=False,
+            order_id=None,
+            status="blocked",
+            blocked_reason=str(response.get("reason", "LIVE_PRECHECK_FAILED")),
         )

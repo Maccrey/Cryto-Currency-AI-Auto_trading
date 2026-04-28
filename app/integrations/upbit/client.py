@@ -42,5 +42,23 @@ class UpbitRestClient:
         response.raise_for_status()
         return response.json()
 
+    def post(
+        self,
+        path: str,
+        *,
+        json_payload: Mapping[str, Any] | None = None,
+    ) -> Any:
+        response = self._client.post(
+            path,
+            json=json_payload,
+            headers={
+                "Authorization": self._auth_signer.build_authorization_header(
+                    params=json_payload,
+                ),
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
     def close(self) -> None:
         self._client.close()

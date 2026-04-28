@@ -134,8 +134,14 @@ DASHBOARD_PORT=8080
 | DEMO_MIN_PROFIT_FACTOR | float | Y | 1.20 | 승격 최소 PF |
 | DEMO_MAX_DRAWDOWN | float | Y | 0.08 | 승격 최대 MDD |
 | DEMO_MAX_STOPLOSS_FAILURES | int | Y | 0 | 승격 허용 손절 실패 수 |
+| LOG_LEVEL | str | Y | INFO | 로그 레벨 |
+| LOG_FORMAT | str | Y | json | 구조화 로그 형식, json만 허용 |
 | LEARNING_LOG_DIR | str | Y | ./logs/learning | 구조화 로그 디렉터리 |
 | LEARNING_DATASET_DIR | str | Y | ./data/learning | 데이터셋 출력 디렉터리 |
+| MODEL_FEATURE_LOGGING | bool | Y | true | 모델 입력 feature 로그 저장 여부 |
+| DECISION_TRACE_LOGGING | bool | Y | true | 의사결정 trace 로그 저장 여부 |
+| DASHBOARD_HOST | str | Y | 0.0.0.0 | 대시보드 바인딩 호스트 |
+| DASHBOARD_PORT | int | Y | 8080 | 대시보드 포트 |
 
 ---
 
@@ -161,6 +167,10 @@ false면 앱 시작 실패
 ### AUTO_PROMOTE_TO_LIVE / 승인 정책
 - 기본은 `AUTO_PROMOTE_TO_LIVE=false`
 - 권장값은 수동 승인 필요
+
+### 코드 설정 스키마 계약
+`app.core.settings.SettingsModel`과 `AppSettings`는 이 문서의 필수 변수 전체를 필드로 가진다.
+환경 변수가 추가되면 `tests/unit/test_settings.py`의 스키마 계약 테스트를 먼저 갱신한 뒤 코드와 문서를 함께 수정한다.
 
 ---
 

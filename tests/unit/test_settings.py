@@ -22,9 +22,73 @@ def test_learning_disabled_raises(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "live")
     monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("DASHBOARD_PORT", "9090")
 
     settings = load_settings()
 
     assert settings.trading_mode == "live"
     assert settings.learning_enabled is True
+    assert settings.dashboard_port == 9090
 
+
+def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
+    expected_fields = {
+        "app_env",
+        "app_name",
+        "app_timezone",
+        "trading_mode",
+        "learning_enabled",
+        "trade_market",
+        "trade_coin",
+        "upbit_access_key",
+        "upbit_secret_key",
+        "upbit_base_url",
+        "upbit_ws_public_url",
+        "upbit_ws_private_url",
+        "telegram_bot_token",
+        "telegram_chat_id",
+        "telegram_notify_in_demo",
+        "buy_ratio_weak",
+        "buy_ratio_medium",
+        "buy_ratio_strong",
+        "buy_ratio_very_strong",
+        "sell_ratio_weak",
+        "sell_ratio_medium",
+        "sell_ratio_strong",
+        "sell_ratio_very_strong",
+        "stop_loss_weak",
+        "stop_loss_medium",
+        "stop_loss_strong",
+        "stop_loss_very_strong",
+        "validation_window_sec",
+        "min_expected_return_pct",
+        "min_cash_reserve",
+        "max_daily_loss",
+        "max_slippage_bps",
+        "max_spread_bps",
+        "cooldown_seconds",
+        "reentry_block_seconds",
+        "safe_mode_on_restart",
+        "restart_notify",
+        "restart_hard_stop_threshold",
+        "auto_promote_to_live",
+        "promotion_require_manual_approval",
+        "demo_min_days",
+        "demo_min_trades",
+        "demo_min_win_rate",
+        "demo_min_profit_factor",
+        "demo_max_drawdown",
+        "demo_max_stoploss_failures",
+        "log_level",
+        "log_format",
+        "learning_log_dir",
+        "learning_dataset_dir",
+        "model_feature_logging",
+        "decision_trace_logging",
+        "dashboard_host",
+        "dashboard_port",
+    }
+
+    settings = load_settings()
+
+    assert expected_fields <= set(settings.__dataclass_fields__)

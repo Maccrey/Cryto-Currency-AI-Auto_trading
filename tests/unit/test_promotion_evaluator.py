@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from app.services.promotion.evaluator import PromotionEvaluation, PromotionEvaluator
+from app.services.promotion.evaluator import (
+    PromotionEvaluation,
+    PromotionEvaluator,
+    PromotionMetrics,
+    PromotionMetricsAggregator,
+)
 
 
 def test_promotion_evaluator_marks_ready_when_all_thresholds_pass() -> None:
@@ -56,3 +61,24 @@ def test_promotion_evaluator_rejects_when_metrics_are_below_threshold() -> None:
         ],
     )
 
+
+def test_promotion_metrics_aggregator_summarizes_trade_records() -> None:
+    aggregator = PromotionMetricsAggregator()
+
+    metrics = aggregator.aggregate(
+        demo_days=15,
+        trades=[
+            {"pnl": 1200.0, "equity": 101200.0, "stoploss_failed": False},
+            {"pnl": -400.0, "equity": 100800.0, "stoploss_failed": False},
+            {"pnl": 800.0, "equity": 101600.0, "stoploss_failed": True},
+        ],
+    )
+
+    assert metrics == PromotionMetrics(
+        demo_days=15,
+        total_trades=3,
+        win_rate=0.667,
+        profit_factor=5.0,
+        max_drawdown=0.004,
+        stoploss_failures=1,
+    )

@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.services.portfolio.sync import PortfolioState
 from app.services.regime.engine import RegimeSnapshot
 from app.services.signals.engine import SignalDecision
-from app.services.sizing.engine import SizingDecision, SizingEngine
+from app.services.sizing.engine import BuySizingPolicy, SellSizingPolicy, SizingDecision, SizingEngine
 
 
 def test_sizing_engine_computes_buy_amount_for_strong_signal() -> None:
@@ -102,3 +102,10 @@ def test_sizing_engine_blocks_buy_when_spread_or_slippage_exceed_limit() -> None
     assert decision.allowed is False
     assert decision.blocked_reason == "SPREAD_OR_SLIPPAGE_LIMIT"
 
+
+def test_buy_and_sell_sizing_policies_are_separate() -> None:
+    buy_policy = BuySizingPolicy()
+    sell_policy = SellSizingPolicy()
+
+    assert buy_policy.ratio_for("strong") == 0.35
+    assert sell_policy.ratio_for("strong") == 0.45
