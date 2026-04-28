@@ -15,8 +15,8 @@
 ## 2. 사전 요구사항
 - Python 3.12 이상
 - `uv` 또는 `pip`
-- 업비트 API 키
-- 텔레그램 봇 토큰과 채팅 ID
+- 업비트 API 키는 `live` 모드에서만 필수
+- 텔레그램 봇 토큰과 채팅 ID는 알림을 사용할 때 필요
 
 현재 프로젝트는 FastAPI와 Uvicorn 기반으로 실행된다.
 
@@ -38,15 +38,37 @@ pip install -e .
 
 ---
 
-## 4. 환경 변수 설정
+## 4. 환경 변수 설정 방식
 
-`.env.example`을 기준으로 `.env`를 만든다.
+설정은 두 가지 방식으로 할 수 있다.
+
+1. 앱 실행 후 브라우저의 `/settings` 화면에서 입력한다.
+2. `.env.example`을 복사해 `.env` 파일을 직접 편집한다.
+
+처음 실행은 API 키 없이 `demo` 모드로 시작할 수 있으므로, 가장 쉬운 방식은 앱을 먼저 실행한 뒤 설정 화면에서 값을 저장하는 것이다.
+
+### GUI 설정 권장 흐름
+
+1. 앱을 실행한다.
+2. 브라우저에서 `http://127.0.0.1:8000/settings`를 연다.
+3. DEMO/LIVE 스위치로 모드를 고른다.
+4. 마켓, 코인, 업비트 키, 텔레그램 값을 입력한다.
+5. 저장한다.
+6. 변경된 `.env` 값은 앱 재시작 후 런타임에 반영된다.
+
+GUI 동작 규칙:
+- `demo` 모드는 업비트 API 키 없이 저장하고 실행할 수 있다.
+- `live` 모드는 `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY`가 없으면 저장이 거절된다.
+- 기존 `.env`에 API 키가 있으면 설정 화면의 키 입력칸을 비워 저장해도 기존 키를 보존한다.
+- `/settings/current` 응답에서는 API 키와 토큰이 `***`로 마스킹된다.
+
+### 파일 직접 설정
 
 ```bash
 cp .env.example .env
 ```
 
-최소 설정:
+demo 최소 설정:
 
 ```bash
 TRADING_MODE=demo
@@ -54,10 +76,20 @@ LEARNING_ENABLED=true
 
 TRADE_MARKET=KRW-XRP
 TRADE_COIN=XRP
+```
+
+live 전환 시 추가 필수 설정:
+
+```bash
+TRADING_MODE=live
 
 UPBIT_ACCESS_KEY=발급받은_액세스키
 UPBIT_SECRET_KEY=발급받은_시크릿키
+```
 
+알림 사용 시 설정:
+
+```bash
 TELEGRAM_BOT_TOKEN=텔레그램_봇_토큰
 TELEGRAM_CHAT_ID=텔레그램_채팅_ID
 ```
@@ -67,8 +99,14 @@ TELEGRAM_CHAT_ID=텔레그램_채팅_ID
 중요 규칙:
 - `TRADING_MODE`는 `demo` 또는 `live`만 허용된다.
 - `LEARNING_ENABLED=false`이면 앱이 시작되지 않는다.
-- 실거래 전에는 반드시 `TRADING_MODE=demo`로 먼저 검증한다.
+- `demo` 모드는 업비트 API 키 없이도 학습/검증용으로 작동한다.
+- `live` 모드 저장 또는 실행 전에는 업비트 API 키를 준비한다.
 - `.env`는 저장소에 커밋하지 않는다.
+- 다른 경로의 설정 파일을 쓰려면 `ENV_FILE_PATH`를 지정한다.
+
+```bash
+ENV_FILE_PATH=/path/to/.env uv run uvicorn app.main:app --reload
+```
 
 ---
 
@@ -111,6 +149,7 @@ http://127.0.0.1:8000/settings
 
 이 화면에서 demo/live 모드를 스위치로 변경하고 `.env`에 필요한 값을 저장할 수 있다.
 demo 모드는 업비트 API 키 없이 저장/실행할 수 있으며, live 모드는 업비트 API 키가 없으면 저장이 거절된다.
+저장된 값은 실행 중인 앱에 즉시 재조립되지 않으므로 모드나 API 키를 변경한 뒤에는 앱을 재시작한다.
 
 ---
 
@@ -147,6 +186,32 @@ curl -X POST http://127.0.0.1:8000/settings \
     "TRADE_MARKET": "KRW-XRP",
     "TRADE_COIN": "XRP"
   }'
+```
+
+live 저장 예:
+
+```bash
+curl -X POST http://127.0.0.1:8000/settings \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "TRADING_MODE": "live",
+    "LEARNING_ENABLED": "true",
+    "TRADE_MARKET": "KRW-XRP",
+    "TRADE_COIN": "XRP",
+    "UPBIT_ACCESS_KEY": "access-key",
+    "UPBIT_SECRET_KEY": "secret-key"
+  }'
+```
+
+live 저장 시 키가 없으면 다음처럼 저장되지 않는다.
+
+```json
+{
+  "status": "missing_required",
+  "saved": false,
+  "missing_for_live": ["UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY"],
+  "message": "live mode requires Upbit API keys"
+}
 ```
 
 ### 대시보드 요약
@@ -229,15 +294,18 @@ RESTART_STATE_PATH=./logs/recovery/restart-state.json
 - 승격 기준 검토 완료
 - 운영자 수동 승인 완료
 
-전환 설정:
+전환 설정은 `/settings`에서 LIVE 스위치를 선택한 뒤 업비트 API 키를 입력해 저장하는 방식을 권장한다.
+또는 `.env`에 아래 값을 직접 설정한다.
 
 ```bash
 TRADING_MODE=live
 LEARNING_ENABLED=true
+UPBIT_ACCESS_KEY=발급받은_액세스키
+UPBIT_SECRET_KEY=발급받은_시크릿키
 PROMOTION_REQUIRE_MANUAL_APPROVAL=true
 ```
 
-실행:
+저장 또는 수정 후 앱을 재시작한다.
 
 ```bash
 uv run uvicorn app.main:app --reload
@@ -284,11 +352,11 @@ pre-commit run --all-files
 ## 10. 운영 체크리스트
 
 demo 시작 전:
-- [ ] `.env` 생성
-- [ ] `TRADING_MODE=demo`
+- [ ] 앱 실행 후 `/settings` 접속 또는 `.env` 생성
+- [ ] DEMO 모드 선택
 - [ ] `LEARNING_ENABLED=true`
-- [ ] 업비트 키 입력
-- [ ] 텔레그램 토큰/채팅 ID 입력
+- [ ] 마켓/코인 확인
+- [ ] 텔레그램 알림을 쓸 경우 토큰/채팅 ID 입력
 - [ ] `pytest` 통과
 
 demo 운영 중:
@@ -300,6 +368,8 @@ demo 운영 중:
 - [ ] 텔레그램 알림 확인
 
 live 전환 전:
+- [ ] `/settings`에서 LIVE 모드 선택
+- [ ] 업비트 API 키 입력
 - [ ] 승격 기준 검토
 - [ ] 수동 승인 완료
 - [ ] SAFE_MODE/HARD_STOP 상태 확인
@@ -311,7 +381,7 @@ live 전환 전:
 ## 11. 문제 해결
 
 ### 앱 시작 시 설정 오류
-`TRADING_MODE`와 `LEARNING_ENABLED`를 확인한다.
+`TRADING_MODE`와 `LEARNING_ENABLED`를 확인한다. GUI에서는 `/settings`에서 수정하고 앱을 재시작한다.
 
 ```bash
 TRADING_MODE=demo
@@ -332,6 +402,15 @@ LEARNING_ENABLED=true
 - `SAFE_MODE_ACTIVE`
 - `HARD_STOP_ACTIVE`
 - `LIVE_PRECHECK_FAILED`
+
+### live 모드 저장이 거절됨
+`/settings`에서 LIVE를 선택했을 때 업비트 API 키가 비어 있으면 저장되지 않는다.
+
+필수 값:
+- `UPBIT_ACCESS_KEY`
+- `UPBIT_SECRET_KEY`
+
+demo 모드로 되돌리면 API 키 없이 저장할 수 있다.
 
 ---
 
