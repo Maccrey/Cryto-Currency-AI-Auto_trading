@@ -9,7 +9,9 @@ from app.services.learning.service import LearningService
 from app.services.portfolio.sync import PortfolioSyncService
 from app.services.recovery.hard_stop import RestartCounter
 from app.services.recovery.open_orders import OpenOrderReconciler
-from app.services.recovery.orchestrator import InMemoryRestartStore, RecoveryOrchestrator
+from pathlib import Path
+
+from app.services.recovery.orchestrator import FileRestartStateStore, RecoveryOrchestrator
 from app.services.runtime.service import AppRuntimeService
 
 
@@ -28,6 +30,7 @@ def build_runtime_services(
     upbit_secret_key: str,
     trade_coin: str,
     trade_market: str,
+    restart_state_path: Path | None,
     timestamp_provider,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     learning_service: LearningService | None = None,
@@ -52,7 +55,7 @@ def build_runtime_services(
                 upbit_client=upbit_client,
                 trade_market=trade_market,
             ),
-            restart_store=InMemoryRestartStore(),
+            restart_store=FileRestartStateStore(restart_state_path or Path("./logs/recovery/restart-state.json")),
             restart_counter=RestartCounter(threshold=3),
             learning_service=learning_service,
         )

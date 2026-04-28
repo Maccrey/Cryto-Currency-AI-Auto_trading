@@ -14,7 +14,11 @@ class SizingDecision:
     buy_ratio: float
     buy_amount: float
     buy_quantity: float
-    blocked_reason: str | None
+    sell_ratio: float = 0.0
+    sell_amount: float = 0.0
+    sell_quantity: float = 0.0
+    stop_loss_price: float | None = None
+    blocked_reason: str | None = None
 
 
 class BuySizingPolicy:
@@ -55,11 +59,20 @@ class SizingEngine:
         max_spread_bps: float,
         max_slippage_bps: float,
         buy_policy: BuySizingPolicy | None = None,
+        sell_policy: SellSizingPolicy | None = None,
+        stop_loss_by_signal: dict[str, float] | None = None,
     ) -> None:
         self._min_cash_reserve = min_cash_reserve
         self._max_spread_bps = max_spread_bps
         self._max_slippage_bps = max_slippage_bps
         self._buy_policy = buy_policy or BuySizingPolicy()
+        self._sell_policy = sell_policy or SellSizingPolicy()
+        self._stop_loss_by_signal = stop_loss_by_signal or {
+            "weak": 0.008,
+            "medium": 0.012,
+            "strong": 0.018,
+            "very_strong": 0.022,
+        }
 
     def size_entry(
         self,
@@ -86,6 +99,13 @@ class SizingEngine:
         final_buy_ratio = round(base_buy_ratio * regime.size_multiplier, 3)
         buy_amount = round(investable_cash * final_buy_ratio, 1)
         buy_quantity = round(buy_amount / current_price, 4)
+        sell_ratio = self._sell_policy.ratio_for(signal.level) if portfolio.asset_balance > 0 else 0.0
+        sell_quantity = round(portfolio.asset_balance * sell_ratio, 8)
+        sell_amount = round(sell_quantity * current_price, 1)
+        stop_loss_price = round(
+            current_price * (1 - self._stop_loss_by_signal[signal.level]),
+            4,
+        )
 
         return SizingDecision(
             allowed=True,
@@ -93,6 +113,10 @@ class SizingEngine:
             buy_ratio=final_buy_ratio,
             buy_amount=buy_amount,
             buy_quantity=buy_quantity,
+            sell_ratio=sell_ratio,
+            sell_amount=sell_amount,
+            sell_quantity=sell_quantity,
+            stop_loss_price=stop_loss_price,
             blocked_reason=None,
         )
 

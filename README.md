@@ -53,31 +53,18 @@
 ### 런타임 / 프레임워크
 - Python 3.12+
 - FastAPI
-- Uvicorn / Gunicorn(UvicornWorker)
+- Uvicorn
 - Pydantic v2
-- SQLAlchemy 2.x
-- Alembic
-- Redis
-- RabbitMQ 또는 NATS(선택)
-- Postgres 16+
 
 ### 패키지 / 빌드
-- uv 또는 Poetry
-- Docker / Docker Compose
+- uv 또는 pip
 - pre-commit
 
 ### 타입 / 포맷 / 린트
-- mypy
-- Ruff
-- Black
 - pre-commit
 
 ### 관찰성
 - structlog
-- OpenTelemetry
-- Prometheus
-- Grafana
-- Sentry
 
 ---
 
@@ -109,26 +96,16 @@ ops/
 ### uv 사용
 ```bash
 uv sync
-uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 uv run pytest -q
 uv run pre-commit run --all-files
-```
-
-### Poetry 사용
-```bash
-poetry install
-poetry run alembic upgrade head
-poetry run uvicorn app.main:app --reload
-poetry run pytest -q
 ```
 
 ### pip 사용
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
+pip install -e .
 uvicorn app.main:app --reload
 pytest -q
 pre-commit run --all-files
@@ -149,7 +126,7 @@ pre-commit run --all-files
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 
-자세한 스펙은 `docs/ENV_SPEC.md`를 따른다.
+자세한 스펙은 `ENV_SPEC.md`를 따른다.
 
 ---
 
@@ -274,9 +251,9 @@ git commit -m "재기동 복구 오케스트레이터와 SAFE_MODE 전환 구현
 ---
 
 ## 14. 관련 문서
-- `docs/PRD.md`
-- `docs/Tasklist.md`
-- `docs/RUNBOOK.md`
-- `docs/STRATEGY_SPEC.md`
-- `docs/ENV_SPEC.md`
-- `docs/CODEX_HARNESS.md`
+- `PRD.md`
+- `Tasklist.md`
+- `RUNBOOK.md`
+- `STRATEGY_SPEC.md`
+- `ENV_SPEC.md`
+- `CODEX_HARNESS.md`

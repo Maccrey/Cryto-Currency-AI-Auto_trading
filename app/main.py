@@ -14,6 +14,8 @@ from app.api.routes.position import build_position_router
 from app.api.routes.promotion import build_promotion_router
 from app.core.logging import configure_logging
 from app.core.settings import load_settings
+from app.integrations.upbit.auth import UpbitAuthSigner
+from app.integrations.upbit.client import UpbitRestClient
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
 from app.integrations.telegram.restart_notifier import RestartNotifier
@@ -24,6 +26,7 @@ from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.ledger import ExecutionLedger
 from app.services.execution.factory import ExecutionFactory
+from app.services.execution.live import UpbitLiveOrderGateway
 from app.services.learning.service import LearningService
 from app.services.market.store import MarketPriceStore
 from app.services.notification.factory import build_notification_services
@@ -53,11 +56,6 @@ from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
 
 
-class NoOpLiveOrderGateway:
-    def place_order(self, **kwargs) -> dict[str, object]:
-        return {"uuid": "blocked", "state": "noop"}
-
-
 def create_app(
     recovery_orchestrator: RecoveryOrchestrator | None = None,
     promotion_dashboard_service: PromotionDashboardService | None = None,
@@ -85,7 +83,12 @@ def create_app(
     timestamp_provider: Callable[[], str] | None = None,
 ) -> FastAPI:
     settings = load_settings()
-    configure_logging(settings.learning_log_dir)
+    configure_logging(
+        settings.learning_log_dir,
+        app_name=settings.app_name,
+        trading_mode=settings.trading_mode,
+        learning_enabled=settings.learning_enabled,
+    )
     timestamp_provider = timestamp_provider or (lambda: datetime.now().astimezone().isoformat())
 
     if learning_service is None:
@@ -108,6 +111,7 @@ def create_app(
         upbit_secret_key=settings.upbit_secret_key,
         trade_coin=settings.trade_coin,
         trade_market=settings.trade_market,
+        restart_state_path=settings.restart_state_path,
         timestamp_provider=timestamp_provider,
         boot_notification_dispatcher=notification_services.boot_notification_dispatcher,
         learning_service=learning_service,
@@ -142,15 +146,29 @@ def create_app(
             ),
             regime_engine=RegimeEngine(),
             sizing_engine=SizingEngine(
-                min_cash_reserve=100000.0,
-                max_spread_bps=15.0,
-                max_slippage_bps=20.0,
+                min_cash_reserve=float(settings.min_cash_reserve),
+                max_spread_bps=float(settings.max_spread_bps),
+                max_slippage_bps=float(settings.max_slippage_bps),
+                stop_loss_by_signal={
+                    "weak": settings.stop_loss_weak,
+                    "medium": settings.stop_loss_medium,
+                    "strong": settings.stop_loss_strong,
+                    "very_strong": settings.stop_loss_very_strong,
+                },
             ),
         )
 
     boot_state = runtime_services.runtime_service.start()
     executor = ExecutionFactory(
-        live_order_gateway=NoOpLiveOrderGateway(),
+        live_order_gateway=UpbitLiveOrderGateway(
+            rest_client=UpbitRestClient(
+                base_url=settings.upbit_base_url,
+                auth_signer=UpbitAuthSigner(
+                    access_key=settings.upbit_access_key,
+                    secret_key=settings.upbit_secret_key,
+                ),
+            ),
+        ),
         learning_service=learning_service,
     ).create(
         trading_mode=settings.trading_mode,
@@ -197,13 +215,13 @@ def create_app(
         post_fill_service = PostFillService(
             stop_loss_injector=StopLossInjector(
                 stop_loss_by_signal={
-                    "weak": 0.008,
-                    "medium": 0.012,
-                    "strong": 0.018,
-                    "very_strong": 0.022,
+                    "weak": settings.stop_loss_weak,
+                    "medium": settings.stop_loss_medium,
+                    "strong": settings.stop_loss_strong,
+                    "very_strong": settings.stop_loss_very_strong,
                 },
-                validation_window_sec=180,
-                min_expected_return_pct=0.004,
+                validation_window_sec=settings.validation_window_sec,
+                min_expected_return_pct=settings.min_expected_return_pct,
             ),
             position_store=position_store,
             telegram_notifier=trade_fill_notifier,

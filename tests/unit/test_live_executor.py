@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.services.execution.demo import OrderIntent
 from app.services.execution.factory import ExecutionFactory
 from app.services.execution.interface import ExecutionExecutor
-from app.services.execution.live import LiveExecutor, LiveExecutionResult
+from app.services.execution.live import LiveExecutor, LiveExecutionResult, UpbitLiveOrderGateway
 
 
 class StubLiveOrderGateway:
@@ -137,6 +137,93 @@ def test_live_executor_blocks_order_when_precheck_fails() -> None:
         status="blocked",
         blocked_reason="INSUFFICIENT_BALANCE",
     )
+
+
+def test_upbit_live_order_gateway_calls_test_and_order_endpoints() -> None:
+    class RestClientStub:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def post(self, path, *, json_payload):
+            self.calls.append((path, json_payload))
+            if path == "/v1/orders/test":
+                return {"ok": True}
+            return {"uuid": "live-order-1", "state": "wait"}
+
+    rest_client = RestClientStub()
+    gateway = UpbitLiveOrderGateway(rest_client=rest_client)
+
+    precheck = gateway.test_order(
+        market="KRW-XRP",
+        side="buy",
+        price=820.0,
+        quantity=120.5,
+        order_type="limit",
+    )
+    order = gateway.place_order(
+        market="KRW-XRP",
+        side="sell",
+        price=805.0,
+        quantity=10.0,
+        order_type="market",
+    )
+
+    assert precheck == {"ok": True}
+    assert order == {"uuid": "live-order-1", "state": "wait"}
+    assert rest_client.calls == [
+        (
+            "/v1/orders/test",
+            {
+                "market": "KRW-XRP",
+                "side": "bid",
+                "price": "820.0",
+                "volume": "120.5",
+                "ord_type": "limit",
+            },
+        ),
+        (
+            "/v1/orders",
+            {
+                "market": "KRW-XRP",
+                "side": "ask",
+                "volume": "10.0",
+                "ord_type": "market",
+            },
+        ),
+    ]
+
+
+def test_upbit_live_order_gateway_maps_market_buy_to_price_order() -> None:
+    class RestClientStub:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def post(self, path, *, json_payload):
+            self.calls.append((path, json_payload))
+            return {"ok": True}
+
+    rest_client = RestClientStub()
+    gateway = UpbitLiveOrderGateway(rest_client=rest_client)
+
+    gateway.place_order(
+        market="KRW-XRP",
+        side="buy",
+        price=820.0,
+        quantity=120.5,
+        order_type="market",
+    )
+
+    assert rest_client.calls == [
+        (
+            "/v1/orders",
+            {
+                "market": "KRW-XRP",
+                "side": "bid",
+                "price": "98810.0",
+                "ord_type": "price",
+            },
+        )
+    ]
 
 
 def test_live_executor_blocks_orders_in_safe_mode() -> None:

@@ -43,6 +43,10 @@ def test_sizing_engine_computes_buy_amount_for_strong_signal() -> None:
         buy_ratio=0.385,
         buy_amount=154000.0,
         buy_quantity=192.5,
+        sell_ratio=0.0,
+        sell_amount=0.0,
+        sell_quantity=0.0,
+        stop_loss_price=785.6,
         blocked_reason=None,
     )
 
@@ -109,3 +113,33 @@ def test_buy_and_sell_sizing_policies_are_separate() -> None:
 
     assert buy_policy.ratio_for("strong") == 0.35
     assert sell_policy.ratio_for("strong") == 0.45
+
+
+def test_sizing_engine_includes_sell_size_and_stop_loss_price() -> None:
+    engine = SizingEngine(min_cash_reserve=100000, max_spread_bps=15, max_slippage_bps=20)
+    portfolio = PortfolioState(
+        cash_balance=500000.0,
+        asset_currency="XRP",
+        asset_balance=200.0,
+        avg_buy_price=780.0,
+    )
+
+    decision = engine.size_entry(
+        portfolio,
+        SignalDecision(level="strong", score=0.72, blocked=False, reason_codes=[]),
+        RegimeSnapshot(
+            label="neutral",
+            score=0.5,
+            size_multiplier=0.8,
+            entry_allowed=True,
+            reason_codes=[],
+        ),
+        current_price=800.0,
+        spread_bps=10.0,
+        slippage_bps=12.0,
+    )
+
+    assert decision.sell_ratio == 0.45
+    assert decision.sell_quantity == 90.0
+    assert decision.sell_amount == 72000.0
+    assert decision.stop_loss_price == 785.6

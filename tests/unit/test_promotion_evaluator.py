@@ -12,17 +12,23 @@ def test_promotion_evaluator_marks_ready_when_all_thresholds_pass() -> None:
     evaluator = PromotionEvaluator(
         min_demo_days=14,
         min_trades=100,
+        min_win_rate=0.52,
         min_profit_factor=1.2,
         max_drawdown=0.08,
         max_stoploss_failures=0,
+        min_recovery_success_rate=0.99,
+        min_telegram_success_rate=0.99,
     )
 
     evaluation = evaluator.evaluate(
         demo_days=16,
         total_trades=132,
+        win_rate=0.58,
         profit_factor=1.31,
         max_drawdown=0.051,
         stoploss_failures=0,
+        recovery_success_rate=0.995,
+        telegram_success_rate=0.999,
     )
 
     assert evaluation == PromotionEvaluation(
@@ -36,17 +42,23 @@ def test_promotion_evaluator_rejects_when_metrics_are_below_threshold() -> None:
     evaluator = PromotionEvaluator(
         min_demo_days=14,
         min_trades=100,
+        min_win_rate=0.52,
         min_profit_factor=1.2,
         max_drawdown=0.08,
         max_stoploss_failures=0,
+        min_recovery_success_rate=0.99,
+        min_telegram_success_rate=0.99,
     )
 
     evaluation = evaluator.evaluate(
         demo_days=7,
         total_trades=64,
+        win_rate=0.41,
         profit_factor=1.08,
         max_drawdown=0.11,
         stoploss_failures=2,
+        recovery_success_rate=0.97,
+        telegram_success_rate=0.96,
     )
 
     assert evaluation == PromotionEvaluation(
@@ -55,9 +67,12 @@ def test_promotion_evaluator_rejects_when_metrics_are_below_threshold() -> None:
         rejection_reasons=[
             "DEMO_DAYS_BELOW_THRESHOLD",
             "TRADE_COUNT_BELOW_THRESHOLD",
+            "WIN_RATE_BELOW_THRESHOLD",
             "PROFIT_FACTOR_BELOW_THRESHOLD",
             "MAX_DRAWDOWN_ABOVE_THRESHOLD",
             "STOPLOSS_FAILURES_ABOVE_THRESHOLD",
+            "RECOVERY_SUCCESS_RATE_BELOW_THRESHOLD",
+            "TELEGRAM_SUCCESS_RATE_BELOW_THRESHOLD",
         ],
     )
 
@@ -81,4 +96,6 @@ def test_promotion_metrics_aggregator_summarizes_trade_records() -> None:
         profit_factor=5.0,
         max_drawdown=0.004,
         stoploss_failures=1,
+        recovery_success_rate=1.0,
+        telegram_success_rate=1.0,
     )

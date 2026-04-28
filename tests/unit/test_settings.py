@@ -71,6 +71,7 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "safe_mode_on_restart",
         "restart_notify",
         "restart_hard_stop_threshold",
+        "restart_state_path",
         "auto_promote_to_live",
         "promotion_require_manual_approval",
         "demo_min_days",

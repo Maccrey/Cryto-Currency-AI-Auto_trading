@@ -52,6 +52,7 @@ class SettingsModel(BaseModel):
     safe_mode_on_restart: bool = Field(default=True)
     restart_notify: bool = Field(default=True)
     restart_hard_stop_threshold: int = Field(default=3)
+    restart_state_path: Path = Field(default=Path("./logs/recovery/restart-state.json"))
     auto_promote_to_live: bool = Field(default=False)
     promotion_require_manual_approval: bool = Field(default=True)
     demo_min_days: int = Field(default=14)
@@ -131,6 +132,7 @@ class AppSettings:
     safe_mode_on_restart: bool
     restart_notify: bool
     restart_hard_stop_threshold: int
+    restart_state_path: Path
     auto_promote_to_live: bool
     promotion_require_manual_approval: bool
     demo_min_days: int
@@ -192,6 +194,7 @@ def load_settings() -> AppSettings:
         "safe_mode_on_restart": _parse_bool(os.getenv("SAFE_MODE_ON_RESTART", "true")),
         "restart_notify": _parse_bool(os.getenv("RESTART_NOTIFY", "true")),
         "restart_hard_stop_threshold": int(os.getenv("RESTART_HARD_STOP_THRESHOLD", "3")),
+        "restart_state_path": Path(os.getenv("RESTART_STATE_PATH", "./logs/recovery/restart-state.json")),
         "auto_promote_to_live": _parse_bool(os.getenv("AUTO_PROMOTE_TO_LIVE", "false")),
         "promotion_require_manual_approval": _parse_bool(
             os.getenv("PROMOTION_REQUIRE_MANUAL_APPROVAL", "true"),

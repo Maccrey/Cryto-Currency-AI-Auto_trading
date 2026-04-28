@@ -6,6 +6,91 @@ from typing import Any
 from app.services.execution.demo import OrderIntent
 
 
+class UpbitLiveOrderGateway:
+    """Map internal order fields to Upbit live order endpoints."""
+
+    SIDE_MAP = {
+        "buy": "bid",
+        "sell": "ask",
+    }
+
+    def __init__(self, *, rest_client: Any) -> None:
+        self._rest_client = rest_client
+
+    def test_order(
+        self,
+        *,
+        market: str,
+        side: str,
+        price: float,
+        quantity: float,
+        order_type: str,
+    ) -> dict[str, object]:
+        return self._rest_client.post(
+            "/v1/orders/test",
+            json_payload=self._payload(
+                market=market,
+                side=side,
+                price=price,
+                quantity=quantity,
+                order_type=order_type,
+            ),
+        )
+
+    def place_order(
+        self,
+        *,
+        market: str,
+        side: str,
+        price: float,
+        quantity: float,
+        order_type: str,
+    ) -> dict[str, object]:
+        return self._rest_client.post(
+            "/v1/orders",
+            json_payload=self._payload(
+                market=market,
+                side=side,
+                price=price,
+                quantity=quantity,
+                order_type=order_type,
+            ),
+        )
+
+    def _payload(
+        self,
+        *,
+        market: str,
+        side: str,
+        price: float,
+        quantity: float,
+        order_type: str,
+    ) -> dict[str, str]:
+        upbit_side = self.SIDE_MAP[side]
+        if order_type == "market" and side == "buy":
+            return {
+                "market": market,
+                "side": upbit_side,
+                "price": str(round(price * quantity, 8)),
+                "ord_type": "price",
+            }
+        if order_type == "market" and side == "sell":
+            return {
+                "market": market,
+                "side": upbit_side,
+                "volume": str(quantity),
+                "ord_type": "market",
+            }
+
+        return {
+            "market": market,
+            "side": upbit_side,
+            "price": str(price),
+            "volume": str(quantity),
+            "ord_type": order_type,
+        }
+
+
 @dataclass(frozen=True)
 class LiveExecutionResult:
     accepted: bool

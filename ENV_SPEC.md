@@ -65,6 +65,7 @@ REENTRY_BLOCK_SECONDS=180
 SAFE_MODE_ON_RESTART=true
 RESTART_NOTIFY=true
 RESTART_HARD_STOP_THRESHOLD=3
+RESTART_STATE_PATH=./logs/recovery/restart-state.json
 
 AUTO_PROMOTE_TO_LIVE=false
 PROMOTION_REQUIRE_MANUAL_APPROVAL=true
@@ -126,6 +127,7 @@ DASHBOARD_PORT=8080
 | SAFE_MODE_ON_RESTART | bool | Y | true | 재기동 후 SAFE_MODE 여부 |
 | RESTART_NOTIFY | bool | Y | true | 재기동 텔레그램 알림 여부 |
 | RESTART_HARD_STOP_THRESHOLD | int | Y | 3 | 연속 재기동 허용 횟수 |
+| RESTART_STATE_PATH | str | Y | ./logs/recovery/restart-state.json | 재기동 복구 상태 파일 경로 |
 | AUTO_PROMOTE_TO_LIVE | bool | Y | false | 자동 승격 허용 여부 |
 | PROMOTION_REQUIRE_MANUAL_APPROVAL | bool | Y | true | 수동 승인 필요 여부 |
 | DEMO_MIN_DAYS | int | Y | 14 | 승격 최소 데모 일수 |
