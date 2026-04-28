@@ -11,7 +11,7 @@ from app.services.recovery.hard_stop import RestartCounter
 from app.services.recovery.open_orders import OpenOrderReconciler
 from pathlib import Path
 
-from app.services.recovery.orchestrator import FileRestartStateStore, RecoveryOrchestrator
+from app.services.recovery.orchestrator import BootState, FileRestartStateStore, RecoveryOrchestrator
 from app.services.runtime.service import AppRuntimeService
 
 
@@ -19,6 +19,16 @@ from app.services.runtime.service import AppRuntimeService
 class RuntimeServices:
     recovery_orchestrator: RecoveryOrchestrator
     runtime_service: AppRuntimeService
+
+
+class StaticRecoveryOrchestrator:
+    """Return a fixed boot state for config-only startup modes."""
+
+    def __init__(self, boot_state: BootState) -> None:
+        self._boot_state = boot_state
+
+    def boot(self) -> BootState:
+        return self._boot_state
 
 
 def build_runtime_services(
@@ -37,28 +47,51 @@ def build_runtime_services(
     recovery_orchestrator: RecoveryOrchestrator | None = None,
 ) -> RuntimeServices:
     if recovery_orchestrator is None:
-        upbit_client = UpbitRestClient(
-            base_url=upbit_base_url,
-            auth_signer=UpbitAuthSigner(
-                access_key=upbit_access_key,
-                secret_key=upbit_secret_key,
-            ),
-        )
-        recovery_orchestrator = RecoveryOrchestrator(
-            app_name=app_name,
-            trading_mode=trading_mode,
-            portfolio_sync_service=PortfolioSyncService(
-                upbit_client=upbit_client,
-                trade_coin=trade_coin,
-            ),
-            open_order_reconciler=OpenOrderReconciler(
-                upbit_client=upbit_client,
-                trade_market=trade_market,
-            ),
-            restart_store=FileRestartStateStore(restart_state_path or Path("./logs/recovery/restart-state.json")),
-            restart_counter=RestartCounter(threshold=3),
-            learning_service=learning_service,
-        )
+        if trading_mode == "demo" and (not upbit_access_key or not upbit_secret_key):
+            recovery_orchestrator = StaticRecoveryOrchestrator(
+                BootState(
+                    safe_mode=False,
+                    hard_stop=False,
+                    trading_ready=True,
+                    failure_stage=None,
+                    portfolio_state=None,
+                    reconcile_result={"open_order_count": 0, "status": "demo_skipped"},
+                ),
+            )
+        elif trading_mode == "live" and (not upbit_access_key or not upbit_secret_key):
+            recovery_orchestrator = StaticRecoveryOrchestrator(
+                BootState(
+                    safe_mode=True,
+                    hard_stop=False,
+                    trading_ready=False,
+                    failure_stage="api_key_missing",
+                    portfolio_state=None,
+                    reconcile_result=None,
+                ),
+            )
+        else:
+            upbit_client = UpbitRestClient(
+                base_url=upbit_base_url,
+                auth_signer=UpbitAuthSigner(
+                    access_key=upbit_access_key,
+                    secret_key=upbit_secret_key,
+                ),
+            )
+            recovery_orchestrator = RecoveryOrchestrator(
+                app_name=app_name,
+                trading_mode=trading_mode,
+                portfolio_sync_service=PortfolioSyncService(
+                    upbit_client=upbit_client,
+                    trade_coin=trade_coin,
+                ),
+                open_order_reconciler=OpenOrderReconciler(
+                    upbit_client=upbit_client,
+                    trade_market=trade_market,
+                ),
+                restart_store=FileRestartStateStore(restart_state_path or Path("./logs/recovery/restart-state.json")),
+                restart_counter=RestartCounter(threshold=3),
+                learning_service=learning_service,
+            )
 
     runtime_service = AppRuntimeService(
         recovery_orchestrator=recovery_orchestrator,

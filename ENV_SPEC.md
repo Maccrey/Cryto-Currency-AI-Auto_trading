@@ -20,6 +20,7 @@
 APP_ENV=production
 APP_NAME=upbit-auto-trader
 APP_TIMEZONE=Asia/Seoul
+ENV_FILE_PATH=.env
 
 TRADING_MODE=demo
 LEARNING_ENABLED=true
@@ -96,6 +97,7 @@ DASHBOARD_PORT=8080
 | APP_ENV | str | Y | production | 실행 환경 |
 | APP_NAME | str | Y | upbit-auto-trader | 애플리케이션 이름 |
 | APP_TIMEZONE | str | Y | Asia/Seoul | 기본 시간대 |
+| ENV_FILE_PATH | str | N | .env | GUI 설정 화면이 읽고 쓰는 환경 파일 경로 |
 | TRADING_MODE | str | Y | demo | 실행 모드, demo/live만 허용 |
 | LEARNING_ENABLED | bool | Y | true | 항상 true여야 함 |
 | TRADE_MARKET | str | Y | KRW-XRP | 거래 마켓 |

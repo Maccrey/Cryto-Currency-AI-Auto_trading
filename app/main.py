@@ -12,6 +12,7 @@ from app.api.routes.learning import build_learning_router
 from app.api.routes.market import build_market_router
 from app.api.routes.position import build_position_router
 from app.api.routes.promotion import build_promotion_router
+from app.api.routes.settings import build_settings_router
 from app.core.logging import configure_logging
 from app.core.settings import load_settings
 from app.integrations.upbit.auth import UpbitAuthSigner
@@ -27,6 +28,7 @@ from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.ledger import ExecutionLedger
 from app.services.execution.factory import ExecutionFactory
 from app.services.execution.live import UpbitLiveOrderGateway
+from app.services.config.env_file import EnvFileService
 from app.services.learning.service import LearningService
 from app.services.market.store import MarketPriceStore
 from app.services.notification.factory import build_notification_services
@@ -236,6 +238,11 @@ def create_app(
             boot_state=boot_state,
             trading_mode=settings.trading_mode,
             learning_enabled=settings.learning_enabled,
+        ),
+    )
+    app.include_router(
+        build_settings_router(
+            env_file_service=EnvFileService(settings.env_file_path),
         ),
     )
     app.include_router(

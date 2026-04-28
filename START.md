@@ -103,6 +103,15 @@ http://127.0.0.1:8000
 curl http://127.0.0.1:8000/health
 ```
 
+설정 화면:
+
+```text
+http://127.0.0.1:8000/settings
+```
+
+이 화면에서 demo/live 모드를 스위치로 변경하고 `.env`에 필요한 값을 저장할 수 있다.
+demo 모드는 업비트 API 키 없이 저장/실행할 수 있으며, live 모드는 업비트 API 키가 없으면 저장이 거절된다.
+
 ---
 
 ## 6. 주요 API
@@ -113,6 +122,32 @@ curl http://127.0.0.1:8000/health
 ```
 
 응답에는 실행 모드, 학습 활성화 상태, SAFE_MODE, HARD_STOP, 거래 준비 상태가 포함된다.
+
+### 설정 화면
+브라우저에서 연다.
+
+```text
+http://127.0.0.1:8000/settings
+```
+
+현재 설정 API:
+
+```bash
+curl http://127.0.0.1:8000/settings/current
+```
+
+설정 저장 API:
+
+```bash
+curl -X POST http://127.0.0.1:8000/settings \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "TRADING_MODE": "demo",
+    "LEARNING_ENABLED": "true",
+    "TRADE_MARKET": "KRW-XRP",
+    "TRADE_COIN": "XRP"
+  }'
+```
 
 ### 대시보드 요약
 ```bash

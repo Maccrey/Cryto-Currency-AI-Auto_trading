@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from app.core.settings import SettingsError, load_settings
@@ -29,6 +31,33 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.trading_mode == "live"
     assert settings.learning_enabled is True
     assert settings.dashboard_port == 9090
+
+
+def test_settings_loads_values_from_env_file_without_api_keys_in_demo(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "LEARNING_ENABLED=true",
+                "TRADE_MARKET=KRW-BTC",
+                "TRADE_COIN=BTC",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("UPBIT_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("UPBIT_SECRET_KEY", raising=False)
+
+    settings = load_settings(env_file=env_file)
+
+    assert settings.trading_mode == "demo"
+    assert settings.trade_market == "KRW-BTC"
+    assert settings.upbit_access_key == ""
+    assert settings.upbit_secret_key == ""
 
 
 def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
@@ -88,6 +117,7 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "decision_trace_logging",
         "dashboard_host",
         "dashboard_port",
+        "env_file_path",
     }
 
     settings = load_settings()

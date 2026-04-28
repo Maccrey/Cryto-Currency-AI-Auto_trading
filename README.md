@@ -115,6 +115,8 @@ pre-commit run --all-files
 
 ## 7. 환경 변수
 실제 값은 `.env`에 두고, 저장소에는 `.env.example`만 둔다.
+앱 실행 후 `/settings` 화면에서도 `.env` 값을 저장할 수 있다.
+`demo` 모드는 업비트 API 키 없이 실행할 수 있고, `live` 모드 저장 시에는 API 키가 필요하다.
 
 주요 변수:
 - `TRADING_MODE=demo|live`

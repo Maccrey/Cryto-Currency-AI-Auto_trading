@@ -1017,6 +1017,65 @@ def test_health_endpoint_reports_valid_mode(monkeypatch) -> None:
     }
 
 
+def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("TRADING_MODE=demo\nLEARNING_ENABLED=true\n", encoding="utf-8")
+    monkeypatch.setenv("ENV_FILE_PATH", str(env_file))
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    page = client.get("/settings")
+    assert page.status_code == 200
+    assert "modeSwitch" in page.text
+
+    response = client.post(
+        "/settings",
+        json={
+            "TRADING_MODE": "live",
+            "LEARNING_ENABLED": "true",
+            "UPBIT_ACCESS_KEY": "",
+            "UPBIT_SECRET_KEY": "",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["saved"] is False
+    assert response.json()["missing_for_live"] == ["UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY"]
+
+    saved = client.post(
+        "/settings",
+        json={
+            "TRADING_MODE": "live",
+            "LEARNING_ENABLED": "true",
+            "UPBIT_ACCESS_KEY": "access-key",
+            "UPBIT_SECRET_KEY": "secret-key",
+        },
+    )
+
+    assert saved.status_code == 200
+    assert saved.json()["saved"] is True
+    assert "UPBIT_SECRET_KEY=secret-key" in env_file.read_text(encoding="utf-8")
+    current = client.get("/settings/current").json()
+    assert current["values"]["UPBIT_SECRET_KEY"] == "***"
+
+
 def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
