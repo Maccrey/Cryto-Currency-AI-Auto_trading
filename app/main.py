@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 
 from app.api.routes.decision import build_decision_router
 from app.api.routes.dashboard import build_dashboard_router
@@ -233,6 +234,11 @@ def create_app(
         )
 
     app = FastAPI(title=settings.app_name)
+
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        return RedirectResponse(url="/settings", status_code=307)
+
     app.include_router(
         build_health_router(
             boot_state=boot_state,

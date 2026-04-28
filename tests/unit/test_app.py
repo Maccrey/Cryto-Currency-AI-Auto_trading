@@ -1017,6 +1017,28 @@ def test_health_endpoint_reports_valid_mode(monkeypatch) -> None:
     }
 
 
+def test_root_redirects_to_settings(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    response = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/settings"
+
+
 def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     monkeypatch,
     tmp_path,
