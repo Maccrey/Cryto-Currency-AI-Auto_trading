@@ -42,10 +42,16 @@ SETTINGS_HTML = """
     .switch button { border: 0; padding: 10px 18px; background: #edf2f5; cursor: pointer; font-weight: 700; }
     .switch button.active { background: #1769aa; color: white; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .actions { margin-top: 18px; display: flex; gap: 10px; align-items: center; }
+    .actions { margin-top: 18px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .primary { background: #1769aa; color: white; border: 0; border-radius: 6px; padding: 11px 16px; font-weight: 700; cursor: pointer; }
-    .status { font-size: 13px; }
-    .warning { color: #b42318; font-weight: 700; }
+    .primary:disabled { background: #8da4b6; cursor: wait; }
+    .status { display: none; width: 100%; margin-top: 4px; padding: 10px 12px; border-radius: 6px; border: 1px solid #b7d7bd; background: #edf8ef; color: #22522b; font-size: 13px; line-height: 1.45; }
+    .status.visible { display: block; }
+    .warning { border-color: #f1b8b1; background: #fff1f0; color: #b42318; font-weight: 700; }
+    .pending { border-color: #b8c4ce; background: #edf2f5; color: #33424c; }
+    .next-steps { display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
+    .next-steps.visible { display: flex; }
+    .secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: white; color: #172026; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .note { color: #52616d; font-size: 13px; line-height: 1.45; }
   </style>
 </head>
@@ -78,13 +84,26 @@ SETTINGS_HTML = """
     <label for="telegramChat">텔레그램 채팅 ID</label>
     <input id="telegramChat" autocomplete="off">
     <div class="actions">
-      <button class="primary" type="button" onclick="saveSettings()">저장</button>
+      <button id="saveButton" class="primary" type="button" onclick="saveSettings()">저장</button>
       <span id="status" class="status"></span>
+    </div>
+    <div id="nextSteps" class="next-steps">
+      <a class="secondary" href="/health" target="_blank" rel="noreferrer">상태 확인</a>
+      <a class="secondary" href="/dashboard" target="_blank" rel="noreferrer">대시보드 열기</a>
+      <button class="secondary" type="button" onclick="loadSettings()">설정 다시 불러오기</button>
     </div>
   </section>
 </main>
 <script>
 let mode = "demo";
+function showStatus(message, kind = "") {
+  const status = document.getElementById("status");
+  status.className = `status visible ${kind}`.trim();
+  status.textContent = message;
+}
+function showNextSteps(visible) {
+  document.getElementById("nextSteps").classList.toggle("visible", visible);
+}
 function setMode(next) {
   mode = next;
   document.querySelectorAll("#modeSwitch button").forEach((button) => {
@@ -95,15 +114,22 @@ document.querySelectorAll("#modeSwitch button").forEach((button) => {
   button.addEventListener("click", () => setMode(button.dataset.mode));
 });
 async function loadSettings() {
-  const response = await fetch("/settings/current");
-  const data = await response.json();
-  const values = data.values || {};
-  setMode(data.mode || values.TRADING_MODE || "demo");
-  document.getElementById("tradeMarket").value = values.TRADE_MARKET || "KRW-XRP";
-  document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
-  document.getElementById("telegramChat").value = values.TELEGRAM_CHAT_ID || "";
+  try {
+    const response = await fetch("/settings/current");
+    const data = await response.json();
+    const values = data.values || {};
+    setMode(data.mode || values.TRADING_MODE || "demo");
+    document.getElementById("tradeMarket").value = values.TRADE_MARKET || "KRW-XRP";
+    document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
+    document.getElementById("telegramChat").value = values.TELEGRAM_CHAT_ID || "";
+  } catch (error) {
+    showStatus("현재 설정을 불러오지 못했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
+  }
 }
 async function saveSettings() {
+  const saveButton = document.getElementById("saveButton");
+  saveButton.disabled = true;
+  showStatus("설정을 저장하는 중...", "pending");
   const payload = {
     TRADING_MODE: mode,
     LEARNING_ENABLED: "true",
@@ -114,15 +140,26 @@ async function saveSettings() {
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,
     TELEGRAM_CHAT_ID: document.getElementById("telegramChat").value
   };
-  const response = await fetch("/settings", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(payload)
-  });
-  const result = await response.json();
-  const status = document.getElementById("status");
-  status.className = result.saved ? "status" : "status warning";
-  status.textContent = result.saved ? "저장됨. 실행 중인 앱에는 재시작 후 반영된다." : result.message;
+  try {
+    const response = await fetch("/settings", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    showStatus(
+      result.saved
+        ? `저장됨: ${mode.toUpperCase()} 모드. 현재 실행 상태는 상태 확인에서 볼 수 있다. 모드나 API 키를 바꾼 경우 앱 재시작 후 런타임에 반영된다.`
+        : result.message,
+      result.saved ? "" : "warning"
+    );
+    showNextSteps(Boolean(result.saved));
+  } catch (error) {
+    showStatus("저장 요청에 실패했다. 서버가 실행 중인지 확인한 뒤 다시 시도한다.", "warning");
+    showNextSteps(false);
+  } finally {
+    saveButton.disabled = false;
+  }
 }
 loadSettings();
 </script>

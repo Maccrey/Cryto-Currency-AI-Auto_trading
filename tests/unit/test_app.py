@@ -1039,6 +1039,35 @@ def test_root_redirects_to_settings(monkeypatch) -> None:
     assert response.headers["location"] == "/settings"
 
 
+def test_dashboard_page_renders_human_readable_monitor(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    assert "자동매매 대시보드" in response.text
+    assert "현재 가격" in response.text
+    assert "다크모드" in response.text
+    assert "학습 완료율" in response.text
+    assert "수익 성공률" in response.text
+    assert "/dashboard/summary" in response.text
+
+
 def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     monkeypatch,
     tmp_path,
