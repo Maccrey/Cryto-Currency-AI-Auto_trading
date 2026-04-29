@@ -482,7 +482,7 @@ function renderDashboard(data) {
   const changeClass = trendClass(trendStreak.trend);
   const marketLabel = displayMarket(market.market);
   const priceText = market.current_price === undefined ? "데이터 없음" : `${price(market.current_price)} (${percent(market.recent_change_pct)})`;
-  const trendText = market.current_price === undefined ? `${market.market || "마켓"} 현재가 데이터가 아직 없습니다.` : `${market.market || marketLabel} ${trendStreak.trend}(${trendStreak.count})`;
+  const trendText = market.current_price === undefined ? "거래량 데이터가 아직 없습니다." : `거래량 ${trendStreak.trend}(${trendStreak.count})`;
   setTextWithTitle("priceMarket", marketLabel);
   setHtmlWithTitle(
     "priceMetric",
@@ -495,7 +495,7 @@ function renderDashboard(data) {
     "priceSub",
     market.current_price === undefined
       ? trendText
-      : `${market.market || marketLabel} <span class="badge ${trendBadgeClass(trendStreak.trend)}">${trendStreak.trend}(${trendStreak.count})</span>`,
+      : `거래량 <span class="badge ${trendBadgeClass(trendStreak.trend)}">${trendStreak.trend}(${trendStreak.count})</span>`,
     trendText
   );
   document.getElementById("capitalMetric").textContent = `${number(summary.cash_balance, 0)} KRW`;
