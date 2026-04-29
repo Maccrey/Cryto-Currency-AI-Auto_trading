@@ -393,6 +393,18 @@ function aiBadge(label, className) {
   return `<span class="badge ${className}">${label}</span>`;
 }
 
+function setTextWithTitle(elementId, text) {
+  const element = document.getElementById(elementId);
+  element.textContent = text;
+  element.title = text;
+}
+
+function setHtmlWithTitle(elementId, html, title) {
+  const element = document.getElementById(elementId);
+  element.innerHTML = html;
+  element.title = title;
+}
+
 function deriveAiState({health, summary, market, executions}) {
   const latestExecution = (executions.history || []).slice(-1)[0];
   const hasPosition = Number(summary.coin_balance || 0) > 0;
@@ -468,13 +480,24 @@ function renderDashboard(data) {
   document.getElementById("modeSub").textContent = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";
   const trendStreak = deriveTrendStreak(market);
   const changeClass = trendClass(trendStreak.trend);
-  document.getElementById("priceMarket").textContent = displayMarket(market.market);
-  document.getElementById("priceMetric").innerHTML = market.current_price === undefined
-    ? "데이터 없음"
-    : `${price(market.current_price)} <span class="${changeClass}">(${percent(market.recent_change_pct)})</span>`;
-  document.getElementById("priceSub").innerHTML = market.current_price === undefined
-    ? `${market.market || "마켓"} 현재가 데이터가 아직 없습니다.`
-    : `거래량 <span class="badge ${trendBadgeClass(trendStreak.trend)}">${trendStreak.trend}(${trendStreak.count})</span>`;
+  const marketLabel = displayMarket(market.market);
+  const priceText = market.current_price === undefined ? "데이터 없음" : `${price(market.current_price)} (${percent(market.recent_change_pct)})`;
+  const trendText = market.current_price === undefined ? `${market.market || "마켓"} 현재가 데이터가 아직 없습니다.` : `${market.market || marketLabel} ${trendStreak.trend}(${trendStreak.count})`;
+  setTextWithTitle("priceMarket", marketLabel);
+  setHtmlWithTitle(
+    "priceMetric",
+    market.current_price === undefined
+      ? "데이터 없음"
+      : `${price(market.current_price)} <span class="${changeClass}">(${percent(market.recent_change_pct)})</span>`,
+    priceText
+  );
+  setHtmlWithTitle(
+    "priceSub",
+    market.current_price === undefined
+      ? trendText
+      : `${market.market || marketLabel} <span class="badge ${trendBadgeClass(trendStreak.trend)}">${trendStreak.trend}(${trendStreak.count})</span>`,
+    trendText
+  );
   document.getElementById("capitalMetric").textContent = `${number(summary.cash_balance, 0)} KRW`;
   document.getElementById("capitalSub").textContent = summary.trading_mode === "demo" ? "데모 가상 투자금 1,000,000 KRW 기준" : "실계좌 사용 가능 현금 기준";
   document.getElementById("learningProgressMetric").textContent = `${progress}%`;
