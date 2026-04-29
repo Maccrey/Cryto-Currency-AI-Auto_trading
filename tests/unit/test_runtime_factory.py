@@ -17,7 +17,7 @@ class BootDispatcherStub(BootNotificationDispatcher):
         super().__init__()
 
 
-def test_build_runtime_services_creates_default_recovery_orchestrator(
+def test_build_runtime_services_uses_virtual_portfolio_in_demo(
     tmp_path: Path,
 ) -> None:
     services = build_runtime_services(
@@ -33,9 +33,12 @@ def test_build_runtime_services_creates_default_recovery_orchestrator(
         learning_service=LearningService(log_dir=tmp_path),
     )
 
-    assert isinstance(services.recovery_orchestrator, RecoveryOrchestrator)
-    assert isinstance(services.recovery_orchestrator._restart_store, FileRestartStateStore)
-    assert services.runtime_service is not None
+    state = services.runtime_service.start()
+
+    assert state.portfolio_state is not None
+    assert state.portfolio_state.cash_balance == 1_000_000.0
+    assert state.portfolio_state.asset_currency == "XRP"
+    assert state.reconcile_result == {"open_order_count": 0, "status": "demo_skipped"}
 
 
 def test_build_runtime_services_allows_demo_without_upbit_api_keys(tmp_path: Path) -> None:
@@ -59,9 +62,11 @@ def test_build_runtime_services_allows_demo_without_upbit_api_keys(tmp_path: Pat
         hard_stop=False,
         trading_ready=True,
         failure_stage=None,
-        portfolio_state=None,
+        portfolio_state=state.portfolio_state,
         reconcile_result={"open_order_count": 0, "status": "demo_skipped"},
     )
+    assert state.portfolio_state is not None
+    assert state.portfolio_state.cash_balance == 1_000_000.0
 
 
 def test_build_runtime_services_live_without_keys_starts_in_safe_mode(tmp_path: Path) -> None:

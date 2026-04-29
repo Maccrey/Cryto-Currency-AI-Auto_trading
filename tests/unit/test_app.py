@@ -1062,6 +1062,9 @@ def test_dashboard_page_renders_human_readable_monitor(monkeypatch) -> None:
     assert response.status_code == 200
     assert "자동매매 대시보드" in response.text
     assert "현재 가격" in response.text
+    assert "투자금" in response.text
+    assert "AI 운용 모드" in response.text
+    assert "관찰 중" in response.text
     assert "다크모드" in response.text
     assert "학습 완료율" in response.text
     assert "수익 성공률" in response.text
@@ -1095,6 +1098,7 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     page = client.get("/settings")
     assert page.status_code == 200
     assert "modeSwitch" in page.text
+    assert "demoInitialCapital" in page.text
 
     response = client.post(
         "/settings",

@@ -117,6 +117,7 @@ def create_app(
         trade_market=settings.trade_market,
         restart_state_path=settings.restart_state_path,
         timestamp_provider=timestamp_provider,
+        demo_initial_capital=settings.demo_initial_capital,
         boot_notification_dispatcher=notification_services.boot_notification_dispatcher,
         learning_service=learning_service,
         recovery_orchestrator=recovery_orchestrator,

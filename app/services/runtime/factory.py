@@ -6,6 +6,7 @@ from app.integrations.telegram.boot_notification_dispatcher import BootNotificat
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.services.learning.service import LearningService
+from app.services.portfolio.sync import PortfolioState
 from app.services.portfolio.sync import PortfolioSyncService
 from app.services.recovery.hard_stop import RestartCounter
 from app.services.recovery.open_orders import OpenOrderReconciler
@@ -42,19 +43,25 @@ def build_runtime_services(
     trade_market: str,
     restart_state_path: Path | None,
     timestamp_provider,
+    demo_initial_capital: int = 1_000_000,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     learning_service: LearningService | None = None,
     recovery_orchestrator: RecoveryOrchestrator | None = None,
 ) -> RuntimeServices:
     if recovery_orchestrator is None:
-        if trading_mode == "demo" and (not upbit_access_key or not upbit_secret_key):
+        if trading_mode == "demo":
             recovery_orchestrator = StaticRecoveryOrchestrator(
                 BootState(
                     safe_mode=False,
                     hard_stop=False,
                     trading_ready=True,
                     failure_stage=None,
-                    portfolio_state=None,
+                    portfolio_state=PortfolioState(
+                        cash_balance=float(demo_initial_capital),
+                        asset_currency=trade_coin,
+                        asset_balance=0.0,
+                        avg_buy_price=0.0,
+                    ),
                     reconcile_result={"open_order_count": 0, "status": "demo_skipped"},
                 ),
             )

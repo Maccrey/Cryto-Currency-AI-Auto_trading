@@ -75,6 +75,8 @@ SETTINGS_HTML = """
         <input id="tradeCoin" placeholder="XRP">
       </div>
     </div>
+    <label for="demoInitialCapital">데모 시작 투자금</label>
+    <input id="demoInitialCapital" type="number" min="0" step="10000" placeholder="1000000">
     <label for="accessKey">업비트 액세스 키</label>
     <input id="accessKey" autocomplete="off">
     <label for="secretKey">업비트 시크릿 키</label>
@@ -121,6 +123,7 @@ async function loadSettings() {
     setMode(data.mode || values.TRADING_MODE || "demo");
     document.getElementById("tradeMarket").value = values.TRADE_MARKET || "KRW-XRP";
     document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
+    document.getElementById("demoInitialCapital").value = values.DEMO_INITIAL_CAPITAL || "1000000";
     document.getElementById("telegramChat").value = values.TELEGRAM_CHAT_ID || "";
   } catch (error) {
     showStatus("현재 설정을 불러오지 못했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
@@ -135,6 +138,7 @@ async function saveSettings() {
     LEARNING_ENABLED: "true",
     TRADE_MARKET: document.getElementById("tradeMarket").value || "KRW-XRP",
     TRADE_COIN: document.getElementById("tradeCoin").value || "XRP",
+    DEMO_INITIAL_CAPITAL: document.getElementById("demoInitialCapital").value || "1000000",
     UPBIT_ACCESS_KEY: document.getElementById("accessKey").value,
     UPBIT_SECRET_KEY: document.getElementById("secretKey").value,
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,

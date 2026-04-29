@@ -56,6 +56,7 @@ def test_settings_loads_values_from_env_file_without_api_keys_in_demo(
 
     assert settings.trading_mode == "demo"
     assert settings.trade_market == "KRW-BTC"
+    assert settings.demo_initial_capital == 1_000_000
     assert settings.upbit_access_key == ""
     assert settings.upbit_secret_key == ""
 
@@ -109,6 +110,7 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "demo_min_profit_factor",
         "demo_max_drawdown",
         "demo_max_stoploss_failures",
+        "demo_initial_capital",
         "log_level",
         "log_format",
         "learning_log_dir",

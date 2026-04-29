@@ -90,6 +90,13 @@ def test_response_builders_return_empty_without_saved_review() -> None:
         "status": "empty",
         "history": [],
     }
+    assert service.build_state_overview() == {
+        "status": "empty",
+        "ready_for_review": False,
+        "live_enabled": False,
+        "reviewed_at": None,
+        "blocking_reason_count": 0,
+    }
 
 
 def test_response_builders_return_review_and_status_payloads() -> None:
@@ -154,4 +161,11 @@ def test_response_builders_return_review_and_status_payloads() -> None:
                 "reviewed_at": "2026-04-19T15:00:00+09:00",
             }
         ],
+    }
+    assert service.build_state_overview() == {
+        "status": "READY_FOR_REVIEW",
+        "ready_for_review": True,
+        "live_enabled": True,
+        "reviewed_at": "2026-04-19T15:00:00+09:00",
+        "blocking_reason_count": 0,
     }

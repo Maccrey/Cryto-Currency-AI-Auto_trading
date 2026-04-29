@@ -97,7 +97,7 @@ DASHBOARD_HTML = """
     .primary { background: var(--primary); color: white; border-color: var(--primary); }
     .status-line { margin-top: 10px; min-height: 28px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     main.wrap { padding-top: 18px; }
-    .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; min-width: 0; }
     .metric-card { min-height: 156px; display: flex; flex-direction: column; }
     .card h2 { margin: 0 0 10px; font-size: 15px; }
@@ -107,7 +107,15 @@ DASHBOARD_HTML = """
     .ok { background: #e8f6ed; color: #1f6b35; }
     .warn { background: #fff4d6; color: #7a5400; }
     .danger { background: #fff1f0; color: #b42318; }
+    .neutral { background: #edf2f5; color: #33424c; }
+    .observe { background: #e7f1ff; color: #145ea8; }
+    .analysis { background: #f1e8ff; color: #6941c6; }
+    .entry { background: #fff4d6; color: #7a5400; }
+    .execute { background: #fff1f0; color: #b42318; }
+    .manage { background: #e8f6ed; color: #1f6b35; }
+    .blocked { background: #7f1d1d; color: #ffffff; }
     .panel { margin-top: 12px; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 12px; }
+    main.wrap > .card { margin-top: 12px; }
     .section-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .section-grid .card { min-height: 126px; }
     .progress { height: 12px; overflow: hidden; border-radius: 999px; background: var(--soft); }
@@ -119,13 +127,21 @@ DASHBOARD_HTML = """
     .table-box { min-height: 268px; overflow: hidden; }
     .state-panel { min-height: 366px; }
     .metric-table tbody { display: table-row-group; }
+    .ai-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .ai-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+    .ai-label { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .ai-value { margin-top: 8px; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .legend { margin-top: 12px; }
+    .legend-toggle { margin-top: 12px; }
+    .legend-panel { display: none; }
+    .legend-panel.visible { display: block; }
     .theme-switch { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border: 1px solid #9eb0bd; border-radius: 999px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; cursor: pointer; }
     .toggle { position: relative; width: 38px; height: 20px; border-radius: 999px; background: #9eb0bd; }
     .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: white; transition: transform 120ms ease; }
     body.dark .toggle { background: var(--primary); }
     body.dark .toggle::after { transform: translateX(18px); }
     @media (max-width: 900px) {
-      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid, .ai-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .panel { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
@@ -164,6 +180,11 @@ DASHBOARD_HTML = """
       <div id="priceSub" class="sub">-</div>
     </div>
     <div class="card metric-card">
+      <h2>투자금</h2>
+      <div id="capitalMetric" class="metric">-</div>
+      <div id="capitalSub" class="sub">-</div>
+    </div>
+    <div class="card metric-card">
       <h2>학습 완료율</h2>
       <div id="learningProgressMetric" class="metric">-</div>
       <div class="progress"><div id="learningProgressBar" class="bar"></div></div>
@@ -178,6 +199,44 @@ DASHBOARD_HTML = """
       <h2>손익</h2>
       <div id="pnlMetric" class="metric">-</div>
       <div id="pnlSub" class="sub">-</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>AI 운용 모드</h2>
+    <div class="ai-grid">
+      <div class="ai-item">
+        <div class="ai-label">AI 상태</div>
+        <div id="aiState" class="ai-value">-</div>
+      </div>
+      <div class="ai-item">
+        <div class="ai-label">자동매매</div>
+        <div id="autoTradingState" class="ai-value">-</div>
+      </div>
+      <div class="ai-item">
+        <div class="ai-label">리스크 등급</div>
+        <div id="riskGrade" class="ai-value">-</div>
+      </div>
+      <div class="ai-item">
+        <div class="ai-label">마지막 분석</div>
+        <div id="lastAnalysisAt" class="ai-value">-</div>
+      </div>
+    </div>
+    <button id="legendToggle" class="btn legend-toggle" type="button" onclick="toggleAiLegend()">상태 설명 펼치기</button>
+    <div id="aiLegend" class="legend-panel">
+      <table class="legend">
+        <thead><tr><th>상태</th><th>의미</th><th>색상</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge neutral">대기</span></td><td>AI는 켜져 있지만 아직 분석 전</td><td>회색</td></tr>
+          <tr><td><span class="badge observe">관찰 중</span></td><td>시장 데이터 수집 중</td><td>파란색</td></tr>
+          <tr><td><span class="badge analysis">분석 중</span></td><td>AI가 매수/매도 조건 판단 중</td><td>보라색</td></tr>
+          <tr><td><span class="badge entry">진입 대기</span></td><td>조건은 거의 충족, 최종 확인 중</td><td>노란색</td></tr>
+          <tr><td><span class="badge execute">주문 실행</span></td><td>실제 매수/매도 주문 중</td><td>빨간색</td></tr>
+          <tr><td><span class="badge manage">포지션 관리</span></td><td>이미 진입했고 익절/손절 관리 중</td><td>초록색</td></tr>
+          <tr><td><span class="badge neutral">중지됨</span></td><td>사용자가 중지했거나 오류 발생</td><td>회색/검정</td></tr>
+          <tr><td><span class="badge blocked">위험 차단</span></td><td>급변동, API 오류, 손실 제한 등으로 자동 중단</td><td>진한 빨간색</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -224,6 +283,13 @@ function toggleTheme() {
   applyTheme(document.body.classList.contains("dark") ? "light" : "dark");
 }
 
+function toggleAiLegend() {
+  const legend = document.getElementById("aiLegend");
+  const visible = !legend.classList.contains("visible");
+  legend.classList.toggle("visible", visible);
+  document.getElementById("legendToggle").textContent = visible ? "상태 설명 접기" : "상태 설명 펼치기";
+}
+
 function number(value, digits = 0) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
   return Number(value).toLocaleString("ko-KR", { maximumFractionDigits: digits });
@@ -247,6 +313,48 @@ function severityClass(severity) {
 
 function row(label, value) {
   return `<tr><th>${label}</th><td>${value}</td></tr>`;
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).replace("T", " ").slice(0, 19);
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).format(date);
+  return parts;
+}
+
+function aiBadge(label, className) {
+  return `<span class="badge ${className}">${label}</span>`;
+}
+
+function deriveAiState({health, summary, market, executions}) {
+  const latestExecution = (executions.history || []).slice(-1)[0];
+  const hasPosition = Number(summary.coin_balance || 0) > 0;
+  if (health.hard_stop) {
+    return {ai: ["위험 차단", "blocked"], trading: ["중지됨", "neutral"], risk: ["위험 차단", "blocked"]};
+  }
+  if (!health.trading_ready || health.safe_mode) {
+    return {ai: ["중지됨", "neutral"], trading: ["중지됨", "neutral"], risk: ["높음", "execute"]};
+  }
+  if (latestExecution && latestExecution.status === "filled") {
+    return {ai: ["주문 실행", "execute"], trading: ["대기", "neutral"], risk: ["보통", "entry"]};
+  }
+  if (hasPosition) {
+    return {ai: ["포지션 관리", "manage"], trading: ["대기", "neutral"], risk: ["보통", "entry"]};
+  }
+  if (market.current_price !== undefined) {
+    return {ai: ["관찰 중", "observe"], trading: ["대기", "neutral"], risk: ["보통", "entry"]};
+  }
+  return {ai: ["대기", "neutral"], trading: ["대기", "neutral"], risk: ["보통", "entry"]};
 }
 
 function deriveWinRate(summary, promotion) {
@@ -303,6 +411,8 @@ function renderDashboard(data) {
   document.getElementById("modeSub").textContent = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";
   document.getElementById("priceMetric").textContent = price(market.current_price);
   document.getElementById("priceSub").textContent = market.current_price === undefined ? `${market.market || "마켓"} 현재가 데이터가 아직 없습니다.` : `${market.market} ${percent(market.recent_change_pct)} ${market.state_label || ""} · ${market.recorded_at || "시각 없음"}`;
+  document.getElementById("capitalMetric").textContent = `${number(summary.cash_balance, 0)} KRW`;
+  document.getElementById("capitalSub").textContent = summary.trading_mode === "demo" ? "데모 가상 투자금 1,000,000 KRW 기준" : "실계좌 사용 가능 현금 기준";
   document.getElementById("learningProgressMetric").textContent = `${progress}%`;
   document.getElementById("learningProgressBar").style.width = `${progress}%`;
   document.getElementById("learningProgressSub").textContent = `${totalEvents}/${LEARNING_TARGET_EVENTS} 이벤트 기록 기준. 신호 ${summary.learning_signal_count || 0}건, 체결 ${summary.learning_fill_count || 0}건.`;
@@ -310,6 +420,11 @@ function renderDashboard(data) {
   document.getElementById("winRateSub").textContent = winRate === null ? "완료된 거래 손익 기록이 쌓이면 표시됩니다." : "현재 기록 기준 수익 거래 비율입니다.";
   document.getElementById("pnlMetric").textContent = `${number(summary.realized_pnl, 2)} KRW`;
   document.getElementById("pnlSub").textContent = `미실현 손익 ${number(summary.unrealized_pnl, 2)} KRW, 매수 ${summary.buy_count || 0}건, 매도 ${summary.sell_count || 0}건`;
+  const aiState = deriveAiState({health, summary, market, executions});
+  document.getElementById("aiState").innerHTML = aiBadge(aiState.ai[0], aiState.ai[1]);
+  document.getElementById("autoTradingState").innerHTML = aiBadge(aiState.trading[0], aiState.trading[1]);
+  document.getElementById("riskGrade").innerHTML = aiBadge(aiState.risk[0], aiState.risk[1]);
+  document.getElementById("lastAnalysisAt").textContent = formatDateTime(market.recorded_at || summary.last_signal_recorded_at || summary.last_fill_recorded_at);
 
   document.getElementById("sections").innerHTML = (summary.sections || []).map((section) => `
     <div class="card">

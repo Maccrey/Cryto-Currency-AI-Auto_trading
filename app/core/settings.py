@@ -61,6 +61,7 @@ class SettingsModel(BaseModel):
     demo_min_profit_factor: float = Field(default=1.20)
     demo_max_drawdown: float = Field(default=0.08)
     demo_max_stoploss_failures: int = Field(default=0)
+    demo_initial_capital: int = Field(default=1_000_000)
     log_level: str = Field(default="INFO")
     log_format: str = Field(default="json")
     learning_log_dir: Path = Field(default=Path("./logs/learning"))
@@ -142,6 +143,7 @@ class AppSettings:
     demo_min_profit_factor: float
     demo_max_drawdown: float
     demo_max_stoploss_failures: int
+    demo_initial_capital: int
     log_level: str
     log_format: str
     learning_log_dir: Path
@@ -209,6 +211,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "demo_min_profit_factor": float(_setting("DEMO_MIN_PROFIT_FACTOR", "1.20", env_values)),
         "demo_max_drawdown": float(_setting("DEMO_MAX_DRAWDOWN", "0.08", env_values)),
         "demo_max_stoploss_failures": int(_setting("DEMO_MAX_STOPLOSS_FAILURES", "0", env_values)),
+        "demo_initial_capital": int(_setting("DEMO_INITIAL_CAPITAL", "1000000", env_values)),
         "log_level": _setting("LOG_LEVEL", "INFO", env_values),
         "log_format": _setting("LOG_FORMAT", "json", env_values),
         "learning_log_dir": Path(_setting("LEARNING_LOG_DIR", "./logs/learning", env_values)),

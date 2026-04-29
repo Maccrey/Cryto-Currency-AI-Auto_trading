@@ -42,6 +42,24 @@ class PromotionStateService:
         snapshot = self.get_latest()
         return snapshot is not None and snapshot.evaluation_status == "READY_FOR_REVIEW"
 
+    def build_state_overview(self) -> dict[str, object]:
+        snapshot = self.get_latest()
+        if snapshot is None:
+            return {
+                "status": "empty",
+                "ready_for_review": False,
+                "live_enabled": False,
+                "reviewed_at": None,
+                "blocking_reason_count": 0,
+            }
+        return {
+            "status": snapshot.evaluation_status,
+            "ready_for_review": snapshot.evaluation_status == "READY_FOR_REVIEW",
+            "live_enabled": snapshot.live_enabled,
+            "reviewed_at": snapshot.reviewed_at,
+            "blocking_reason_count": len(snapshot.rejection_reasons),
+        }
+
     def build_review_response(
         self,
         result: PromotionRunResult,
