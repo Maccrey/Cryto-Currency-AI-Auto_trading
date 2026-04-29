@@ -5,6 +5,7 @@ from app.services.dashboard.market import (
 )
 from app.services.dashboard.market_facade import DashboardMarketFacade
 from app.services.market.store import MarketPriceStore
+from app.services.market.upbit_ticker import UpbitTickerSnapshot
 
 
 class CurrentPriceProviderStub:
@@ -15,6 +16,20 @@ class CurrentPriceProviderStub:
     def get_current_price(self, market: str) -> float | None:
         self.calls.append(market)
         return self.price
+
+
+class CurrentTickerProviderStub:
+    def __init__(self, snapshot: UpbitTickerSnapshot | None) -> None:
+        self.snapshot = snapshot
+        self.calls: list[str] = []
+
+    def get_current_price(self, market: str) -> float | None:
+        self.calls.append(market)
+        return None if self.snapshot is None else self.snapshot.trade_price
+
+    def get_current_snapshot(self, market: str) -> UpbitTickerSnapshot | None:
+        self.calls.append(market)
+        return self.snapshot
 
 
 def test_dashboard_market_facade_returns_empty_without_snapshot() -> None:
@@ -79,6 +94,32 @@ def test_dashboard_market_facade_refreshes_current_price_when_provider_exists() 
     assert payload["summary"]["current_price"] == 846.0
     assert payload["summary"]["recorded_at"] == "2026-04-19T20:35:01+09:00"
     assert [item["price"] for item in payload["summary"]["history"]] == [845.5, 846.0]
+
+
+def test_dashboard_market_facade_includes_ticker_volume_when_provider_supports_snapshot() -> None:
+    store = MarketPriceStore(
+        timestamp_provider=lambda: "2026-04-19T20:35:00+09:00",
+    )
+    provider = CurrentTickerProviderStub(
+        UpbitTickerSnapshot(
+            trade_price=846.0,
+            acc_trade_volume_24h=123456.789,
+            acc_trade_price_24h=255000000.0,
+        ),
+    )
+    facade = DashboardMarketFacade(
+        market="KRW-XRP",
+        market_price_store=store,
+        dashboard_market_service=DashboardMarketService(),
+        current_price_provider=provider,
+    )
+
+    payload = facade.build_current_response()
+
+    assert provider.calls == ["KRW-XRP"]
+    assert payload["summary"]["current_price"] == 846.0
+    assert payload["summary"]["acc_trade_volume_24h"] == 123456.789
+    assert payload["summary"]["acc_trade_price_24h"] == 255000000.0
 
 
 def test_dashboard_market_facade_returns_current_price_change_and_history() -> None:

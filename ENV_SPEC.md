@@ -76,6 +76,7 @@ DEMO_MIN_WIN_RATE=0.52
 DEMO_MIN_PROFIT_FACTOR=1.20
 DEMO_MAX_DRAWDOWN=0.08
 DEMO_MAX_STOPLOSS_FAILURES=0
+DEMO_INITIAL_CAPITAL=1000000
 
 LOG_LEVEL=INFO
 LOG_FORMAT=json
@@ -138,6 +139,7 @@ DASHBOARD_PORT=8080
 | DEMO_MIN_PROFIT_FACTOR | float | Y | 1.20 | 승격 최소 PF |
 | DEMO_MAX_DRAWDOWN | float | Y | 0.08 | 승격 최대 MDD |
 | DEMO_MAX_STOPLOSS_FAILURES | int | Y | 0 | 승격 허용 손절 실패 수 |
+| DEMO_INITIAL_CAPITAL | int | Y | 1000000 | demo 모드 가상 시작 투자금 |
 | LOG_LEVEL | str | Y | INFO | 로그 레벨 |
 | LOG_FORMAT | str | Y | json | 구조화 로그 형식, json만 허용 |
 | LEARNING_LOG_DIR | str | Y | ./logs/learning | 구조화 로그 디렉터리 |
@@ -184,6 +186,7 @@ false면 앱 시작 실패
 ```bash
 TRADING_MODE=demo
 LEARNING_ENABLED=true
+DEMO_INITIAL_CAPITAL=1000000
 ```
 
 ### live 전환
@@ -221,6 +224,8 @@ UPBIT_SECRET_KEY=
 
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
+
+DEMO_INITIAL_CAPITAL=1000000
 ```
 
 ---

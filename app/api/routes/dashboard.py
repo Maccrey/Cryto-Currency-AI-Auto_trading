@@ -103,10 +103,20 @@ DASHBOARD_HTML = """
     .card h2 { margin: 0 0 10px; font-size: 15px; }
     .metric { min-height: 34px; font-size: 28px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
     .sub { margin-top: 6px; min-height: 36px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+    .price-stack { min-height: 92px; display: grid; grid-template-rows: 20px 34px 26px; align-content: start; row-gap: 6px; }
+    .price-market { color: var(--muted); font-size: 14px; font-weight: 800; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .price-line { font-size: 24px; font-weight: 800; line-height: 34px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .price-trend-line { min-height: 26px; line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: var(--soft); color: var(--text); font-size: 12px; font-weight: 800; }
     .ok { background: #e8f6ed; color: #1f6b35; }
     .warn { background: #fff4d6; color: #7a5400; }
     .danger { background: #fff1f0; color: #b42318; }
+    .price-up { color: #b42318; }
+    .price-down { color: #145ea8; }
+    .price-flat { color: var(--text); }
+    .trend-up { background: #fff1f0; color: #b42318; border: 1px solid #f1b8b1; }
+    .trend-down { background: #e7f1ff; color: #145ea8; border: 1px solid #b7d7ff; }
+    .trend-flat { background: #ffffff; color: #172026; border: 1px solid #d8e0e6; }
     .neutral { background: #edf2f5; color: #33424c; }
     .observe { background: #e7f1ff; color: #145ea8; }
     .analysis { background: #f1e8ff; color: #6941c6; }
@@ -176,8 +186,11 @@ DASHBOARD_HTML = """
     </div>
     <div class="card metric-card">
       <h2>현재 가격</h2>
-      <div id="priceMetric" class="metric">-</div>
-      <div id="priceSub" class="sub">-</div>
+      <div class="price-stack">
+        <div id="priceMarket" class="price-market">-</div>
+        <div id="priceMetric" class="price-line">-</div>
+        <div id="priceSub" class="price-trend-line">-</div>
+      </div>
     </div>
     <div class="card metric-card">
       <h2>투자금</h2>
@@ -297,12 +310,56 @@ function number(value, digits = 0) {
 
 function percent(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "데이터 부족";
-  return `${Math.round(Number(value) * 100)}%`;
+  const pct = Number(value) * 100;
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}%`;
 }
 
 function price(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "데이터 없음";
   return `${Number(value).toLocaleString("ko-KR", { maximumFractionDigits: 4 })} KRW`;
+}
+
+function displayMarket(market) {
+  if (!market) return "마켓";
+  const parts = String(market).split("-");
+  return parts.length === 2 ? `${parts[1]}-${parts[0]}` : String(market);
+}
+
+function trendClass(trend) {
+  if (trend === "UP") return "price-up";
+  if (trend === "DOWN") return "price-down";
+  return "price-flat";
+}
+
+function trendBadgeClass(trend) {
+  if (trend === "UP") return "trend-up";
+  if (trend === "DOWN") return "trend-down";
+  return "trend-flat";
+}
+
+function deriveTrendStreak(market) {
+  const history = Array.isArray(market.history) ? market.history : [];
+  const prices = history
+    .map((item) => Number(item.price))
+    .filter((value) => !Number.isNaN(value));
+  if (market.current_price !== undefined && Number(market.current_price) !== prices[prices.length - 1]) {
+    prices.push(Number(market.current_price));
+  }
+  if (prices.length < 2) {
+    const trend = market.state_label || "FLAT";
+    return {trend, count: prices.length ? 1 : 0};
+  }
+  const lastDiff = prices[prices.length - 1] - prices[prices.length - 2];
+  const trend = lastDiff > 0 ? "UP" : lastDiff < 0 ? "DOWN" : "FLAT";
+  let count = 1;
+  for (let index = prices.length - 2; index > 0; index -= 1) {
+    const diff = prices[index] - prices[index - 1];
+    const currentTrend = diff > 0 ? "UP" : diff < 0 ? "DOWN" : "FLAT";
+    if (currentTrend !== trend) break;
+    count += 1;
+  }
+  return {trend, count};
 }
 
 function severityClass(severity) {
@@ -409,8 +466,15 @@ function renderDashboard(data) {
   document.getElementById("statusLine").innerHTML = `${readyBadge} ${learningBadge}`;
   document.getElementById("modeMetric").textContent = String(summary.trading_mode || health.mode).toUpperCase();
   document.getElementById("modeSub").textContent = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";
-  document.getElementById("priceMetric").textContent = price(market.current_price);
-  document.getElementById("priceSub").textContent = market.current_price === undefined ? `${market.market || "마켓"} 현재가 데이터가 아직 없습니다.` : `${market.market} ${percent(market.recent_change_pct)} ${market.state_label || ""} · ${market.recorded_at || "시각 없음"}`;
+  const trendStreak = deriveTrendStreak(market);
+  const changeClass = trendClass(trendStreak.trend);
+  document.getElementById("priceMarket").textContent = displayMarket(market.market);
+  document.getElementById("priceMetric").innerHTML = market.current_price === undefined
+    ? "데이터 없음"
+    : `${price(market.current_price)} <span class="${changeClass}">(${percent(market.recent_change_pct)})</span>`;
+  document.getElementById("priceSub").innerHTML = market.current_price === undefined
+    ? `${market.market || "마켓"} 현재가 데이터가 아직 없습니다.`
+    : `거래량 <span class="badge ${trendBadgeClass(trendStreak.trend)}">${trendStreak.trend}(${trendStreak.count})</span>`;
   document.getElementById("capitalMetric").textContent = `${number(summary.cash_balance, 0)} KRW`;
   document.getElementById("capitalSub").textContent = summary.trading_mode === "demo" ? "데모 가상 투자금 1,000,000 KRW 기준" : "실계좌 사용 가능 현금 기준";
   document.getElementById("learningProgressMetric").textContent = `${progress}%`;

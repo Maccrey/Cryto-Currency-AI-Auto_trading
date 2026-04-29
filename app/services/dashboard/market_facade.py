@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.services.dashboard.market import DashboardMarketService
 from app.services.market.store import MarketPriceStore
@@ -25,6 +25,7 @@ class DashboardMarketFacade:
         self._market_price_store = market_price_store
         self._dashboard_market_service = dashboard_market_service
         self._current_price_provider = current_price_provider
+        self._latest_ticker_meta: dict[str, float] = {}
 
     def build_current_response(self, *, history_limit: int = 20) -> dict[str, object]:
         snapshot = self._fetch_or_get_snapshot()
@@ -43,7 +44,10 @@ class DashboardMarketFacade:
         return {
             "status": "ok",
             "market": self._market,
-            "summary": self._dashboard_market_service.to_payload(market),
+            "summary": {
+                **self._dashboard_market_service.to_payload(market),
+                **self._latest_ticker_meta,
+            },
         }
 
     def _fetch_or_get_snapshot(self):
@@ -51,9 +55,29 @@ class DashboardMarketFacade:
         if self._current_price_provider is None:
             return snapshot
         try:
-            price = self._current_price_provider.get_current_price(self._market)
+            price = self._fetch_current_price()
         except Exception:
             return snapshot
         if price is None:
             return snapshot
         return self._market_price_store.save(market=self._market, price=price)
+
+    def _fetch_current_price(self) -> float | None:
+        get_current_snapshot = getattr(self._current_price_provider, "get_current_snapshot", None)
+        if get_current_snapshot is None:
+            return self._current_price_provider.get_current_price(self._market)
+        ticker_snapshot = get_current_snapshot(self._market)
+        if ticker_snapshot is None:
+            return None
+        trade_price = float(getattr(ticker_snapshot, "trade_price"))
+        self._latest_ticker_meta = self._extract_ticker_meta(ticker_snapshot)
+        return trade_price
+
+    @staticmethod
+    def _extract_ticker_meta(ticker_snapshot: Any) -> dict[str, float]:
+        meta: dict[str, float] = {}
+        for attr in ("acc_trade_volume_24h", "acc_trade_price_24h"):
+            value = getattr(ticker_snapshot, attr, None)
+            if value is not None:
+                meta[attr] = float(value)
+        return meta

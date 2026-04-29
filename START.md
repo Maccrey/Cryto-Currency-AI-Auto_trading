@@ -52,12 +52,13 @@ pip install -e .
 1. 앱을 실행한다.
 2. 브라우저에서 `http://127.0.0.1:8000/settings`를 연다.
 3. DEMO/LIVE 스위치로 모드를 고른다.
-4. 마켓, 코인, 업비트 키, 텔레그램 값을 입력한다.
+4. 마켓, 코인, 데모 시작 투자금, 업비트 키, 텔레그램 값을 입력한다.
 5. 저장한다.
 6. 변경된 `.env` 값은 앱 재시작 후 런타임에 반영된다.
 
 GUI 동작 규칙:
 - `demo` 모드는 업비트 API 키 없이 저장하고 실행할 수 있다.
+- `demo` 모드 기본 시작 투자금은 `1,000,000 KRW`이며 설정 화면의 `데모 시작 투자금`에서 변경할 수 있다.
 - `live` 모드는 `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY`가 없으면 저장이 거절된다.
 - 기존 `.env`에 API 키가 있으면 설정 화면의 키 입력칸을 비워 저장해도 기존 키를 보존한다.
 - `/settings/current` 응답에서는 API 키와 토큰이 `***`로 마스킹된다.
@@ -76,6 +77,7 @@ LEARNING_ENABLED=true
 
 TRADE_MARKET=KRW-XRP
 TRADE_COIN=XRP
+DEMO_INITIAL_CAPITAL=1000000
 ```
 
 live 전환 시 추가 필수 설정:
@@ -112,7 +114,7 @@ ENV_FILE_PATH=/path/to/.env uv run uvicorn app.main:app --reload
 
 ## 5. demo 모드 실행
 
-`demo` 모드는 실제 주문 API를 호출하지 않고 가상 체결을 사용한다.
+`demo` 모드는 실제 주문 API를 호출하지 않고 가상 체결을 사용한다. 기본 가상 투자금은 `1,000,000 KRW`다.
 
 ```bash
 TRADING_MODE=demo
@@ -127,6 +129,11 @@ uv run uvicorn app.main:app --reload
 ### pip
 ```bash
 uvicorn app.main:app --reload
+```
+
+### 명시적 demo 실행
+```bash
+env TRADING_MODE=demo LEARNING_ENABLED=true uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 기본 접속 주소:
@@ -150,6 +157,15 @@ http://127.0.0.1:8000/settings
 이 화면에서 demo/live 모드를 스위치로 변경하고 `.env`에 필요한 값을 저장할 수 있다.
 demo 모드는 업비트 API 키 없이 저장/실행할 수 있으며, live 모드는 업비트 API 키가 없으면 저장이 거절된다.
 저장된 값은 실행 중인 앱에 즉시 재조립되지 않으므로 모드나 API 키를 변경한 뒤에는 앱을 재시작한다.
+
+대시보드:
+
+```text
+http://127.0.0.1:8000/dashboard
+```
+
+대시보드에서는 현재가, 데모 투자금, 손익, 학습 상태, AI 운용 상태, 최근 체결, 실거래 전환 준비 상태를 확인한다.
+현재가는 업비트 공개 ticker API를 사용해 1초 주기로 갱신된다.
 
 ---
 
@@ -184,7 +200,8 @@ curl -X POST http://127.0.0.1:8000/settings \
     "TRADING_MODE": "demo",
     "LEARNING_ENABLED": "true",
     "TRADE_MARKET": "KRW-XRP",
-    "TRADE_COIN": "XRP"
+    "TRADE_COIN": "XRP",
+    "DEMO_INITIAL_CAPITAL": "1000000"
   }'
 ```
 
@@ -214,9 +231,50 @@ live 저장 시 키가 없으면 다음처럼 저장되지 않는다.
 }
 ```
 
-### 대시보드 요약
+### 대시보드 화면
+브라우저에서 연다.
+
+```text
+http://127.0.0.1:8000/dashboard
+```
+
+표시 항목:
+- 실행 모드
+- 현재 가격
+- 데모 투자금 또는 실계좌 사용 가능 현금
+- 학습 완료율
+- 수익 성공률
+- 실현/미실현 손익
+- AI 운용 모드
+- 현재 상황
+- 학습 상태
+- 최근 체결
+- 실거래 전환 준비
+
+AI 운용 모드에는 다음 값이 표시된다.
+
+```text
+AI 상태: 관찰 중
+자동매매: 대기
+리스크 등급: 보통
+마지막 분석: 현재가 수집 시각
+```
+
+상태 설명 표는 기본적으로 접혀 있으며 `상태 설명 펼치기` 버튼으로 열고 닫을 수 있다.
+
+### 대시보드 API
 ```bash
 curl http://127.0.0.1:8000/dashboard
+```
+
+HTML 대시보드가 반환된다. JSON 요약은 아래 API를 사용한다.
+
+```bash
+curl http://127.0.0.1:8000/dashboard/summary
+curl http://127.0.0.1:8000/dashboard/market
+curl http://127.0.0.1:8000/dashboard/learning
+curl http://127.0.0.1:8000/dashboard/executions
+curl http://127.0.0.1:8000/dashboard/promotion
 ```
 
 보유 현금, 보유 코인, 손익, 매수/매도/손절 횟수, 학습 상태, 복구 상태, 승격 상태를 확인한다.
@@ -354,6 +412,7 @@ pre-commit run --all-files
 demo 시작 전:
 - [ ] 앱 실행 후 `/settings` 접속 또는 `.env` 생성
 - [ ] DEMO 모드 선택
+- [ ] 데모 시작 투자금 `1,000,000 KRW` 확인 또는 변경
 - [ ] `LEARNING_ENABLED=true`
 - [ ] 마켓/코인 확인
 - [ ] 텔레그램 알림을 쓸 경우 토큰/채팅 ID 입력
@@ -362,6 +421,8 @@ demo 시작 전:
 demo 운영 중:
 - [ ] `/health` 정상
 - [ ] `/dashboard` 정상
+- [ ] 현재 가격 1초 갱신 확인
+- [ ] AI 상태가 현재 상황에 맞게 표시되는지 확인
 - [ ] 학습 로그 생성 확인
 - [ ] 손절 라인/마커 확인
 - [ ] 재기동 상태 파일 생성 확인
