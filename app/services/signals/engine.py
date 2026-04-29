@@ -18,9 +18,14 @@ class SignalReasonCodeGenerator:
     """Build stable reason codes for signal decisions."""
 
     def blocked(self, features: FeatureSnapshot) -> list[str]:
+        reason_codes: list[str] = []
         if features.liquidity_score < 0.2:
-            return ["LOW_LIQUIDITY_BLOCKED"]
-        return []
+            reason_codes.append("LOW_LIQUIDITY_BLOCKED")
+        if features.ret_1s < -0.004:
+            reason_codes.append("MICRO_MOMENTUM_REVERSAL_BLOCKED")
+        if features.short_volatility > 0.03:
+            reason_codes.append("EXCESSIVE_SHORT_VOLATILITY_BLOCKED")
+        return reason_codes
 
     def generated(self, features: FeatureSnapshot) -> list[str]:
         reason_codes = []
@@ -48,12 +53,13 @@ class SignalEngine:
         self._reason_code_generator = reason_code_generator or SignalReasonCodeGenerator()
 
     def evaluate(self, features: FeatureSnapshot) -> SignalDecision:
-        if features.liquidity_score < 0.2:
+        block_reasons = self._reason_code_generator.blocked(features)
+        if block_reasons:
             decision = SignalDecision(
                 level="weak",
                 score=round(self._score(features), 2),
                 blocked=True,
-                reason_codes=self._reason_code_generator.blocked(features),
+                reason_codes=block_reasons,
             )
             self._record_learning_event(features, decision)
             return decision

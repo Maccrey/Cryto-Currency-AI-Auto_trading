@@ -154,6 +154,7 @@ def create_app(
                 min_cash_reserve=float(settings.min_cash_reserve),
                 max_spread_bps=float(settings.max_spread_bps),
                 max_slippage_bps=float(settings.max_slippage_bps),
+                max_stop_loss_risk_amount=float(settings.max_daily_loss) * 0.25,
                 stop_loss_by_signal={
                     "weak": settings.stop_loss_weak,
                     "medium": settings.stop_loss_medium,

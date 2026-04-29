@@ -262,6 +262,16 @@ AI 상태: 관찰 중
 
 상태 설명 표는 기본적으로 접혀 있으며 `상태 설명 펼치기` 버튼으로 열고 닫을 수 있다.
 
+### 안정 운용 규칙
+진입 전에는 아래 조건을 추가로 검사한다.
+
+- 저유동성 구간이면 신호를 차단한다.
+- 1초 수익률이 급격히 음수로 돌아서면 초단기 역방향 모멘텀으로 보고 신호를 차단한다.
+- 단기 변동성이 과도하게 커지면 신호를 차단한다.
+- 매수 금액은 손절가까지 하락했을 때의 예상 손실이 `MAX_DAILY_LOSS`의 25%를 넘지 않도록 자동 축소된다.
+
+예를 들어 `MAX_DAILY_LOSS=150000`이면 1회 진입의 예상 손절 손실 예산은 37,500원이다. 신호가 강해도 이 예산을 넘는 주문 크기는 자동으로 줄어든다.
+
 ### 대시보드 API
 ```bash
 curl http://127.0.0.1:8000/dashboard
@@ -463,6 +473,15 @@ LEARNING_ENABLED=true
 - `SAFE_MODE_ACTIVE`
 - `HARD_STOP_ACTIVE`
 - `LIVE_PRECHECK_FAILED`
+- `SIGNAL_BLOCKED`
+- `SPREAD_OR_SLIPPAGE_LIMIT`
+- `INVALID_CURRENT_PRICE`
+- `STOP_LOSS_RISK_LIMIT`
+
+신호 차단 상세 reason code 예:
+- `LOW_LIQUIDITY_BLOCKED`
+- `MICRO_MOMENTUM_REVERSAL_BLOCKED`
+- `EXCESSIVE_SHORT_VOLATILITY_BLOCKED`
 
 ### live 모드 저장이 거절됨
 `/settings`에서 LIVE를 선택했을 때 업비트 API 키가 비어 있으면 저장되지 않는다.

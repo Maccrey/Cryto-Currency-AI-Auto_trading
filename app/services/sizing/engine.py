@@ -58,6 +58,7 @@ class SizingEngine:
         min_cash_reserve: float,
         max_spread_bps: float,
         max_slippage_bps: float,
+        max_stop_loss_risk_amount: float | None = None,
         buy_policy: BuySizingPolicy | None = None,
         sell_policy: SellSizingPolicy | None = None,
         stop_loss_by_signal: dict[str, float] | None = None,
@@ -65,6 +66,7 @@ class SizingEngine:
         self._min_cash_reserve = min_cash_reserve
         self._max_spread_bps = max_spread_bps
         self._max_slippage_bps = max_slippage_bps
+        self._max_stop_loss_risk_amount = max_stop_loss_risk_amount
         self._buy_policy = buy_policy or BuySizingPolicy()
         self._sell_policy = sell_policy or SellSizingPolicy()
         self._stop_loss_by_signal = stop_loss_by_signal or {
@@ -90,6 +92,8 @@ class SizingEngine:
             return self._blocked("REGIME_BLOCKED")
         if spread_bps > self._max_spread_bps or slippage_bps > self._max_slippage_bps:
             return self._blocked("SPREAD_OR_SLIPPAGE_LIMIT")
+        if current_price <= 0:
+            return self._blocked("INVALID_CURRENT_PRICE")
 
         investable_cash = max(portfolio.cash_balance - self._min_cash_reserve, 0.0)
         if investable_cash <= 0:
@@ -98,12 +102,22 @@ class SizingEngine:
         base_buy_ratio = self._buy_policy.ratio_for(signal.level)
         final_buy_ratio = round(base_buy_ratio * regime.size_multiplier, 3)
         buy_amount = round(investable_cash * final_buy_ratio, 1)
+        stop_loss_pct = self._stop_loss_by_signal[signal.level]
+        if self._max_stop_loss_risk_amount is not None:
+            if self._max_stop_loss_risk_amount <= 0:
+                return self._blocked("STOP_LOSS_RISK_LIMIT")
+            buy_amount = min(
+                buy_amount,
+                round(self._max_stop_loss_risk_amount / stop_loss_pct, 1),
+            )
+        if buy_amount <= 0:
+            return self._blocked("STOP_LOSS_RISK_LIMIT")
         buy_quantity = round(buy_amount / current_price, 4)
         sell_ratio = self._sell_policy.ratio_for(signal.level) if portfolio.asset_balance > 0 else 0.0
         sell_quantity = round(portfolio.asset_balance * sell_ratio, 8)
         sell_amount = round(sell_quantity * current_price, 1)
         stop_loss_price = round(
-            current_price * (1 - self._stop_loss_by_signal[signal.level]),
+            current_price * (1 - stop_loss_pct),
             4,
         )
 

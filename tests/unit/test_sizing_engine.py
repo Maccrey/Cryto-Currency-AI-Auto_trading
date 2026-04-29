@@ -107,6 +107,69 @@ def test_sizing_engine_blocks_buy_when_spread_or_slippage_exceed_limit() -> None
     assert decision.blocked_reason == "SPREAD_OR_SLIPPAGE_LIMIT"
 
 
+def test_sizing_engine_blocks_buy_when_current_price_is_invalid() -> None:
+    engine = SizingEngine(min_cash_reserve=100000, max_spread_bps=15, max_slippage_bps=20)
+    portfolio = PortfolioState(
+        cash_balance=300000.0,
+        asset_currency="XRP",
+        asset_balance=0.0,
+        avg_buy_price=0.0,
+    )
+
+    decision = engine.size_entry(
+        portfolio,
+        SignalDecision(level="medium", score=0.5, blocked=False, reason_codes=[]),
+        RegimeSnapshot(
+            label="neutral",
+            score=0.48,
+            size_multiplier=0.8,
+            entry_allowed=True,
+            reason_codes=[],
+        ),
+        current_price=0.0,
+        spread_bps=9.0,
+        slippage_bps=11.0,
+    )
+
+    assert decision.allowed is False
+    assert decision.blocked_reason == "INVALID_CURRENT_PRICE"
+
+
+def test_sizing_engine_caps_buy_amount_by_stop_loss_risk_budget() -> None:
+    engine = SizingEngine(
+        min_cash_reserve=100000,
+        max_spread_bps=15,
+        max_slippage_bps=20,
+        max_stop_loss_risk_amount=1000,
+    )
+    portfolio = PortfolioState(
+        cash_balance=900000.0,
+        asset_currency="XRP",
+        asset_balance=0.0,
+        avg_buy_price=0.0,
+    )
+
+    decision = engine.size_entry(
+        portfolio,
+        SignalDecision(level="strong", score=0.72, blocked=False, reason_codes=[]),
+        RegimeSnapshot(
+            label="risk_on",
+            score=0.72,
+            size_multiplier=1.1,
+            entry_allowed=True,
+            reason_codes=[],
+        ),
+        current_price=800.0,
+        spread_bps=10.0,
+        slippage_bps=12.0,
+    )
+
+    assert decision.allowed is True
+    assert decision.buy_amount == 55555.6
+    assert decision.buy_quantity == 69.4445
+    assert decision.stop_loss_price == 785.6
+
+
 def test_buy_and_sell_sizing_policies_are_separate() -> None:
     buy_policy = BuySizingPolicy()
     sell_policy = SellSizingPolicy()

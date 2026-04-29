@@ -1,9 +1,9 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 137개
+  - 완료: 141개
   - 미완료: 0개
-  - 전체: 137개
+  - 전체: 141개
  
 ## 1. 작업 원칙
 - 모든 구현은 TDD 순서를 따른다.
@@ -91,6 +91,8 @@
 ### 신호 생성
 - [x] [Fail] 급등 조건 충족 시 strong 이상 신호가 생성되어야 한다
 - [x] [Fail] 저유동성 구간에서는 신호가 차단되어야 한다
+- [x] [Fail] 초단기 역방향 모멘텀에서는 진입 신호가 차단되어야 한다
+- [x] [Fail] 과도한 단기 변동성에서는 진입 신호가 차단되어야 한다
 - [x] [Code] feature 계산 구현
 - [x] [Code] signal engine 구현
 - [x] [Refactor] reason code 생성기 분리
@@ -106,6 +108,8 @@
 - [x] [Fail] strong 신호와 충분한 현금이 있으면 설정 비율대로 buy amount가 계산되어야 한다
 - [x] [Fail] reserve cash 이하로는 매수 금액이 계산되면 안 된다
 - [x] [Fail] spread/slippage 초과 시 주문이 차단되어야 한다
+- [x] [Fail] 현재가가 0 이하이면 수량 계산 전에 주문이 차단되어야 한다
+- [x] [Fail] 예상 손절 손실이 1회 리스크 예산을 넘으면 매수 금액이 자동 축소되어야 한다
 - [x] [Code] sizing engine 구현
 - [x] [Refactor] buy/sell sizing policy 분리
 - [x] [Contract] sizing result schema 고정
