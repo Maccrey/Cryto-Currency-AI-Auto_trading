@@ -19,6 +19,7 @@ from app.core.settings import load_settings
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
+from app.integrations.telegram.gateway import TelegramHttpGateway
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
 from app.integrations.telegram.restart_notifier import RestartNotifier
 from app.integrations.telegram.notifier import TelegramNotifier
@@ -49,6 +50,11 @@ from app.services.promotion.status import PromotionStatusStore
 from app.services.risk.hard_stop import HardStopMonitor
 from app.services.risk.post_entry import PostEntryValidator
 from app.services.recovery.orchestrator import RecoveryOrchestrator
+from app.services.reporting.telegram import (
+    TelegramTradingReportScheduler,
+    TelegramTradingReportService,
+    TradingReportContext,
+)
 from app.services.risk.stop_loss import StopLossInjector
 from app.services.runtime.factory import build_runtime_services
 from app.services.signals.engine import SignalEngine
@@ -100,6 +106,15 @@ def create_app(
 
     if promotion_dashboard_service is None:
         promotion_dashboard_service = PromotionDashboardService()
+
+    telegram_gateway = None
+    if settings.telegram_bot_token and settings.telegram_chat_id:
+        telegram_gateway = TelegramHttpGateway(
+            bot_token=settings.telegram_bot_token,
+            chat_id=settings.telegram_chat_id,
+        )
+        if trade_fill_notifier is None:
+            trade_fill_notifier = TelegramNotifier(gateway=telegram_gateway)
 
     notification_services = build_notification_services(
         boot_notification_dispatcher=boot_notification_dispatcher,
@@ -240,6 +255,33 @@ def create_app(
         )
 
     app = FastAPI(title=settings.app_name)
+    if telegram_gateway is not None:
+        report_service = TelegramTradingReportService(
+            gateway=telegram_gateway,
+            context=TradingReportContext(
+                market=settings.trade_market,
+                trading_mode=settings.trading_mode,
+                learning_enabled=settings.learning_enabled,
+                boot_state=boot_state,
+                execution_ledger=execution_ledger,
+                learning_service=learning_service,
+                market_price_store=market_price_store,
+                position_store=position_store,
+            ),
+        )
+        report_scheduler = TelegramTradingReportScheduler(
+            report_service=report_service,
+            timezone=settings.app_timezone,
+        )
+        app.state.telegram_report_scheduler = report_scheduler
+
+        @app.on_event("startup")
+        async def start_telegram_report_scheduler() -> None:
+            report_scheduler.start()
+
+        @app.on_event("shutdown")
+        async def stop_telegram_report_scheduler() -> None:
+            await report_scheduler.stop()
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:
