@@ -103,9 +103,10 @@ DASHBOARD_HTML = """
     .card h2 { margin: 0 0 10px; font-size: 15px; }
     .metric { min-height: 34px; font-size: 28px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
     .sub { margin-top: 6px; min-height: 36px; color: var(--muted); font-size: 13px; line-height: 1.35; }
-    .price-stack { min-height: 92px; display: grid; grid-template-rows: 20px 34px 26px; align-content: start; row-gap: 6px; }
+    .price-stack { min-height: 104px; display: grid; grid-template-rows: 20px 30px 18px 26px; align-content: start; row-gap: 4px; }
     .price-market { color: var(--muted); font-size: 14px; font-weight: 800; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .price-line { font-size: 24px; font-weight: 800; line-height: 34px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .price-line { font-size: 24px; font-weight: 800; line-height: 30px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .price-change-line { font-size: 11px; font-weight: 800; line-height: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .price-trend-line { min-height: 26px; line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: var(--soft); color: var(--text); font-size: 12px; font-weight: 800; }
     .ok { background: #e8f6ed; color: #1f6b35; }
@@ -189,6 +190,7 @@ DASHBOARD_HTML = """
       <div class="price-stack">
         <div id="priceMarket" class="price-market">-</div>
         <div id="priceMetric" class="price-line">-</div>
+        <div id="priceChange" class="price-change-line">-</div>
         <div id="priceSub" class="price-trend-line">-</div>
       </div>
     </div>
@@ -329,6 +331,13 @@ function displayMarket(market) {
 function trendClass(trend) {
   if (trend === "UP") return "price-up";
   if (trend === "DOWN") return "price-down";
+  return "price-flat";
+}
+
+function changeClass(value) {
+  const numeric = Number(value);
+  if (numeric > 0) return "price-up";
+  if (numeric < 0) return "price-down";
   return "price-flat";
 }
 
@@ -479,18 +488,13 @@ function renderDashboard(data) {
   document.getElementById("modeMetric").textContent = String(summary.trading_mode || health.mode).toUpperCase();
   document.getElementById("modeSub").textContent = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";
   const trendStreak = deriveTrendStreak(market);
-  const changeClass = trendClass(trendStreak.trend);
   const marketLabel = displayMarket(market.market);
   const priceText = market.current_price === undefined ? "데이터 없음" : `${price(market.current_price)} (${percent(market.recent_change_pct)})`;
+  const changeText = market.current_price === undefined ? "-" : `(${percent(market.recent_change_pct)})`;
   const trendText = market.current_price === undefined ? "거래량 데이터가 아직 없습니다." : `거래량 ${trendStreak.trend}(${trendStreak.count})`;
   setTextWithTitle("priceMarket", marketLabel);
-  setHtmlWithTitle(
-    "priceMetric",
-    market.current_price === undefined
-      ? "데이터 없음"
-      : `${price(market.current_price)} <span class="${changeClass}">(${percent(market.recent_change_pct)})</span>`,
-    priceText
-  );
+  setTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));
+  setHtmlWithTitle("priceChange", `<span class="${changeClass(market.recent_change_pct)}">${changeText}</span>`, priceText);
   setHtmlWithTitle(
     "priceSub",
     market.current_price === undefined
