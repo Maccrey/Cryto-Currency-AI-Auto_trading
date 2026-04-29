@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,6 +29,12 @@ class BootState:
     failure_stage: str | None
     portfolio_state: PortfolioState | None
     reconcile_result: dict[str, object] | None
+
+
+@dataclass(frozen=True)
+class RecoveryRetryPolicy:
+    max_attempts: int = 3
+    retry_delay_sec: float = 1.0
 
 
 class InMemoryRestartStore:
@@ -81,6 +89,8 @@ class RecoveryOrchestrator:
         open_order_reconciler: OpenOrderReconciler,
         restart_store: RestartStore,
         restart_counter: RestartCounter | None = None,
+        retry_policy: RecoveryRetryPolicy | None = None,
+        sleep: Callable[[float], None] | None = None,
         learning_service=None,
     ) -> None:
         self._app_name = app_name
@@ -89,6 +99,8 @@ class RecoveryOrchestrator:
         self._open_order_reconciler = open_order_reconciler
         self._restart_store = restart_store
         self._restart_counter = restart_counter
+        self._retry_policy = retry_policy or RecoveryRetryPolicy()
+        self._sleep = sleep or time.sleep
         self._learning_service = learning_service
 
     def boot(self) -> BootState:
@@ -121,9 +133,11 @@ class RecoveryOrchestrator:
                     },
                 )
 
-        try:
-            portfolio_state = self._portfolio_sync_service.sync()
-        except Exception:
+        portfolio_state = self._recover_stage(
+            stage="portfolio_sync",
+            operation=self._portfolio_sync_service.sync,
+        )
+        if portfolio_state is None:
             return BootState(
                 safe_mode=True,
                 hard_stop=False,
@@ -133,9 +147,11 @@ class RecoveryOrchestrator:
                 reconcile_result=None,
             )
 
-        try:
-            reconcile_result = self._open_order_reconciler.reconcile()
-        except Exception:
+        reconcile_result = self._recover_stage(
+            stage="open_order_reconcile",
+            operation=self._open_order_reconciler.reconcile,
+        )
+        if reconcile_result is None:
             return BootState(
                 safe_mode=True,
                 hard_stop=False,
@@ -177,6 +193,56 @@ class RecoveryOrchestrator:
             },
         )
         return boot_state
+
+    def _recover_stage(self, *, stage: str, operation):
+        max_attempts = max(self._retry_policy.max_attempts, 1)
+        for attempt in range(1, max_attempts + 1):
+            try:
+                result = operation()
+            except Exception as exc:
+                self._record_recovery_attempt(
+                    stage=stage,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    status="failed",
+                    error=str(exc),
+                )
+                if attempt < max_attempts and self._retry_policy.retry_delay_sec > 0:
+                    self._sleep(self._retry_policy.retry_delay_sec)
+                continue
+
+            if attempt > 1:
+                self._record_recovery_attempt(
+                    stage=stage,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    status="recovered",
+                    error=None,
+                )
+            return result
+        return None
+
+    def _record_recovery_attempt(
+        self,
+        *,
+        stage: str,
+        attempt: int,
+        max_attempts: int,
+        status: str,
+        error: str | None,
+    ) -> None:
+        event = {
+            "event_name": "recovery_attempt",
+            "app_name": self._app_name,
+            "trading_mode": self._trading_mode,
+            "stage": stage,
+            "attempt": attempt,
+            "max_attempts": max_attempts,
+            "status": status,
+            "error": error,
+        }
+        self._restart_store.record(event)
+        self._record_learning_event("recovery_attempt", event)
 
     def _record_learning_event(self, event_name: str, payload: dict[str, object]) -> None:
         if self._learning_service is None:

@@ -347,6 +347,12 @@ LEARNING_LOG_DIR=./logs/learning
 RESTART_STATE_PATH=./logs/recovery/restart-state.json
 ```
 
+자동 복구 동작:
+- live 부팅 중 잔고 동기화가 실패하면 기본 3회까지 자동 재시도한다.
+- 오픈오더 정리가 실패해도 기본 3회까지 자동 재시도한다.
+- 재시도 중 실패와 최종 복구 성공은 `recovery_attempt` 학습 이벤트로 기록된다.
+- 끝까지 복구하지 못하면 `SAFE_MODE`가 유지되고 live 주문은 차단된다.
+
 ---
 
 ## 8. 텔레그램 정기 리포트

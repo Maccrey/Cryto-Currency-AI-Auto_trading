@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from app.services.portfolio.sync import PortfolioState
 from app.services.recovery.hard_stop import RestartCounter
-from app.services.recovery.orchestrator import FileRestartStateStore, RecoveryOrchestrator
+from app.services.recovery.orchestrator import (
+    FileRestartStateStore,
+    RecoveryOrchestrator,
+    RecoveryRetryPolicy,
+)
 
 
 class StubRestartStore:
@@ -38,6 +42,33 @@ class FailingOpenOrderReconciler:
         raise RuntimeError("reconcile failed")
 
 
+class FlakyPortfolioSyncService:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def sync(self) -> PortfolioState:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("temporary portfolio sync failure")
+        return PortfolioState(
+            cash_balance=150000.0,
+            asset_currency="XRP",
+            asset_balance=120.0,
+            avg_buy_price=820.0,
+        )
+
+
+class FlakyOpenOrderReconciler:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def reconcile(self) -> dict[str, object]:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("temporary reconcile failure")
+        return {"open_order_count": 0, "status": "recovered"}
+
+
 def test_recovery_orchestrator_records_restart_and_enables_trading() -> None:
     restart_store = StubRestartStore()
     orchestrator = RecoveryOrchestrator(
@@ -64,6 +95,49 @@ def test_recovery_orchestrator_records_restart_and_enables_trading() -> None:
     assert state.reconcile_result == {"open_order_count": 0}
 
 
+def test_recovery_orchestrator_retries_and_recovers_portfolio_sync_failure() -> None:
+    restart_store = StubRestartStore()
+    sync_service = FlakyPortfolioSyncService()
+    orchestrator = RecoveryOrchestrator(
+        app_name="upbit-auto-trader",
+        trading_mode="live",
+        portfolio_sync_service=sync_service,
+        open_order_reconciler=SuccessfulOpenOrderReconciler(),
+        restart_store=restart_store,
+        retry_policy=RecoveryRetryPolicy(max_attempts=2, retry_delay_sec=0.0),
+    )
+
+    state = orchestrator.boot()
+
+    assert sync_service.calls == 2
+    assert state.safe_mode is False
+    assert state.trading_ready is True
+    assert [event["status"] for event in restart_store.events if event["event_name"] == "recovery_attempt"] == [
+        "failed",
+        "recovered",
+    ]
+
+
+def test_recovery_orchestrator_retries_and_recovers_open_order_reconcile_failure() -> None:
+    restart_store = StubRestartStore()
+    reconciler = FlakyOpenOrderReconciler()
+    orchestrator = RecoveryOrchestrator(
+        app_name="upbit-auto-trader",
+        trading_mode="live",
+        portfolio_sync_service=SuccessfulPortfolioSyncService(),
+        open_order_reconciler=reconciler,
+        restart_store=restart_store,
+        retry_policy=RecoveryRetryPolicy(max_attempts=2, retry_delay_sec=0.0),
+    )
+
+    state = orchestrator.boot()
+
+    assert reconciler.calls == 2
+    assert state.safe_mode is False
+    assert state.trading_ready is True
+    assert state.reconcile_result == {"open_order_count": 0, "status": "recovered"}
+
+
 def test_recovery_orchestrator_blocks_trading_when_portfolio_sync_fails() -> None:
     orchestrator = RecoveryOrchestrator(
         app_name="upbit-auto-trader",
@@ -71,6 +145,7 @@ def test_recovery_orchestrator_blocks_trading_when_portfolio_sync_fails() -> Non
         portfolio_sync_service=FailingPortfolioSyncService(),
         open_order_reconciler=SuccessfulOpenOrderReconciler(),
         restart_store=StubRestartStore(),
+        retry_policy=RecoveryRetryPolicy(max_attempts=2, retry_delay_sec=0.0),
     )
 
     state = orchestrator.boot()
@@ -88,6 +163,7 @@ def test_recovery_orchestrator_keeps_safe_mode_when_reconcile_fails() -> None:
         portfolio_sync_service=SuccessfulPortfolioSyncService(),
         open_order_reconciler=FailingOpenOrderReconciler(),
         restart_store=StubRestartStore(),
+        retry_policy=RecoveryRetryPolicy(max_attempts=2, retry_delay_sec=0.0),
     )
 
     state = orchestrator.boot()

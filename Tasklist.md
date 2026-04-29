@@ -1,9 +1,9 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 145개
+  - 완료: 148개
   - 미완료: 0개
-  - 전체: 145개
+  - 전체: 148개
  
 ## 1. 작업 원칙
 - 모든 구현은 TDD 순서를 따른다.
@@ -239,7 +239,10 @@
 - [x] [Fail] 재기동 시 restart event가 저장되어야 한다
 - [x] [Fail] 잔고 sync 전에 거래가 시작되면 안 된다
 - [x] [Fail] 오픈오더 reconcile 실패 시 SAFE_MODE 유지해야 한다
+- [x] [Fail] 일시적인 잔고 sync 실패는 자동 재시도 후 복구되어야 한다
+- [x] [Fail] 일시적인 오픈오더 reconcile 실패는 자동 재시도 후 복구되어야 한다
 - [x] [Code] recovery orchestrator 구현
+- [x] [Code] 단계별 자동 복구 retry policy 구현
 - [x] [Code] restart state persistence 구현
 - [x] [Refactor] boot sequence 단계 분리
 - [x] [Contract] RUNBOOK과 절차 일치
