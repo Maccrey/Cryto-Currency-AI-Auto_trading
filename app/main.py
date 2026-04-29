@@ -32,6 +32,7 @@ from app.services.execution.live import UpbitLiveOrderGateway
 from app.services.config.env_file import EnvFileService
 from app.services.learning.service import LearningService
 from app.services.market.store import MarketPriceStore
+from app.services.market.upbit_ticker import UpbitTickerPriceProvider
 from app.services.notification.factory import build_notification_services
 from app.services.dashboard.overlay import StopLossOverlayService
 from app.services.position.ledger import PositionLifecycleLedger
@@ -194,6 +195,9 @@ def create_app(
         position_lifecycle_ledger=position_lifecycle_ledger,
         position_store=position_store,
         market_price_store=market_price_store,
+        current_price_provider=UpbitTickerPriceProvider(
+            base_url=settings.upbit_base_url,
+        ),
         dashboard_summary_service=dashboard_summary_service,
         dashboard_summary_facade=dashboard_summary_facade,
     )

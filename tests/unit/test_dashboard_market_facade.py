@@ -7,6 +7,16 @@ from app.services.dashboard.market_facade import DashboardMarketFacade
 from app.services.market.store import MarketPriceStore
 
 
+class CurrentPriceProviderStub:
+    def __init__(self, price: float | None) -> None:
+        self.price = price
+        self.calls: list[str] = []
+
+    def get_current_price(self, market: str) -> float | None:
+        self.calls.append(market)
+        return self.price
+
+
 def test_dashboard_market_facade_returns_empty_without_snapshot() -> None:
     facade = DashboardMarketFacade(
         market="KRW-XRP",
@@ -21,6 +31,54 @@ def test_dashboard_market_facade_returns_empty_without_snapshot() -> None:
         "market": "KRW-XRP",
         "summary": None,
     }
+
+
+def test_dashboard_market_facade_fetches_current_price_when_store_is_empty() -> None:
+    store = MarketPriceStore(
+        timestamp_provider=lambda: "2026-04-19T20:35:00+09:00",
+    )
+    provider = CurrentPriceProviderStub(845.5)
+    facade = DashboardMarketFacade(
+        market="KRW-XRP",
+        market_price_store=store,
+        dashboard_market_service=DashboardMarketService(),
+        current_price_provider=provider,
+    )
+
+    payload = facade.build_current_response()
+
+    assert provider.calls == ["KRW-XRP"]
+    assert payload["status"] == "ok"
+    assert payload["summary"]["current_price"] == 845.5
+    assert payload["summary"]["recorded_at"] == "2026-04-19T20:35:00+09:00"
+    assert store.get_price("KRW-XRP") == 845.5
+
+
+def test_dashboard_market_facade_refreshes_current_price_when_provider_exists() -> None:
+    timestamps = iter(
+        [
+            "2026-04-19T20:35:00+09:00",
+            "2026-04-19T20:35:01+09:00",
+        ],
+    )
+    store = MarketPriceStore(
+        timestamp_provider=lambda: next(timestamps),
+    )
+    store.save(market="KRW-XRP", price=845.5)
+    provider = CurrentPriceProviderStub(846.0)
+    facade = DashboardMarketFacade(
+        market="KRW-XRP",
+        market_price_store=store,
+        dashboard_market_service=DashboardMarketService(),
+        current_price_provider=provider,
+    )
+
+    payload = facade.build_current_response()
+
+    assert provider.calls == ["KRW-XRP"]
+    assert payload["summary"]["current_price"] == 846.0
+    assert payload["summary"]["recorded_at"] == "2026-04-19T20:35:01+09:00"
+    assert [item["price"] for item in payload["summary"]["history"]] == [845.5, 846.0]
 
 
 def test_dashboard_market_facade_returns_current_price_change_and_history() -> None:

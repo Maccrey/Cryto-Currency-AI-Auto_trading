@@ -8,7 +8,7 @@ from app.services.dashboard.facade import DashboardSummaryFacade
 from app.services.dashboard.learning import DashboardLearningService
 from app.services.dashboard.learning_facade import DashboardLearningFacade
 from app.services.dashboard.market import DashboardMarketService
-from app.services.dashboard.market_facade import DashboardMarketFacade
+from app.services.dashboard.market_facade import CurrentPriceProvider, DashboardMarketFacade
 from app.services.dashboard.positions import DashboardPositionsService
 from app.services.dashboard.positions_facade import DashboardPositionsFacade
 from app.services.dashboard.recovery import DashboardRecoveryService
@@ -42,6 +42,7 @@ def build_dashboard_services(
     position_lifecycle_ledger: PositionLifecycleLedger | None = None,
     position_store: CurrentPositionStore | None = None,
     market_price_store: MarketPriceStore | None = None,
+    current_price_provider: CurrentPriceProvider | None = None,
     dashboard_summary_service: DashboardSummaryService | None = None,
     dashboard_market_service: DashboardMarketService | None = None,
     dashboard_executions_service: DashboardExecutionsService | None = None,
@@ -76,6 +77,7 @@ def build_dashboard_services(
         market=market,
         market_price_store=market_price_store,
         dashboard_market_service=market_service,
+        current_price_provider=current_price_provider,
     )
     if execution_ledger is None:
         raise ValueError("execution_ledger is required to build dashboard services")

@@ -95,25 +95,30 @@ DASHBOARD_HTML = """
     .nav { display: flex; gap: 8px; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .primary { background: var(--primary); color: white; border-color: var(--primary); }
-    .status-line { margin-top: 10px; color: var(--muted); font-size: 13px; }
+    .status-line { margin-top: 10px; min-height: 28px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     main.wrap { padding-top: 18px; }
     .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; min-width: 0; }
+    .metric-card { min-height: 156px; display: flex; flex-direction: column; }
     .card h2 { margin: 0 0 10px; font-size: 15px; }
-    .metric { font-size: 28px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; }
-    .sub { margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+    .metric { min-height: 34px; font-size: 28px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+    .sub { margin-top: 6px; min-height: 36px; color: var(--muted); font-size: 13px; line-height: 1.35; }
     .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: var(--soft); color: var(--text); font-size: 12px; font-weight: 800; }
     .ok { background: #e8f6ed; color: #1f6b35; }
     .warn { background: #fff4d6; color: #7a5400; }
     .danger { background: #fff1f0; color: #b42318; }
     .panel { margin-top: 12px; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 12px; }
     .section-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .section-grid .card { min-height: 126px; }
     .progress { height: 12px; overflow: hidden; border-radius: 999px; background: var(--soft); }
     .bar { height: 100%; width: 0%; background: var(--primary); transition: width 160ms ease; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
     th { color: var(--muted); font-size: 12px; }
     .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+    .table-box { min-height: 268px; overflow: hidden; }
+    .state-panel { min-height: 366px; }
+    .metric-table tbody { display: table-row-group; }
     .theme-switch { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border: 1px solid #9eb0bd; border-radius: 999px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; cursor: pointer; }
     .toggle { position: relative; width: 38px; height: 20px; border-radius: 999px; background: #9eb0bd; }
     .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: white; transition: transform 120ms ease; }
@@ -148,28 +153,28 @@ DASHBOARD_HTML = """
 </header>
 <main class="wrap">
   <section class="grid">
-    <div class="card">
+    <div class="card metric-card">
       <h2>실행 모드</h2>
       <div id="modeMetric" class="metric">-</div>
       <div id="modeSub" class="sub">-</div>
     </div>
-    <div class="card">
+    <div class="card metric-card">
       <h2>현재 가격</h2>
       <div id="priceMetric" class="metric">-</div>
       <div id="priceSub" class="sub">-</div>
     </div>
-    <div class="card">
+    <div class="card metric-card">
       <h2>학습 완료율</h2>
       <div id="learningProgressMetric" class="metric">-</div>
       <div class="progress"><div id="learningProgressBar" class="bar"></div></div>
       <div id="learningProgressSub" class="sub">-</div>
     </div>
-    <div class="card">
+    <div class="card metric-card">
       <h2>수익 성공률</h2>
       <div id="winRateMetric" class="metric">-</div>
       <div id="winRateSub" class="sub">-</div>
     </div>
-    <div class="card">
+    <div class="card metric-card">
       <h2>손익</h2>
       <div id="pnlMetric" class="metric">-</div>
       <div id="pnlSub" class="sub">-</div>
@@ -177,29 +182,29 @@ DASHBOARD_HTML = """
   </section>
 
   <section class="panel">
-    <div class="card">
+    <div class="card state-panel">
       <h2>현재 상황</h2>
       <div id="sections" class="section-grid"></div>
     </div>
-    <div class="card">
+    <div class="card table-box">
       <h2>학습 상태</h2>
-      <table>
+      <table class="metric-table">
         <tbody id="learningTable"></tbody>
       </table>
     </div>
   </section>
 
   <section class="panel">
-    <div class="card">
+    <div class="card table-box">
       <h2>최근 체결</h2>
       <table>
         <thead><tr><th>구분</th><th>상태</th><th>가격</th><th>수량</th></tr></thead>
         <tbody id="executionsTable"></tbody>
       </table>
     </div>
-    <div class="card">
+    <div class="card table-box">
       <h2>실거래 전환 준비</h2>
-      <table>
+      <table class="metric-table">
         <tbody id="promotionTable"></tbody>
       </table>
     </div>
@@ -343,7 +348,7 @@ function renderDashboard(data) {
 
 applyTheme(localStorage.getItem(THEME_KEY) || "light");
 refreshDashboard();
-setInterval(refreshDashboard, 10000);
+setInterval(refreshDashboard, 1000);
 </script>
 </body>
 </html>
