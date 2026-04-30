@@ -62,6 +62,10 @@ class SettingsModel(BaseModel):
     demo_max_drawdown: float = Field(default=0.08)
     demo_max_stoploss_failures: int = Field(default=0)
     demo_initial_capital: int = Field(default=1_000_000)
+    auto_trading_enabled: bool = Field(default=True)
+    auto_trading_live_enabled: bool = Field(default=False)
+    auto_trading_interval_sec: float = Field(default=10.0)
+    auto_trading_min_history: int = Field(default=6)
     log_level: str = Field(default="INFO")
     log_format: str = Field(default="json")
     learning_log_dir: Path = Field(default=Path("./logs/learning"))
@@ -144,6 +148,10 @@ class AppSettings:
     demo_max_drawdown: float
     demo_max_stoploss_failures: int
     demo_initial_capital: int
+    auto_trading_enabled: bool
+    auto_trading_live_enabled: bool
+    auto_trading_interval_sec: float
+    auto_trading_min_history: int
     log_level: str
     log_format: str
     learning_log_dir: Path
@@ -212,6 +220,10 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "demo_max_drawdown": float(_setting("DEMO_MAX_DRAWDOWN", "0.08", env_values)),
         "demo_max_stoploss_failures": int(_setting("DEMO_MAX_STOPLOSS_FAILURES", "0", env_values)),
         "demo_initial_capital": int(_setting("DEMO_INITIAL_CAPITAL", "1000000", env_values)),
+        "auto_trading_enabled": _parse_bool(_setting("AUTO_TRADING_ENABLED", "true", env_values)),
+        "auto_trading_live_enabled": _parse_bool(_setting("AUTO_TRADING_LIVE_ENABLED", "false", env_values)),
+        "auto_trading_interval_sec": float(_setting("AUTO_TRADING_INTERVAL_SEC", "10.0", env_values)),
+        "auto_trading_min_history": int(_setting("AUTO_TRADING_MIN_HISTORY", "6", env_values)),
         "log_level": _setting("LOG_LEVEL", "INFO", env_values),
         "log_format": _setting("LOG_FORMAT", "json", env_values),
         "learning_log_dir": Path(_setting("LEARNING_LOG_DIR", "./logs/learning", env_values)),

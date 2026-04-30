@@ -1,9 +1,9 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 148개
+  - 완료: 154개
   - 미완료: 0개
-  - 전체: 148개
+  - 전체: 154개
  
 ## 1. 작업 원칙
 - 모든 구현은 TDD 순서를 따른다.
@@ -149,14 +149,18 @@
 
 ### demo 실행기
 - [x] [Fail] `demo` 모드에서 실주문 API가 호출되면 테스트가 실패해야 한다
+- [x] [Fail] demo 서버 기동 후 자동 운용 루프가 현재가 히스토리를 쌓아야 한다
+- [x] [Fail] 충분한 히스토리와 진입 신호가 있으면 demo 자동 체결이 실행되어야 한다
 - [x] [Code] virtual order executor 구현
 - [x] [Code] virtual fill simulator 구현
+- [x] [Code] auto trading service 구현
 - [x] [Refactor] execution interface 추상화
 - [x] [Contract] order intent schema 고정
 
 ### live 실행기
 - [x] [Fail] `live` 모드에서만 실주문이 허용되어야 한다
 - [x] [Fail] SAFE_MODE 상태에서는 주문이 차단되어야 한다
+- [x] [Fail] live 자동 운용은 명시 플래그 없이는 시작되면 안 된다
 - [x] [Code] live executor 구현
 - [x] [Code] precheck / orders/test 연동 구현
 - [x] [Refactor] executor factory 구현
@@ -216,7 +220,10 @@
 ### 항상 켜진 학습 로그
 - [x] [Fail] 어떤 모드에서도 decision log가 저장되어야 한다
 - [x] [Fail] fill / stop loss / restart / promotion 이벤트도 저장되어야 한다
+- [x] [Fail] 자동 운용 사이클과 무거래 차단 사유가 학습 로그에 저장되어야 한다
+- [x] [Fail] 학습 로그에서 무거래 원인을 진단할 수 있어야 한다
 - [x] [Code] learning service 구현
+- [x] [Code] learning diagnostics 구현
 - [x] [Code] JSONL exporter 구현
 - [x] [Refactor] event serializer 분리
 - [x] [Contract] learning event schema 고정

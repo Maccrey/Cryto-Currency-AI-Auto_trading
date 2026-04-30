@@ -378,7 +378,43 @@ TELEGRAM_CHAT_ID=텔레그램_채팅_ID
 
 ---
 
-## 9. live 모드 전환
+## 9. 자동 운용과 무거래 진단
+
+demo 모드는 서버가 시작되면 자동 운용 루프가 기본 활성화된다.
+
+동작 흐름:
+- `AUTO_TRADING_INTERVAL_SEC` 주기마다 업비트 현재가를 수집한다.
+- `AUTO_TRADING_MIN_HISTORY`만큼 현재가 히스토리가 쌓이면 신호/국면/사이징 판단을 실행한다.
+- 포지션이 없으면 진입 판단 후 demo 체결을 실행한다.
+- 포지션이 있으면 손절/기대 불일치 청산 조건을 점검한다.
+- 모든 사이클은 `auto_trade_cycle` 학습 이벤트로 `logs/learning/learning.jsonl`에 기록된다.
+
+무거래 원인 진단:
+
+```bash
+curl http://127.0.0.1:8000/learning/diagnostics
+```
+
+주요 진단 상태:
+- `AUTO_TRADING_NOT_RUNNING`: 자동 운용 루프 로그가 없음
+- `WAITING_FOR_SIGNAL`: 루프는 실행 중이나 조건 미충족
+- `TRADE_BLOCKED_BY_RULES`: 신호/리스크/사이징 규칙으로 차단
+- `TRADES_FOUND`: 최근 로그에서 체결 확인
+
+자동 운용 설정:
+
+```bash
+AUTO_TRADING_ENABLED=true
+AUTO_TRADING_LIVE_ENABLED=false
+AUTO_TRADING_INTERVAL_SEC=10.0
+AUTO_TRADING_MIN_HISTORY=6
+```
+
+live 자동 운용은 `AUTO_TRADING_LIVE_ENABLED=true`를 명시해야 시작된다.
+
+---
+
+## 10. live 모드 전환
 
 `live` 모드는 실제 업비트 주문 경로를 사용한다. 전환 전 아래를 확인한다.
 
@@ -415,7 +451,7 @@ uv run uvicorn app.main:app --reload
 
 ---
 
-## 10. 테스트
+## 11. 테스트
 
 전체 테스트:
 
@@ -446,7 +482,7 @@ pre-commit run --all-files
 
 ---
 
-## 11. 운영 체크리스트
+## 12. 운영 체크리스트
 
 demo 시작 전:
 - [ ] 앱 실행 후 `/settings` 접속 또는 `.env` 생성
@@ -478,7 +514,7 @@ live 전환 전:
 
 ---
 
-## 12. 문제 해결
+## 13. 문제 해결
 
 ### 앱 시작 시 설정 오류
 `TRADING_MODE`와 `LEARNING_ENABLED`를 확인한다. GUI에서는 `/settings`에서 수정하고 앱을 재시작한다.
@@ -521,12 +557,23 @@ LEARNING_ENABLED=true
 
 demo 모드로 되돌리면 API 키 없이 저장할 수 있다.
 
+### 장시간 거래가 없음
+먼저 자동 운용 루프와 차단 사유를 확인한다.
+
+```bash
+curl http://127.0.0.1:8000/learning/diagnostics
+```
+
+`AUTO_TRADING_NOT_RUNNING`이면 서버가 새 코드로 재시작되었는지, `AUTO_TRADING_ENABLED=true`인지 확인한다.
+`TRADE_BLOCKED_BY_RULES`이면 `auto_cycle_blocked_reasons`, `sizing_blocked_reasons`, `signal_reason_codes`를 확인한다.
+
 ---
 
-## 13. 참고 문서
+## 14. 참고 문서
 - `README.md`
 - `ENV_SPEC.md`
 - `RUNBOOK.md`
 - `Tasklist.md`
 - `PRD.md`
 - `STRATEGY_SPEC.md`
+- `AI.md`

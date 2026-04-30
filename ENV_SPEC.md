@@ -77,6 +77,10 @@ DEMO_MIN_PROFIT_FACTOR=1.20
 DEMO_MAX_DRAWDOWN=0.08
 DEMO_MAX_STOPLOSS_FAILURES=0
 DEMO_INITIAL_CAPITAL=1000000
+AUTO_TRADING_ENABLED=true
+AUTO_TRADING_LIVE_ENABLED=false
+AUTO_TRADING_INTERVAL_SEC=10.0
+AUTO_TRADING_MIN_HISTORY=6
 
 LOG_LEVEL=INFO
 LOG_FORMAT=json
@@ -140,6 +144,10 @@ DASHBOARD_PORT=8080
 | DEMO_MAX_DRAWDOWN | float | Y | 0.08 | 승격 최대 MDD |
 | DEMO_MAX_STOPLOSS_FAILURES | int | Y | 0 | 승격 허용 손절 실패 수 |
 | DEMO_INITIAL_CAPITAL | int | Y | 1000000 | demo 모드 가상 시작 투자금 |
+| AUTO_TRADING_ENABLED | bool | Y | true | 서버 기동 후 자동 운용 루프 활성화 여부 |
+| AUTO_TRADING_LIVE_ENABLED | bool | Y | false | live 모드 자동 운용 명시 허용 여부 |
+| AUTO_TRADING_INTERVAL_SEC | float | Y | 10.0 | 자동 운용 현재가 수집/판단 주기 |
+| AUTO_TRADING_MIN_HISTORY | int | Y | 6 | 자동 판단 전 필요한 최소 현재가 히스토리 수 |
 | LOG_LEVEL | str | Y | INFO | 로그 레벨 |
 | LOG_FORMAT | str | Y | json | 구조화 로그 형식, json만 허용 |
 | LEARNING_LOG_DIR | str | Y | ./logs/learning | 구조화 로그 디렉터리 |
@@ -173,6 +181,11 @@ false면 앱 시작 실패
 ### AUTO_PROMOTE_TO_LIVE / 승인 정책
 - 기본은 `AUTO_PROMOTE_TO_LIVE=false`
 - 권장값은 수동 승인 필요
+
+### AUTO_TRADING_ENABLED / live 안전 정책
+- demo 모드는 기본적으로 자동 운용 루프가 켜진다.
+- live 모드 자동 운용은 `AUTO_TRADING_ENABLED=true`와 `AUTO_TRADING_LIVE_ENABLED=true`가 모두 설정되어야 시작된다.
+- live에서 API 키, SAFE_MODE, HARD_STOP, trading_ready 상태가 조건을 만족하지 않으면 주문은 차단된다.
 
 ### 코드 설정 스키마 계약
 `app.core.settings.SettingsModel`과 `AppSettings`는 이 문서의 필수 변수 전체를 필드로 가진다.

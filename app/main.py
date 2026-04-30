@@ -61,6 +61,7 @@ from app.services.signals.engine import SignalEngine
 from app.services.signals.features import MarketFeatureCalculator
 from app.services.regime.engine import RegimeEngine
 from app.services.sizing.engine import SizingEngine
+from app.services.trading.auto import AutoTradingConfig, AutoTradingService
 from app.services.trading.decision import TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
@@ -203,6 +204,9 @@ def create_app(
         )
     if position_store is None:
         position_store = CurrentPositionStore()
+    current_price_provider = UpbitTickerPriceProvider(
+        base_url=settings.upbit_base_url,
+    )
     dashboard_services = build_dashboard_services(
         market=settings.trade_market,
         boot_state=boot_state,
@@ -212,9 +216,7 @@ def create_app(
         position_lifecycle_ledger=position_lifecycle_ledger,
         position_store=position_store,
         market_price_store=market_price_store,
-        current_price_provider=UpbitTickerPriceProvider(
-            base_url=settings.upbit_base_url,
-        ),
+        current_price_provider=current_price_provider,
         dashboard_summary_service=dashboard_summary_service,
         dashboard_summary_facade=dashboard_summary_facade,
     )
@@ -255,6 +257,35 @@ def create_app(
         )
 
     app = FastAPI(title=settings.app_name)
+    auto_trading_service = AutoTradingService(
+        market=settings.trade_market,
+        trading_mode=settings.trading_mode,
+        boot_state=boot_state,
+        price_provider=current_price_provider,
+        market_price_store=market_price_store,
+        position_store=position_store,
+        trade_decision_service=trade_decision_service,
+        trade_execution_service=trade_execution_service,
+        post_fill_service=post_fill_service,
+        position_exit_service=position_exit_service,
+        learning_service=learning_service,
+        config=AutoTradingConfig(
+            enabled=settings.auto_trading_enabled,
+            live_enabled=settings.auto_trading_live_enabled,
+            interval_sec=settings.auto_trading_interval_sec,
+            min_history=settings.auto_trading_min_history,
+        ),
+    )
+    app.state.auto_trading_service = auto_trading_service
+
+    @app.on_event("startup")
+    async def start_auto_trading_service() -> None:
+        auto_trading_service.start()
+
+    @app.on_event("shutdown")
+    async def stop_auto_trading_service() -> None:
+        await auto_trading_service.stop()
+
     if telegram_gateway is not None:
         report_service = TelegramTradingReportService(
             gateway=telegram_gateway,
@@ -347,6 +378,7 @@ def create_app(
         build_learning_router(
             market=settings.trade_market,
             learning_service=learning_service,
+            learning_log_dir=settings.learning_log_dir,
         ),
     )
     return app

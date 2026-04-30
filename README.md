@@ -136,6 +136,7 @@ pre-commit run --all-files
 
 ## 8. 핵심 기능 요약
 - 실시간 급등·급락 신호 탐지
+- demo 모드 자동 운용 루프
 - 자산 기반 자동 비중 계산
 - 매수 시 손절가 자동 주입
 - 초단기 역방향 모멘텀과 과도한 단기 변동성 진입 차단
@@ -149,6 +150,7 @@ pre-commit run --all-files
 - 잔고 동기화/오픈오더 정리 일시 실패 시 단계별 자동 재시도
 - demo→live 승격 평가
 - 항상 켜진 학습 로그 계층
+- `/learning/diagnostics` 기반 무거래/차단 사유 진단
 
 ---
 
@@ -168,7 +170,8 @@ pre-commit run --all-files
 
 ```text
 XRP-KRW
-2,085 KRW (+1%)
+2,085 KRW
+(+1%)
 거래량 UP(15)
 ```
 

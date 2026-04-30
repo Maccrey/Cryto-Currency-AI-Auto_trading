@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from app.services.learning.diagnostics import LearningLogDiagnostics
+from app.services.learning.service import LearningEvent, LearningService
+
+
+def test_learning_log_diagnostics_reports_auto_trading_not_running(tmp_path: Path) -> None:
+    service = LearningService(log_dir=tmp_path)
+    service.record(
+        LearningEvent(
+            event_name="signal_generated",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"blocked": False, "reason_codes": ["MOMENTUM_BREAKOUT"]},
+        ),
+    )
+
+    diagnostics = LearningLogDiagnostics(log_dir=tmp_path).build()
+
+    assert diagnostics["diagnosis"]["state"] == "AUTO_TRADING_NOT_RUNNING"
+    assert diagnostics["last_signal"] is not None
+
+
+def test_learning_log_diagnostics_reports_blocked_rules(tmp_path: Path) -> None:
+    service = LearningService(log_dir=tmp_path)
+    service.record(
+        LearningEvent(
+            event_name="auto_trade_cycle",
+            market="KRW-XRP",
+            mode="demo",
+            payload={
+                "status": "blocked",
+                "reason": "SIGNAL_BLOCKED",
+                "sizing_blocked_reason": "SIGNAL_BLOCKED",
+            },
+        ),
+    )
+
+    diagnostics = LearningLogDiagnostics(log_dir=tmp_path).build()
+
+    assert diagnostics["diagnosis"]["state"] == "TRADE_BLOCKED_BY_RULES"
+    assert diagnostics["auto_cycle_blocked_reasons"] == {"SIGNAL_BLOCKED": 1}
+    assert diagnostics["sizing_blocked_reasons"] == {"SIGNAL_BLOCKED": 1}
+
+
+def test_learning_log_diagnostics_reports_found_trades(tmp_path: Path) -> None:
+    service = LearningService(log_dir=tmp_path)
+    service.record(
+        LearningEvent(
+            event_name="auto_trade_cycle",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"status": "filled", "reason": None},
+        ),
+    )
+    service.record(
+        LearningEvent(
+            event_name="fill_result",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"side": "buy"},
+        ),
+    )
+
+    diagnostics = LearningLogDiagnostics(log_dir=tmp_path).build()
+
+    assert diagnostics["diagnosis"]["state"] == "TRADES_FOUND"
+    assert diagnostics["last_fill"] is not None
