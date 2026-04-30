@@ -142,6 +142,20 @@ class AutoTradingService:
 
         request = self._build_decision_request(snapshot.trade_price)
         decision = self._trade_decision_service.evaluate(request)
+        if decision.signal.level == "weak":
+            return self._record_cycle(
+                status="blocked",
+                reason="AUTO_MIN_SIGNAL_LEVEL",
+                extra={
+                    "signal_level": decision.signal.level,
+                    "signal_score": decision.signal.score,
+                    "signal_blocked": decision.signal.blocked,
+                    "signal_reason_codes": decision.signal.reason_codes,
+                    "sizing_allowed": decision.sizing.allowed,
+                    "sizing_blocked_reason": decision.sizing.blocked_reason,
+                    "buy_amount": 0.0,
+                },
+            )
         execution_result = self._trade_execution_service.execute(decision)
         post_fill_result = self._post_fill_service.process(execution_result)
         if post_fill_result.position is not None:
