@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter
 
 from app.services.learning.diagnostics import LearningLogDiagnostics
+from app.services.learning.model_readiness import ModelTrainingReadinessService
 from app.services.learning.service import LearningService
 
 
@@ -46,6 +47,21 @@ def build_learning_router(
             "diagnostics": LearningLogDiagnostics(log_dir=learning_log_dir).build(
                 tail_limit=tail_limit,
             ),
+        }
+
+    @router.get("/model-readiness")
+    def model_readiness() -> dict[str, object]:
+        if learning_log_dir is None:
+            return {
+                "status": "not_configured",
+                "market": market,
+                "readiness": None,
+            }
+        readiness = ModelTrainingReadinessService(log_dir=learning_log_dir).build()
+        return {
+            "status": "ok",
+            "market": market,
+            "readiness": readiness,
         }
 
     return router

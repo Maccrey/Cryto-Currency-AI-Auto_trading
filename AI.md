@@ -19,6 +19,20 @@
 
 현재 프로젝트에는 scikit-learn, PyTorch, TensorFlow 같은 모델 학습 패키지가 기본 의존성으로 포함되어 있지 않다. 모델 파일을 직접 업데이트하는 학습이 아니라, 운영 데이터를 축적하고 진단하는 “학습 데이터 파이프라인” 단계다.
 
+향후 모델 학습 구현을 위해 선택 의존성 `ml`을 정의한다.
+
+```bash
+pip install -e ".[ml]"
+```
+
+`ml` extra에 포함할 계획 패키지:
+- `tensorflow`: 신호 품질/진입 확률/청산 위험 예측 모델 후보
+- `scikit-learn`: baseline 모델, feature importance, 검증용 lightweight 모델
+- `pandas`: JSONL/Parquet 데이터 가공
+- `pyarrow`: Parquet dataset 저장과 로딩
+
+중요: TensorFlow는 기본 실행 의존성에 넣지 않는다. 실시간 자동매매 서버가 무거운 학습 패키지에 묶이면 설치, 메모리, 장애 범위가 커지기 때문이다. 학습은 오프라인 배치 작업으로 분리하고, 검증된 모델만 런타임 추론 단계에 승격한다.
+
 ---
 
 ## 3. 자동 운용 흐름
@@ -152,10 +166,66 @@ curl http://127.0.0.1:8000/learning/diagnostics
 
 ---
 
-## 8. 다음 개선 방향
+## 8. 모델 학습 도입 계획
+
+### 8.1 지금 당장 TensorFlow 학습을 켜지 않는 이유
+
+현재는 체결/청산/차단 로그의 양과 라벨 품질을 먼저 안정화해야 한다. 충분한 결과 라벨 없이 TensorFlow 모델을 붙이면 과적합된 신호가 실거래에 들어갈 수 있다. 따라서 현재 단계에서는 데이터 준비도 진단만 구현한다.
+
+준비도 API:
+
+```bash
+curl http://127.0.0.1:8000/learning/model-readiness
+```
+
+준비도 기본 기준:
+- 전체 학습 이벤트 10,000개 이상
+- 신호 이벤트 2,000개 이상
+- 체결 이벤트 300개 이상
+- 청산 결과 이벤트 100개 이상
+- 차단된 자동 운용 사이클 300개 이상
+
+### 8.2 학습 대상 후보
+
+1. 진입 품질 모델
+   - 입력: signal feature, regime, liquidity, spread, volatility
+   - 라벨: 진입 후 validation window 내 기대 수익률 충족 여부
+
+2. 손절 위험 모델
+   - 입력: entry feature, stop_loss_pct, short volatility, orderbook imbalance
+   - 라벨: stop loss 발생 여부와 발생 시간
+
+3. 사이징 보정 모델
+   - 입력: signal score, regime score, 최근 승률, drawdown
+   - 라벨: 같은 조건의 기대 손익과 변동성
+
+### 8.3 승격 게이트
+
+모델이 자동매매 판단에 쓰이려면 아래 조건을 통과해야 한다.
+
+- demo 데이터만 사용해 오프라인 학습
+- train/validation/test 날짜 분리
+- 규칙 기반 baseline보다 손실률이 낮아야 함
+- max drawdown 악화 금지
+- stop loss 실패 증가 금지
+- 최소 14일 demo shadow mode 통과
+- live 적용 시 첫 단계는 추천 점수 보조 역할만 수행
+
+### 8.4 런타임 적용 원칙
+
+- TensorFlow 학습은 서버 프로세스 안에서 실행하지 않는다.
+- 모델 파일은 별도 산출물로 저장한다.
+- live 자동매매는 규칙 기반 안전장치를 최종 게이트로 유지한다.
+- 모델 예측값은 신호 강화/약화 보조 정보로만 먼저 사용한다.
+
+---
+
+## 9. 다음 개선 방향
 
 - 학습 로그를 일 단위로 요약해 전략 품질 지표 생성
 - JSONL을 Parquet 데이터셋으로 변환해 백테스트/모델 학습에 사용
+- `ml` extra 기반 오프라인 학습 CLI 추가
+- TensorFlow 모델 학습/평가 리포트 저장
 - 무거래 시간이 길어질 때 텔레그램으로 원인 리포트 전송
 - live 자동 운용 전 paper/demo 기준을 더 엄격하게 적용
 - 실제 orderbook stream 기반 imbalance feature로 교체

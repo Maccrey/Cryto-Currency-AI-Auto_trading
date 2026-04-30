@@ -395,6 +395,12 @@ demo 모드는 서버가 시작되면 자동 운용 루프가 기본 활성화�
 curl http://127.0.0.1:8000/learning/diagnostics
 ```
 
+TensorFlow 등 모델 학습을 시작할 준비가 되었는지 확인:
+
+```bash
+curl http://127.0.0.1:8000/learning/model-readiness
+```
+
 주요 진단 상태:
 - `AUTO_TRADING_NOT_RUNNING`: 자동 운용 루프 로그가 없음
 - `WAITING_FOR_SIGNAL`: 루프는 실행 중이나 조건 미충족
@@ -411,6 +417,12 @@ AUTO_TRADING_MIN_HISTORY=6
 ```
 
 live 자동 운용은 `AUTO_TRADING_LIVE_ENABLED=true`를 명시해야 시작된다.
+
+ML 학습 패키지는 기본 설치에 포함하지 않는다. 나중에 오프라인 학습을 구현할 때 선택 의존성으로 설치한다.
+
+```bash
+pip install -e ".[ml]"
+```
 
 ---
 

@@ -151,6 +151,16 @@ pre-commit run --all-files
 - demo→live 승격 평가
 - 항상 켜진 학습 로그 계층
 - `/learning/diagnostics` 기반 무거래/차단 사유 진단
+- `/learning/model-readiness` 기반 TensorFlow 학습 준비도 진단
+
+### ML 선택 의존성
+TensorFlow 기반 모델 학습은 기본 서버 의존성에 포함하지 않고 선택 의존성으로 분리한다.
+
+```bash
+pip install -e ".[ml]"
+```
+
+`ml` extra에는 `tensorflow`, `scikit-learn`, `pandas`, `pyarrow`를 포함한다. 실시간 서버에서 바로 학습하지 않고, 충분한 demo 학습 로그가 쌓인 뒤 오프라인 학습 파이프라인으로 구현한다.
 
 ---
 
