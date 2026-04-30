@@ -17,6 +17,8 @@ def build_dashboard_router(
     *,
     boot_state: BootState,
     trading_mode: str,
+    trading_profile: str,
+    trading_profile_label: str,
     learning_enabled: bool,
     dashboard_summary_facade: DashboardSummaryFacade,
     dashboard_market_facade: DashboardMarketFacade,
@@ -37,6 +39,8 @@ def build_dashboard_router(
         return dashboard_summary_facade.build_response(
             boot_state=boot_state,
             trading_mode=trading_mode,
+            trading_profile=trading_profile,
+            trading_profile_label=trading_profile_label,
             learning_enabled=learning_enabled,
         )
 
@@ -486,7 +490,9 @@ function renderDashboard(data) {
 
   document.getElementById("statusLine").innerHTML = `${readyBadge} ${learningBadge}`;
   document.getElementById("modeMetric").textContent = String(summary.trading_mode || health.mode).toUpperCase();
-  document.getElementById("modeSub").textContent = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";
+  const profileLabel = summary.trading_profile_label || summary.trading_profile || "단타";
+  const modeDescription = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";
+  document.getElementById("modeSub").textContent = `${modeDescription} 투자성향: ${profileLabel}`;
   const trendStreak = deriveTrendStreak(market);
   const marketLabel = displayMarket(market.market);
   const priceText = market.current_price === undefined ? "데이터 없음" : `${price(market.current_price)} (${percent(market.recent_change_pct)})`;
@@ -529,6 +535,7 @@ function renderDashboard(data) {
   const categories = learningHealth.category_counts || {};
   document.getElementById("learningTable").innerHTML = [
     row("총 이벤트", number(totalEvents)),
+    row("투자성향", summary.trading_profile_label || summary.trading_profile || "단타"),
     row("최근 이벤트", learning.last_event_name || "없음"),
     row("최근 기록 시각", learning.last_recorded_at || learningHealth.last_recorded_at || "없음"),
     row("신호/체결/포지션", `${number(categories.signals || 0)} / ${number(categories.fills || 0)} / ${number(categories.positions || 0)}`),

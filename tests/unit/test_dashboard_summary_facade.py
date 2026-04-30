@@ -679,6 +679,8 @@ def test_dashboard_summary_facade_builds_payload_with_promotion_state() -> None:
         "stop_loss_count": 0,
         "recent_stop_loss_reason": None,
         "trading_mode": "demo",
+        "trading_profile": "scalping",
+        "trading_profile_label": "단타",
         "learning_enabled": True,
         "last_learning_event": None,
         "learning_signal_count": 0,

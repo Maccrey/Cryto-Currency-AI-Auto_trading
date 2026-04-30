@@ -48,7 +48,10 @@ def test_invalid_scalping_fee_raises(monkeypatch: pytest.MonkeyPatch) -> None:
         load_settings()
 
 
-def test_trading_profile_applies_profile_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_trading_profile_applies_profile_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     monkeypatch.setenv("TRADING_MODE", "demo")
     monkeypatch.setenv("LEARNING_ENABLED", "true")
     monkeypatch.setenv("TRADING_PROFILE", "mid_term")
@@ -57,7 +60,7 @@ def test_trading_profile_applies_profile_defaults(monkeypatch: pytest.MonkeyPatc
     monkeypatch.delenv("PROFILE_MIN_NET_EDGE_PCT", raising=False)
     monkeypatch.delenv("SCALPING_MIN_NET_EDGE_PCT", raising=False)
 
-    settings = load_settings()
+    settings = load_settings(env_file=tmp_path / ".env")
 
     assert settings.trading_profile == "mid_term"
     assert settings.auto_trading_interval_sec == 30.0

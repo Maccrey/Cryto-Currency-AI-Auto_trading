@@ -24,6 +24,8 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
     summary = service.build(
         boot_state=boot_state,
         trading_mode="demo",
+        trading_profile="scalping",
+        trading_profile_label="단타",
         learning_enabled=True,
         realized_pnl=12500.0,
         unrealized_pnl=-3200.0,
@@ -264,6 +266,8 @@ def test_dashboard_summary_service_builds_summary_from_boot_state() -> None:
         stop_loss_count=1,
         recent_stop_loss_reason="STOP_LOSS_PRICE_HIT",
         trading_mode="demo",
+        trading_profile="scalping",
+        trading_profile_label="단타",
         learning_enabled=True,
         last_learning_event=None,
         learning_signal_count=0,

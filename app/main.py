@@ -349,6 +349,8 @@ def create_app(
         build_dashboard_router(
             boot_state=boot_state,
             trading_mode=settings.trading_mode,
+            trading_profile=settings.trading_profile,
+            trading_profile_label=trading_profile.label,
             learning_enabled=settings.learning_enabled,
             dashboard_summary_facade=dashboard_services.summary_facade,
             dashboard_market_facade=dashboard_services.market_facade,

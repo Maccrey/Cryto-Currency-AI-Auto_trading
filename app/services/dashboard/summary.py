@@ -16,6 +16,8 @@ class DashboardSummary:
     stop_loss_count: int
     recent_stop_loss_reason: str | None
     trading_mode: str
+    trading_profile: str
+    trading_profile_label: str
     learning_enabled: bool
     last_learning_event: str | None
     learning_signal_count: int
@@ -45,6 +47,8 @@ class DashboardSummaryService:
         *,
         boot_state: BootState,
         trading_mode: str,
+        trading_profile: str,
+        trading_profile_label: str,
         learning_enabled: bool,
         realized_pnl: float,
         unrealized_pnl: float,
@@ -79,6 +83,8 @@ class DashboardSummaryService:
             stop_loss_count=stop_loss_count,
             recent_stop_loss_reason=recent_stop_loss_reason,
             trading_mode=trading_mode,
+            trading_profile=trading_profile,
+            trading_profile_label=trading_profile_label,
             learning_enabled=learning_enabled,
             last_learning_event=last_learning_event,
             learning_signal_count=learning_signal_count,

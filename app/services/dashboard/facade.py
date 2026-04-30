@@ -51,6 +51,8 @@ class DashboardSummaryFacade:
         *,
         boot_state: BootState,
         trading_mode: str,
+        trading_profile: str = "scalping",
+        trading_profile_label: str = "단타",
         learning_enabled: bool,
     ) -> dict[str, object]:
         ledger_summary = None if self._execution_ledger is None else self._execution_ledger.summarize()
@@ -191,6 +193,8 @@ class DashboardSummaryFacade:
         summary = self._dashboard_summary_service.build(
             boot_state=boot_state,
             trading_mode=trading_mode,
+            trading_profile=trading_profile,
+            trading_profile_label=trading_profile_label,
             learning_enabled=learning_enabled,
             realized_pnl=0.0 if ledger_summary is None else ledger_summary.realized_pnl,
             unrealized_pnl=unrealized_pnl,

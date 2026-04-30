@@ -27,6 +27,8 @@ class SummaryStubService:
             "stop_loss_count": 1,
             "recent_stop_loss_reason": "STOP_LOSS_PRICE_HIT",
             "trading_mode": "demo",
+            "trading_profile": "scalping",
+            "trading_profile_label": "단타",
             "learning_enabled": True,
             "last_learning_event": "position_opened",
             "learning_signal_count": 3,
@@ -1068,6 +1070,7 @@ def test_dashboard_page_renders_human_readable_monitor(monkeypatch) -> None:
     assert "다크모드" in response.text
     assert "학습 완료율" in response.text
     assert "수익 성공률" in response.text
+    assert "투자성향" in response.text
     assert "/dashboard/summary" in response.text
 
 
