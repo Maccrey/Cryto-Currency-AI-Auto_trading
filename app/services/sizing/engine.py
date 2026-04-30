@@ -59,6 +59,8 @@ class SizingEngine:
         max_spread_bps: float,
         max_slippage_bps: float,
         max_stop_loss_risk_amount: float | None = None,
+        trading_fee_rate: float = 0.0005,
+        min_net_edge_pct: float = 0.0008,
         buy_policy: BuySizingPolicy | None = None,
         sell_policy: SellSizingPolicy | None = None,
         stop_loss_by_signal: dict[str, float] | None = None,
@@ -67,6 +69,8 @@ class SizingEngine:
         self._max_spread_bps = max_spread_bps
         self._max_slippage_bps = max_slippage_bps
         self._max_stop_loss_risk_amount = max_stop_loss_risk_amount
+        self._trading_fee_rate = trading_fee_rate
+        self._min_net_edge_pct = min_net_edge_pct
         self._buy_policy = buy_policy or BuySizingPolicy()
         self._sell_policy = sell_policy or SellSizingPolicy()
         self._stop_loss_by_signal = stop_loss_by_signal or {
@@ -94,6 +98,8 @@ class SizingEngine:
             return self._blocked("SPREAD_OR_SLIPPAGE_LIMIT")
         if current_price <= 0:
             return self._blocked("INVALID_CURRENT_PRICE")
+        if self._estimated_edge_pct(signal) <= self._round_trip_fee_pct() + self._min_net_edge_pct:
+            return self._blocked("FEE_ADJUSTED_EDGE_LIMIT")
 
         investable_cash = max(portfolio.cash_balance - self._min_cash_reserve, 0.0)
         if investable_cash <= 0:
@@ -144,3 +150,16 @@ class SizingEngine:
             buy_quantity=0.0,
             blocked_reason=reason,
         )
+
+    def _round_trip_fee_pct(self) -> float:
+        return self._trading_fee_rate * 2
+
+    @staticmethod
+    def _estimated_edge_pct(signal: SignalDecision) -> float:
+        if signal.level == "very_strong":
+            return max(0.0045, signal.score * 0.005)
+        if signal.level == "strong":
+            return max(0.0025, signal.score * 0.004)
+        if signal.level == "medium":
+            return max(0.0012, signal.score * 0.003)
+        return max(0.0, signal.score * 0.001)

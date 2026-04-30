@@ -171,6 +171,8 @@ def create_app(
                 max_spread_bps=float(settings.max_spread_bps),
                 max_slippage_bps=float(settings.max_slippage_bps),
                 max_stop_loss_risk_amount=float(settings.max_daily_loss) * 0.25,
+                trading_fee_rate=float(settings.trading_fee_rate),
+                min_net_edge_pct=float(settings.scalping_min_net_edge_pct),
                 stop_loss_by_signal={
                     "weak": settings.stop_loss_weak,
                     "medium": settings.stop_loss_medium,
@@ -192,6 +194,7 @@ def create_app(
             ),
         ),
         learning_service=learning_service,
+        fee_rate=float(settings.trading_fee_rate),
     ).create(
         trading_mode=settings.trading_mode,
         safe_mode=boot_state.safe_mode,

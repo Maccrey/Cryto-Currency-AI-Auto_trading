@@ -25,12 +25,27 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "live")
     monkeypatch.setenv("LEARNING_ENABLED", "true")
     monkeypatch.setenv("DASHBOARD_PORT", "9090")
+    monkeypatch.setenv("TRADING_FEE_RATE", "0.0005")
+    monkeypatch.setenv("SCALPING_MIN_NET_EDGE_PCT", "0.0008")
 
     settings = load_settings()
 
     assert settings.trading_mode == "live"
     assert settings.learning_enabled is True
     assert settings.dashboard_port == 9090
+    assert settings.trading_profile == "scalping"
+    assert settings.trading_fee_rate == 0.0005
+    assert settings.scalping_min_net_edge_pct == 0.0008
+    assert settings.auto_trading_interval_sec == 3.0
+
+
+def test_invalid_scalping_fee_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TRADING_FEE_RATE", "0.02")
+
+    with pytest.raises(SettingsError, match="TRADING_FEE_RATE"):
+        load_settings()
 
 
 def test_settings_loads_values_from_env_file_without_api_keys_in_demo(
@@ -92,6 +107,9 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "stop_loss_very_strong",
         "validation_window_sec",
         "min_expected_return_pct",
+        "trading_profile",
+        "trading_fee_rate",
+        "scalping_min_net_edge_pct",
         "min_cash_reserve",
         "max_daily_loss",
         "max_slippage_bps",

@@ -42,10 +42,13 @@ pip install -e ".[ml]"
 기본 설정:
 - `AUTO_TRADING_ENABLED=true`
 - `AUTO_TRADING_LIVE_ENABLED=false`
-- `AUTO_TRADING_INTERVAL_SEC=10.0`
+- `AUTO_TRADING_INTERVAL_SEC=3.0`
 - `AUTO_TRADING_MIN_HISTORY=6`
+- `TRADING_PROFILE=scalping`
+- `TRADING_FEE_RATE=0.0005`
+- `SCALPING_MIN_NET_EDGE_PCT=0.0008`
 
-demo 모드에서는 자동 운용이 기본 활성화된다. live 모드는 `AUTO_TRADING_LIVE_ENABLED=true`를 명시해야 자동 운용이 시작된다.
+demo 모드에서는 자동 운용이 기본 활성화된다. live 모드는 `AUTO_TRADING_LIVE_ENABLED=true`를 명시해야 자동 운용이 시작된다. 현재 자동화 성향은 단타 중심이지만, 잦은 매매 자체가 목표가 아니라 짧은 주기로 관찰하면서 왕복 수수료와 최소 순엣지를 넘는 신호만 실행하는 구조다.
 
 자동 운용 루프:
 1. 업비트 현재가 ticker를 가져온다.
@@ -102,7 +105,15 @@ demo 모드에서는 자동 운용이 기본 활성화된다. live 모드는 `AU
 - 최소 현금 보유액 유지
 - spread/slippage 초과 차단
 - 현재가 0 이하 차단
+- 업비트 KRW 마켓 수수료 0.05% 기준 왕복 수수료와 최소 순엣지를 넘지 못하는 단타 진입 차단
 - 1회 예상 손절 손실을 `MAX_DAILY_LOSS`의 25% 이내로 제한
+
+단타 수수료 게이트:
+- `TRADING_FEE_RATE=0.0005`는 거래 1회당 0.05%다.
+- 매수 후 매도까지 왕복하면 기본 수수료 부담은 `0.0005 * 2 = 0.001`, 즉 0.10%다.
+- 현재 기본값은 추가 순엣지 `SCALPING_MIN_NET_EDGE_PCT=0.0008`, 즉 0.08%를 더 요구한다.
+- 따라서 예상 엣지가 최소 0.18%를 넘지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단한다.
+- 차단 결과는 `auto_trade_cycle.sizing_blocked_reason`에 기록되어 이후 학습 데이터로 사용된다.
 
 ---
 
@@ -143,6 +154,7 @@ curl http://127.0.0.1:8000/learning/diagnostics
 - `AUTO_TRADING_NOT_RUNNING`: 자동 운용 루프 기록이 없음
 - `WAITING_FOR_SIGNAL`: 자동 운용 중이나 진입 조건 미충족
 - `TRADE_BLOCKED_BY_RULES`: 신호/리스크/사이징 규칙이 진입 차단
+- `FEE_ADJUSTED_EDGE_LIMIT`: 단타 예상 엣지가 왕복 수수료와 최소 순엣지를 넘지 못함
 - `TRADES_FOUND`: 최근 로그에서 체결 확인
 
 함께 확인할 필드:

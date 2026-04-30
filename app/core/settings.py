@@ -43,6 +43,9 @@ class SettingsModel(BaseModel):
     stop_loss_very_strong: float = Field(default=0.022)
     validation_window_sec: int = Field(default=180)
     min_expected_return_pct: float = Field(default=0.004)
+    trading_profile: str = Field(default="scalping")
+    trading_fee_rate: float = Field(default=0.0005)
+    scalping_min_net_edge_pct: float = Field(default=0.0008)
     min_cash_reserve: int = Field(default=100000)
     max_daily_loss: int = Field(default=150000)
     max_slippage_bps: int = Field(default=20)
@@ -64,7 +67,7 @@ class SettingsModel(BaseModel):
     demo_initial_capital: int = Field(default=1_000_000)
     auto_trading_enabled: bool = Field(default=True)
     auto_trading_live_enabled: bool = Field(default=False)
-    auto_trading_interval_sec: float = Field(default=10.0)
+    auto_trading_interval_sec: float = Field(default=3.0)
     auto_trading_min_history: int = Field(default=6)
     log_level: str = Field(default="INFO")
     log_format: str = Field(default="json")
@@ -88,6 +91,27 @@ class SettingsModel(BaseModel):
     def validate_learning_enabled(cls, value: bool) -> bool:
         if value is not True:
             raise ValueError("LEARNING_ENABLED must remain true in every mode")
+        return value
+
+    @field_validator("trading_profile")
+    @classmethod
+    def validate_trading_profile(cls, value: str) -> str:
+        if value not in {"scalping"}:
+            raise ValueError("TRADING_PROFILE must be scalping")
+        return value
+
+    @field_validator("trading_fee_rate")
+    @classmethod
+    def validate_trading_fee_rate(cls, value: float) -> float:
+        if value < 0 or value > 0.01:
+            raise ValueError("TRADING_FEE_RATE must be between 0 and 0.01")
+        return value
+
+    @field_validator("scalping_min_net_edge_pct")
+    @classmethod
+    def validate_scalping_min_net_edge_pct(cls, value: float) -> float:
+        if value < 0 or value > 0.05:
+            raise ValueError("SCALPING_MIN_NET_EDGE_PCT must be between 0 and 0.05")
         return value
 
     @field_validator("log_format")
@@ -129,6 +153,9 @@ class AppSettings:
     stop_loss_very_strong: float
     validation_window_sec: int
     min_expected_return_pct: float
+    trading_profile: str
+    trading_fee_rate: float
+    scalping_min_net_edge_pct: float
     min_cash_reserve: int
     max_daily_loss: int
     max_slippage_bps: int
@@ -199,6 +226,9 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "stop_loss_very_strong": float(_setting("STOP_LOSS_VERY_STRONG", "0.022", env_values)),
         "validation_window_sec": int(_setting("VALIDATION_WINDOW_SEC", "180", env_values)),
         "min_expected_return_pct": float(_setting("MIN_EXPECTED_RETURN_PCT", "0.004", env_values)),
+        "trading_profile": _setting("TRADING_PROFILE", "scalping", env_values),
+        "trading_fee_rate": float(_setting("TRADING_FEE_RATE", "0.0005", env_values)),
+        "scalping_min_net_edge_pct": float(_setting("SCALPING_MIN_NET_EDGE_PCT", "0.0008", env_values)),
         "min_cash_reserve": int(_setting("MIN_CASH_RESERVE", "100000", env_values)),
         "max_daily_loss": int(_setting("MAX_DAILY_LOSS", "150000", env_values)),
         "max_slippage_bps": int(_setting("MAX_SLIPPAGE_BPS", "20", env_values)),
@@ -222,7 +252,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "demo_initial_capital": int(_setting("DEMO_INITIAL_CAPITAL", "1000000", env_values)),
         "auto_trading_enabled": _parse_bool(_setting("AUTO_TRADING_ENABLED", "true", env_values)),
         "auto_trading_live_enabled": _parse_bool(_setting("AUTO_TRADING_LIVE_ENABLED", "false", env_values)),
-        "auto_trading_interval_sec": float(_setting("AUTO_TRADING_INTERVAL_SEC", "10.0", env_values)),
+        "auto_trading_interval_sec": float(_setting("AUTO_TRADING_INTERVAL_SEC", "3.0", env_values)),
         "auto_trading_min_history": int(_setting("AUTO_TRADING_MIN_HISTORY", "6", env_values)),
         "log_level": _setting("LOG_LEVEL", "INFO", env_values),
         "log_format": _setting("LOG_FORMAT", "json", env_values),

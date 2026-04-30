@@ -1,9 +1,9 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 158개
+  - 완료: 161개
   - 미완료: 12개
-  - 전체: 170개
+  - 전체: 173개
  
 ## 1. 작업 원칙
 - 모든 구현은 TDD 순서를 따른다.
@@ -110,8 +110,11 @@
 - [x] [Fail] spread/slippage 초과 시 주문이 차단되어야 한다
 - [x] [Fail] 현재가가 0 이하이면 수량 계산 전에 주문이 차단되어야 한다
 - [x] [Fail] 예상 손절 손실이 1회 리스크 예산을 넘으면 매수 금액이 자동 축소되어야 한다
+- [x] [Fail] 단타 진입 예상 엣지가 왕복 수수료와 최소 순엣지를 넘지 못하면 차단되어야 한다
 - [x] [Code] sizing engine 구현
+- [x] [Code] 업비트 KRW 수수료 0.05% 기준 단타 순엣지 게이트 구현
 - [x] [Refactor] buy/sell sizing policy 분리
+- [x] [Contract] 단타 수수료/순엣지 환경 변수와 문서 반영
 - [x] [Contract] sizing result schema 고정
 
 ---

@@ -55,6 +55,9 @@ STOP_LOSS_VERY_STRONG=0.022
 
 VALIDATION_WINDOW_SEC=180
 MIN_EXPECTED_RETURN_PCT=0.004
+TRADING_PROFILE=scalping
+TRADING_FEE_RATE=0.0005
+SCALPING_MIN_NET_EDGE_PCT=0.0008
 
 MIN_CASH_RESERVE=100000
 MAX_DAILY_LOSS=150000
@@ -79,7 +82,7 @@ DEMO_MAX_STOPLOSS_FAILURES=0
 DEMO_INITIAL_CAPITAL=1000000
 AUTO_TRADING_ENABLED=true
 AUTO_TRADING_LIVE_ENABLED=false
-AUTO_TRADING_INTERVAL_SEC=10.0
+AUTO_TRADING_INTERVAL_SEC=3.0
 AUTO_TRADING_MIN_HISTORY=6
 
 LOG_LEVEL=INFO
@@ -125,6 +128,9 @@ DASHBOARD_PORT=8080
 | STOP_LOSS_VERY_STRONG | float | Y | 0.022 | very strong 손절 비율 |
 | VALIDATION_WINDOW_SEC | int | Y | 180 | 기대 검증 시간 |
 | MIN_EXPECTED_RETURN_PCT | float | Y | 0.004 | 최소 기대 수익률 |
+| TRADING_PROFILE | str | Y | scalping | 자동 운용 전략 성향, 현재는 단타 중심 scalping만 허용 |
+| TRADING_FEE_RATE | float | Y | 0.0005 | 업비트 KRW 마켓 거래 수수료율 0.05%를 소수로 저장 |
+| SCALPING_MIN_NET_EDGE_PCT | float | Y | 0.0008 | 왕복 수수료를 제외하고 단타 진입에 요구하는 최소 순엣지 |
 | MIN_CASH_RESERVE | int | Y | 100000 | 최소 현금 보유 |
 | MAX_DAILY_LOSS | int | Y | 150000 | 일일 손실 한도 |
 | MAX_SLIPPAGE_BPS | int | Y | 20 | 허용 슬리피지 상한 |
@@ -146,7 +152,7 @@ DASHBOARD_PORT=8080
 | DEMO_INITIAL_CAPITAL | int | Y | 1000000 | demo 모드 가상 시작 투자금 |
 | AUTO_TRADING_ENABLED | bool | Y | true | 서버 기동 후 자동 운용 루프 활성화 여부 |
 | AUTO_TRADING_LIVE_ENABLED | bool | Y | false | live 모드 자동 운용 명시 허용 여부 |
-| AUTO_TRADING_INTERVAL_SEC | float | Y | 10.0 | 자동 운용 현재가 수집/판단 주기 |
+| AUTO_TRADING_INTERVAL_SEC | float | Y | 3.0 | 자동 운용 현재가 수집/판단 주기 |
 | AUTO_TRADING_MIN_HISTORY | int | Y | 6 | 자동 판단 전 필요한 최소 현재가 히스토리 수 |
 | LOG_LEVEL | str | Y | INFO | 로그 레벨 |
 | LOG_FORMAT | str | Y | json | 구조화 로그 형식, json만 허용 |
@@ -186,6 +192,12 @@ false면 앱 시작 실패
 - demo 모드는 기본적으로 자동 운용 루프가 켜진다.
 - live 모드 자동 운용은 `AUTO_TRADING_ENABLED=true`와 `AUTO_TRADING_LIVE_ENABLED=true`가 모두 설정되어야 시작된다.
 - live에서 API 키, SAFE_MODE, HARD_STOP, trading_ready 상태가 조건을 만족하지 않으면 주문은 차단된다.
+
+### TRADING_PROFILE / 수수료 기반 단타 정책
+- 현재 허용 전략 성향은 `TRADING_PROFILE=scalping`이다.
+- 업비트 고객센터 기준 일반 KRW 마켓 수수료 0.05%를 `TRADING_FEE_RATE=0.0005`로 사용한다.
+- 단타 진입은 예상 엣지가 왕복 수수료 `TRADING_FEE_RATE * 2`와 `SCALPING_MIN_NET_EDGE_PCT`를 합친 값보다 클 때만 허용한다.
+- 위 조건을 넘기지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단되어 학습 로그에 남는다.
 
 ### 코드 설정 스키마 계약
 `app.core.settings.SettingsModel`과 `AppSettings`는 이 문서의 필수 변수 전체를 필드로 가진다.

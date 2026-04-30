@@ -31,15 +31,22 @@ class FillResult:
 class DemoExecutor:
     """Simulate fills locally without touching any live trading gateway."""
 
-    FEE_RATE = 0.00041605
+    FEE_RATE = 0.0005
 
-    def __init__(self, *, live_order_gateway: Any, learning_service=None) -> None:
+    def __init__(
+        self,
+        *,
+        live_order_gateway: Any,
+        learning_service=None,
+        fee_rate: float = FEE_RATE,
+    ) -> None:
         self._live_order_gateway = live_order_gateway
         self._learning_service = learning_service
+        self._fee_rate = fee_rate
 
     def execute(self, intent: OrderIntent) -> FillResult:
         notional = intent.price * intent.quantity
-        fee = round(notional * self.FEE_RATE, 2)
+        fee = round(notional * self._fee_rate, 2)
         fill = FillResult(
             market=intent.market,
             side=intent.side,

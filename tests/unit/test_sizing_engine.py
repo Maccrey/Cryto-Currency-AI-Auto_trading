@@ -135,6 +135,40 @@ def test_sizing_engine_blocks_buy_when_current_price_is_invalid() -> None:
     assert decision.blocked_reason == "INVALID_CURRENT_PRICE"
 
 
+def test_sizing_engine_blocks_scalping_entry_when_edge_does_not_clear_fees() -> None:
+    engine = SizingEngine(
+        min_cash_reserve=100000,
+        max_spread_bps=15,
+        max_slippage_bps=20,
+        trading_fee_rate=0.0005,
+        min_net_edge_pct=0.0008,
+    )
+    portfolio = PortfolioState(
+        cash_balance=300000.0,
+        asset_currency="XRP",
+        asset_balance=0.0,
+        avg_buy_price=0.0,
+    )
+
+    decision = engine.size_entry(
+        portfolio,
+        SignalDecision(level="medium", score=0.45, blocked=False, reason_codes=[]),
+        RegimeSnapshot(
+            label="neutral",
+            score=0.5,
+            size_multiplier=0.8,
+            entry_allowed=True,
+            reason_codes=[],
+        ),
+        current_price=800.0,
+        spread_bps=9.0,
+        slippage_bps=11.0,
+    )
+
+    assert decision.allowed is False
+    assert decision.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT"
+
+
 def test_sizing_engine_caps_buy_amount_by_stop_loss_risk_budget() -> None:
     engine = SizingEngine(
         min_cash_reserve=100000,
