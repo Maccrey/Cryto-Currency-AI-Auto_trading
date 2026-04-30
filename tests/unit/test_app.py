@@ -1098,6 +1098,7 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     page = client.get("/settings")
     assert page.status_code == 200
     assert "modeSwitch" in page.text
+    assert "tradingProfile" in page.text
     assert "demoInitialCapital" in page.text
 
     response = client.post(
@@ -1118,6 +1119,7 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
         "/settings",
         json={
             "TRADING_MODE": "live",
+            "TRADING_PROFILE": "short_term",
             "LEARNING_ENABLED": "true",
             "UPBIT_ACCESS_KEY": "access-key",
             "UPBIT_SECRET_KEY": "secret-key",
@@ -1127,8 +1129,10 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert saved.status_code == 200
     assert saved.json()["saved"] is True
     assert "UPBIT_SECRET_KEY=secret-key" in env_file.read_text(encoding="utf-8")
+    assert "TRADING_PROFILE=short_term" in env_file.read_text(encoding="utf-8")
     current = client.get("/settings/current").json()
     assert current["values"]["UPBIT_SECRET_KEY"] == "***"
+    assert current["profile"] == "short_term"
 
 
 def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:

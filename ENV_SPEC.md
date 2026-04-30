@@ -57,7 +57,7 @@ VALIDATION_WINDOW_SEC=180
 MIN_EXPECTED_RETURN_PCT=0.004
 TRADING_PROFILE=scalping
 TRADING_FEE_RATE=0.0005
-SCALPING_MIN_NET_EDGE_PCT=0.0008
+PROFILE_MIN_NET_EDGE_PCT=0.0008
 
 MIN_CASH_RESERVE=100000
 MAX_DAILY_LOSS=150000
@@ -128,9 +128,9 @@ DASHBOARD_PORT=8080
 | STOP_LOSS_VERY_STRONG | float | Y | 0.022 | very strong 손절 비율 |
 | VALIDATION_WINDOW_SEC | int | Y | 180 | 기대 검증 시간 |
 | MIN_EXPECTED_RETURN_PCT | float | Y | 0.004 | 최소 기대 수익률 |
-| TRADING_PROFILE | str | Y | scalping | 자동 운용 전략 성향, 현재는 단타 중심 scalping만 허용 |
+| TRADING_PROFILE | str | Y | scalping | 투자성향/전략 프로필, scalping/short_term/mid_term/long_term |
 | TRADING_FEE_RATE | float | Y | 0.0005 | 업비트 KRW 마켓 거래 수수료율 0.05%를 소수로 저장 |
-| SCALPING_MIN_NET_EDGE_PCT | float | Y | 0.0008 | 왕복 수수료를 제외하고 단타 진입에 요구하는 최소 순엣지 |
+| PROFILE_MIN_NET_EDGE_PCT | float | Y | 0.0008 | 왕복 수수료를 제외하고 현재 투자성향 진입에 요구하는 최소 순엣지 |
 | MIN_CASH_RESERVE | int | Y | 100000 | 최소 현금 보유 |
 | MAX_DAILY_LOSS | int | Y | 150000 | 일일 손실 한도 |
 | MAX_SLIPPAGE_BPS | int | Y | 20 | 허용 슬리피지 상한 |
@@ -193,11 +193,23 @@ false면 앱 시작 실패
 - live 모드 자동 운용은 `AUTO_TRADING_ENABLED=true`와 `AUTO_TRADING_LIVE_ENABLED=true`가 모두 설정되어야 시작된다.
 - live에서 API 키, SAFE_MODE, HARD_STOP, trading_ready 상태가 조건을 만족하지 않으면 주문은 차단된다.
 
-### TRADING_PROFILE / 수수료 기반 단타 정책
-- 현재 허용 전략 성향은 `TRADING_PROFILE=scalping`이다.
+### TRADING_PROFILE / 투자성향 정책
+- 허용값은 `scalping`, `short_term`, `mid_term`, `long_term`이다.
+- 설정 화면에서는 각각 단타, 단기, 중기, 장기로 표시한다.
+- 투자성향을 저장하면 해당 성향의 기본 `AUTO_TRADING_INTERVAL_SEC`, `AUTO_TRADING_MIN_HISTORY`, `PROFILE_MIN_NET_EDGE_PCT`, `VALIDATION_WINDOW_SEC`, `MIN_EXPECTED_RETURN_PCT`가 함께 `.env`에 저장된다.
 - 업비트 고객센터 기준 일반 KRW 마켓 수수료 0.05%를 `TRADING_FEE_RATE=0.0005`로 사용한다.
-- 단타 진입은 예상 엣지가 왕복 수수료 `TRADING_FEE_RATE * 2`와 `SCALPING_MIN_NET_EDGE_PCT`를 합친 값보다 클 때만 허용한다.
+- 진입은 예상 엣지가 왕복 수수료 `TRADING_FEE_RATE * 2`와 `PROFILE_MIN_NET_EDGE_PCT`를 합친 값보다 클 때만 허용한다.
 - 위 조건을 넘기지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단되어 학습 로그에 남는다.
+- 학습 로그는 `LEARNING_LOG_DIR/<TRADING_PROFILE>/learning.jsonl`에 분리 저장한다.
+
+기본 프로필:
+
+| 값 | 표시 | 주기 | 히스토리 | 최소 순엣지 | 검증 창 | 최소 기대수익 |
+|---|---|---:|---:|---:|---:|---:|
+| scalping | 단타 | 3초 | 6 | 0.08% | 180초 | 0.40% |
+| short_term | 단기 | 10초 | 12 | 0.20% | 900초 | 0.80% |
+| mid_term | 중기 | 30초 | 20 | 0.60% | 3600초 | 1.50% |
+| long_term | 장기 | 60초 | 30 | 1.20% | 14400초 | 3.00% |
 
 ### 코드 설정 스키마 계약
 `app.core.settings.SettingsModel`과 `AppSettings`는 이 문서의 필수 변수 전체를 필드로 가진다.

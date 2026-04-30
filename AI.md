@@ -46,9 +46,18 @@ pip install -e ".[ml]"
 - `AUTO_TRADING_MIN_HISTORY=6`
 - `TRADING_PROFILE=scalping`
 - `TRADING_FEE_RATE=0.0005`
-- `SCALPING_MIN_NET_EDGE_PCT=0.0008`
+- `PROFILE_MIN_NET_EDGE_PCT=0.0008`
 
-demo 모드에서는 자동 운용이 기본 활성화된다. live 모드는 `AUTO_TRADING_LIVE_ENABLED=true`를 명시해야 자동 운용이 시작된다. 현재 자동화 성향은 단타 중심이지만, 잦은 매매 자체가 목표가 아니라 짧은 주기로 관찰하면서 왕복 수수료와 최소 순엣지를 넘는 신호만 실행하는 구조다.
+demo 모드에서는 자동 운용이 기본 활성화된다. live 모드는 `AUTO_TRADING_LIVE_ENABLED=true`를 명시해야 자동 운용이 시작된다. 설정 화면에서 투자성향을 단타, 단기, 중기, 장기 중 하나로 고르면 해당 성향의 관찰 주기, 히스토리 길이, 최소 순엣지, 기대 검증 시간이 자동으로 주입된다.
+
+투자성향 프로필:
+
+| 값 | 표시 | 주기 | 히스토리 | 최소 순엣지 | 검증 창 |
+|---|---|---:|---:|---:|---:|
+| `scalping` | 단타 | 3초 | 6 | 0.08% | 180초 |
+| `short_term` | 단기 | 10초 | 12 | 0.20% | 900초 |
+| `mid_term` | 중기 | 30초 | 20 | 0.60% | 3600초 |
+| `long_term` | 장기 | 60초 | 30 | 1.20% | 14400초 |
 
 자동 운용 루프:
 1. 업비트 현재가 ticker를 가져온다.
@@ -105,14 +114,15 @@ demo 모드에서는 자동 운용이 기본 활성화된다. live 모드는 `AU
 - 최소 현금 보유액 유지
 - spread/slippage 초과 차단
 - 현재가 0 이하 차단
-- 업비트 KRW 마켓 수수료 0.05% 기준 왕복 수수료와 최소 순엣지를 넘지 못하는 단타 진입 차단
+- 업비트 KRW 마켓 수수료 0.05% 기준 왕복 수수료와 투자성향별 최소 순엣지를 넘지 못하는 진입 차단
 - 1회 예상 손절 손실을 `MAX_DAILY_LOSS`의 25% 이내로 제한
 
-단타 수수료 게이트:
+프로필 수수료 게이트:
 - `TRADING_FEE_RATE=0.0005`는 거래 1회당 0.05%다.
 - 매수 후 매도까지 왕복하면 기본 수수료 부담은 `0.0005 * 2 = 0.001`, 즉 0.10%다.
-- 현재 기본값은 추가 순엣지 `SCALPING_MIN_NET_EDGE_PCT=0.0008`, 즉 0.08%를 더 요구한다.
-- 따라서 예상 엣지가 최소 0.18%를 넘지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단한다.
+- 단타 기본값은 추가 순엣지 `PROFILE_MIN_NET_EDGE_PCT=0.0008`, 즉 0.08%를 더 요구한다.
+- 따라서 단타는 예상 엣지가 최소 0.18%를 넘지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단한다.
+- 단기, 중기, 장기는 더 긴 관찰 주기와 더 높은 최소 순엣지를 사용해 성향별로 다른 진입 성격을 만든다.
 - 차단 결과는 `auto_trade_cycle.sizing_blocked_reason`에 기록되어 이후 학습 데이터로 사용된다.
 
 ---
@@ -122,8 +132,14 @@ demo 모드에서는 자동 운용이 기본 활성화된다. live 모드는 `AU
 학습 로그 경로:
 
 ```text
-logs/learning/learning.jsonl
+logs/learning/<TRADING_PROFILE>/learning.jsonl
 ```
+
+예:
+- 단타: `logs/learning/scalping/learning.jsonl`
+- 단기: `logs/learning/short_term/learning.jsonl`
+- 중기: `logs/learning/mid_term/learning.jsonl`
+- 장기: `logs/learning/long_term/learning.jsonl`
 
 주요 이벤트:
 - `auto_trade_cycle`: 자동 운용 사이클 결과와 차단 사유

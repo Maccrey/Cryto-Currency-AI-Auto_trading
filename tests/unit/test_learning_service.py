@@ -28,7 +28,11 @@ def test_learning_service_persists_decision_event_as_jsonl(tmp_path: Path) -> No
     assert row["event_name"] == "signal_generated"
     assert row["market"] == "KRW-XRP"
     assert row["mode"] == "demo"
-    assert row["payload"] == {"level": "strong", "score": 0.72}
+    assert row["payload"] == {
+        "level": "strong",
+        "score": 0.72,
+        "trading_profile": "scalping",
+    }
 
 
 def test_learning_service_persists_fill_and_restart_events(tmp_path: Path) -> None:
@@ -57,6 +61,7 @@ def test_learning_service_persists_fill_and_restart_events(tmp_path: Path) -> No
     ]
     assert [row["event_name"] for row in rows] == ["fill_result", "restart_detected"]
     assert rows[1]["payload"]["safe_mode"] is True
+    assert rows[1]["payload"]["trading_profile"] == "scalping"
 
 
 def test_learning_service_keeps_recent_events_in_memory(tmp_path: Path) -> None:
@@ -84,6 +89,7 @@ def test_learning_service_keeps_recent_events_in_memory(tmp_path: Path) -> None:
     assert len(payload) == 1
     assert payload[0]["event_name"] == "position_opened"
     assert payload[0]["payload"]["quantity"] == 120.0
+    assert payload[0]["payload"]["trading_profile"] == "scalping"
 
 
 def test_learning_service_accepts_event_serializer(tmp_path: Path) -> None:
@@ -103,4 +109,20 @@ def test_learning_service_accepts_event_serializer(tmp_path: Path) -> None:
 
     row = json.loads((tmp_path / "learning.jsonl").read_text(encoding="utf-8").strip())
     assert row["event_name"] == "promotion_ready"
-    assert row["payload"] == {"profit_factor": 1.8}
+    assert row["payload"] == {"profit_factor": 1.8, "trading_profile": "scalping"}
+
+
+def test_learning_service_records_selected_trading_profile(tmp_path: Path) -> None:
+    service = LearningService(log_dir=tmp_path, trading_profile="long_term")
+
+    service.record(
+        LearningEvent(
+            event_name="signal_generated",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"level": "strong"},
+        ),
+    )
+
+    row = json.loads((tmp_path / "learning.jsonl").read_text(encoding="utf-8").strip())
+    assert row["payload"]["trading_profile"] == "long_term"

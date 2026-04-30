@@ -130,6 +130,7 @@ def test_auto_trading_service_records_waiting_until_history_is_ready(tmp_path: P
 
     assert result["status"] == "waiting"
     assert result["reason"] == "MARKET_HISTORY_WARMING_UP"
+    assert result["trading_profile"] == "scalping"
 
 
 def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -> None:

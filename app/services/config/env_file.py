@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.core.trading_profile import TRADING_PROFILES, get_trading_profile
+
 
 SECRET_KEYS = {"UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY", "TELEGRAM_BOT_TOKEN"}
 LIVE_REQUIRED_KEYS = ["UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY"]
@@ -16,10 +18,13 @@ class EnvFileService:
     def current(self) -> dict[str, object]:
         values = self._read()
         mode = values.get("TRADING_MODE", "demo")
+        profile = values.get("TRADING_PROFILE", "scalping")
         missing_for_live = self._missing_for_live(values) if mode == "live" else []
         return {
             "status": "ok",
             "mode": mode,
+            "profile": profile,
+            "profiles": self._profile_payload(),
             "values": self._masked(values),
             "missing_for_live": missing_for_live,
             "env_path": str(self._env_path),
@@ -42,6 +47,19 @@ class EnvFileService:
             }
         normalized["TRADING_MODE"] = mode
         normalized["LEARNING_ENABLED"] = "true"
+        profile = normalized.get("TRADING_PROFILE", values.get("TRADING_PROFILE", "scalping"))
+        try:
+            profile_spec = get_trading_profile(profile)
+        except ValueError as exc:
+            return {
+                "status": "invalid",
+                "saved": False,
+                "missing_for_live": [],
+                "message": str(exc),
+            }
+        normalized["TRADING_PROFILE"] = profile
+        for key, value in self._profile_defaults(profile_spec).items():
+            normalized.setdefault(key, value)
 
         missing_for_live = self._missing_for_live(normalized) if mode == "live" else []
         if missing_for_live:
@@ -57,6 +75,7 @@ class EnvFileService:
         return {
             "status": "saved",
             "saved": True,
+            "profile": profile,
             "missing_for_live": [],
             "message": "settings saved",
         }
@@ -88,3 +107,29 @@ class EnvFileService:
         for key, value in values.items():
             masked[key] = "***" if key in SECRET_KEYS and value else value
         return masked
+
+    @staticmethod
+    def _profile_defaults(profile_spec) -> dict[str, str]:
+        return {
+            "AUTO_TRADING_INTERVAL_SEC": str(profile_spec.auto_interval_sec),
+            "AUTO_TRADING_MIN_HISTORY": str(profile_spec.auto_min_history),
+            "PROFILE_MIN_NET_EDGE_PCT": str(profile_spec.min_net_edge_pct),
+            "VALIDATION_WINDOW_SEC": str(profile_spec.validation_window_sec),
+            "MIN_EXPECTED_RETURN_PCT": str(profile_spec.min_expected_return_pct),
+        }
+
+    @staticmethod
+    def _profile_payload() -> list[dict[str, object]]:
+        return [
+            {
+                "key": spec.key,
+                "label": spec.label,
+                "description": spec.description,
+                "auto_interval_sec": spec.auto_interval_sec,
+                "auto_min_history": spec.auto_min_history,
+                "min_net_edge_pct": spec.min_net_edge_pct,
+                "validation_window_sec": spec.validation_window_sec,
+                "min_expected_return_pct": spec.min_expected_return_pct,
+            }
+            for spec in TRADING_PROFILES.values()
+        ]

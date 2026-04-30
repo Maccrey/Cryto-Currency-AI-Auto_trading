@@ -38,6 +38,7 @@ SETTINGS_HTML = """
     h1 { font-size: 24px; margin: 0 0 18px; }
     label { display: block; font-size: 13px; font-weight: 650; margin-top: 14px; }
     input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #b8c4ce; border-radius: 6px; font-size: 14px; }
+    select { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #b8c4ce; border-radius: 6px; font-size: 14px; background: white; }
     .switch { display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid #9eb0bd; border-radius: 999px; overflow: hidden; margin: 8px 0 10px; }
     .switch button { border: 0; padding: 10px 18px; background: #edf2f5; cursor: pointer; font-weight: 700; }
     .switch button.active { background: #1769aa; color: white; }
@@ -65,6 +66,9 @@ SETTINGS_HTML = """
       <button type="button" data-mode="demo">DEMO</button>
       <button type="button" data-mode="live">LIVE</button>
     </div>
+    <label for="tradingProfile">투자성향</label>
+    <select id="tradingProfile"></select>
+    <div id="profileDescription" class="note"></div>
     <div class="row">
       <div>
         <label for="tradeMarket">마켓</label>
@@ -98,6 +102,7 @@ SETTINGS_HTML = """
 </main>
 <script>
 let mode = "demo";
+let profiles = [];
 function showStatus(message, kind = "") {
   const status = document.getElementById("status");
   status.className = `status visible ${kind}`.trim();
@@ -115,12 +120,36 @@ function setMode(next) {
 document.querySelectorAll("#modeSwitch button").forEach((button) => {
   button.addEventListener("click", () => setMode(button.dataset.mode));
 });
+function renderProfiles(selected) {
+  const select = document.getElementById("tradingProfile");
+  select.innerHTML = "";
+  profiles.forEach((profile) => {
+    const option = document.createElement("option");
+    option.value = profile.key;
+    option.textContent = profile.label;
+    select.appendChild(option);
+  });
+  select.value = selected || "scalping";
+  updateProfileDescription();
+}
+function updateProfileDescription() {
+  const selected = document.getElementById("tradingProfile").value;
+  const profile = profiles.find((item) => item.key === selected);
+  document.getElementById("profileDescription").textContent = profile
+    ? `${profile.description} · 주기 ${profile.auto_interval_sec}초 · 최소 순엣지 ${(profile.min_net_edge_pct * 100).toFixed(2)}%`
+    : "";
+}
+document.getElementById("tradingProfile").addEventListener("change", updateProfileDescription);
 async function loadSettings() {
   try {
     const response = await fetch("/settings/current");
     const data = await response.json();
     const values = data.values || {};
+    profiles = data.profiles || [
+      {key: "scalping", label: "단타", description: "짧은 주기로 관찰", auto_interval_sec: 3, min_net_edge_pct: 0.0008}
+    ];
     setMode(data.mode || values.TRADING_MODE || "demo");
+    renderProfiles(data.profile || values.TRADING_PROFILE || "scalping");
     document.getElementById("tradeMarket").value = values.TRADE_MARKET || "KRW-XRP";
     document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
     document.getElementById("demoInitialCapital").value = values.DEMO_INITIAL_CAPITAL || "1000000";
@@ -135,6 +164,7 @@ async function saveSettings() {
   showStatus("설정을 저장하는 중...", "pending");
   const payload = {
     TRADING_MODE: mode,
+    TRADING_PROFILE: document.getElementById("tradingProfile").value || "scalping",
     LEARNING_ENABLED: "true",
     TRADE_MARKET: document.getElementById("tradeMarket").value || "KRW-XRP",
     TRADE_COIN: document.getElementById("tradeCoin").value || "XRP",
@@ -153,7 +183,7 @@ async function saveSettings() {
     const result = await response.json();
     showStatus(
       result.saved
-        ? `저장됨: ${mode.toUpperCase()} 모드. 현재 실행 상태는 상태 확인에서 볼 수 있다. 모드나 API 키를 바꾼 경우 앱 재시작 후 런타임에 반영된다.`
+        ? `저장됨: ${mode.toUpperCase()} 모드, 투자성향 ${document.getElementById("tradingProfile").selectedOptions[0].textContent}. 현재 실행 상태는 상태 확인에서 볼 수 있다. 모드/API 키/투자성향을 바꾼 경우 앱 재시작 후 런타임에 반영된다.`
         : result.message,
       result.saved ? "" : "warning"
     );

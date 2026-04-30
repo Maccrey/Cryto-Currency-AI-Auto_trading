@@ -74,9 +74,11 @@ class LearningService:
         self,
         *,
         log_dir: Path,
+        trading_profile: str = "scalping",
         event_store: LearningEventStore | None = None,
         event_serializer: LearningEventSerializer | None = None,
     ) -> None:
+        self._trading_profile = trading_profile
         self._event_serializer = event_serializer or LearningEventSerializer()
         self._exporter = JsonlLearningExporter(
             log_dir=log_dir,
@@ -85,6 +87,15 @@ class LearningService:
         self._event_store = event_store or LearningEventStore()
 
     def record(self, event: LearningEvent) -> None:
+        payload = dict(event.payload)
+        payload.setdefault("trading_profile", self._trading_profile)
+        event = LearningEvent(
+            event_name=event.event_name,
+            market=event.market,
+            mode=event.mode,
+            payload=payload,
+            recorded_at=event.recorded_at,
+        )
         self._exporter.export(event)
         self._event_store.record(event)
 

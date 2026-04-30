@@ -1,9 +1,9 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 161개
+  - 완료: 167개
   - 미완료: 12개
-  - 전체: 173개
+  - 전체: 179개
  
 ## 1. 작업 원칙
 - 모든 구현은 TDD 순서를 따른다.
@@ -42,8 +42,10 @@
 ### 설정 및 모드
 - [x] [Fail] `TRADING_MODE`가 `demo` 또는 `live` 외의 값이면 앱이 실패해야 한다
 - [x] [Fail] `LEARNING_ENABLED`가 false이면 앱이 시작되지 않아야 한다
+- [x] [Fail] 투자성향이 단타/단기/중기/장기 프로필 기본값을 주입해야 한다
 - [x] [Code] pydantic settings 구현
 - [x] [Code] mode validator 구현
+- [x] [Code] trading profile registry 구현
 - [x] [Refactor] settings loader 분리
 - [x] [Contract] ENV_SPEC.md와 코드 설정 스키마 일치
 
@@ -225,10 +227,13 @@
 - [x] [Fail] fill / stop loss / restart / promotion 이벤트도 저장되어야 한다
 - [x] [Fail] 자동 운용 사이클과 무거래 차단 사유가 학습 로그에 저장되어야 한다
 - [x] [Fail] 학습 로그에서 무거래 원인을 진단할 수 있어야 한다
+- [x] [Fail] 투자성향별 학습 로그가 별도 경로에 저장되어야 한다
 - [x] [Code] learning service 구현
+- [x] [Code] learning event에 trading_profile context 주입
 - [x] [Code] learning diagnostics 구현
 - [x] [Code] JSONL exporter 구현
 - [x] [Refactor] event serializer 분리
+- [x] [Contract] 투자성향별 학습 로그 경로 문서화
 - [x] [Contract] learning event schema 고정
 
 ### 데이터셋 변환

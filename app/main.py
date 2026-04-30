@@ -16,6 +16,7 @@ from app.api.routes.promotion import build_promotion_router
 from app.api.routes.settings import build_settings_router
 from app.core.logging import configure_logging
 from app.core.settings import load_settings
+from app.core.trading_profile import get_trading_profile, learning_log_dir_for_profile
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
@@ -94,8 +95,13 @@ def create_app(
     timestamp_provider: Callable[[], str] | None = None,
 ) -> FastAPI:
     settings = load_settings()
-    configure_logging(
+    trading_profile = get_trading_profile(settings.trading_profile)
+    profile_learning_log_dir = learning_log_dir_for_profile(
         settings.learning_log_dir,
+        settings.trading_profile,
+    )
+    configure_logging(
+        profile_learning_log_dir,
         app_name=settings.app_name,
         trading_mode=settings.trading_mode,
         learning_enabled=settings.learning_enabled,
@@ -103,7 +109,10 @@ def create_app(
     timestamp_provider = timestamp_provider or (lambda: datetime.now().astimezone().isoformat())
 
     if learning_service is None:
-        learning_service = LearningService(log_dir=settings.learning_log_dir)
+        learning_service = LearningService(
+            log_dir=profile_learning_log_dir,
+            trading_profile=settings.trading_profile,
+        )
 
     if promotion_dashboard_service is None:
         promotion_dashboard_service = PromotionDashboardService()
@@ -172,7 +181,7 @@ def create_app(
                 max_slippage_bps=float(settings.max_slippage_bps),
                 max_stop_loss_risk_amount=float(settings.max_daily_loss) * 0.25,
                 trading_fee_rate=float(settings.trading_fee_rate),
-                min_net_edge_pct=float(settings.scalping_min_net_edge_pct),
+                min_net_edge_pct=float(settings.profile_min_net_edge_pct),
                 stop_loss_by_signal={
                     "weak": settings.stop_loss_weak,
                     "medium": settings.stop_loss_medium,
@@ -277,6 +286,9 @@ def create_app(
             live_enabled=settings.auto_trading_live_enabled,
             interval_sec=settings.auto_trading_interval_sec,
             min_history=settings.auto_trading_min_history,
+            trading_profile=settings.trading_profile,
+            spread_bps=trading_profile.spread_bps,
+            slippage_bps=trading_profile.slippage_bps,
         ),
     )
     app.state.auto_trading_service = auto_trading_service
@@ -381,7 +393,7 @@ def create_app(
         build_learning_router(
             market=settings.trade_market,
             learning_service=learning_service,
-            learning_log_dir=settings.learning_log_dir,
+            learning_log_dir=profile_learning_log_dir,
         ),
     )
     return app

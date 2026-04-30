@@ -26,7 +26,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LEARNING_ENABLED", "true")
     monkeypatch.setenv("DASHBOARD_PORT", "9090")
     monkeypatch.setenv("TRADING_FEE_RATE", "0.0005")
-    monkeypatch.setenv("SCALPING_MIN_NET_EDGE_PCT", "0.0008")
+    monkeypatch.setenv("PROFILE_MIN_NET_EDGE_PCT", "0.0008")
 
     settings = load_settings()
 
@@ -35,7 +35,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.dashboard_port == 9090
     assert settings.trading_profile == "scalping"
     assert settings.trading_fee_rate == 0.0005
-    assert settings.scalping_min_net_edge_pct == 0.0008
+    assert settings.profile_min_net_edge_pct == 0.0008
     assert settings.auto_trading_interval_sec == 3.0
 
 
@@ -46,6 +46,24 @@ def test_invalid_scalping_fee_raises(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(SettingsError, match="TRADING_FEE_RATE"):
         load_settings()
+
+
+def test_trading_profile_applies_profile_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TRADING_PROFILE", "mid_term")
+    monkeypatch.delenv("AUTO_TRADING_INTERVAL_SEC", raising=False)
+    monkeypatch.delenv("AUTO_TRADING_MIN_HISTORY", raising=False)
+    monkeypatch.delenv("PROFILE_MIN_NET_EDGE_PCT", raising=False)
+    monkeypatch.delenv("SCALPING_MIN_NET_EDGE_PCT", raising=False)
+
+    settings = load_settings()
+
+    assert settings.trading_profile == "mid_term"
+    assert settings.auto_trading_interval_sec == 30.0
+    assert settings.auto_trading_min_history == 20
+    assert settings.profile_min_net_edge_pct == 0.0060
+    assert settings.validation_window_sec == 3600
 
 
 def test_settings_loads_values_from_env_file_without_api_keys_in_demo(
@@ -109,7 +127,7 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "min_expected_return_pct",
         "trading_profile",
         "trading_fee_rate",
-        "scalping_min_net_edge_pct",
+        "profile_min_net_edge_pct",
         "min_cash_reserve",
         "max_daily_loss",
         "max_slippage_bps",

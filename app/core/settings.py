@@ -6,6 +6,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.core.trading_profile import TRADING_PROFILES, get_trading_profile
+
 
 class SettingsError(RuntimeError):
     """Raised when runtime settings violate project constraints."""
@@ -45,7 +47,7 @@ class SettingsModel(BaseModel):
     min_expected_return_pct: float = Field(default=0.004)
     trading_profile: str = Field(default="scalping")
     trading_fee_rate: float = Field(default=0.0005)
-    scalping_min_net_edge_pct: float = Field(default=0.0008)
+    profile_min_net_edge_pct: float = Field(default=0.0008)
     min_cash_reserve: int = Field(default=100000)
     max_daily_loss: int = Field(default=150000)
     max_slippage_bps: int = Field(default=20)
@@ -96,8 +98,9 @@ class SettingsModel(BaseModel):
     @field_validator("trading_profile")
     @classmethod
     def validate_trading_profile(cls, value: str) -> str:
-        if value not in {"scalping"}:
-            raise ValueError("TRADING_PROFILE must be scalping")
+        if value not in TRADING_PROFILES:
+            allowed = ", ".join(sorted(TRADING_PROFILES))
+            raise ValueError(f"TRADING_PROFILE must be one of: {allowed}")
         return value
 
     @field_validator("trading_fee_rate")
@@ -107,11 +110,11 @@ class SettingsModel(BaseModel):
             raise ValueError("TRADING_FEE_RATE must be between 0 and 0.01")
         return value
 
-    @field_validator("scalping_min_net_edge_pct")
+    @field_validator("profile_min_net_edge_pct")
     @classmethod
-    def validate_scalping_min_net_edge_pct(cls, value: float) -> float:
+    def validate_profile_min_net_edge_pct(cls, value: float) -> float:
         if value < 0 or value > 0.05:
-            raise ValueError("SCALPING_MIN_NET_EDGE_PCT must be between 0 and 0.05")
+            raise ValueError("PROFILE_MIN_NET_EDGE_PCT must be between 0 and 0.05")
         return value
 
     @field_validator("log_format")
@@ -155,7 +158,7 @@ class AppSettings:
     min_expected_return_pct: float
     trading_profile: str
     trading_fee_rate: float
-    scalping_min_net_edge_pct: float
+    profile_min_net_edge_pct: float
     min_cash_reserve: int
     max_daily_loss: int
     max_slippage_bps: int
@@ -193,6 +196,12 @@ class AppSettings:
 def load_settings(*, env_file: Path | None = None) -> AppSettings:
     env_values = _read_env_file(env_file or Path(os.getenv("ENV_FILE_PATH", ".env")))
 
+    trading_profile = _setting("TRADING_PROFILE", "scalping", env_values)
+    try:
+        profile_spec = get_trading_profile(trading_profile)
+    except ValueError as exc:
+        raise SettingsError(str(exc)) from exc
+
     payload = {
         "app_env": _setting("APP_ENV", "production", env_values),
         "app_name": _setting("APP_NAME", "upbit-auto-trader", env_values),
@@ -224,11 +233,21 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "stop_loss_medium": float(_setting("STOP_LOSS_MEDIUM", "0.012", env_values)),
         "stop_loss_strong": float(_setting("STOP_LOSS_STRONG", "0.018", env_values)),
         "stop_loss_very_strong": float(_setting("STOP_LOSS_VERY_STRONG", "0.022", env_values)),
-        "validation_window_sec": int(_setting("VALIDATION_WINDOW_SEC", "180", env_values)),
-        "min_expected_return_pct": float(_setting("MIN_EXPECTED_RETURN_PCT", "0.004", env_values)),
-        "trading_profile": _setting("TRADING_PROFILE", "scalping", env_values),
+        "validation_window_sec": int(
+            _setting("VALIDATION_WINDOW_SEC", str(profile_spec.validation_window_sec), env_values),
+        ),
+        "min_expected_return_pct": float(
+            _setting("MIN_EXPECTED_RETURN_PCT", str(profile_spec.min_expected_return_pct), env_values),
+        ),
+        "trading_profile": trading_profile,
         "trading_fee_rate": float(_setting("TRADING_FEE_RATE", "0.0005", env_values)),
-        "scalping_min_net_edge_pct": float(_setting("SCALPING_MIN_NET_EDGE_PCT", "0.0008", env_values)),
+        "profile_min_net_edge_pct": float(
+            _setting(
+                "PROFILE_MIN_NET_EDGE_PCT",
+                _setting("SCALPING_MIN_NET_EDGE_PCT", str(profile_spec.min_net_edge_pct), env_values),
+                env_values,
+            ),
+        ),
         "min_cash_reserve": int(_setting("MIN_CASH_RESERVE", "100000", env_values)),
         "max_daily_loss": int(_setting("MAX_DAILY_LOSS", "150000", env_values)),
         "max_slippage_bps": int(_setting("MAX_SLIPPAGE_BPS", "20", env_values)),
@@ -252,8 +271,12 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "demo_initial_capital": int(_setting("DEMO_INITIAL_CAPITAL", "1000000", env_values)),
         "auto_trading_enabled": _parse_bool(_setting("AUTO_TRADING_ENABLED", "true", env_values)),
         "auto_trading_live_enabled": _parse_bool(_setting("AUTO_TRADING_LIVE_ENABLED", "false", env_values)),
-        "auto_trading_interval_sec": float(_setting("AUTO_TRADING_INTERVAL_SEC", "3.0", env_values)),
-        "auto_trading_min_history": int(_setting("AUTO_TRADING_MIN_HISTORY", "6", env_values)),
+        "auto_trading_interval_sec": float(
+            _setting("AUTO_TRADING_INTERVAL_SEC", str(profile_spec.auto_interval_sec), env_values),
+        ),
+        "auto_trading_min_history": int(
+            _setting("AUTO_TRADING_MIN_HISTORY", str(profile_spec.auto_min_history), env_values),
+        ),
         "log_level": _setting("LOG_LEVEL", "INFO", env_values),
         "log_format": _setting("LOG_FORMAT", "json", env_values),
         "learning_log_dir": Path(_setting("LEARNING_LOG_DIR", "./logs/learning", env_values)),

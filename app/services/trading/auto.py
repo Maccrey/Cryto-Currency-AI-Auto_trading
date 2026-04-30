@@ -25,6 +25,7 @@ class AutoTradingConfig:
     live_enabled: bool
     interval_sec: float
     min_history: int
+    trading_profile: str = "scalping"
     spread_bps: float = 8.0
     slippage_bps: float = 12.0
 
@@ -253,6 +254,7 @@ class AutoTradingService:
             "status": status,
             "reason": reason,
             "trading_mode": self._trading_mode,
+            "trading_profile": self._config.trading_profile,
             "safe_mode": self._boot_state.safe_mode,
             "hard_stop": self._boot_state.hard_stop,
             "trading_ready": self._boot_state.trading_ready,

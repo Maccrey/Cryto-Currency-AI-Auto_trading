@@ -387,10 +387,11 @@ demo 모드는 서버가 시작되면 자동 운용 루프가 기본 활성화�
 - `AUTO_TRADING_MIN_HISTORY`만큼 현재가 히스토리가 쌓이면 신호/국면/사이징 판단을 실행한다.
 - 포지션이 없으면 진입 판단 후 demo 체결을 실행한다.
 - 포지션이 있으면 손절/기대 불일치 청산 조건을 점검한다.
-- 모든 사이클은 `auto_trade_cycle` 학습 이벤트로 `logs/learning/learning.jsonl`에 기록된다.
+- 모든 사이클은 `auto_trade_cycle` 학습 이벤트로 `logs/learning/<TRADING_PROFILE>/learning.jsonl`에 기록된다.
+- 설정 화면에서 투자성향을 단타, 단기, 중기, 장기 중 선택한다.
 - 기본 전략 성향은 `TRADING_PROFILE=scalping`이며, 3초 주기로 단타 신호를 관찰한다.
 - 업비트 KRW 마켓 수수료 0.05%를 `TRADING_FEE_RATE=0.0005`로 계산한다.
-- 예상 엣지가 왕복 수수료 0.10%와 최소 순엣지 0.08%를 넘지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단된다.
+- 예상 엣지가 왕복 수수료 0.10%와 투자성향별 최소 순엣지를 넘지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단된다.
 
 무거래 원인 진단:
 
@@ -419,8 +420,17 @@ AUTO_TRADING_INTERVAL_SEC=3.0
 AUTO_TRADING_MIN_HISTORY=6
 TRADING_PROFILE=scalping
 TRADING_FEE_RATE=0.0005
-SCALPING_MIN_NET_EDGE_PCT=0.0008
+PROFILE_MIN_NET_EDGE_PCT=0.0008
 ```
+
+투자성향 기본값:
+
+| 표시 | 값 | 주기 | 히스토리 | 최소 순엣지 | 학습 로그 |
+|---|---|---:|---:|---:|---|
+| 단타 | `scalping` | 3초 | 6 | 0.08% | `logs/learning/scalping/learning.jsonl` |
+| 단기 | `short_term` | 10초 | 12 | 0.20% | `logs/learning/short_term/learning.jsonl` |
+| 중기 | `mid_term` | 30초 | 20 | 0.60% | `logs/learning/mid_term/learning.jsonl` |
+| 장기 | `long_term` | 60초 | 30 | 1.20% | `logs/learning/long_term/learning.jsonl` |
 
 live 자동 운용은 `AUTO_TRADING_LIVE_ENABLED=true`를 명시해야 시작된다.
 

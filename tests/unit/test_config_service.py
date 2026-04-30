@@ -58,3 +58,31 @@ def test_env_file_service_keeps_existing_secret_when_form_submits_blank_value(tm
     env_text = env_path.read_text(encoding="utf-8")
     assert "UPBIT_ACCESS_KEY=old-access" in env_text
     assert "UPBIT_SECRET_KEY=old-secret" in env_text
+
+
+def test_env_file_service_saves_trading_profile_defaults(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    service = EnvFileService(env_path)
+
+    result = service.save(
+        {
+            "TRADING_MODE": "demo",
+            "LEARNING_ENABLED": "true",
+            "TRADING_PROFILE": "long_term",
+        },
+    )
+
+    assert result["saved"] is True
+    assert result["profile"] == "long_term"
+    env_text = env_path.read_text(encoding="utf-8")
+    assert "TRADING_PROFILE=long_term" in env_text
+    assert "AUTO_TRADING_INTERVAL_SEC=60.0" in env_text
+    assert "AUTO_TRADING_MIN_HISTORY=30" in env_text
+    assert "PROFILE_MIN_NET_EDGE_PCT=0.012" in env_text
+    current = service.current()
+    assert {profile["key"] for profile in current["profiles"]} == {
+        "scalping",
+        "short_term",
+        "mid_term",
+        "long_term",
+    }
