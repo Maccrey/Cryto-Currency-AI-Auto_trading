@@ -1071,6 +1071,8 @@ def test_dashboard_page_renders_human_readable_monitor(monkeypatch) -> None:
     assert "학습 완료율" in response.text
     assert "수익 성공률" in response.text
     assert "투자성향" in response.text
+    assert "setLinesWithTitle(\"modeSub\"" in response.text
+    assert "모델 학습 준비도 기준." in response.text
     assert "/dashboard/summary" in response.text
 
 

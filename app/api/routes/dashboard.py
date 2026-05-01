@@ -133,6 +133,7 @@ DASHBOARD_HTML = """
     main.wrap > .card { margin-top: 12px; }
     .section-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .section-grid .card { min-height: 126px; }
+    .sub-line { display: block; margin-top: 2px; }
     .progress { height: 12px; overflow: hidden; border-radius: 999px; background: var(--soft); }
     .bar { height: 100%; width: 0%; background: var(--primary); transition: width 160ms ease; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -417,6 +418,18 @@ function setHtmlWithTitle(elementId, html, title) {
   element.title = title;
 }
 
+function setLinesWithTitle(elementId, lines) {
+  const element = document.getElementById(elementId);
+  element.replaceChildren();
+  lines.forEach((line) => {
+    const item = document.createElement("span");
+    item.className = "sub-line";
+    item.textContent = line;
+    element.appendChild(item);
+  });
+  element.title = lines.join(" ");
+}
+
 function deriveAiState({health, summary, market, executions}) {
   const latestExecution = (executions.history || []).slice(-1)[0];
   const hasPosition = Number(summary.coin_balance || 0) > 0;
@@ -451,7 +464,10 @@ function deriveReadinessProgress(readiness) {
   const metrics = readiness && readiness.metrics ? readiness.metrics : null;
   const required = readiness && readiness.required ? readiness.required : null;
   if (!metrics || !required) {
-    return {percent: 0, message: "모델 학습 준비도 데이터를 불러오지 못했습니다."};
+    return {
+      percent: 0,
+      lines: ["모델 학습 준비도 데이터를 불러오지 못했습니다."]
+    };
   }
   const keys = ["total_events", "signal_events", "fill_events", "exit_events", "blocked_cycles"];
   const ratios = keys.map((key) => {
@@ -462,7 +478,12 @@ function deriveReadinessProgress(readiness) {
   const percent = Math.floor((ratios.reduce((sum, value) => sum + value, 0) / ratios.length) * 100);
   return {
     percent,
-    message: `모델 학습 준비도 기준. 총 ${number(metrics.total_events || 0)}/${number(required.total_events || 0)}, 신호 ${number(metrics.signal_events || 0)}/${number(required.signal_events || 0)}, 체결 ${number(metrics.fill_events || 0)}/${number(required.fill_events || 0)}.`
+    lines: [
+      "모델 학습 준비도 기준.",
+      `총 ${number(metrics.total_events || 0)}/${number(required.total_events || 0)}`,
+      `신호 ${number(metrics.signal_events || 0)}/${number(required.signal_events || 0)}`,
+      `체결 ${number(metrics.fill_events || 0)}/${number(required.fill_events || 0)}`
+    ]
   };
 }
 
@@ -513,7 +534,7 @@ function renderDashboard(data) {
   document.getElementById("modeMetric").textContent = String(summary.trading_mode || health.mode).toUpperCase();
   const profileLabel = summary.trading_profile_label || summary.trading_profile || "단타";
   const modeDescription = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";
-  document.getElementById("modeSub").textContent = `${modeDescription} 투자성향: ${profileLabel}`;
+  setLinesWithTitle("modeSub", [modeDescription, `투자성향: ${profileLabel}`]);
   const trendStreak = deriveTrendStreak(market);
   const marketLabel = displayMarket(market.market);
   const priceText = market.current_price === undefined ? "데이터 없음" : `${price(market.current_price)} (${percent(market.recent_change_pct)})`;
@@ -533,7 +554,7 @@ function renderDashboard(data) {
   document.getElementById("capitalSub").textContent = summary.trading_mode === "demo" ? "데모 가상 투자금 1,000,000 KRW 기준" : "실계좌 사용 가능 현금 기준";
   document.getElementById("learningProgressMetric").textContent = `${progress}%`;
   document.getElementById("learningProgressBar").style.width = `${progress}%`;
-  document.getElementById("learningProgressSub").textContent = readinessProgress.message;
+  setLinesWithTitle("learningProgressSub", readinessProgress.lines);
   document.getElementById("winRateMetric").textContent = percent(winRate);
   document.getElementById("winRateSub").textContent = winRate === null ? "완료된 거래 손익 기록이 쌓이면 표시됩니다." : "현재 기록 기준 수익 거래 비율입니다.";
   document.getElementById("pnlMetric").textContent = `${number(summary.realized_pnl, 2)} KRW`;
