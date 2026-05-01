@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.services.recovery.orchestrator import BootState
+
+logger = logging.getLogger(__name__)
 
 
 class HardStopNotifier:
@@ -19,14 +22,20 @@ class HardStopNotifier:
         triggered_at: str,
         boot_state: BootState,
     ) -> None:
-        self._gateway.send_message(
-            self._build_message(
-                app_name=app_name,
-                market=market,
-                triggered_at=triggered_at,
-                boot_state=boot_state,
-            ),
-        )
+        try:
+            self._gateway.send_message(
+                self._build_message(
+                    app_name=app_name,
+                    market=market,
+                    triggered_at=triggered_at,
+                    boot_state=boot_state,
+                ),
+            )
+        except Exception:
+            logger.exception(
+                "telegram_hard_stop_notification_failed",
+                extra={"app_name": app_name, "market": market},
+            )
 
     @staticmethod
     def _build_message(

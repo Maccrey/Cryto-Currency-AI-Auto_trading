@@ -43,6 +43,7 @@ def build_runtime_services(
     trade_market: str,
     restart_state_path: Path | None,
     timestamp_provider,
+    learning_enabled: bool = True,
     demo_initial_capital: int = 1_000_000,
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     learning_service: LearningService | None = None,
@@ -104,6 +105,8 @@ def build_runtime_services(
         recovery_orchestrator=recovery_orchestrator,
         app_name=app_name,
         market=trade_market,
+        trading_mode=trading_mode,
+        learning_enabled=learning_enabled,
         timestamp_provider=timestamp_provider,
         boot_notification_dispatcher=boot_notification_dispatcher,
     )

@@ -12,6 +12,11 @@ class StubTelegramGateway:
         self.messages.append(message)
 
 
+class FailingTelegramGateway:
+    def send_message(self, message: str) -> None:
+        raise RuntimeError("telegram unavailable")
+
+
 def test_hard_stop_notifier_sends_restart_threshold_alert() -> None:
     gateway = StubTelegramGateway()
     notifier = HardStopNotifier(gateway=gateway)
@@ -46,6 +51,28 @@ def test_hard_stop_notifier_sends_restart_threshold_alert() -> None:
         "trading_ready=False\n"
         "failure_stage=hard_stop"
     ]
+
+
+def test_hard_stop_notifier_does_not_block_startup_when_gateway_fails() -> None:
+    notifier = HardStopNotifier(gateway=FailingTelegramGateway())
+    boot_state = BootState(
+        safe_mode=True,
+        hard_stop=True,
+        trading_ready=False,
+        failure_stage="hard_stop",
+        portfolio_state=None,
+        reconcile_result={
+            "restart_count": 3,
+            "blocked_reason": "RESTART_THRESHOLD_EXCEEDED",
+        },
+    )
+
+    notifier.notify_hard_stop(
+        app_name="upbit-auto-trader",
+        market="KRW-XRP",
+        triggered_at="2026-04-18T12:15:00+09:00",
+        boot_state=boot_state,
+    )
 
 
 def test_hard_stop_notifier_uses_unknown_when_reconcile_result_is_missing() -> None:

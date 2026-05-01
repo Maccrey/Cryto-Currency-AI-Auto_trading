@@ -126,6 +126,10 @@ def create_app(
         )
         if trade_fill_notifier is None:
             trade_fill_notifier = TelegramNotifier(gateway=telegram_gateway)
+        if restart_notifier is None:
+            restart_notifier = RestartNotifier(gateway=telegram_gateway)
+        if hard_stop_notifier is None:
+            hard_stop_notifier = HardStopNotifier(gateway=telegram_gateway)
 
     notification_services = build_notification_services(
         boot_notification_dispatcher=boot_notification_dispatcher,
@@ -143,6 +147,7 @@ def create_app(
         trade_market=settings.trade_market,
         restart_state_path=settings.restart_state_path,
         timestamp_provider=timestamp_provider,
+        learning_enabled=settings.learning_enabled,
         demo_initial_capital=settings.demo_initial_capital,
         boot_notification_dispatcher=notification_services.boot_notification_dispatcher,
         learning_service=learning_service,

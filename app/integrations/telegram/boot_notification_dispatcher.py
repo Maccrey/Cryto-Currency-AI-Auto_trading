@@ -25,6 +25,8 @@ class BootNotificationDispatcher:
         triggered_at: str,
         cause: str,
         boot_state: BootState,
+        trading_mode: str | None = None,
+        learning_enabled: bool | None = None,
     ) -> None:
         if boot_state.hard_stop:
             if self._hard_stop_notifier is None:
@@ -44,4 +46,7 @@ class BootNotificationDispatcher:
             restarted_at=triggered_at,
             cause=cause,
             boot_state=boot_state,
+            market=market,
+            trading_mode=trading_mode,
+            learning_enabled=learning_enabled,
         )

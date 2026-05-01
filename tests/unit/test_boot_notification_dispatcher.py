@@ -48,12 +48,17 @@ def test_boot_notification_dispatcher_sends_restart_notification_for_normal_boot
         triggered_at="2026-04-18T12:40:00+09:00",
         cause="process_restart",
         boot_state=boot_state,
+        trading_mode="demo",
+        learning_enabled=True,
     )
 
     assert len(restart_notifier.calls) == 1
     assert restart_notifier.calls[0]["app_name"] == "upbit-auto-trader"
     assert restart_notifier.calls[0]["restarted_at"] == "2026-04-18T12:40:00+09:00"
     assert restart_notifier.calls[0]["cause"] == "process_restart"
+    assert restart_notifier.calls[0]["market"] == "KRW-XRP"
+    assert restart_notifier.calls[0]["trading_mode"] == "demo"
+    assert restart_notifier.calls[0]["learning_enabled"] is True
     assert restart_notifier.calls[0]["boot_state"] == boot_state
     assert hard_stop_notifier.calls == []
 

@@ -15,12 +15,16 @@ class AppRuntimeService:
         recovery_orchestrator: RecoveryOrchestrator,
         app_name: str,
         market: str,
+        trading_mode: str,
+        learning_enabled: bool,
         timestamp_provider: Callable[[], str],
         boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     ) -> None:
         self._recovery_orchestrator = recovery_orchestrator
         self._app_name = app_name
         self._market = market
+        self._trading_mode = trading_mode
+        self._learning_enabled = learning_enabled
         self._timestamp_provider = timestamp_provider
         self._boot_notification_dispatcher = boot_notification_dispatcher
 
@@ -33,5 +37,7 @@ class AppRuntimeService:
                 triggered_at=self._timestamp_provider(),
                 cause="process_restart",
                 boot_state=boot_state,
+                trading_mode=self._trading_mode,
+                learning_enabled=self._learning_enabled,
             )
         return boot_state

@@ -19,8 +19,8 @@ class StubResponse:
 def test_telegram_http_gateway_posts_send_message_payload() -> None:
     calls = []
 
-    def urlopen(req, timeout):
-        calls.append((req, timeout))
+    def urlopen(req, timeout, context):
+        calls.append((req, timeout, context))
         return StubResponse()
 
     gateway = TelegramHttpGateway(
@@ -32,9 +32,10 @@ def test_telegram_http_gateway_posts_send_message_payload() -> None:
 
     gateway.send_message("hello")
 
-    req, timeout = calls[0]
+    req, timeout, context = calls[0]
     payload = json.loads(req.data.decode("utf-8"))
     assert timeout == 3.0
+    assert context is not None
     assert req.full_url == "https://api.telegram.org/bottoken/sendMessage"
     assert payload == {
         "chat_id": "chat",

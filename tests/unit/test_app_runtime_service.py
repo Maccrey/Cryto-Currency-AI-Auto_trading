@@ -34,6 +34,8 @@ def test_app_runtime_service_starts_boot_and_dispatches_notification() -> None:
         recovery_orchestrator=orchestrator,
         app_name="upbit-auto-trader",
         market="KRW-XRP",
+        trading_mode="demo",
+        learning_enabled=True,
         timestamp_provider=lambda: "2026-04-19T19:10:00+09:00",
         boot_notification_dispatcher=dispatcher,
     )
@@ -49,6 +51,8 @@ def test_app_runtime_service_starts_boot_and_dispatches_notification() -> None:
             "triggered_at": "2026-04-19T19:10:00+09:00",
             "cause": "process_restart",
             "boot_state": boot_state,
+            "trading_mode": "demo",
+            "learning_enabled": True,
         }
     ]
 
@@ -60,6 +64,8 @@ def test_app_runtime_service_skips_dispatch_without_notifier() -> None:
         recovery_orchestrator=orchestrator,
         app_name="upbit-auto-trader",
         market="KRW-XRP",
+        trading_mode="demo",
+        learning_enabled=True,
         timestamp_provider=lambda: "2026-04-19T19:15:00+09:00",
     )
 

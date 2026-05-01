@@ -2554,6 +2554,63 @@ def test_create_app_dispatches_boot_notification_when_boot_is_normal(monkeypatch
     assert dispatcher.calls[0]["boot_state"].hard_stop is False
 
 
+def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    class StubTelegramGateway:
+        instances: list["StubTelegramGateway"] = []
+
+        def __init__(self, *, bot_token: str, chat_id: str) -> None:
+            self.bot_token = bot_token
+            self.chat_id = chat_id
+            self.messages: list[str] = []
+            self.instances.append(self)
+
+        def send_message(self, message: str) -> None:
+            self.messages.append(message)
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat")
+    monkeypatch.setattr("app.main.TelegramHttpGateway", StubTelegramGateway)
+
+    create_app(
+        recovery_orchestrator=SuccessfulBootOrchestrator(),
+        timestamp_provider=lambda: "2026-05-01T10:00:00+09:00",
+    )
+
+    assert len(StubTelegramGateway.instances) == 1
+    assert StubTelegramGateway.instances[0].messages == [
+        "[SERVER_STARTED]\n"
+        "app=upbit-auto-trader\n"
+        "started_at=2026-05-01T10:00:00+09:00\n"
+        "cause=process_restart\n"
+        "status=ok\n"
+        "market=KRW-XRP\n"
+        "mode=demo\n"
+        "learning_enabled=True\n"
+        "safe_mode=False\n"
+        "hard_stop=False\n"
+        "trading_ready=True\n"
+        "failure_stage=None\n"
+        "cash_balance=unknown\n"
+        "asset_currency=unknown\n"
+        "asset_balance=unknown"
+    ]
+
+
 def test_promotion_review_endpoint_returns_runner_result(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
