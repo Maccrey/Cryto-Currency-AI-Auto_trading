@@ -33,6 +33,7 @@ from app.services.execution.factory import ExecutionFactory
 from app.services.execution.live import UpbitLiveOrderGateway
 from app.services.config.env_file import EnvFileService
 from app.services.learning.service import LearningService
+from app.services.learning.reset import LearningDataResetService
 from app.services.market.store import MarketPriceStore
 from app.services.market.upbit_ticker import UpbitTickerPriceProvider
 from app.services.notification.factory import build_notification_services
@@ -343,6 +344,8 @@ def create_app(
     app.include_router(
         build_settings_router(
             env_file_service=EnvFileService(settings.env_file_path),
+            learning_data_reset_service=LearningDataResetService(log_dir=profile_learning_log_dir),
+            learning_service=learning_service,
         ),
     )
     app.include_router(

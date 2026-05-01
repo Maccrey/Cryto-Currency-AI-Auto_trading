@@ -62,6 +62,9 @@ class LearningEventStore:
             return events
         return events[-limit:]
 
+    def clear(self) -> None:
+        self._events.clear()
+
     @staticmethod
     def to_payload(event: LearningEvent) -> dict[str, Any]:
         return asdict(event)
@@ -111,3 +114,6 @@ class LearningService:
             self._event_store.to_payload(event)
             for event in self.recent_events(limit=limit)
         ]
+
+    def clear_recent_events(self) -> None:
+        self._event_store.clear()

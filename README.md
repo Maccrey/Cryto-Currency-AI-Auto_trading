@@ -96,6 +96,13 @@ ops/
 
 ## 6. 로컬 실행
 
+### 가장 쉬운 실행
+```bash
+./start.sh
+```
+
+`start.sh`는 서버가 이미 실행 중이면 그대로 두고 크롬에서 설정 화면만 연다. 서버가 없으면 macOS `launchd` KeepAlive로 백그라운드 등록해 `http://127.0.0.1:8000`으로 시작하고 `http://127.0.0.1:8000/settings`를 연다.
+
 ### uv 사용
 ```bash
 uv sync

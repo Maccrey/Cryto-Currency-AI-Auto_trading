@@ -1,9 +1,9 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 167개
+  - 완료: 173개
   - 미완료: 12개
-  - 전체: 179개
+  - 전체: 185개
  
 ## 1. 작업 원칙
 - 모든 구현은 TDD 순서를 따른다.
@@ -46,6 +46,8 @@
 - [x] [Code] pydantic settings 구현
 - [x] [Code] mode validator 구현
 - [x] [Code] trading profile registry 구현
+- [x] [Code] 한 줄 시작 스크립트와 설정창 자동 열기 구현
+- [x] [Code] macOS launchd KeepAlive 백그라운드 실행 등록 구현
 - [x] [Refactor] settings loader 분리
 - [x] [Contract] ENV_SPEC.md와 코드 설정 스키마 일치
 
@@ -228,7 +230,10 @@
 - [x] [Fail] 자동 운용 사이클과 무거래 차단 사유가 학습 로그에 저장되어야 한다
 - [x] [Fail] 학습 로그에서 무거래 원인을 진단할 수 있어야 한다
 - [x] [Fail] 투자성향별 학습 로그가 별도 경로에 저장되어야 한다
+- [x] [Fail] 설정 화면에서 현재 투자성향 학습 데이터를 리셋할 수 있어야 한다
 - [x] [Code] learning service 구현
+- [x] [Code] 학습 로그 archive 후 reset 서비스 구현
+- [x] [Code] 설정 화면 학습 데이터 리셋 API/UI 구현
 - [x] [Code] learning event에 trading_profile context 주입
 - [x] [Code] learning diagnostics 구현
 - [x] [Code] JSONL exporter 구현

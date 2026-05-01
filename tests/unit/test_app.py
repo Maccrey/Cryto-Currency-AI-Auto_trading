@@ -1103,6 +1103,7 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert "modeSwitch" in page.text
     assert "tradingProfile" in page.text
     assert "demoInitialCapital" in page.text
+    assert "resetLearningData" in page.text
 
     response = client.post(
         "/settings",
@@ -1136,6 +1137,52 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     current = client.get("/settings/current").json()
     assert current["values"]["UPBIT_SECRET_KEY"] == "***"
     assert current["profile"] == "short_term"
+
+
+def test_settings_learning_reset_archives_current_profile_log(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "LEARNING_ENABLED=true",
+                "TRADING_PROFILE=scalping",
+                f"LEARNING_LOG_DIR={tmp_path / 'learning'}",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    log_dir = tmp_path / "learning" / "scalping"
+    log_dir.mkdir(parents=True)
+    (log_dir / "learning.jsonl").write_text('{"event_name":"signal_generated"}\n', encoding="utf-8")
+    monkeypatch.setenv("ENV_FILE_PATH", str(env_file))
+    monkeypatch.delenv("TRADING_MODE", raising=False)
+    monkeypatch.delenv("LEARNING_LOG_DIR", raising=False)
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    response = client.post("/settings/learning/reset")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["reset"] is True
+    assert payload["archive_path"] is not None
+    assert (log_dir / "learning.jsonl").read_text(encoding="utf-8") == ""
 
 
 def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:

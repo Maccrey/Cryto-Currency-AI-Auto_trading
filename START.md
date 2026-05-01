@@ -38,7 +38,36 @@ pip install -e .
 
 ---
 
-## 4. 환경 변수 설정 방식
+## 4. 가장 쉬운 시작
+
+아래 한 줄만 실행한다.
+
+```bash
+./start.sh
+```
+
+동작:
+- 서버가 꺼져 있으면 macOS `launchd` KeepAlive로 등록해 `http://127.0.0.1:8000`으로 시작한다.
+- 서버가 이미 실행 중이면 중복 실행하지 않는다.
+- 크롬에서 `http://127.0.0.1:8000/settings` 설정창을 연다.
+- 트레이딩 시스템은 터미널을 닫아도 백그라운드에서 계속 돌고, 프로세스가 종료되면 macOS가 다시 시작한다.
+- 로그는 `logs/runtime/server.log`에 쌓인다.
+
+실행 상태 확인:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+백그라운드 서비스를 수동으로 내릴 때만 아래 명령을 사용한다.
+
+```bash
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.crypto-auto-trading.plist
+```
+
+---
+
+## 5. 환경 변수 설정 방식
 
 설정은 두 가지 방식으로 할 수 있다.
 
@@ -61,6 +90,7 @@ GUI 동작 규칙:
 - `demo` 모드 기본 시작 투자금은 `1,000,000 KRW`이며 설정 화면의 `데모 시작 투자금`에서 변경할 수 있다.
 - `live` 모드는 `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY`가 없으면 저장이 거절된다.
 - 기존 `.env`에 API 키가 있으면 설정 화면의 키 입력칸을 비워 저장해도 기존 키를 보존한다.
+- 설정 화면에서 현재 투자성향의 학습 데이터를 리셋할 수 있다. 기존 로그는 `logs/learning/reset_archive/<TRADING_PROFILE>/`로 이동하고 새 로그를 다시 쌓는다.
 - `/settings/current` 응답에서는 API 키와 토큰이 `***`로 마스킹된다.
 
 ### 파일 직접 설정
@@ -112,7 +142,7 @@ ENV_FILE_PATH=/path/to/.env uv run uvicorn app.main:app --reload
 
 ---
 
-## 5. demo 모드 실행
+## 6. demo 모드 실행
 
 `demo` 모드는 실제 주문 API를 호출하지 않고 가상 체결을 사용한다. 기본 가상 투자금은 `1,000,000 KRW`다.
 
@@ -121,12 +151,17 @@ TRADING_MODE=demo
 LEARNING_ENABLED=true
 ```
 
-### uv
+### 권장
+```bash
+./start.sh
+```
+
+### uv 직접 실행
 ```bash
 uv run uvicorn app.main:app --reload
 ```
 
-### pip
+### pip 직접 실행
 ```bash
 uvicorn app.main:app --reload
 ```

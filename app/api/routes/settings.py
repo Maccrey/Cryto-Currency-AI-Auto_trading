@@ -4,9 +4,16 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 from app.services.config.env_file import EnvFileService
+from app.services.learning.reset import LearningDataResetService
+from app.services.learning.service import LearningService
 
 
-def build_settings_router(*, env_file_service: EnvFileService) -> APIRouter:
+def build_settings_router(
+    *,
+    env_file_service: EnvFileService,
+    learning_data_reset_service: LearningDataResetService | None = None,
+    learning_service: LearningService | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/settings")
 
     @router.get("", response_class=HTMLResponse)
@@ -20,6 +27,25 @@ def build_settings_router(*, env_file_service: EnvFileService) -> APIRouter:
     @router.post("")
     def save_settings(payload: dict[str, object]) -> dict[str, object]:
         return env_file_service.save(payload)
+
+    @router.post("/learning/reset")
+    def reset_learning_data() -> dict[str, object]:
+        if learning_data_reset_service is None:
+            return {
+                "status": "not_configured",
+                "reset": False,
+                "message": "learning reset service is not configured",
+            }
+        result = learning_data_reset_service.reset()
+        if learning_service is not None:
+            learning_service.clear_recent_events()
+        return {
+            "status": "reset" if result.reset else "skipped",
+            "reset": result.reset,
+            "log_path": result.log_path,
+            "archive_path": result.archive_path,
+            "message": result.message,
+        }
 
     return router
 
@@ -50,6 +76,8 @@ SETTINGS_HTML = """
     .status.visible { display: block; }
     .warning { border-color: #f1b8b1; background: #fff1f0; color: #b42318; font-weight: 700; }
     .pending { border-color: #b8c4ce; background: #edf2f5; color: #33424c; }
+    .danger-button { background: #b42318; color: white; border: 0; border-radius: 6px; padding: 11px 16px; font-weight: 700; cursor: pointer; }
+    .danger-zone { margin-top: 18px; padding-top: 16px; border-top: 1px solid #f1b8b1; }
     .next-steps { display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
     .next-steps.visible { display: flex; }
     .secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: white; color: #172026; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
@@ -97,6 +125,13 @@ SETTINGS_HTML = """
       <a class="secondary" href="/health" target="_blank" rel="noreferrer">상태 확인</a>
       <a class="secondary" href="/dashboard" target="_blank" rel="noreferrer">대시보드 열기</a>
       <button class="secondary" type="button" onclick="loadSettings()">설정 다시 불러오기</button>
+    </div>
+    <div class="danger-zone">
+      <label>학습 데이터</label>
+      <div class="note">현재 선택된 투자성향의 학습 로그를 보관 폴더로 이동하고 새로 학습을 시작한다. 트레이딩 서버는 중단하지 않는다.</div>
+      <div class="actions">
+        <button id="resetLearningButton" class="danger-button" type="button" onclick="resetLearningData()">현재 성향 학습데이터 리셋</button>
+      </div>
     </div>
   </section>
 </main>
@@ -193,6 +228,28 @@ async function saveSettings() {
     showNextSteps(false);
   } finally {
     saveButton.disabled = false;
+  }
+}
+async function resetLearningData() {
+  const button = document.getElementById("resetLearningButton");
+  const profile = document.getElementById("tradingProfile").selectedOptions[0]?.textContent || "현재 성향";
+  if (!confirm(`${profile} 학습 데이터를 리셋할까요? 기존 파일은 보관 폴더로 이동됩니다.`)) return;
+  button.disabled = true;
+  showStatus("학습 데이터를 리셋하는 중...", "pending");
+  try {
+    const response = await fetch("/settings/learning/reset", {method: "POST"});
+    const result = await response.json();
+    showStatus(
+      result.reset
+        ? `학습 데이터 리셋 완료. 새 로그: ${result.log_path}${result.archive_path ? `, 보관: ${result.archive_path}` : ""}`
+        : result.message,
+      result.reset ? "" : "warning"
+    );
+    showNextSteps(true);
+  } catch (error) {
+    showStatus("학습 데이터 리셋 요청에 실패했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
+  } finally {
+    button.disabled = false;
   }
 }
 loadSettings();
