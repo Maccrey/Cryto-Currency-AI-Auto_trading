@@ -78,6 +78,7 @@ SETTINGS_HTML = """
     .pending { border-color: #b8c4ce; background: #edf2f5; color: #33424c; }
     .danger-button { background: #b42318; color: white; border: 0; border-radius: 6px; padding: 11px 16px; font-weight: 700; cursor: pointer; }
     .danger-zone { margin-top: 18px; padding-top: 16px; border-top: 1px solid #f1b8b1; }
+    .subsection { margin-top: 18px; padding-top: 16px; border-top: 1px solid #d8e0e6; }
     .next-steps { display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
     .next-steps.visible { display: flex; }
     .secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: white; color: #172026; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
@@ -113,10 +114,27 @@ SETTINGS_HTML = """
     <input id="accessKey" autocomplete="off">
     <label for="secretKey">업비트 시크릿 키</label>
     <input id="secretKey" type="password" autocomplete="off">
-    <label for="telegramToken">텔레그램 봇 토큰</label>
-    <input id="telegramToken" type="password" autocomplete="off">
-    <label for="telegramChat">텔레그램 채팅 ID</label>
-    <input id="telegramChat" autocomplete="off">
+    <div class="subsection">
+      <label for="telegramToken">텔레그램 봇 토큰</label>
+      <input id="telegramToken" type="password" autocomplete="off" placeholder="저장된 토큰이 있으면 ***로 표시">
+      <div id="telegramTokenStatus" class="note"></div>
+      <label for="telegramChat">텔레그램 채팅 ID</label>
+      <input id="telegramChat" autocomplete="off" placeholder="-1003988291151 또는 telegram:group:-1003988291151">
+      <div class="note">그룹 채팅은 Bot API 전송용 숫자 ID(-100...)로 저장된다. Chat 값이 telegram:group:-100... 형식이면 저장할 때 자동 변환된다.</div>
+      <div class="row">
+        <div>
+          <label for="telegramUserId">텔레그램 사용자 ID</label>
+          <input id="telegramUserId" autocomplete="off" placeholder="467359360">
+        </div>
+        <div>
+          <label for="telegramUsername">텔레그램 사용자명</label>
+          <input id="telegramUsername" autocomplete="off" placeholder="@maccrey">
+        </div>
+      </div>
+      <label for="telegramAllowFrom">텔레그램 허용 사용자</label>
+      <input id="telegramAllowFrom" autocomplete="off" placeholder="467359360">
+      <div class="note">Identity의 AllowFrom 값을 기록해 둔다. 현재는 발신 알림 대상이 아니라 운영자 식별/향후 수신 명령 제한용 설정이다.</div>
+    </div>
     <div class="actions">
       <button id="saveButton" class="primary" type="button" onclick="saveSettings()">저장</button>
       <span id="status" class="status"></span>
@@ -188,7 +206,14 @@ async function loadSettings() {
     document.getElementById("tradeMarket").value = values.TRADE_MARKET || "KRW-XRP";
     document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
     document.getElementById("demoInitialCapital").value = values.DEMO_INITIAL_CAPITAL || "1000000";
+    document.getElementById("telegramToken").value = values.TELEGRAM_BOT_TOKEN || "";
+    document.getElementById("telegramTokenStatus").textContent = values.TELEGRAM_BOT_TOKEN === "***"
+      ? "저장된 봇 토큰이 있습니다. 변경하지 않으면 기존 토큰을 유지합니다."
+      : "저장된 봇 토큰이 없습니다.";
     document.getElementById("telegramChat").value = values.TELEGRAM_CHAT_ID || "";
+    document.getElementById("telegramUserId").value = values.TELEGRAM_USER_ID || "";
+    document.getElementById("telegramUsername").value = values.TELEGRAM_USERNAME || "";
+    document.getElementById("telegramAllowFrom").value = values.TELEGRAM_ALLOW_FROM || "";
   } catch (error) {
     showStatus("현재 설정을 불러오지 못했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
   }
@@ -207,7 +232,10 @@ async function saveSettings() {
     UPBIT_ACCESS_KEY: document.getElementById("accessKey").value,
     UPBIT_SECRET_KEY: document.getElementById("secretKey").value,
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,
-    TELEGRAM_CHAT_ID: document.getElementById("telegramChat").value
+    TELEGRAM_CHAT_ID: document.getElementById("telegramChat").value,
+    TELEGRAM_USER_ID: document.getElementById("telegramUserId").value,
+    TELEGRAM_USERNAME: document.getElementById("telegramUsername").value,
+    TELEGRAM_ALLOW_FROM: document.getElementById("telegramAllowFrom").value
   };
   try {
     const response = await fetch("/settings", {

@@ -6,6 +6,7 @@ from app.core.trading_profile import TRADING_PROFILES, get_trading_profile
 
 
 SECRET_KEYS = {"UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY", "TELEGRAM_BOT_TOKEN"}
+SECRET_MASK = "***"
 LIVE_REQUIRED_KEYS = ["UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY"]
 
 
@@ -34,8 +35,10 @@ class EnvFileService:
         values = self._read()
         normalized = {key: str(value).strip() for key, value in updates.items() if value is not None}
         for key in SECRET_KEYS:
-            if key in normalized and not normalized[key] and values.get(key):
+            if key in normalized and normalized[key] in {"", SECRET_MASK} and values.get(key):
                 normalized[key] = values[key]
+        if "TELEGRAM_CHAT_ID" in normalized:
+            normalized["TELEGRAM_CHAT_ID"] = self._normalize_telegram_chat_id(normalized["TELEGRAM_CHAT_ID"])
         normalized.setdefault("LEARNING_ENABLED", "true")
         mode = normalized.get("TRADING_MODE", "demo")
         if mode not in {"demo", "live"}:
@@ -105,8 +108,17 @@ class EnvFileService:
     def _masked(values: dict[str, str]) -> dict[str, str]:
         masked: dict[str, str] = {}
         for key, value in values.items():
-            masked[key] = "***" if key in SECRET_KEYS and value else value
+            masked[key] = SECRET_MASK if key in SECRET_KEYS and value else value
         return masked
+
+    @staticmethod
+    def _normalize_telegram_chat_id(value: str) -> str:
+        normalized = value.strip()
+        if normalized.startswith("telegram:group:"):
+            return normalized.removeprefix("telegram:group:").strip()
+        if normalized.startswith("telegram:user:"):
+            return normalized.removeprefix("telegram:user:").strip()
+        return normalized
 
     @staticmethod
     def _profile_defaults(profile_spec) -> dict[str, str]:

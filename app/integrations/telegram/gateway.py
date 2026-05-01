@@ -21,7 +21,7 @@ class TelegramHttpGateway:
         ssl_context: ssl.SSLContext | None = None,
     ) -> None:
         self._bot_token = bot_token
-        self._chat_id = chat_id
+        self._chat_id = self._normalize_chat_id(chat_id)
         self._timeout_sec = timeout_sec
         self._urlopen = urlopen or request.urlopen
         self._ssl_context = ssl_context or ssl.create_default_context(cafile=certifi.where())
@@ -42,3 +42,12 @@ class TelegramHttpGateway:
         )
         with self._urlopen(req, timeout=self._timeout_sec, context=self._ssl_context) as response:
             response.read()
+
+    @staticmethod
+    def _normalize_chat_id(chat_id: str) -> str:
+        normalized = chat_id.strip()
+        if normalized.startswith("telegram:group:"):
+            return normalized.removeprefix("telegram:group:").strip()
+        if normalized.startswith("telegram:user:"):
+            return normalized.removeprefix("telegram:user:").strip()
+        return normalized

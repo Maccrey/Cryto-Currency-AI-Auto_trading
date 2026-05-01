@@ -60,6 +60,50 @@ def test_env_file_service_keeps_existing_secret_when_form_submits_blank_value(tm
     assert "UPBIT_SECRET_KEY=old-secret" in env_text
 
 
+def test_env_file_service_keeps_existing_secret_when_form_submits_mask(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "TRADING_MODE=demo\nLEARNING_ENABLED=true\nTELEGRAM_BOT_TOKEN=old-token\n",
+        encoding="utf-8",
+    )
+    service = EnvFileService(env_path)
+
+    result = service.save(
+        {
+            "TRADING_MODE": "demo",
+            "LEARNING_ENABLED": "true",
+            "TELEGRAM_BOT_TOKEN": "***",
+        },
+    )
+
+    assert result["saved"] is True
+    assert "TELEGRAM_BOT_TOKEN=old-token" in env_path.read_text(encoding="utf-8")
+    assert service.current()["values"]["TELEGRAM_BOT_TOKEN"] == "***"
+
+
+def test_env_file_service_normalizes_telegram_group_chat_identity(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    service = EnvFileService(env_path)
+
+    result = service.save(
+        {
+            "TRADING_MODE": "demo",
+            "LEARNING_ENABLED": "true",
+            "TELEGRAM_CHAT_ID": "telegram:group:-1003988291151",
+            "TELEGRAM_USER_ID": "467359360",
+            "TELEGRAM_USERNAME": "@maccrey",
+            "TELEGRAM_ALLOW_FROM": "467359360",
+        },
+    )
+
+    assert result["saved"] is True
+    env_text = env_path.read_text(encoding="utf-8")
+    assert "TELEGRAM_CHAT_ID=-1003988291151" in env_text
+    assert "TELEGRAM_USER_ID=467359360" in env_text
+    assert "TELEGRAM_USERNAME=@maccrey" in env_text
+    assert "TELEGRAM_ALLOW_FROM=467359360" in env_text
+
+
 def test_env_file_service_saves_trading_profile_defaults(tmp_path: Path) -> None:
     env_path = tmp_path / ".env"
     service = EnvFileService(env_path)

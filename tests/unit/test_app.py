@@ -1104,6 +1104,9 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert "tradingProfile" in page.text
     assert "demoInitialCapital" in page.text
     assert "resetLearningData" in page.text
+    assert "telegramTokenStatus" in page.text
+    assert "telegramAllowFrom" in page.text
+    assert "telegram:group:-1003988291151" in page.text
 
     response = client.post(
         "/settings",
@@ -1127,6 +1130,11 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
             "LEARNING_ENABLED": "true",
             "UPBIT_ACCESS_KEY": "access-key",
             "UPBIT_SECRET_KEY": "secret-key",
+            "TELEGRAM_BOT_TOKEN": "telegram-token",
+            "TELEGRAM_CHAT_ID": "telegram:group:-1003988291151",
+            "TELEGRAM_USER_ID": "467359360",
+            "TELEGRAM_USERNAME": "@maccrey",
+            "TELEGRAM_ALLOW_FROM": "467359360",
         },
     )
 
@@ -1134,8 +1142,11 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert saved.json()["saved"] is True
     assert "UPBIT_SECRET_KEY=secret-key" in env_file.read_text(encoding="utf-8")
     assert "TRADING_PROFILE=short_term" in env_file.read_text(encoding="utf-8")
+    assert "TELEGRAM_CHAT_ID=-1003988291151" in env_file.read_text(encoding="utf-8")
+    assert "TELEGRAM_ALLOW_FROM=467359360" in env_file.read_text(encoding="utf-8")
     current = client.get("/settings/current").json()
     assert current["values"]["UPBIT_SECRET_KEY"] == "***"
+    assert current["values"]["TELEGRAM_BOT_TOKEN"] == "***"
     assert current["profile"] == "short_term"
 
 
