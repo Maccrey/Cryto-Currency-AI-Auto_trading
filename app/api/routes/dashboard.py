@@ -289,7 +289,6 @@ DASHBOARD_HTML = """
   </section>
 </main>
 <script>
-const LEARNING_TARGET_EVENTS = 50;
 const THEME_KEY = "cryptoDashboardTheme";
 
 function applyTheme(theme) {
@@ -448,6 +447,25 @@ function deriveWinRate(summary, promotion) {
   return null;
 }
 
+function deriveReadinessProgress(readiness) {
+  const metrics = readiness && readiness.metrics ? readiness.metrics : null;
+  const required = readiness && readiness.required ? readiness.required : null;
+  if (!metrics || !required) {
+    return {percent: 0, message: "모델 학습 준비도 데이터를 불러오지 못했습니다."};
+  }
+  const keys = ["total_events", "signal_events", "fill_events", "exit_events", "blocked_cycles"];
+  const ratios = keys.map((key) => {
+    const requiredValue = Number(required[key] || 0);
+    if (requiredValue <= 0) return 1;
+    return Math.min(Number(metrics[key] || 0) / requiredValue, 1);
+  });
+  const percent = Math.floor((ratios.reduce((sum, value) => sum + value, 0) / ratios.length) * 100);
+  return {
+    percent,
+    message: `모델 학습 준비도 기준. 총 ${number(metrics.total_events || 0)}/${number(required.total_events || 0)}, 신호 ${number(metrics.signal_events || 0)}/${number(required.signal_events || 0)}, 체결 ${number(metrics.fill_events || 0)}/${number(required.fill_events || 0)}.`
+  };
+}
+
 async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url} ${response.status}`);
@@ -457,12 +475,13 @@ async function fetchJson(url) {
 async function refreshDashboard() {
   document.getElementById("statusLine").textContent = "데이터를 불러오는 중...";
   try {
-    const [health, summary, marketResponse, learningResponse, learningHealthResponse, executions, promotionResponse] = await Promise.all([
+    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/dashboard/summary"),
       fetchJson("/dashboard/market"),
       fetchJson("/dashboard/learning"),
       fetchJson("/dashboard/learning/health"),
+      fetchJson("/learning/model-readiness"),
       fetchJson("/dashboard/executions"),
       fetchJson("/dashboard/promotion")
     ]);
@@ -471,6 +490,7 @@ async function refreshDashboard() {
       summary,
       learning: learningResponse.learning || {},
       learningHealth: learningHealthResponse.health || {},
+      readiness: readinessResponse.readiness || {},
       executions,
       promotion: promotionResponse.promotion,
       market: marketResponse.summary || {market: marketResponse.market}
@@ -481,9 +501,10 @@ async function refreshDashboard() {
 }
 
 function renderDashboard(data) {
-  const {health, summary, market, learning, learningHealth, executions, promotion} = data;
+  const {health, summary, market, learning, learningHealth, readiness, executions, promotion} = data;
   const totalEvents = learning.total_events || learningHealth.total_events || 0;
-  const progress = Math.min(100, Math.round((totalEvents / LEARNING_TARGET_EVENTS) * 100));
+  const readinessProgress = deriveReadinessProgress(readiness);
+  const progress = readinessProgress.percent;
   const winRate = deriveWinRate(summary, promotion);
   const readyBadge = health.trading_ready ? '<span class="badge ok">거래 준비됨</span>' : '<span class="badge warn">점검 필요</span>';
   const learningBadge = summary.learning_enabled ? '<span class="badge ok">학습 기록 중</span>' : '<span class="badge warn">학습 비활성</span>';
@@ -512,7 +533,7 @@ function renderDashboard(data) {
   document.getElementById("capitalSub").textContent = summary.trading_mode === "demo" ? "데모 가상 투자금 1,000,000 KRW 기준" : "실계좌 사용 가능 현금 기준";
   document.getElementById("learningProgressMetric").textContent = `${progress}%`;
   document.getElementById("learningProgressBar").style.width = `${progress}%`;
-  document.getElementById("learningProgressSub").textContent = `${totalEvents}/${LEARNING_TARGET_EVENTS} 이벤트 기록 기준. 신호 ${summary.learning_signal_count || 0}건, 체결 ${summary.learning_fill_count || 0}건.`;
+  document.getElementById("learningProgressSub").textContent = readinessProgress.message;
   document.getElementById("winRateMetric").textContent = percent(winRate);
   document.getElementById("winRateSub").textContent = winRate === null ? "완료된 거래 손익 기록이 쌓이면 표시됩니다." : "현재 기록 기준 수익 거래 비율입니다.";
   document.getElementById("pnlMetric").textContent = `${number(summary.realized_pnl, 2)} KRW`;
@@ -534,9 +555,10 @@ function renderDashboard(data) {
 
   const categories = learningHealth.category_counts || {};
   document.getElementById("learningTable").innerHTML = [
-    row("총 이벤트", number(totalEvents)),
+    row("최근 이벤트", number(totalEvents)),
+    row("모델학습 총 이벤트", readiness.metrics ? `${number(readiness.metrics.total_events || 0)} / ${number(readiness.required.total_events || 0)}` : "데이터 없음"),
     row("투자성향", summary.trading_profile_label || summary.trading_profile || "단타"),
-    row("최근 이벤트", learning.last_event_name || "없음"),
+    row("최근 이벤트명", learning.last_event_name || "없음"),
     row("최근 기록 시각", learning.last_recorded_at || learningHealth.last_recorded_at || "없음"),
     row("신호/체결/포지션", `${number(categories.signals || 0)} / ${number(categories.fills || 0)} / ${number(categories.positions || 0)}`),
     row("상태", learning.state_message || learningHealth.state_message || "학습 데이터가 아직 없습니다.")

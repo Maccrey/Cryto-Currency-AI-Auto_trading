@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.services.execution.demo import FillResult
+
+logger = logging.getLogger(__name__)
 
 
 class FillMessageTemplate:
@@ -42,6 +45,17 @@ class TelegramNotifier:
         self._fill_message_template = fill_message_template or FillMessageTemplate()
 
     def notify_fill(self, fill: FillResult, *, reason_code: str | None = None) -> None:
-        self._gateway.send_message(
-            self._fill_message_template.build(fill, reason_code=reason_code),
-        )
+        try:
+            self._gateway.send_message(
+                self._fill_message_template.build(fill, reason_code=reason_code),
+            )
+        except Exception:
+            logger.exception(
+                "telegram_fill_notification_failed",
+                extra={
+                    "market": fill.market,
+                    "side": fill.side,
+                    "mode": fill.mode,
+                    "is_stop_loss": fill.is_stop_loss,
+                },
+            )

@@ -12,6 +12,11 @@ class StubTelegramGateway:
         self.messages.append(message)
 
 
+class FailingTelegramGateway:
+    def send_message(self, message: str) -> None:
+        raise RuntimeError("telegram unavailable")
+
+
 def test_telegram_notifier_sends_buy_fill_message() -> None:
     gateway = StubTelegramGateway()
     notifier = TelegramNotifier(gateway=gateway)
@@ -99,3 +104,21 @@ def test_telegram_notifier_accepts_fill_message_template() -> None:
         "fee=17.27\n"
         "mode=demo"
     ]
+
+
+def test_telegram_notifier_does_not_block_trading_when_gateway_fails() -> None:
+    notifier = TelegramNotifier(gateway=FailingTelegramGateway())
+
+    notifier.notify_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=820.0,
+            filled_quantity=120.5,
+            fee=41.11,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
