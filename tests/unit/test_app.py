@@ -1105,6 +1105,8 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert "demoInitialCapital" in page.text
     assert "resetLearningData" in page.text
     assert "telegramTokenStatus" in page.text
+    assert "telegramTokenToggle" in page.text
+    assert "/settings/secret/telegram-bot-token" in page.text
     assert "telegramAllowFrom" in page.text
     assert "telegram:group:-1003988291151" in page.text
 
@@ -1148,6 +1150,28 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert current["values"]["UPBIT_SECRET_KEY"] == "***"
     assert current["values"]["TELEGRAM_BOT_TOKEN"] == "***"
     assert current["profile"] == "short_term"
+
+    secret = client.get("/settings/secret/telegram-bot-token").json()
+    assert secret == {
+        "status": "ok",
+        "found": True,
+        "key": "TELEGRAM_BOT_TOKEN",
+        "value": "telegram-token",
+    }
+
+    preserved = client.post(
+        "/settings",
+        json={
+            "TRADING_MODE": "live",
+            "TRADING_PROFILE": "short_term",
+            "LEARNING_ENABLED": "true",
+            "UPBIT_ACCESS_KEY": "access-key",
+            "UPBIT_SECRET_KEY": "secret-key",
+            "TELEGRAM_BOT_TOKEN": "********",
+        },
+    )
+    assert preserved.json()["saved"] is True
+    assert "TELEGRAM_BOT_TOKEN=telegram-token" in env_file.read_text(encoding="utf-8")
 
 
 def test_settings_learning_reset_archives_current_profile_log(

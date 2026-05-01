@@ -24,6 +24,15 @@ def build_settings_router(
     def current_settings() -> dict[str, object]:
         return env_file_service.current()
 
+    @router.get("/secret/{key}")
+    def secret_value(key: str) -> dict[str, object]:
+        secret_keys = {
+            "telegram-bot-token": "TELEGRAM_BOT_TOKEN",
+            "upbit-access-key": "UPBIT_ACCESS_KEY",
+            "upbit-secret-key": "UPBIT_SECRET_KEY",
+        }
+        return env_file_service.secret_value(secret_keys.get(key, key))
+
     @router.post("")
     def save_settings(payload: dict[str, object]) -> dict[str, object]:
         return env_file_service.save(payload)
@@ -64,6 +73,9 @@ SETTINGS_HTML = """
     h1 { font-size: 24px; margin: 0 0 18px; }
     label { display: block; font-size: 13px; font-weight: 650; margin-top: 14px; }
     input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #b8c4ce; border-radius: 6px; font-size: 14px; }
+    .secret-input { display: grid; grid-template-columns: 1fr 42px; gap: 8px; align-items: center; }
+    .icon-button { width: 42px; height: 40px; border: 1px solid #9eb0bd; border-radius: 6px; background: white; color: #172026; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    .icon-button svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     select { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #b8c4ce; border-radius: 6px; font-size: 14px; background: white; }
     .switch { display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid #9eb0bd; border-radius: 999px; overflow: hidden; margin: 8px 0 10px; }
     .switch button { border: 0; padding: 10px 18px; background: #edf2f5; cursor: pointer; font-weight: 700; }
@@ -116,7 +128,15 @@ SETTINGS_HTML = """
     <input id="secretKey" type="password" autocomplete="off">
     <div class="subsection">
       <label for="telegramToken">텔레그램 봇 토큰</label>
-      <input id="telegramToken" type="password" autocomplete="off" placeholder="저장된 토큰이 있으면 ***로 표시">
+      <div class="secret-input">
+        <input id="telegramToken" type="password" autocomplete="off" placeholder="저장된 토큰이 있으면 ********로 표시">
+        <button id="telegramTokenToggle" class="icon-button" type="button" onclick="toggleTelegramToken()" aria-label="텔레그램 봇 토큰 보기" title="텔레그램 봇 토큰 보기">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+      </div>
       <div id="telegramTokenStatus" class="note"></div>
       <label for="telegramChat">텔레그램 채팅 ID</label>
       <input id="telegramChat" autocomplete="off" placeholder="-1003988291151 또는 telegram:group:-1003988291151">
@@ -156,6 +176,8 @@ SETTINGS_HTML = """
 <script>
 let mode = "demo";
 let profiles = [];
+let telegramTokenVisible = false;
+let telegramTokenLoaded = false;
 function showStatus(message, kind = "") {
   const status = document.getElementById("status");
   status.className = `status visible ${kind}`.trim();
@@ -193,6 +215,41 @@ function updateProfileDescription() {
     : "";
 }
 document.getElementById("tradingProfile").addEventListener("change", updateProfileDescription);
+function setTelegramTokenHidden(hasToken) {
+  const tokenInput = document.getElementById("telegramToken");
+  const toggle = document.getElementById("telegramTokenToggle");
+  telegramTokenVisible = false;
+  telegramTokenLoaded = false;
+  tokenInput.type = "password";
+  tokenInput.value = hasToken ? "********" : "";
+  toggle.setAttribute("aria-label", "텔레그램 봇 토큰 보기");
+  toggle.setAttribute("title", "텔레그램 봇 토큰 보기");
+}
+async function toggleTelegramToken() {
+  const tokenInput = document.getElementById("telegramToken");
+  const toggle = document.getElementById("telegramTokenToggle");
+  if (telegramTokenVisible) {
+    tokenInput.type = "password";
+    telegramTokenVisible = false;
+    toggle.setAttribute("aria-label", "텔레그램 봇 토큰 보기");
+    toggle.setAttribute("title", "텔레그램 봇 토큰 보기");
+    return;
+  }
+  if (!telegramTokenLoaded && tokenInput.value && new Set(tokenInput.value.split("")).size === 1 && tokenInput.value[0] === "*") {
+    const response = await fetch("/settings/secret/telegram-bot-token");
+    const result = await response.json();
+    if (!result.found) {
+      showStatus("저장된 텔레그램 봇 토큰이 없습니다.", "warning");
+      return;
+    }
+    tokenInput.value = result.value;
+    telegramTokenLoaded = true;
+  }
+  tokenInput.type = "text";
+  telegramTokenVisible = true;
+  toggle.setAttribute("aria-label", "텔레그램 봇 토큰 숨기기");
+  toggle.setAttribute("title", "텔레그램 봇 토큰 숨기기");
+}
 async function loadSettings() {
   try {
     const response = await fetch("/settings/current");
@@ -206,7 +263,7 @@ async function loadSettings() {
     document.getElementById("tradeMarket").value = values.TRADE_MARKET || "KRW-XRP";
     document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
     document.getElementById("demoInitialCapital").value = values.DEMO_INITIAL_CAPITAL || "1000000";
-    document.getElementById("telegramToken").value = values.TELEGRAM_BOT_TOKEN || "";
+    setTelegramTokenHidden(values.TELEGRAM_BOT_TOKEN === "***");
     document.getElementById("telegramTokenStatus").textContent = values.TELEGRAM_BOT_TOKEN === "***"
       ? "저장된 봇 토큰이 있습니다. 변경하지 않으면 기존 토큰을 유지합니다."
       : "저장된 봇 토큰이 없습니다.";

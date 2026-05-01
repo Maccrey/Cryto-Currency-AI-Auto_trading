@@ -31,11 +31,28 @@ class EnvFileService:
             "env_path": str(self._env_path),
         }
 
+    def secret_value(self, key: str) -> dict[str, object]:
+        if key not in SECRET_KEYS:
+            return {
+                "status": "invalid",
+                "found": False,
+                "key": key,
+                "value": "",
+                "message": "unsupported secret key",
+            }
+        value = self._read().get(key, "")
+        return {
+            "status": "ok",
+            "found": bool(value),
+            "key": key,
+            "value": value,
+        }
+
     def save(self, updates: dict[str, object]) -> dict[str, object]:
         values = self._read()
         normalized = {key: str(value).strip() for key, value in updates.items() if value is not None}
         for key in SECRET_KEYS:
-            if key in normalized and normalized[key] in {"", SECRET_MASK} and values.get(key):
+            if key in normalized and self._is_secret_placeholder(normalized[key]) and values.get(key):
                 normalized[key] = values[key]
         if "TELEGRAM_CHAT_ID" in normalized:
             normalized["TELEGRAM_CHAT_ID"] = self._normalize_telegram_chat_id(normalized["TELEGRAM_CHAT_ID"])
@@ -110,6 +127,12 @@ class EnvFileService:
         for key, value in values.items():
             masked[key] = SECRET_MASK if key in SECRET_KEYS and value else value
         return masked
+
+    @staticmethod
+    def _is_secret_placeholder(value: str) -> bool:
+        if not value:
+            return True
+        return set(value) == {"*"}
 
     @staticmethod
     def _normalize_telegram_chat_id(value: str) -> str:
