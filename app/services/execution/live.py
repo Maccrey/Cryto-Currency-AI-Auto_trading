@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.services.execution.demo import OrderIntent
+from app.services.execution.rules import UpbitOrderRules
 
 
 class UpbitLiveOrderGateway:
@@ -109,11 +110,13 @@ class LiveExecutor:
         trading_mode: str,
         safe_mode: bool,
         hard_stop: bool = False,
+        order_rules: UpbitOrderRules | None = None,
     ) -> None:
         self._live_order_gateway = live_order_gateway
         self._trading_mode = trading_mode
         self._safe_mode = safe_mode
         self._hard_stop = hard_stop
+        self._order_rules = order_rules or UpbitOrderRules()
 
     def execute(self, intent: OrderIntent) -> LiveExecutionResult:
         if self._trading_mode != "live":
@@ -136,6 +139,17 @@ class LiveExecutor:
                 order_id=None,
                 status="blocked",
                 blocked_reason="HARD_STOP_ACTIVE",
+            )
+        if not self._order_rules.is_allowed(
+            market=intent.market,
+            price=intent.price,
+            quantity=intent.quantity,
+        ):
+            return LiveExecutionResult(
+                accepted=False,
+                order_id=None,
+                status="blocked",
+                blocked_reason="MIN_ORDER_AMOUNT",
             )
 
         precheck = self._precheck(intent)

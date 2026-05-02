@@ -47,16 +47,18 @@ pip install -e .
 ```
 
 동작:
-- 서버가 꺼져 있으면 macOS `launchd` KeepAlive로 등록해 `http://127.0.0.1:8000`으로 시작한다.
+- 서버가 꺼져 있으면 macOS `launchd` KeepAlive로 등록해 `0.0.0.0:8080`으로 시작한다.
 - 서버가 이미 실행 중이면 중복 실행하지 않는다.
-- 크롬에서 `http://127.0.0.1:8000/settings` 설정창을 연다.
+- 크롬에서 `http://127.0.0.1:8080/settings` 설정창을 연다.
+- 같은 네트워크의 다른 기기에서는 `http://<내 컴퓨터 LAN IP>:8080/settings`와 `http://<내 컴퓨터 LAN IP>:8080/dashboard`로 접속한다.
+- 텔레그램 봇 토큰과 채팅 ID가 등록되어 있으면 앱 서버 시작 시 설정창/대시보드 접속 주소와 자동 트레이딩이 아직 시작되지 않았다는 안내를 텔레그램으로 보낸다.
 - 트레이딩 시스템은 터미널을 닫아도 백그라운드에서 계속 돌고, 프로세스가 종료되면 macOS가 다시 시작한다.
 - 로그는 `logs/runtime/server.log`에 쌓인다.
 
 실행 상태 확인:
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8080/health
 ```
 
 백그라운드 서비스를 수동으로 내릴 때만 아래 명령을 사용한다.
@@ -79,16 +81,17 @@ launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.crypto-auto-trading.pl
 ### GUI 설정 권장 흐름
 
 1. 앱을 실행한다.
-2. 브라우저에서 `http://127.0.0.1:8000/settings`를 연다.
+2. 브라우저에서 `http://127.0.0.1:8080/settings`를 연다.
 3. DEMO/LIVE 스위치로 모드를 고른다.
 4. 마켓, 코인, 데모 시작 투자금, 업비트 키, 텔레그램 값을 입력한다.
 5. 저장한다.
-6. 변경된 `.env` 값은 앱 재시작 후 런타임에 반영된다.
+6. 필수값이 충족되면 표시되는 `서버 시작` 버튼을 눌러 트레이딩 서버를 시작한다.
 
 GUI 동작 규칙:
-- `demo` 모드는 업비트 API 키 없이 저장하고 실행할 수 있다.
+- `demo` 모드는 업비트 API 키 없이 저장하고 실행할 수 있지만, 필수값이 저장되어 있어야 `서버 시작` 버튼이 보인다.
 - `demo` 모드 기본 시작 투자금은 `1,000,000 KRW`이며 설정 화면의 `데모 시작 투자금`에서 변경할 수 있다.
-- `live` 모드는 `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY`가 없으면 저장이 거절된다.
+- `live` 모드는 `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY`가 저장되어 있을 때만 `서버 시작` 버튼이 보인다.
+- 필수 입력 항목은 설정 화면에서 `*`로 표시된다.
 - 기존 `.env`에 API 키가 있으면 설정 화면의 키 입력칸을 비워 저장해도 기존 키를 보존한다.
 - 설정 화면에서 현재 투자성향의 학습 데이터를 리셋할 수 있다. 기존 로그는 `logs/learning/reset_archive/<TRADING_PROFILE>/`로 이동하고 새 로그를 다시 쌓는다.
 - `/settings/current` 응답에서는 API 키와 토큰이 `***`로 마스킹된다.
@@ -158,48 +161,48 @@ LEARNING_ENABLED=true
 
 ### uv 직접 실행
 ```bash
-uv run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 ### pip 직접 실행
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 ### 명시적 demo 실행
 ```bash
-env TRADING_MODE=demo LEARNING_ENABLED=true uvicorn app.main:app --host 127.0.0.1 --port 8000
+env TRADING_MODE=demo LEARNING_ENABLED=true uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
 기본 접속 주소:
 
 ```text
-http://127.0.0.1:8000
+http://127.0.0.1:8080
 ```
 
 헬스 체크:
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8080/health
 ```
 
 설정 화면:
 
 ```text
-http://127.0.0.1:8000/settings
+http://127.0.0.1:8080/settings
 ```
 
 이 화면에서 demo/live 모드를 스위치로 변경하고 `.env`에 필요한 값을 저장할 수 있다.
 demo 모드는 업비트 API 키 없이 저장/실행할 수 있으며, live 모드는 업비트 API 키가 없으면 저장이 거절된다.
-저장된 값은 실행 중인 앱에 즉시 재조립되지 않으므로 모드나 API 키를 변경한 뒤에는 앱을 재시작한다.
+저장 후 조건이 충족되면 설정 화면에 `서버 시작` 버튼이 나타나며, 이 버튼을 눌렀을 때 자동 트레이딩 루프가 시작된다.
 
 대시보드:
 
 ```text
-http://127.0.0.1:8000/dashboard
+http://127.0.0.1:8080/dashboard
 ```
 
-대시보드에서는 현재가, 데모 투자금, 손익, 학습 상태, AI 운용 상태, 최근 체결, 실거래 전환 준비 상태를 확인한다.
+대시보드에서는 현재가, 데모 투자금, 손익, 학습 상태, AI 운용 상태, 최근 체결, 실거래 전환 준비 상태를 확인한다. demo 모드의 투자금과 보유 코인 수량은 체결 결과가 반영된 가상 포트폴리오 기준으로 표시된다.
 현재가는 업비트 공개 ticker API를 사용해 1초 주기로 갱신된다.
 
 ---
@@ -208,7 +211,7 @@ http://127.0.0.1:8000/dashboard
 
 ### 헬스 체크
 ```bash
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8080/health
 ```
 
 응답에는 실행 모드, 학습 활성화 상태, SAFE_MODE, HARD_STOP, 거래 준비 상태가 포함된다.
@@ -217,19 +220,19 @@ curl http://127.0.0.1:8000/health
 브라우저에서 연다.
 
 ```text
-http://127.0.0.1:8000/settings
+http://127.0.0.1:8080/settings
 ```
 
 현재 설정 API:
 
 ```bash
-curl http://127.0.0.1:8000/settings/current
+curl http://127.0.0.1:8080/settings/current
 ```
 
 설정 저장 API:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/settings \
+curl -X POST http://127.0.0.1:8080/settings \
   -H 'Content-Type: application/json' \
   -d '{
     "TRADING_MODE": "demo",
@@ -243,7 +246,7 @@ curl -X POST http://127.0.0.1:8000/settings \
 live 저장 예:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/settings \
+curl -X POST http://127.0.0.1:8080/settings \
   -H 'Content-Type: application/json' \
   -d '{
     "TRADING_MODE": "live",
@@ -270,7 +273,7 @@ live 저장 시 키가 없으면 다음처럼 저장되지 않는다.
 브라우저에서 연다.
 
 ```text
-http://127.0.0.1:8000/dashboard
+http://127.0.0.1:8080/dashboard
 ```
 
 표시 항목:
@@ -309,24 +312,24 @@ AI 상태: 관찰 중
 
 ### 대시보드 API
 ```bash
-curl http://127.0.0.1:8000/dashboard
+curl http://127.0.0.1:8080/dashboard
 ```
 
 HTML 대시보드가 반환된다. JSON 요약은 아래 API를 사용한다.
 
 ```bash
-curl http://127.0.0.1:8000/dashboard/summary
-curl http://127.0.0.1:8000/dashboard/market
-curl http://127.0.0.1:8000/dashboard/learning
-curl http://127.0.0.1:8000/dashboard/executions
-curl http://127.0.0.1:8000/dashboard/promotion
+curl http://127.0.0.1:8080/dashboard/summary
+curl http://127.0.0.1:8080/dashboard/market
+curl http://127.0.0.1:8080/dashboard/learning
+curl http://127.0.0.1:8080/dashboard/executions
+curl http://127.0.0.1:8080/dashboard/promotion
 ```
 
 보유 현금, 보유 코인, 손익, 매수/매도/손절 횟수, 학습 상태, 복구 상태, 승격 상태를 확인한다.
 
 ### 의사결정 실행
 ```bash
-curl -X POST http://127.0.0.1:8000/decision \
+curl -X POST http://127.0.0.1:8080/decision \
   -H 'Content-Type: application/json' \
   -d '{
     "ticks": [
@@ -345,12 +348,12 @@ curl -X POST http://127.0.0.1:8000/decision \
 
 ### 현재 포지션
 ```bash
-curl http://127.0.0.1:8000/position
+curl http://127.0.0.1:8080/position
 ```
 
 ### 승격 상태
 ```bash
-curl http://127.0.0.1:8000/promotion/status
+curl http://127.0.0.1:8080/promotion/status
 ```
 
 ---
@@ -415,7 +418,7 @@ TELEGRAM_CHAT_ID=텔레그램_채팅_ID
 
 ## 9. 자동 운용과 무거래 진단
 
-demo 모드는 서버가 시작되면 자동 운용 루프가 기본 활성화된다.
+demo 모드도 앱 부팅만으로 자동 운용 루프를 시작하지 않는다. 설정 화면에서 필수값을 저장한 뒤 `서버 시작` 버튼을 눌렀을 때 자동 운용 루프가 시작된다.
 
 동작 흐름:
 - `AUTO_TRADING_INTERVAL_SEC` 주기마다 업비트 현재가를 수집한다.
@@ -427,17 +430,20 @@ demo 모드는 서버가 시작되면 자동 운용 루프가 기본 활성화�
 - 기본 전략 성향은 `TRADING_PROFILE=scalping`이며, 3초 주기로 단타 신호를 관찰한다.
 - 업비트 KRW 마켓 수수료 0.05%를 `TRADING_FEE_RATE=0.0005`로 계산한다.
 - 예상 엣지가 왕복 수수료 0.10%와 투자성향별 최소 순엣지를 넘지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단된다.
+- 업비트 KRW 마켓 최소 주문 가능 금액은 5,000원이며, 이보다 작은 매수/매도 주문은 차단된다.
+- 부분 손절 후 남는 잔량 평가액이 5,000원 미만이면 반복 dust 매도를 막기 위해 전량 청산으로 보정한다.
+- 수수료를 감안해 보합권에서는 소프트 손절을 보류하고, 실제 불리한 움직임이 확인될 때만 기대 불일치 손절을 실행한다.
 
 무거래 원인 진단:
 
 ```bash
-curl http://127.0.0.1:8000/learning/diagnostics
+curl http://127.0.0.1:8080/learning/diagnostics
 ```
 
 TensorFlow 등 모델 학습을 시작할 준비가 되었는지 확인:
 
 ```bash
-curl http://127.0.0.1:8000/learning/model-readiness
+curl http://127.0.0.1:8080/learning/model-readiness
 ```
 
 주요 진단 상태:
@@ -467,7 +473,7 @@ PROFILE_MIN_NET_EDGE_PCT=0.0008
 | 중기 | `mid_term` | 30초 | 20 | 0.60% | `logs/learning/mid_term/learning.jsonl` |
 | 장기 | `long_term` | 60초 | 30 | 1.20% | `logs/learning/long_term/learning.jsonl` |
 
-live 자동 운용은 `AUTO_TRADING_LIVE_ENABLED=true`를 명시해야 시작된다.
+live 자동 운용은 업비트 API 키가 저장되어 있고 `AUTO_TRADING_LIVE_ENABLED=true`를 명시한 뒤 설정 화면의 `서버 시작` 버튼을 눌러야 시작된다.
 
 ML 학습 패키지는 기본 설치에 포함하지 않는다. 나중에 오프라인 학습을 구현할 때 선택 의존성으로 설치한다.
 
@@ -624,7 +630,7 @@ demo 모드로 되돌리면 API 키 없이 저장할 수 있다.
 먼저 자동 운용 루프와 차단 사유를 확인한다.
 
 ```bash
-curl http://127.0.0.1:8000/learning/diagnostics
+curl http://127.0.0.1:8080/learning/diagnostics
 ```
 
 `AUTO_TRADING_NOT_RUNNING`이면 서버가 새 코드로 재시작되었는지, `AUTO_TRADING_ENABLED=true`인지 확인한다.

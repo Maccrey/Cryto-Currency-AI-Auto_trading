@@ -25,10 +25,12 @@ class TelegramNotifierStub:
     def __init__(self) -> None:
         self.fills = []
         self.reason_codes = []
+        self.entry_prices = []
 
-    def notify_fill(self, fill, *, reason_code=None) -> None:
+    def notify_fill(self, fill, *, reason_code=None, entry_price=None) -> None:
         self.fills.append(fill)
         self.reason_codes.append(reason_code)
+        self.entry_prices.append(entry_price)
 
 
 def _build_service(store: CurrentPositionStore) -> PositionExitService:
@@ -150,7 +152,7 @@ def test_position_exit_service_updates_position_after_partial_post_entry_exit() 
     )
 
     result = service.evaluate_and_execute(
-        current_price=830.0,
+        current_price=818.0,
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=0.1,
@@ -169,6 +171,120 @@ def test_position_exit_service_updates_position_after_partial_post_entry_exit() 
     records = lifecycle_ledger.list_records()
     assert len(records) == 1
     assert records[0].event_type == "reduced"
+
+
+def test_position_exit_service_full_exits_when_partial_would_leave_dust() -> None:
+    store = CurrentPositionStore()
+    store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="strong",
+            entry_price=820.0,
+            quantity=10.0,
+            stop_loss_price=780.0,
+            stop_loss_pct=0.018,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    service = _build_service(store)
+
+    result = service.evaluate_and_execute(
+        current_price=818.0,
+        elapsed_sec=181,
+        momentum_score=0.2,
+        orderbook_imbalance=0.1,
+    )
+
+    assert result["status"] == "ok"
+    assert result["trigger"]["exit_ratio"] == 1.0
+    assert result["execution"]["filled_quantity"] == 10.0
+    assert result["position"] is None
+    assert store.get() is None
+
+
+def test_position_exit_service_blocks_sell_below_upbit_minimum_order_amount() -> None:
+    store = CurrentPositionStore()
+    learning_service = LearningServiceStub()
+    store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="strong",
+            entry_price=820.0,
+            quantity=5.0,
+            stop_loss_price=780.0,
+            stop_loss_pct=0.018,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    service = PositionExitService(
+        position_store=store,
+        hard_stop_monitor=HardStopMonitor(),
+        post_entry_validator=PostEntryValidator(),
+        executor=DemoExecutor(live_order_gateway=ForbiddenLiveOrderGateway()),
+        trading_mode="demo",
+        learning_service=learning_service,
+    )
+
+    result = service.evaluate_and_execute(
+        current_price=818.0,
+        elapsed_sec=181,
+        momentum_score=0.2,
+        orderbook_imbalance=0.1,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["trigger"]["blocked_reason"] == "MIN_ORDER_AMOUNT_SELL"
+    assert result["execution"] is None
+    assert store.get() is not None
+    assert learning_service.events[0].event_name == "position_exit_blocked"
+
+
+def test_position_exit_service_executes_regular_sell_when_profit_target_is_hit() -> None:
+    store = CurrentPositionStore()
+    learning_service = LearningServiceStub()
+    store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="medium",
+            entry_price=820.0,
+            quantity=100.0,
+            stop_loss_price=810.16,
+            stop_loss_pct=0.012,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    service = PositionExitService(
+        position_store=store,
+        hard_stop_monitor=HardStopMonitor(),
+        post_entry_validator=PostEntryValidator(),
+        executor=DemoExecutor(live_order_gateway=ForbiddenLiveOrderGateway()),
+        trading_mode="demo",
+        learning_service=learning_service,
+    )
+
+    result = service.evaluate_and_execute(
+        current_price=824.0,
+        elapsed_sec=60,
+        momentum_score=0.6,
+        orderbook_imbalance=0.1,
+    )
+
+    assert result["status"] == "ok"
+    assert result["trigger"] == {
+        "type": "take_profit",
+        "reason_code": "TAKE_PROFIT_TARGET_HIT",
+        "exit_ratio": 1.0,
+    }
+    assert result["execution"]["side"] == "sell"
+    assert result["execution"]["is_stop_loss"] is False
+    assert result["position"] is None
+    assert learning_service.events[0].payload["trigger_type"] == "take_profit"
 
 
 def test_regular_and_stop_loss_sell_executors_set_stop_loss_flag() -> None:

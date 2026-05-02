@@ -47,6 +47,7 @@ class SettingsModel(BaseModel):
     min_expected_return_pct: float = Field(default=0.004)
     trading_profile: str = Field(default="scalping")
     trading_fee_rate: float = Field(default=0.0005)
+    min_order_amount_krw: float = Field(default=5_000.0)
     profile_min_net_edge_pct: float = Field(default=0.0008)
     min_cash_reserve: int = Field(default=100000)
     max_daily_loss: int = Field(default=150000)
@@ -110,6 +111,13 @@ class SettingsModel(BaseModel):
             raise ValueError("TRADING_FEE_RATE must be between 0 and 0.01")
         return value
 
+    @field_validator("min_order_amount_krw")
+    @classmethod
+    def validate_min_order_amount_krw(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("MIN_ORDER_AMOUNT_KRW must be greater than or equal to 0")
+        return value
+
     @field_validator("profile_min_net_edge_pct")
     @classmethod
     def validate_profile_min_net_edge_pct(cls, value: float) -> float:
@@ -158,6 +166,7 @@ class AppSettings:
     min_expected_return_pct: float
     trading_profile: str
     trading_fee_rate: float
+    min_order_amount_krw: float
     profile_min_net_edge_pct: float
     min_cash_reserve: int
     max_daily_loss: int
@@ -241,6 +250,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         ),
         "trading_profile": trading_profile,
         "trading_fee_rate": float(_setting("TRADING_FEE_RATE", "0.0005", env_values)),
+        "min_order_amount_krw": float(_setting("MIN_ORDER_AMOUNT_KRW", "5000", env_values)),
         "profile_min_net_edge_pct": float(
             _setting(
                 "PROFILE_MIN_NET_EDGE_PCT",

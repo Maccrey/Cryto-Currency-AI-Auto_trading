@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+import json
+import os
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -15,6 +18,7 @@ from app.api.routes.position import build_position_router
 from app.api.routes.promotion import build_promotion_router
 from app.api.routes.settings import build_settings_router
 from app.core.logging import configure_logging
+from app.core.network import build_browser_urls
 from app.core.settings import load_settings
 from app.core.trading_profile import get_trading_profile, learning_log_dir_for_profile
 from app.integrations.upbit.auth import UpbitAuthSigner
@@ -29,8 +33,10 @@ from app.services.dashboard.factory import build_dashboard_services
 from app.services.dashboard.promotion import PromotionDashboardService
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.execution.ledger import ExecutionLedger
+from app.services.execution.demo import FillResult
 from app.services.execution.factory import ExecutionFactory
 from app.services.execution.live import UpbitLiveOrderGateway
+from app.services.execution.rules import UpbitOrderRules
 from app.services.config.env_file import EnvFileService
 from app.services.learning.service import LearningService
 from app.services.learning.reset import LearningDataResetService
@@ -108,6 +114,13 @@ def create_app(
         learning_enabled=settings.learning_enabled,
     )
     timestamp_provider = timestamp_provider or (lambda: datetime.now().astimezone().isoformat())
+    browser_urls = build_browser_urls(
+        host=os.getenv("TRADING_HOST", settings.dashboard_host),
+        port=int(os.getenv("TRADING_PORT", str(settings.dashboard_port))),
+    )
+    order_rules = UpbitOrderRules(
+        min_order_amount_krw=float(settings.min_order_amount_krw),
+    )
 
     if learning_service is None:
         learning_service = LearningService(
@@ -130,6 +143,13 @@ def create_app(
             restart_notifier = RestartNotifier(gateway=telegram_gateway)
         if hard_stop_notifier is None:
             hard_stop_notifier = HardStopNotifier(gateway=telegram_gateway)
+        if boot_notification_dispatcher is None:
+            boot_notification_dispatcher = BootNotificationDispatcher(
+                restart_notifier=restart_notifier,
+                hard_stop_notifier=hard_stop_notifier,
+                dashboard_url=browser_urls["dashboard_url"],
+                settings_url=browser_urls["settings_url"],
+            )
 
     notification_services = build_notification_services(
         boot_notification_dispatcher=boot_notification_dispatcher,
@@ -166,6 +186,13 @@ def create_app(
         promotion_status_store=promotion_status_store,
     )
     execution_ledger = execution_ledger or ExecutionLedger()
+    if "PYTEST_CURRENT_TEST" not in os.environ and not execution_ledger.list_records():
+        _seed_execution_ledger_from_learning_log(
+            log_path=profile_learning_log_dir / "learning.jsonl",
+            execution_ledger=execution_ledger,
+            limit=200,
+            initial_cash=float(settings.demo_initial_capital),
+        )
     position_lifecycle_ledger = position_lifecycle_ledger or PositionLifecycleLedger(
         timestamp_provider=timestamp_provider,
     )
@@ -187,6 +214,7 @@ def create_app(
                 max_slippage_bps=float(settings.max_slippage_bps),
                 max_stop_loss_risk_amount=float(settings.max_daily_loss) * 0.25,
                 trading_fee_rate=float(settings.trading_fee_rate),
+                order_rules=order_rules,
                 min_net_edge_pct=float(settings.profile_min_net_edge_pct),
                 stop_loss_by_signal={
                     "weak": settings.stop_loss_weak,
@@ -210,6 +238,7 @@ def create_app(
         ),
         learning_service=learning_service,
         fee_rate=float(settings.trading_fee_rate),
+        order_rules=order_rules,
     ).create(
         trading_mode=settings.trading_mode,
         safe_mode=boot_state.safe_mode,
@@ -219,6 +248,7 @@ def create_app(
         trade_execution_service = TradeExecutionService(
             executor=executor,
             market=settings.trade_market,
+            order_rules=order_rules,
         )
     if position_store is None:
         position_store = CurrentPositionStore()
@@ -254,6 +284,7 @@ def create_app(
             telegram_notifier=trade_fill_notifier,
             execution_ledger=execution_ledger,
             position_lifecycle_ledger=position_lifecycle_ledger,
+            order_rules=order_rules,
         )
     if post_fill_service is None:
         post_fill_service = PostFillService(
@@ -295,17 +326,66 @@ def create_app(
             trading_profile=settings.trading_profile,
             spread_bps=trading_profile.spread_bps,
             slippage_bps=trading_profile.slippage_bps,
+            trading_fee_rate=float(settings.trading_fee_rate),
         ),
     )
     app.state.auto_trading_service = auto_trading_service
 
-    @app.on_event("startup")
-    async def start_auto_trading_service() -> None:
-        auto_trading_service.start()
-
     @app.on_event("shutdown")
     async def stop_auto_trading_service() -> None:
         await auto_trading_service.stop()
+
+    def start_trading_service() -> dict[str, object]:
+        if auto_trading_service.is_running():
+            return {
+                "status": "already_running",
+                "started": True,
+                "message": "트레이딩 서버가 이미 실행 중입니다.",
+            }
+        if not auto_trading_service.should_run():
+            return {
+                "status": "not_ready",
+                "started": False,
+                "message": "트레이딩 서버를 시작할 수 없습니다. 안전 모드, HARD_STOP, live 실행 허용 설정을 확인하세요.",
+            }
+        auto_trading_service.start()
+        if telegram_gateway is not None:
+            try:
+                telegram_gateway.send_message(
+                    "\n".join(
+                        [
+                            "트레이딩 서버가 시작되었습니다.",
+                            f"거래 시장은 {settings.trade_market}이고 거래 모드는 {settings.trading_mode}입니다.",
+                            f"대시보드는 브라우저에서 {browser_urls['dashboard_url']} 주소로 열 수 있습니다.",
+                            f"설정 화면은 브라우저에서 {browser_urls['settings_url']} 주소로 열 수 있습니다.",
+                        ],
+                    ),
+                )
+            except Exception:
+                pass
+        return {
+            "status": "started",
+            "started": True,
+            "message": "트레이딩 서버가 시작되었습니다.",
+        }
+
+    def reset_demo_trading_data_service() -> dict[str, object]:
+        if settings.trading_mode != "demo":
+            return {
+                "status": "blocked",
+                "reset": False,
+                "message": "데모 트레이딩 데이터 리셋은 demo 모드에서만 사용할 수 있습니다.",
+            }
+        execution_ledger.clear()
+        position_lifecycle_ledger.clear()
+        position_store.clear()
+        demo_result = auto_trading_service.reset_demo_portfolio()
+        return {
+            "status": "reset" if demo_result.get("reset") else "skipped",
+            "reset": bool(demo_result.get("reset")),
+            "message": "데모 트레이딩 데이터가 리셋되었습니다.",
+            **demo_result,
+        }
 
     if telegram_gateway is not None:
         report_service = TelegramTradingReportService(
@@ -351,6 +431,8 @@ def create_app(
             env_file_service=EnvFileService(settings.env_file_path),
             learning_data_reset_service=LearningDataResetService(log_dir=profile_learning_log_dir),
             learning_service=learning_service,
+            start_trading_service=start_trading_service,
+            reset_demo_trading_data_service=reset_demo_trading_data_service,
         ),
     )
     app.include_router(
@@ -407,6 +489,70 @@ def create_app(
         ),
     )
     return app
+
+
+def _seed_execution_ledger_from_learning_log(
+    *,
+    log_path: Path,
+    execution_ledger: ExecutionLedger,
+    limit: int,
+    initial_cash: float,
+) -> None:
+    if not log_path.exists():
+        return
+    records: list[tuple[FillResult, str | None]] = []
+    for raw_line in log_path.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        try:
+            row = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if row.get("event_name") != "fill_result":
+            continue
+        payload = row.get("payload") or {}
+        try:
+            records.append(
+                (
+                    FillResult(
+                        market=str(row.get("market") or "unknown"),
+                        side=str(payload.get("side")),
+                        filled_price=float(payload.get("filled_price", 0.0)),
+                        filled_quantity=float(payload.get("filled_quantity", 0.0)),
+                        fee=float(payload.get("fee", 0.0)),
+                        status=str(payload.get("status") or "filled"),
+                        mode=str(row.get("mode") or "demo"),
+                        is_virtual=str(row.get("mode") or "demo") == "demo",
+                        is_stop_loss=bool(payload.get("is_stop_loss")),
+                    ),
+                    payload.get("reason_code"),
+                ),
+            )
+        except (TypeError, ValueError):
+            continue
+    cash_balance = initial_cash
+    asset_balance = 0.0
+    solvent_records: list[tuple[FillResult, str | None]] = []
+    for fill, reason_code in records:
+        if fill.status != "filled":
+            continue
+        gross_amount = fill.filled_price * fill.filled_quantity
+        if fill.side == "buy":
+            if gross_amount + fill.fee > cash_balance:
+                continue
+            cash_balance -= gross_amount + fill.fee
+            asset_balance += fill.filled_quantity
+            solvent_records.append((fill, reason_code))
+            continue
+        if fill.side == "sell":
+            sell_quantity = min(asset_balance, fill.filled_quantity)
+            if sell_quantity <= 0:
+                continue
+            cash_balance += (fill.filled_price * sell_quantity) - fill.fee
+            asset_balance = round(asset_balance - sell_quantity, 8)
+            solvent_records.append((fill, reason_code))
+    for fill, reason_code in solvent_records[-limit:]:
+        execution_ledger.record_fill(fill, reason_code=None if reason_code is None else str(reason_code))
 
 
 app = create_app()

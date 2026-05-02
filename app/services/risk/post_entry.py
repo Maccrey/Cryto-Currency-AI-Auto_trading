@@ -20,6 +20,7 @@ class PostEntryExpectationRuleset:
 
     momentum_reversal_threshold: float = 0.35
     liquidity_dropped_threshold: float = -0.2
+    min_adverse_exit_pct: float = 0.001
 
     def evaluate(
         self,
@@ -29,14 +30,20 @@ class PostEntryExpectationRuleset:
         momentum_score: float,
         orderbook_imbalance: float,
     ) -> tuple[float, str] | None:
-        if unrealized_return_pct < position.min_expected_return_pct:
-            return (1.0, "STOP_LOSS_EXPECTATION_FAILED")
+        if unrealized_return_pct >= position.min_expected_return_pct:
+            return (1.0, "TAKE_PROFIT_TARGET_HIT")
+
+        if unrealized_return_pct > -self.min_adverse_exit_pct:
+            return None
 
         if momentum_score < self.momentum_reversal_threshold:
             return (0.5, "STOP_LOSS_MOMENTUM_REVERSAL")
 
         if orderbook_imbalance < self.liquidity_dropped_threshold:
             return (0.5, "STOP_LOSS_LIQUIDITY_DROPPED")
+
+        if unrealized_return_pct < position.min_expected_return_pct:
+            return (1.0, "STOP_LOSS_EXPECTATION_FAILED")
 
         return None
 
@@ -61,6 +68,15 @@ class PostEntryValidator:
         orderbook_imbalance: float,
     ) -> PostEntryDecision:
         unrealized_return_pct = round((current_price - position.entry_price) / position.entry_price, 4)
+
+        if unrealized_return_pct >= position.min_expected_return_pct:
+            return PostEntryDecision(
+                triggered=True,
+                order_side="sell",
+                exit_ratio=1.0,
+                reason_code="TAKE_PROFIT_TARGET_HIT",
+                unrealized_return_pct=unrealized_return_pct,
+            )
 
         if elapsed_sec < position.validation_window_sec:
             return PostEntryDecision(

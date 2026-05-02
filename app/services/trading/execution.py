@@ -5,6 +5,7 @@ from typing import Any
 
 from app.services.execution.demo import FillResult, OrderIntent
 from app.services.execution.live import LiveExecutionResult
+from app.services.execution.rules import UpbitOrderRules
 from app.services.trading.decision import TradeDecisionResult
 
 
@@ -19,9 +20,16 @@ class TradeExecutionResult:
 class TradeExecutionService:
     """Convert sizing-approved decisions into executable order intents."""
 
-    def __init__(self, *, executor: Any, market: str) -> None:
+    def __init__(
+        self,
+        *,
+        executor: Any,
+        market: str,
+        order_rules: UpbitOrderRules | None = None,
+    ) -> None:
         self._executor = executor
         self._market = market
+        self._order_rules = order_rules or UpbitOrderRules()
 
     def execute(self, decision: TradeDecisionResult) -> TradeExecutionResult:
         if not decision.sizing.allowed:
@@ -37,6 +45,17 @@ class TradeExecutionService:
             execution_price = round(
                 decision.sizing.buy_amount / decision.sizing.buy_quantity,
                 8,
+            )
+        if not self._order_rules.is_allowed(
+            market=self._market,
+            price=execution_price,
+            quantity=decision.sizing.buy_quantity,
+        ):
+            return TradeExecutionResult(
+                decision=decision,
+                execution=None,
+                status="blocked",
+                blocked_reason="MIN_ORDER_AMOUNT",
             )
         intent = OrderIntent(
             market=self._market,

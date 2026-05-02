@@ -284,6 +284,36 @@ def test_live_executor_blocks_orders_during_hard_stop() -> None:
     )
 
 
+def test_live_executor_blocks_krw_orders_below_upbit_minimum_amount() -> None:
+    gateway = StubLiveOrderGateway()
+    executor = LiveExecutor(
+        live_order_gateway=gateway,
+        trading_mode="live",
+        safe_mode=False,
+        hard_stop=False,
+    )
+
+    result = executor.execute(
+        OrderIntent(
+            market="KRW-XRP",
+            side="buy",
+            price=800.0,
+            quantity=5.0,
+            order_type="market",
+            is_stop_loss=False,
+        ),
+    )
+
+    assert gateway.precheck_calls == []
+    assert gateway.calls == []
+    assert result == LiveExecutionResult(
+        accepted=False,
+        order_id=None,
+        status="blocked",
+        blocked_reason="MIN_ORDER_AMOUNT",
+    )
+
+
 def test_execution_factory_returns_executor_by_mode() -> None:
     gateway = StubLiveOrderGateway()
     learning_service = StubLearningService()

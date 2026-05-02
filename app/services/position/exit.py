@@ -6,6 +6,7 @@ from typing import Any
 from app.integrations.telegram.notifier import TelegramNotifier
 from app.services.execution.demo import FillResult, OrderIntent
 from app.services.execution.ledger import ExecutionLedger
+from app.services.execution.rules import UpbitOrderRules
 from app.services.learning.service import LearningEvent, LearningService
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
@@ -66,6 +67,8 @@ class PositionExitService:
         telegram_notifier: TelegramNotifier | None = None,
         execution_ledger: ExecutionLedger | None = None,
         position_lifecycle_ledger: PositionLifecycleLedger | None = None,
+        min_order_amount_krw: float = 5_000.0,
+        order_rules: UpbitOrderRules | None = None,
     ) -> None:
         self._position_store = position_store
         self._hard_stop_monitor = hard_stop_monitor
@@ -77,6 +80,9 @@ class PositionExitService:
         self._telegram_notifier = telegram_notifier
         self._execution_ledger = execution_ledger
         self._position_lifecycle_ledger = position_lifecycle_ledger
+        self._order_rules = order_rules or UpbitOrderRules(
+            min_order_amount_krw=min_order_amount_krw,
+        )
 
     def evaluate_and_execute(
         self,
@@ -100,6 +106,31 @@ class PositionExitService:
             current_price=current_price,
         )
         if hard_stop.triggered:
+            if not self._order_rules.is_allowed(
+                market=position.market,
+                price=hard_stop.trigger_price,
+                quantity=hard_stop.quantity,
+            ):
+                self._record_exit_blocked(
+                    position=position,
+                    reason_code=hard_stop.reason_code,
+                    blocked_reason="MIN_ORDER_AMOUNT_SELL",
+                    current_price=current_price,
+                    elapsed_sec=elapsed_sec,
+                    momentum_score=momentum_score,
+                    orderbook_imbalance=orderbook_imbalance,
+                )
+                return {
+                    "status": "blocked",
+                    "position": self._position_store.to_payload(position),
+                    "trigger": {
+                        "type": "hard_stop",
+                        "reason_code": hard_stop.reason_code,
+                        "exit_ratio": 0.0,
+                        "blocked_reason": "MIN_ORDER_AMOUNT_SELL",
+                    },
+                    "execution": None,
+                }
             execution = self._stop_loss_sell_executor.execute(
                 market=position.market,
                 price=hard_stop.trigger_price,
@@ -144,8 +175,42 @@ class PositionExitService:
                 "execution": None,
             }
 
-        exit_quantity = round(position.quantity * post_entry.exit_ratio, 8)
-        execution = self._stop_loss_sell_executor.execute(
+        resolved_exit = self._resolve_exit_quantity(
+            position=position,
+            current_price=current_price,
+            requested_exit_ratio=post_entry.exit_ratio,
+        )
+        if resolved_exit["blocked_reason"] is not None:
+            self._record_exit_blocked(
+                position=position,
+                reason_code=post_entry.reason_code,
+                blocked_reason=resolved_exit["blocked_reason"],
+                current_price=current_price,
+                elapsed_sec=elapsed_sec,
+                momentum_score=momentum_score,
+                orderbook_imbalance=orderbook_imbalance,
+            )
+            return {
+                "status": "blocked",
+                "position": self._position_store.to_payload(position),
+                "trigger": {
+                    "type": "post_entry",
+                    "reason_code": post_entry.reason_code,
+                    "exit_ratio": 0.0,
+                    "blocked_reason": resolved_exit["blocked_reason"],
+                },
+                "execution": None,
+            }
+
+        exit_quantity = resolved_exit["quantity"]
+        exit_ratio = resolved_exit["exit_ratio"]
+        is_take_profit = post_entry.reason_code == "TAKE_PROFIT_TARGET_HIT"
+        sell_executor = (
+            RegularSellExecutor(executor=self._executor)
+            if is_take_profit
+            else self._stop_loss_sell_executor
+        )
+        execution = sell_executor.execute(
             market=position.market,
             price=current_price,
             quantity=exit_quantity,
@@ -159,9 +224,9 @@ class PositionExitService:
             self._position_store.save(updated_position)
         self._record_exit_event(
             position=position,
-            trigger_type="post_entry",
+            trigger_type="take_profit" if is_take_profit else "post_entry",
             reason_code=post_entry.reason_code,
-            exit_ratio=post_entry.exit_ratio,
+            exit_ratio=exit_ratio,
             current_price=current_price,
             elapsed_sec=elapsed_sec,
             momentum_score=momentum_score,
@@ -174,12 +239,80 @@ class PositionExitService:
             "status": "ok",
             "position": None if updated_position is None else self._position_store.to_payload(updated_position),
             "trigger": {
-                "type": "post_entry",
+                "type": "take_profit" if is_take_profit else "post_entry",
                 "reason_code": post_entry.reason_code,
-                "exit_ratio": post_entry.exit_ratio,
+                "exit_ratio": exit_ratio,
             },
             "execution": None if execution is None else asdict(execution),
         }
+
+    def _resolve_exit_quantity(
+        self,
+        *,
+        position,
+        current_price: float,
+        requested_exit_ratio: float,
+    ) -> dict[str, Any]:
+        full_amount = self._order_rules.notional(price=current_price, quantity=position.quantity)
+        if full_amount < self._order_rules.min_order_amount_krw:
+            return {
+                "quantity": 0.0,
+                "exit_ratio": 0.0,
+                "blocked_reason": "MIN_ORDER_AMOUNT_SELL",
+            }
+
+        requested_quantity = round(position.quantity * requested_exit_ratio, 8)
+        requested_amount = self._order_rules.notional(price=current_price, quantity=requested_quantity)
+        remaining_quantity = round(position.quantity - requested_quantity, 8)
+        remaining_amount = self._order_rules.notional(price=current_price, quantity=remaining_quantity)
+        if (
+            requested_amount < self._order_rules.min_order_amount_krw
+            or (remaining_quantity > 0 and remaining_amount < self._order_rules.min_order_amount_krw)
+        ):
+            return {
+                "quantity": position.quantity,
+                "exit_ratio": 1.0,
+                "blocked_reason": None,
+            }
+
+        return {
+            "quantity": requested_quantity,
+            "exit_ratio": requested_exit_ratio,
+            "blocked_reason": None,
+        }
+
+    def _record_exit_blocked(
+        self,
+        *,
+        position,
+        reason_code: str | None,
+        blocked_reason: str,
+        current_price: float,
+        elapsed_sec: int,
+        momentum_score: float,
+        orderbook_imbalance: float,
+    ) -> None:
+        if self._learning_service is None:
+            return
+        self._learning_service.record(
+            LearningEvent(
+                event_name="position_exit_blocked",
+                market=position.market,
+                mode=self._trading_mode,
+                payload={
+                    "reason_code": reason_code,
+                    "blocked_reason": blocked_reason,
+                    "current_price": current_price,
+                    "elapsed_sec": elapsed_sec,
+                    "momentum_score": momentum_score,
+                    "orderbook_imbalance": orderbook_imbalance,
+                    "entry_price": position.entry_price,
+                    "quantity": position.quantity,
+                    "notional": self._order_rules.notional(price=current_price, quantity=position.quantity),
+                    "min_order_amount_krw": self._order_rules.min_order_amount_krw,
+                },
+            ),
+        )
 
     def _record_exit_event(
         self,
@@ -248,4 +381,8 @@ class PositionExitService:
                 reason_code=reason_code,
             )
         if self._telegram_notifier is not None and hasattr(execution, "filled_price"):
-            self._telegram_notifier.notify_fill(execution, reason_code=reason_code)
+            self._telegram_notifier.notify_fill(
+                execution,
+                reason_code=reason_code,
+                entry_price=position.entry_price,
+            )

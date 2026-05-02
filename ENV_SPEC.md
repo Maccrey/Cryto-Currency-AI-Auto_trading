@@ -57,6 +57,7 @@ VALIDATION_WINDOW_SEC=180
 MIN_EXPECTED_RETURN_PCT=0.004
 TRADING_PROFILE=scalping
 TRADING_FEE_RATE=0.0005
+MIN_ORDER_AMOUNT_KRW=5000
 PROFILE_MIN_NET_EDGE_PCT=0.0008
 
 MIN_CASH_RESERVE=100000
@@ -130,6 +131,7 @@ DASHBOARD_PORT=8080
 | MIN_EXPECTED_RETURN_PCT | float | Y | 0.004 | 최소 기대 수익률 |
 | TRADING_PROFILE | str | Y | scalping | 투자성향/전략 프로필, scalping/short_term/mid_term/long_term |
 | TRADING_FEE_RATE | float | Y | 0.0005 | 업비트 KRW 마켓 거래 수수료율 0.05%를 소수로 저장 |
+| MIN_ORDER_AMOUNT_KRW | float | Y | 5000 | 업비트 KRW 마켓 최소 주문 가능 금액 |
 | PROFILE_MIN_NET_EDGE_PCT | float | Y | 0.0008 | 왕복 수수료를 제외하고 현재 투자성향 진입에 요구하는 최소 순엣지 |
 | MIN_CASH_RESERVE | int | Y | 100000 | 최소 현금 보유 |
 | MAX_DAILY_LOSS | int | Y | 150000 | 일일 손실 한도 |
@@ -150,8 +152,8 @@ DASHBOARD_PORT=8080
 | DEMO_MAX_DRAWDOWN | float | Y | 0.08 | 승격 최대 MDD |
 | DEMO_MAX_STOPLOSS_FAILURES | int | Y | 0 | 승격 허용 손절 실패 수 |
 | DEMO_INITIAL_CAPITAL | int | Y | 1000000 | demo 모드 가상 시작 투자금 |
-| AUTO_TRADING_ENABLED | bool | Y | true | 서버 기동 후 자동 운용 루프 활성화 여부 |
-| AUTO_TRADING_LIVE_ENABLED | bool | Y | false | live 모드 자동 운용 명시 허용 여부 |
+| AUTO_TRADING_ENABLED | bool | Y | true | 설정 화면 시작 버튼 노출/자동 운용 허용 여부 |
+| AUTO_TRADING_LIVE_ENABLED | bool | Y | false | live 모드 시작 버튼 노출/자동 운용 명시 허용 여부 |
 | AUTO_TRADING_INTERVAL_SEC | float | Y | 3.0 | 자동 운용 현재가 수집/판단 주기 |
 | AUTO_TRADING_MIN_HISTORY | int | Y | 6 | 자동 판단 전 필요한 최소 현재가 히스토리 수 |
 | LOG_LEVEL | str | Y | INFO | 로그 레벨 |
@@ -189,15 +191,24 @@ false면 앱 시작 실패
 - 권장값은 수동 승인 필요
 
 ### AUTO_TRADING_ENABLED / live 안전 정책
-- demo 모드는 기본적으로 자동 운용 루프가 켜진다.
-- live 모드 자동 운용은 `AUTO_TRADING_ENABLED=true`와 `AUTO_TRADING_LIVE_ENABLED=true`가 모두 설정되어야 시작된다.
+- 앱 부팅만으로 자동 운용 루프를 시작하지 않는다.
+- 설정 화면에서 필수값을 저장한 뒤 `서버 시작` 버튼을 눌렀을 때 자동 운용 루프를 시작한다.
+- demo 모드는 필수값이 저장되어 있어야 `서버 시작` 버튼이 보인다.
+- live 모드는 업비트 API 키가 저장되어 있고 `AUTO_TRADING_ENABLED=true`, `AUTO_TRADING_LIVE_ENABLED=true`가 모두 설정되어야 `서버 시작` 버튼이 보인다.
 - live에서 API 키, SAFE_MODE, HARD_STOP, trading_ready 상태가 조건을 만족하지 않으면 주문은 차단된다.
+
+### DASHBOARD_HOST / DASHBOARD_PORT
+- 기본 바인딩은 `DASHBOARD_HOST=0.0.0.0`, `DASHBOARD_PORT=8080`이다.
+- 로컬 브라우저는 `http://127.0.0.1:8080/settings`와 `http://127.0.0.1:8080/dashboard`를 사용한다.
+- 같은 네트워크의 다른 기기는 `http://<내 컴퓨터 LAN IP>:8080/settings`와 `http://<내 컴퓨터 LAN IP>:8080/dashboard`를 사용한다.
+- 앱 서버 시작 텔레그램 알림에는 로컬 주소와 LAN 주소가 함께 포함되고, 자동 트레이딩은 아직 시작되지 않았다는 안내를 포함한다.
 
 ### TRADING_PROFILE / 투자성향 정책
 - 허용값은 `scalping`, `short_term`, `mid_term`, `long_term`이다.
 - 설정 화면에서는 각각 단타, 단기, 중기, 장기로 표시한다.
 - 투자성향을 저장하면 해당 성향의 기본 `AUTO_TRADING_INTERVAL_SEC`, `AUTO_TRADING_MIN_HISTORY`, `PROFILE_MIN_NET_EDGE_PCT`, `VALIDATION_WINDOW_SEC`, `MIN_EXPECTED_RETURN_PCT`가 함께 `.env`에 저장된다.
 - 업비트 고객센터 기준 일반 KRW 마켓 수수료 0.05%를 `TRADING_FEE_RATE=0.0005`로 사용한다.
+- 업비트 공식 KRW 마켓 최소 주문 가능 금액 5,000원을 `MIN_ORDER_AMOUNT_KRW=5000`으로 사용한다.
 - 진입은 예상 엣지가 왕복 수수료 `TRADING_FEE_RATE * 2`와 `PROFILE_MIN_NET_EDGE_PCT`를 합친 값보다 클 때만 허용한다.
 - 위 조건을 넘기지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단되어 학습 로그에 남는다.
 - 학습 로그는 `LEARNING_LOG_DIR/<TRADING_PROFILE>/learning.jsonl`에 분리 저장한다.

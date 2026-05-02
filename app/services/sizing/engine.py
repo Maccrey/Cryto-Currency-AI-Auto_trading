@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from app.services.portfolio.sync import PortfolioState
 from app.services.regime.engine import RegimeSnapshot
+from app.services.execution.rules import UpbitOrderRules
 from app.services.signals.engine import SignalDecision
 
 
@@ -61,6 +62,8 @@ class SizingEngine:
         max_stop_loss_risk_amount: float | None = None,
         trading_fee_rate: float = 0.0005,
         min_net_edge_pct: float = 0.0008,
+        min_order_amount_krw: float = 5_000.0,
+        order_rules: UpbitOrderRules | None = None,
         buy_policy: BuySizingPolicy | None = None,
         sell_policy: SellSizingPolicy | None = None,
         stop_loss_by_signal: dict[str, float] | None = None,
@@ -71,6 +74,9 @@ class SizingEngine:
         self._max_stop_loss_risk_amount = max_stop_loss_risk_amount
         self._trading_fee_rate = trading_fee_rate
         self._min_net_edge_pct = min_net_edge_pct
+        self._order_rules = order_rules or UpbitOrderRules(
+            min_order_amount_krw=min_order_amount_krw,
+        )
         self._buy_policy = buy_policy or BuySizingPolicy()
         self._sell_policy = sell_policy or SellSizingPolicy()
         self._stop_loss_by_signal = stop_loss_by_signal or {
@@ -98,7 +104,10 @@ class SizingEngine:
             return self._blocked("SPREAD_OR_SLIPPAGE_LIMIT")
         if current_price <= 0:
             return self._blocked("INVALID_CURRENT_PRICE")
-        if self._estimated_edge_pct(signal) <= self._round_trip_fee_pct() + self._min_net_edge_pct:
+        edge_buffer = self._min_net_edge_pct
+        if signal.level == "medium":
+            edge_buffer *= 0.25
+        if self._estimated_edge_pct(signal) <= self._round_trip_fee_pct() + edge_buffer:
             return self._blocked("FEE_ADJUSTED_EDGE_LIMIT")
 
         investable_cash = max(portfolio.cash_balance - self._min_cash_reserve, 0.0)
@@ -108,6 +117,8 @@ class SizingEngine:
         base_buy_ratio = self._buy_policy.ratio_for(signal.level)
         final_buy_ratio = round(base_buy_ratio * regime.size_multiplier, 3)
         buy_amount = round(investable_cash * final_buy_ratio, 1)
+        max_fee_adjusted_buy_amount = round(investable_cash / (1 + self._trading_fee_rate), 1)
+        buy_amount = min(buy_amount, max_fee_adjusted_buy_amount)
         stop_loss_pct = self._stop_loss_by_signal[signal.level]
         if self._max_stop_loss_risk_amount is not None:
             if self._max_stop_loss_risk_amount <= 0:
@@ -118,6 +129,8 @@ class SizingEngine:
             )
         if buy_amount <= 0:
             return self._blocked("STOP_LOSS_RISK_LIMIT")
+        if buy_amount < self._order_rules.min_order_amount_krw:
+            return self._blocked("MIN_ORDER_AMOUNT")
         buy_quantity = round(buy_amount / current_price, 4)
         sell_ratio = self._sell_policy.ratio_for(signal.level) if portfolio.asset_balance > 0 else 0.0
         sell_quantity = round(portfolio.asset_balance * sell_ratio, 8)
@@ -161,5 +174,5 @@ class SizingEngine:
         if signal.level == "strong":
             return max(0.0025, signal.score * 0.004)
         if signal.level == "medium":
-            return max(0.0012, signal.score * 0.003)
+            return max(0.00135, signal.score * 0.003)
         return max(0.0, signal.score * 0.001)

@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from app.services.execution.demo import DemoExecutor
 from app.services.portfolio.sync import PortfolioState
 from app.services.regime.engine import RegimeEngine
@@ -72,3 +74,37 @@ def test_trade_execution_service_returns_blocked_without_execution() -> None:
     assert result.status == "blocked"
     assert result.blocked_reason == "REGIME_BLOCKED"
     assert result.execution is None
+
+
+def test_trade_execution_service_blocks_below_minimum_before_executor() -> None:
+    class RecordingExecutor:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def execute(self, intent):
+            self.calls.append(intent)
+            raise AssertionError("executor should not receive orders below exchange minimum")
+
+    decision = _build_decision()
+    decision = replace(
+        decision,
+        sizing=replace(
+            decision.sizing,
+            allowed=True,
+            buy_amount=4_000.0,
+            buy_quantity=5.0,
+            blocked_reason=None,
+        ),
+    )
+    executor = RecordingExecutor()
+    service = TradeExecutionService(
+        executor=executor,
+        market="KRW-XRP",
+    )
+
+    result = service.execute(decision)
+
+    assert result.status == "blocked"
+    assert result.blocked_reason == "MIN_ORDER_AMOUNT"
+    assert result.execution is None
+    assert executor.calls == []

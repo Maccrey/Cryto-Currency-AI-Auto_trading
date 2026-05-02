@@ -1,9 +1,9 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 173개
+  - 완료: 190개
   - 미완료: 12개
-  - 전체: 185개
+  - 전체: 202개
  
 ## 1. 작업 원칙
 - 모든 구현은 TDD 순서를 따른다.
@@ -48,6 +48,9 @@
 - [x] [Code] trading profile registry 구현
 - [x] [Code] 한 줄 시작 스크립트와 설정창 자동 열기 구현
 - [x] [Code] macOS launchd KeepAlive 백그라운드 실행 등록 구현
+- [x] [Code] 설정 저장 후 준비 조건을 만족할 때만 트레이딩 서버 시작 버튼 표시
+- [x] [Code] demo 필수값과 live 업비트 API 키 기준 시작 가능 여부 검증
+- [x] [Code] 설정 화면 필수 입력 항목 표시
 - [x] [Refactor] settings loader 분리
 - [x] [Contract] ENV_SPEC.md와 코드 설정 스키마 일치
 
@@ -115,8 +118,13 @@
 - [x] [Fail] 현재가가 0 이하이면 수량 계산 전에 주문이 차단되어야 한다
 - [x] [Fail] 예상 손절 손실이 1회 리스크 예산을 넘으면 매수 금액이 자동 축소되어야 한다
 - [x] [Fail] 단타 진입 예상 엣지가 왕복 수수료와 최소 순엣지를 넘지 못하면 차단되어야 한다
+- [x] [Fail] 업비트 KRW 마켓 5,000원 미만 주문은 차단되어야 한다
+- [x] [Fail] 단타 medium 신호는 완화된 엣지 버퍼로 demo 진입할 수 있어야 한다
 - [x] [Code] sizing engine 구현
+- [x] [Code] 업비트 KRW 마켓 최소 주문 가능 금액 5,000원 룰 구현
 - [x] [Code] 업비트 KRW 수수료 0.05% 기준 단타 순엣지 게이트 구현
+- [x] [Code] 최근 학습 로그 점수 분포를 반영한 signal level 기준 완화
+- [x] [Code] medium 단타 진입 수수료 보정 엣지 버퍼 완화
 - [x] [Refactor] buy/sell sizing policy 분리
 - [x] [Contract] 단타 수수료/순엣지 환경 변수와 문서 반영
 - [x] [Contract] sizing result schema 고정
@@ -141,7 +149,9 @@
 ### 기대 불일치 손절
 - [x] [Fail] validation window 내 최소 기대 상승률 미달이면 손절 또는 축소 청산이 발생해야 한다
 - [x] [Fail] 손절 사유가 DB와 알림에 기록되어야 한다
+- [x] [Fail] 5,000원 미만 매도와 dust 잔량을 만드는 반복 부분 손절은 차단/전량청산으로 보정되어야 한다
 - [x] [Code] post-entry validator 구현
+- [x] [Code] 보합권 소프트 손절 보류와 dust 반복 매도 방지 룰 구현
 - [x] [Refactor] expectation failure ruleset 분리
 - [x] [Contract] risk event codes 고정
 
@@ -158,9 +168,11 @@
 - [x] [Fail] `demo` 모드에서 실주문 API가 호출되면 테스트가 실패해야 한다
 - [x] [Fail] demo 서버 기동 후 자동 운용 루프가 현재가 히스토리를 쌓아야 한다
 - [x] [Fail] 충분한 히스토리와 진입 신호가 있으면 demo 자동 체결이 실행되어야 한다
+- [x] [Fail] demo 체결 후 가상 현금/코인 잔고가 갱신되어야 한다
 - [x] [Code] virtual order executor 구현
 - [x] [Code] virtual fill simulator 구현
 - [x] [Code] auto trading service 구현
+- [x] [Code] demo 자동 운용 서비스의 가상 포트폴리오 체결 반영 구현
 - [x] [Refactor] execution interface 추상화
 - [x] [Contract] order intent schema 고정
 
@@ -181,9 +193,12 @@
 - [x] [Fail] 매수/매도/손절 체결 시 텔레그램 메시지가 전송되어야 한다
 - [x] [Fail] 텔레그램 등록 시 06:00~24:00 운용 시간대에 현재 트레이딩 리포트가 중복 없이 발송되어야 한다
 - [x] [Fail] 06:00에는 전날 트레이딩/학습 결과 리포트가 함께 발송되어야 한다
+- [x] [Fail] 매도 알림에는 매수가 대비 손익과 수익률이 포함되어야 한다
+- [x] [Fail] 정기 리포트와 체결 알림은 한국어 문장 형태여야 한다
 - [x] [Code] notifier 구현
 - [x] [Code] Telegram Bot API HTTP gateway 구현
 - [x] [Code] 정기 트레이딩 리포트 스케줄러 구현
+- [x] [Code] 서버 시작 시 설정/대시보드 접속 주소 텔레그램 알림 구현
 - [x] [Refactor] 메시지 템플릿 분리
 - [x] [Contract] message payload schema 고정
 
@@ -217,8 +232,17 @@
 
 ### 하단 패널
 - [x] [Fail] 보유 코인, 보유 현금, 손익, 카운트, 모드, 학습 상태가 표시되어야 한다
+- [x] [Fail] 재기동 후에도 학습 로그의 최근 체결이 대시보드 최근 체결에 복원되어야 한다
 - [x] [Code] summary panel API 구현
+- [x] [Code] demo 체결 원장 기반 대시보드 투자금/현금/코인 수량 표시
+- [x] [Code] 학습 로그 fill_result 기반 실행 원장 seed 구현
 - [x] [Refactor] chart feed / summary feed 분리
+
+### 외부 접속
+- [x] [Fail] 설정과 대시보드는 다른 기기에서 LAN IP 주소로 접속할 수 있어야 한다
+- [x] [Code] dashboard host/port를 `0.0.0.0:8080` 기본값으로 launchd에 반영
+- [x] [Code] LAN IP 기반 설정/대시보드 URL 생성 유틸 구현
+- [x] [Contract] START/RUNBOOK/ENV_SPEC에 외부 접속 절차 반영
 
 ---
 

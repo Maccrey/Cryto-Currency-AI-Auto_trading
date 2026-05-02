@@ -35,6 +35,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.dashboard_port == 9090
     assert settings.trading_profile == "scalping"
     assert settings.trading_fee_rate == 0.0005
+    assert settings.min_order_amount_krw == 5000
     assert settings.profile_min_net_edge_pct == 0.0008
     assert settings.auto_trading_interval_sec == 3.0
 
@@ -130,6 +131,7 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "min_expected_return_pct",
         "trading_profile",
         "trading_fee_rate",
+        "min_order_amount_krw",
         "profile_min_net_edge_pct",
         "min_cash_reserve",
         "max_daily_loss",

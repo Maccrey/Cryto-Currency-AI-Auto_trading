@@ -146,15 +146,14 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert "position_opened" in event_names
 
 
-def test_auto_trading_service_blocks_weak_signal_entries(tmp_path: Path) -> None:
-    service = _build_service(tmp_path, [2048.0, 2048.0, 2049.0, 2049.0], min_history=4)
+def test_auto_trading_service_allows_medium_scalping_entries(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [2048.0, 2060.0, 2080.0, 2100.0], min_history=4)
 
     for _ in range(4):
         result = service.tick()
 
-    assert result["status"] == "blocked"
-    assert result["reason"] == "AUTO_MIN_SIGNAL_LEVEL"
-    assert result["signal_level"] == "weak"
+    assert result["status"] == "filled"
+    assert result["signal_level"] == "medium"
 
 
 def test_auto_trading_service_does_not_run_live_without_explicit_live_flag(tmp_path: Path) -> None:
