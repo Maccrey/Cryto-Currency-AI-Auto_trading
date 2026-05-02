@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.services.execution.demo import FillResult
+from app.services.portfolio.sync import PortfolioState
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,9 @@ class ExecutionLedger:
 
     def list_records(self) -> list[ExecutionLedgerRecord]:
         return list(self._records)
+
+    def clear(self) -> None:
+        self._records.clear()
 
     def summarize(self) -> ExecutionLedgerSummary:
         buy_count = 0
@@ -80,4 +84,42 @@ class ExecutionLedger:
             sell_count=sell_count,
             stop_loss_count=stop_loss_count,
             recent_stop_loss_reason=recent_stop_loss_reason,
+        )
+
+    def portfolio_state(
+        self,
+        *,
+        initial_cash: float,
+        asset_currency: str,
+    ) -> PortfolioState:
+        cash_balance = initial_cash
+        asset_balance = 0.0
+        average_cost = 0.0
+
+        for record in self._records:
+            fill = record.fill
+            if fill.status != "filled":
+                continue
+            gross_amount = fill.filled_price * fill.filled_quantity
+            if fill.side == "buy":
+                if gross_amount + fill.fee > cash_balance:
+                    continue
+                total_cost = (average_cost * asset_balance) + gross_amount + fill.fee
+                asset_balance += fill.filled_quantity
+                cash_balance -= gross_amount + fill.fee
+                average_cost = 0.0 if asset_balance <= 0 else total_cost / asset_balance
+                continue
+
+            sell_quantity = min(asset_balance, fill.filled_quantity)
+            cash_balance += (fill.filled_price * sell_quantity) - fill.fee
+            asset_balance = round(asset_balance - sell_quantity, 8)
+            if asset_balance <= 0:
+                asset_balance = 0.0
+                average_cost = 0.0
+
+        return PortfolioState(
+            cash_balance=round(cash_balance, 2),
+            asset_currency=asset_currency,
+            asset_balance=round(asset_balance, 8),
+            avg_buy_price=round(average_cost, 8),
         )

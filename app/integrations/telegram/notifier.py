@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from app.services.execution.demo import FillResult
@@ -11,25 +12,41 @@ logger = logging.getLogger(__name__)
 class FillMessageTemplate:
     """Build Telegram messages for execution fills."""
 
-    def build(self, fill: FillResult, *, reason_code: str | None = None) -> str:
+    def build(
+        self,
+        fill: FillResult,
+        *,
+        reason_code: str | None = None,
+        entry_price: float | None = None,
+    ) -> str:
         if fill.is_stop_loss:
-            event_name = "STOP_LOSS_EXECUTED"
+            title = "손절 매도가 체결되었습니다."
         elif fill.side == "buy":
-            event_name = "BUY_EXECUTED"
+            title = "매수가 체결되었습니다."
         else:
-            event_name = "SELL_EXECUTED"
+            title = "매도가 체결되었습니다."
 
-        message = (
-            f"[{event_name}]\n"
-            f"market={fill.market}\n"
-            f"price={fill.filled_price}\n"
-            f"quantity={fill.filled_quantity}\n"
-            f"fee={fill.fee}\n"
-            f"mode={fill.mode}"
-        )
+        notional = _round_krw(fill.filled_price * fill.filled_quantity)
+        lines = [
+            title,
+            f"{fill.market}에서 {fill.filled_price:,.2f}원에 {fill.filled_quantity:,.8f}개가 체결되었습니다.",
+            f"체결 금액은 약 {notional:,.0f}원이고 수수료는 {fill.fee:,.2f}원입니다.",
+            f"거래 모드는 {'데모' if fill.mode == 'demo' else '실거래'}입니다.",
+        ]
+        if fill.side == "sell" and entry_price is not None:
+            gross_profit = (fill.filled_price - entry_price) * fill.filled_quantity
+            net_profit = gross_profit - fill.fee
+            profit_rate = 0.0 if entry_price <= 0 else ((fill.filled_price - entry_price) / entry_price) * 100
+            lines.append(
+                f"평균 매수가 {entry_price:,.2f}원 기준으로 이번 매도 손익은 {net_profit:,.2f}원이고 수익률은 {profit_rate:,.2f}%입니다.",
+            )
         if fill.is_stop_loss and reason_code is not None:
-            message = f"{message}\nreason={reason_code}"
-        return message
+            lines.append(f"손절 사유는 {reason_code}입니다.")
+        return "\n".join(lines)
+
+
+def _round_krw(value: float) -> int:
+    return int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 class TelegramNotifier:
@@ -44,10 +61,20 @@ class TelegramNotifier:
         self._gateway = gateway
         self._fill_message_template = fill_message_template or FillMessageTemplate()
 
-    def notify_fill(self, fill: FillResult, *, reason_code: str | None = None) -> None:
+    def notify_fill(
+        self,
+        fill: FillResult,
+        *,
+        reason_code: str | None = None,
+        entry_price: float | None = None,
+    ) -> None:
         try:
             self._gateway.send_message(
-                self._fill_message_template.build(fill, reason_code=reason_code),
+                self._fill_message_template.build(
+                    fill,
+                    reason_code=reason_code,
+                    entry_price=entry_price,
+                ),
             )
         except Exception:
             logger.exception(

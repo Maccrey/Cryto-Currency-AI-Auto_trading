@@ -36,12 +36,10 @@ def test_telegram_notifier_sends_buy_fill_message() -> None:
     )
 
     assert gateway.messages == [
-        "[BUY_EXECUTED]\n"
-        "market=KRW-XRP\n"
-        "price=820.0\n"
-        "quantity=120.5\n"
-        "fee=41.11\n"
-        "mode=demo"
+        "매수가 체결되었습니다.\n"
+        "KRW-XRP에서 820.00원에 120.50000000개가 체결되었습니다.\n"
+        "체결 금액은 약 98,810원이고 수수료는 41.11원입니다.\n"
+        "거래 모드는 데모입니다."
     ]
 
 
@@ -65,13 +63,11 @@ def test_telegram_notifier_sends_stop_loss_fill_message() -> None:
     )
 
     assert gateway.messages == [
-        "[STOP_LOSS_EXECUTED]\n"
-        "market=KRW-XRP\n"
-        "price=805.0\n"
-        "quantity=190.5\n"
-        "fee=63.84\n"
-        "mode=live\n"
-        "reason=STOP_LOSS_EXPECTATION_FAILED"
+        "손절 매도가 체결되었습니다.\n"
+        "KRW-XRP에서 805.00원에 190.50000000개가 체결되었습니다.\n"
+        "체결 금액은 약 153,353원이고 수수료는 63.84원입니다.\n"
+        "거래 모드는 실거래입니다.\n"
+        "손절 사유는 STOP_LOSS_EXPECTATION_FAILED입니다."
     ]
 
 
@@ -94,15 +90,15 @@ def test_telegram_notifier_accepts_fill_message_template() -> None:
             is_virtual=True,
             is_stop_loss=False,
         ),
+        entry_price=800.0,
     )
 
     assert gateway.messages == [
-        "[SELL_EXECUTED]\n"
-        "market=KRW-XRP\n"
-        "price=830.0\n"
-        "quantity=50.0\n"
-        "fee=17.27\n"
-        "mode=demo"
+        "매도가 체결되었습니다.\n"
+        "KRW-XRP에서 830.00원에 50.00000000개가 체결되었습니다.\n"
+        "체결 금액은 약 41,500원이고 수수료는 17.27원입니다.\n"
+        "거래 모드는 데모입니다.\n"
+        "평균 매수가 800.00원 기준으로 이번 매도 손익은 1,482.73원이고 수익률은 3.75%입니다."
     ]
 
 

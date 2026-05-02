@@ -57,6 +57,9 @@ class PositionLifecycleLedger:
             return list(self._records)
         return self._records[-limit:]
 
+    def clear(self) -> None:
+        self._records.clear()
+
     @staticmethod
     def to_payload(record: PositionLifecycleRecord) -> dict[str, object]:
         return asdict(record)

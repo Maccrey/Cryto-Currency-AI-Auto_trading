@@ -56,6 +56,16 @@ class DashboardSummaryFacade:
         learning_enabled: bool,
     ) -> dict[str, object]:
         ledger_summary = None if self._execution_ledger is None else self._execution_ledger.summarize()
+        ledger_portfolio = None
+        if (
+            trading_mode == "demo"
+            and self._execution_ledger is not None
+            and boot_state.portfolio_state is not None
+        ):
+            ledger_portfolio = self._execution_ledger.portfolio_state(
+                initial_cash=boot_state.portfolio_state.cash_balance,
+                asset_currency=boot_state.portfolio_state.asset_currency,
+            )
         recent_learning_events = [] if self._learning_service is None else self._learning_service.recent_events()
         last_learning_event = None if not recent_learning_events else recent_learning_events[-1].event_name
         learning_signal_count = sum(
@@ -232,6 +242,8 @@ class DashboardSummaryFacade:
             section_state_message=section_state_message,
             section_recommended_action=section_recommended_action,
             promotion_ready=promotion_ready,
+            cash_balance=None if ledger_portfolio is None else ledger_portfolio.cash_balance,
+            coin_balance=None if ledger_portfolio is None else ledger_portfolio.asset_balance,
         )
         if isinstance(summary, dict):
             payload = dict(summary)

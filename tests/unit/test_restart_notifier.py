@@ -46,21 +46,15 @@ def test_restart_notifier_sends_restart_summary_after_recovery() -> None:
     )
 
     assert gateway.messages == [
-        "[SERVER_STARTED]\n"
-        "app=upbit-auto-trader\n"
-        "started_at=2026-04-18T11:00:00+09:00\n"
-        "cause=process_restart\n"
-        "status=degraded\n"
-        "market=KRW-XRP\n"
-        "mode=live\n"
-        "learning_enabled=True\n"
-        "safe_mode=True\n"
-        "hard_stop=False\n"
-        "trading_ready=False\n"
-        "failure_stage=open_order_reconcile\n"
-        "cash_balance=250000.0\n"
-        "asset_currency=XRP\n"
-        "asset_balance=180.5"
+        "자동매매 앱 서버가 시작되었습니다.\n"
+        "앱 이름은 upbit-auto-trader이고 시작 시각은 2026-04-18T11:00:00+09:00입니다.\n"
+        "현재 상태는 주의 필요이며 시작 사유는 process_restart입니다.\n"
+        "거래 시장은 KRW-XRP이고 거래 모드는 live입니다.\n"
+        "학습 기능은 켜짐입니다.\n"
+        "자동 트레이딩은 아직 시작되지 않았습니다. 설정 화면에서 필수값을 저장한 뒤 서버 시작 버튼을 눌러야 시작됩니다.\n"
+        "트레이딩 준비 상태는 중지이고 안전 모드는 켜짐입니다.\n"
+        "HARD_STOP은 없음이며 실패 단계는 open_order_reconcile입니다.\n"
+        "현금 잔고는 250000.0원, XRP 보유 수량은 180.5개입니다."
     ]
 
 
@@ -84,21 +78,15 @@ def test_restart_notifier_uses_unknown_for_missing_portfolio_snapshot() -> None:
     )
 
     assert gateway.messages == [
-        "[SERVER_STARTED]\n"
-        "app=upbit-auto-trader\n"
-        "started_at=2026-04-18T11:05:00+09:00\n"
-        "cause=fatal_exception\n"
-        "status=degraded\n"
-        "market=unknown\n"
-        "mode=unknown\n"
-        "learning_enabled=unknown\n"
-        "safe_mode=True\n"
-        "hard_stop=False\n"
-        "trading_ready=False\n"
-        "failure_stage=portfolio_sync\n"
-        "cash_balance=unknown\n"
-        "asset_currency=unknown\n"
-        "asset_balance=unknown"
+        "자동매매 앱 서버가 시작되었습니다.\n"
+        "앱 이름은 upbit-auto-trader이고 시작 시각은 2026-04-18T11:05:00+09:00입니다.\n"
+        "현재 상태는 주의 필요이며 시작 사유는 fatal_exception입니다.\n"
+        "거래 시장은 알 수 없음이고 거래 모드는 알 수 없음입니다.\n"
+        "학습 기능은 알 수 없음입니다.\n"
+        "자동 트레이딩은 아직 시작되지 않았습니다. 설정 화면에서 필수값을 저장한 뒤 서버 시작 버튼을 눌러야 시작됩니다.\n"
+        "트레이딩 준비 상태는 중지이고 안전 모드는 켜짐입니다.\n"
+        "HARD_STOP은 없음이며 실패 단계는 portfolio_sync입니다.\n"
+        "현금 잔고는 unknown원, unknown 보유 수량은 unknown개입니다."
     ]
 
 
@@ -124,9 +112,10 @@ def test_restart_notifier_accepts_message_builder() -> None:
         boot_state=boot_state,
     )
 
-    assert gateway.messages[0].startswith("[SERVER_STARTED]\n")
-    assert "trading_ready=True" in gateway.messages[0]
-    assert "status=ok" in gateway.messages[0]
+    assert gateway.messages[0].startswith("자동매매 앱 서버가 시작되었습니다.\n")
+    assert "자동 트레이딩은 아직 시작되지 않았습니다." in gateway.messages[0]
+    assert "트레이딩 준비 상태는 정상" in gateway.messages[0]
+    assert "현재 상태는 정상" in gateway.messages[0]
 
 
 def test_restart_notifier_does_not_block_startup_when_gateway_fails() -> None:

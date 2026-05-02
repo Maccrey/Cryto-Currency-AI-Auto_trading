@@ -28,6 +28,7 @@ class AutoTradingConfig:
     trading_profile: str = "scalping"
     spread_bps: float = 8.0
     slippage_bps: float = 12.0
+    trading_fee_rate: float = 0.0005
 
 
 class AutoTradingService:
@@ -69,6 +70,11 @@ class AutoTradingService:
         self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._position_opened_at: datetime | None = None
         self._task: asyncio.Task[None] | None = None
+        portfolio = getattr(boot_state, "portfolio_state", None)
+        self._demo_cash_balance = 0.0 if portfolio is None else portfolio.cash_balance
+        self._demo_asset_currency = self._market.split("-")[-1] if portfolio is None else portfolio.asset_currency
+        self._demo_asset_balance = 0.0 if portfolio is None else portfolio.asset_balance
+        self._demo_avg_buy_price = 0.0 if portfolio is None else portfolio.avg_buy_price
 
     def should_run(self) -> bool:
         if not self._config.enabled:
@@ -84,6 +90,28 @@ class AutoTradingService:
         if self._task is not None and not self._task.done():
             return
         self._task = asyncio.create_task(self._run())
+
+    def is_running(self) -> bool:
+        return self._task is not None and not self._task.done()
+
+    def reset_demo_portfolio(self) -> dict[str, object]:
+        if self._trading_mode != "demo":
+            return {
+                "reset": False,
+                "message": "demo trading data reset is only available in demo mode",
+            }
+        portfolio = getattr(self._boot_state, "portfolio_state", None)
+        self._demo_cash_balance = 0.0 if portfolio is None else portfolio.cash_balance
+        self._demo_asset_currency = self._market.split("-")[-1] if portfolio is None else portfolio.asset_currency
+        self._demo_asset_balance = 0.0 if portfolio is None else portfolio.asset_balance
+        self._demo_avg_buy_price = 0.0 if portfolio is None else portfolio.avg_buy_price
+        self._position_opened_at = None
+        return {
+            "reset": True,
+            "cash_balance": round(self._demo_cash_balance, 2),
+            "asset_currency": self._demo_asset_currency,
+            "asset_balance": round(self._demo_asset_balance, 8),
+        }
 
     async def stop(self) -> None:
         if self._task is None:
@@ -128,10 +156,23 @@ class AutoTradingService:
             )
             if result.get("position") is None:
                 self._position_opened_at = None
+            self._apply_demo_execution(result.get("execution"))
             return self._record_cycle(
                 status="position_checked",
                 reason=None if result.get("trigger") is None else "POSITION_EXIT_TRIGGERED",
                 extra={"position_result": result},
+            )
+
+        portfolio = self._portfolio_state()
+        if self._trading_mode == "demo" and portfolio.asset_balance > 0:
+            return self._record_cycle(
+                status="blocked",
+                reason="DEMO_ASSET_WITHOUT_ACTIVE_POSITION",
+                extra={
+                    "cash_balance": portfolio.cash_balance,
+                    "asset_balance": portfolio.asset_balance,
+                    "avg_buy_price": portfolio.avg_buy_price,
+                },
             )
 
         if len(self._prices) < self._config.min_history:
@@ -157,8 +198,21 @@ class AutoTradingService:
                     "buy_amount": 0.0,
                 },
             )
+        if self._trading_mode == "demo" and not self._can_afford_demo_buy(decision.sizing.buy_amount):
+            return self._record_cycle(
+                status="blocked",
+                reason="DEMO_CASH_LIMIT",
+                extra={
+                    "signal_level": decision.signal.level,
+                    "signal_score": decision.signal.score,
+                    "sizing_allowed": decision.sizing.allowed,
+                    "buy_amount": decision.sizing.buy_amount,
+                    "cash_balance": self._portfolio_state().cash_balance,
+                },
+            )
         execution_result = self._trade_execution_service.execute(decision)
         post_fill_result = self._post_fill_service.process(execution_result)
+        self._apply_demo_execution(execution_result.execution)
         if post_fill_result.position is not None:
             self._position_opened_at = self._clock()
 
@@ -202,6 +256,13 @@ class AutoTradingService:
         )
 
     def _portfolio_state(self) -> PortfolioState:
+        if self._trading_mode == "demo":
+            return PortfolioState(
+                cash_balance=max(round(self._demo_cash_balance, 2), 0.0),
+                asset_currency=self._demo_asset_currency,
+                asset_balance=max(round(self._demo_asset_balance, 8), 0.0),
+                avg_buy_price=round(self._demo_avg_buy_price, 8),
+            )
         if self._boot_state.portfolio_state is not None:
             return self._boot_state.portfolio_state
         return PortfolioState(
@@ -210,6 +271,46 @@ class AutoTradingService:
             asset_balance=0.0,
             avg_buy_price=0.0,
         )
+
+    def _apply_demo_execution(self, execution) -> None:
+        if self._trading_mode != "demo" or execution is None:
+            return
+        if isinstance(execution, dict):
+            status = execution.get("status")
+            side = execution.get("side")
+            price = float(execution.get("filled_price", 0.0) or 0.0)
+            quantity = float(execution.get("filled_quantity", 0.0) or 0.0)
+            fee = float(execution.get("fee", 0.0) or 0.0)
+        else:
+            status = getattr(execution, "status", None)
+            side = getattr(execution, "side", None)
+            price = float(getattr(execution, "filled_price", 0.0) or 0.0)
+            quantity = float(getattr(execution, "filled_quantity", 0.0) or 0.0)
+            fee = float(getattr(execution, "fee", 0.0) or 0.0)
+        if status != "filled" or price <= 0 or quantity <= 0:
+            return
+        gross_amount = price * quantity
+        if side == "buy":
+            if gross_amount + fee > self._demo_cash_balance:
+                return
+            total_cost = (self._demo_avg_buy_price * self._demo_asset_balance) + gross_amount + fee
+            self._demo_asset_balance += quantity
+            self._demo_cash_balance -= gross_amount + fee
+            self._demo_avg_buy_price = 0.0 if self._demo_asset_balance <= 0 else total_cost / self._demo_asset_balance
+            return
+        if side == "sell":
+            sell_quantity = min(self._demo_asset_balance, quantity)
+            self._demo_cash_balance += (price * sell_quantity) - fee
+            self._demo_asset_balance = round(self._demo_asset_balance - sell_quantity, 8)
+            if self._demo_asset_balance <= 0:
+                self._demo_asset_balance = 0.0
+                self._demo_avg_buy_price = 0.0
+
+    def _can_afford_demo_buy(self, buy_amount: float) -> bool:
+        if buy_amount <= 0:
+            return False
+        estimated_total_cost = buy_amount * (1 + self._config.trading_fee_rate)
+        return estimated_total_cost <= self._demo_cash_balance + 1e-6
 
     def _traded_value(self, snapshot: UpbitTickerSnapshot) -> float:
         value = snapshot.acc_trade_price_24h

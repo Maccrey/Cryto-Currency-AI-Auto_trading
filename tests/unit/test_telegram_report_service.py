@@ -123,11 +123,11 @@ def test_telegram_report_service_sends_current_trading_report(tmp_path: Path) ->
     )
 
     assert gateway.messages == [message]
-    assert "[CURRENT_TRADING_REPORT]" in message
-    assert "current_price=835.0" in message
-    assert "cash_balance=1000000.0" in message
-    assert "buy_count=1" in message
-    assert "trading_ready=True" in message
+    assert "현재 거래 상태 보고입니다." in message
+    assert "현재가는 835.00원입니다." in message
+    assert "현금 잔고는 1,000,000.00원" in message
+    assert "매수는 1번" in message
+    assert "거래 가능 상태는 정상" in message
 
 
 def test_telegram_report_service_sends_daily_learning_report(tmp_path: Path) -> None:
@@ -139,16 +139,13 @@ def test_telegram_report_service_sends_daily_learning_report(tmp_path: Path) -> 
     )
 
     assert gateway.messages == [message]
-    assert "[DAILY_TRADING_REPORT]" in message
-    assert "target_date=2026-04-28" in message
-    assert "total_learning_events=5" in message
-    assert "signals=1" in message
-    assert "blocked_signals=1" in message
-    assert "fills=1" in message
-    assert "positions_opened=1" in message
-    assert "positions_exited=1" in message
-    assert "promotion_reviews=1" in message
-    assert "learning_updates=signal_features,execution_results,position_outcomes,promotion_quality" in message
+    assert "어제 거래 학습 보고입니다." in message
+    assert "2026-04-28 기준 보고" in message
+    assert "학습 이벤트는 총 5건" in message
+    assert "매매 신호는 1건 발생했고 그중 1건은 차단" in message
+    assert "체결은 1건, 포지션 진입은 1건, 포지션 종료는 1건" in message
+    assert "승격 검토는 1건" in message
+    assert "학습 반영 항목은 signal_features,execution_results,position_outcomes,promotion_quality" in message
 
 
 def test_telegram_report_scheduler_sends_without_duplicates(tmp_path: Path) -> None:

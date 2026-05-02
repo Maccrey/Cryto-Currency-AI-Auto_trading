@@ -35,6 +35,14 @@
 - strong
 - very_strong
 
+신호 점수 레벨 기준:
+- `score >= 0.70`: very_strong
+- `score >= 0.45`: strong
+- `score >= 0.18`: medium
+- 그 외: weak
+
+최근 단타 학습 로그에서 대부분의 자동 운용 신호가 0.18~0.20 점수대에 머물러 `AUTO_MIN_SIGNAL_LEVEL`로 차단되는 문제가 확인되었다. 단타 demo 검증에서는 이 구간을 medium으로 인정해 실제 체결 데이터를 더 축적한다.
+
 ### 3.3 예시 룰
 #### 급등 신호
 - ret_30s >= threshold
@@ -122,6 +130,19 @@ sell_amount = sell_qty * current_price
 - reentry block 활성
 - SAFE_MODE
 - 기대값 음수
+- weak 신호에서 예상 엣지가 왕복 수수료와 최소 순엣지를 넘지 못함
+
+### 5.6 단타 medium 진입 완화
+단타 demo 운영에서는 medium 신호의 수수료 보정 엣지 버퍼를 기본 최소 순엣지의 25%로 완화한다.
+
+목적:
+- `AUTO_MIN_SIGNAL_LEVEL`과 `FEE_ADJUSTED_EDGE_LIMIT` 차단만 누적되어 체결 데이터가 부족해지는 문제 완화
+- demo 체결, 손절, 매도 결과를 더 쌓아 학습 데이터 균형 개선
+
+제한:
+- weak 신호는 기존 수수료/순엣지 게이트를 통과해야 한다.
+- spread, slippage, 최소 현금, 손절 리스크 예산 차단은 그대로 유지한다.
+- live 모드에서는 SAFE_MODE, HARD_STOP, API 키, 실거래 활성화 플래그 조건을 우회할 수 없다.
 
 ---
 

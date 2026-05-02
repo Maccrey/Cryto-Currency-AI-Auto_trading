@@ -64,34 +64,25 @@ class TelegramTradingReportService:
         events = context.learning_service.recent_events()
         last_learning_event = None if not events else events[-1].event_name
 
-        active_position = "none"
+        active_position = "현재 보유 포지션은 없습니다."
         if position is not None:
             active_position = (
-                f"{position.quantity}@{position.entry_price} "
-                f"stop={position.stop_loss_price}"
+                f"{position.market}를 평균 {position.entry_price:,.2f}원에 "
+                f"{position.quantity:,.8f}개 보유 중이며 손절 기준가는 {position.stop_loss_price:,.2f}원입니다."
             )
 
         return "\n".join(
             [
-                "[CURRENT_TRADING_REPORT]",
-                f"reported_at={reported_at.isoformat()}",
-                f"market={context.market}",
-                f"mode={context.trading_mode}",
-                f"learning_enabled={context.learning_enabled}",
-                f"current_price={None if latest_price is None else latest_price.price}",
-                f"price_recorded_at={None if latest_price is None else latest_price.recorded_at}",
-                f"cash_balance={None if portfolio is None else portfolio.cash_balance}",
-                f"asset_balance={None if portfolio is None else portfolio.asset_balance}",
-                f"realized_pnl={summary.realized_pnl}",
-                f"buy_count={summary.buy_count}",
-                f"sell_count={summary.sell_count}",
-                f"stop_loss_count={summary.stop_loss_count}",
-                f"recent_stop_loss_reason={summary.recent_stop_loss_reason}",
-                f"active_position={active_position}",
-                f"safe_mode={context.boot_state.safe_mode}",
-                f"hard_stop={context.boot_state.hard_stop}",
-                f"trading_ready={context.boot_state.trading_ready}",
-                f"last_learning_event={last_learning_event}",
+                "현재 거래 상태 보고입니다.",
+                f"보고 시각은 {reported_at.isoformat()}입니다.",
+                f"{context.market}를 {context.trading_mode} 모드로 운영 중입니다.",
+                f"현재가는 {'확인되지 않았습니다' if latest_price is None else f'{latest_price.price:,.2f}원'}입니다.",
+                f"현금 잔고는 {'확인되지 않았습니다' if portfolio is None else f'{portfolio.cash_balance:,.2f}원'}이고 보유 수량은 {'확인되지 않았습니다' if portfolio is None else f'{portfolio.asset_balance:,.8f}개'}입니다.",
+                f"현재까지 실현 손익은 {summary.realized_pnl:,.2f}원입니다.",
+                f"매수는 {summary.buy_count}번, 매도는 {summary.sell_count}번 체결되었고 손절 매도는 {summary.stop_loss_count}번입니다.",
+                active_position,
+                f"거래 가능 상태는 {'정상' if context.boot_state.trading_ready else '중지'}이며 안전 모드는 {'켜짐' if context.boot_state.safe_mode else '꺼짐'}입니다.",
+                f"최근 학습 이벤트는 {last_learning_event or '없음'}입니다.",
             ],
         )
 
@@ -113,21 +104,14 @@ class TelegramTradingReportService:
 
         return "\n".join(
             [
-                "[DAILY_TRADING_REPORT]",
-                f"reported_at={reported_at.isoformat()}",
-                f"target_date={target_date.isoformat()}",
-                f"market={context.market}",
-                f"mode={context.trading_mode}",
-                f"total_learning_events={len(daily_events)}",
-                f"signals={len(signal_events)}",
-                f"blocked_signals={blocked_signals}",
-                f"fills={event_counts.get('fill_result', 0)}",
-                f"positions_opened={event_counts.get('position_opened', 0)}",
-                f"positions_exited={event_counts.get('position_exit_completed', 0)}",
-                f"position_updates={event_counts.get('position_lifecycle_updated', 0)}",
-                f"promotion_reviews={event_counts.get('promotion_review_completed', 0)}",
-                f"recovery_events={event_counts.get('restart_detected', 0) + event_counts.get('recovery_completed', 0)}",
-                f"learning_updates={learning_updates}",
+                "어제 거래 학습 보고입니다.",
+                f"{target_date.isoformat()} 기준 보고를 {reported_at.isoformat()}에 보냅니다.",
+                f"{context.market}를 {context.trading_mode} 모드로 운영했습니다.",
+                f"학습 이벤트는 총 {len(daily_events)}건 기록되었습니다.",
+                f"매매 신호는 {len(signal_events)}건 발생했고 그중 {blocked_signals}건은 차단되었습니다.",
+                f"체결은 {event_counts.get('fill_result', 0)}건, 포지션 진입은 {event_counts.get('position_opened', 0)}건, 포지션 종료는 {event_counts.get('position_exit_completed', 0)}건입니다.",
+                f"포지션 변경은 {event_counts.get('position_lifecycle_updated', 0)}건, 승격 검토는 {event_counts.get('promotion_review_completed', 0)}건, 복구 이벤트는 {event_counts.get('restart_detected', 0) + event_counts.get('recovery_completed', 0)}건입니다.",
+                f"학습 반영 항목은 {learning_updates}입니다.",
             ],
         )
 

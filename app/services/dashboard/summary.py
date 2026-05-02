@@ -71,11 +71,13 @@ class DashboardSummaryService:
         section_state_message: dict[str, str],
         section_recommended_action: dict[str, str],
         promotion_ready: bool,
+        cash_balance: float | None = None,
+        coin_balance: float | None = None,
     ) -> DashboardSummary:
         portfolio = boot_state.portfolio_state
         return DashboardSummary(
-            coin_balance=0.0 if portfolio is None else portfolio.asset_balance,
-            cash_balance=0.0 if portfolio is None else portfolio.cash_balance,
+            coin_balance=coin_balance if coin_balance is not None else 0.0 if portfolio is None else portfolio.asset_balance,
+            cash_balance=cash_balance if cash_balance is not None else 0.0 if portfolio is None else portfolio.cash_balance,
             realized_pnl=realized_pnl,
             unrealized_pnl=unrealized_pnl,
             buy_count=buy_count,

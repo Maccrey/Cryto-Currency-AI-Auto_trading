@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
@@ -13,6 +15,8 @@ def build_settings_router(
     env_file_service: EnvFileService,
     learning_data_reset_service: LearningDataResetService | None = None,
     learning_service: LearningService | None = None,
+    start_trading_service: Callable[[], dict[str, object]] | None = None,
+    reset_demo_trading_data_service: Callable[[], dict[str, object]] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/settings")
 
@@ -37,6 +41,36 @@ def build_settings_router(
     def save_settings(payload: dict[str, object]) -> dict[str, object]:
         return env_file_service.save(payload)
 
+    @router.get("/trading/readiness")
+    def trading_readiness() -> dict[str, object]:
+        return {
+            "status": "ok",
+            "start_readiness": env_file_service.trading_start_readiness(),
+        }
+
+    @router.post("/trading/start")
+    async def start_trading() -> dict[str, object]:
+        readiness = env_file_service.trading_start_readiness()
+        if not readiness["ready"]:
+            return {
+                "status": "blocked",
+                "started": False,
+                "start_readiness": readiness,
+                "message": readiness["message"],
+            }
+        if start_trading_service is None:
+            return {
+                "status": "not_configured",
+                "started": False,
+                "start_readiness": readiness,
+                "message": "trading start service is not configured",
+            }
+        result = start_trading_service()
+        return {
+            **result,
+            "start_readiness": readiness,
+        }
+
     @router.post("/learning/reset")
     def reset_learning_data() -> dict[str, object]:
         if learning_data_reset_service is None:
@@ -56,6 +90,16 @@ def build_settings_router(
             "message": result.message,
         }
 
+    @router.post("/demo-trading/reset")
+    def reset_demo_trading_data() -> dict[str, object]:
+        if reset_demo_trading_data_service is None:
+            return {
+                "status": "not_configured",
+                "reset": False,
+                "message": "demo trading data reset service is not configured",
+            }
+        return reset_demo_trading_data_service()
+
     return router
 
 
@@ -72,6 +116,7 @@ SETTINGS_HTML = """
     section { background: white; border: 1px solid #d8e0e6; border-radius: 8px; padding: 20px; }
     h1 { font-size: 24px; margin: 0 0 18px; }
     label { display: block; font-size: 13px; font-weight: 650; margin-top: 14px; }
+    .required-mark { color: #b42318; font-weight: 900; margin-left: 4px; }
     input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #b8c4ce; border-radius: 6px; font-size: 14px; }
     .secret-input { display: grid; grid-template-columns: 1fr 42px; gap: 8px; align-items: center; }
     .icon-button { width: 42px; height: 40px; border: 1px solid #9eb0bd; border-radius: 6px; background: white; color: #172026; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
@@ -93,6 +138,9 @@ SETTINGS_HTML = """
     .subsection { margin-top: 18px; padding-top: 16px; border-top: 1px solid #d8e0e6; }
     .next-steps { display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
     .next-steps.visible { display: flex; }
+    .start-panel { display: none; margin-top: 14px; padding: 12px; border: 1px solid #b7d7bd; border-radius: 6px; background: #edf8ef; }
+    .start-panel.visible { display: block; }
+    .start-panel.blocked { border-color: #f1b8b1; background: #fff1f0; color: #8a1f13; }
     .secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: white; color: #172026; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .note { color: #52616d; font-size: 13px; line-height: 1.45; }
   </style>
@@ -102,29 +150,29 @@ SETTINGS_HTML = """
   <section>
     <h1>설정</h1>
     <div class="note">demo 모드는 API 키 없이 학습/검증용으로 실행할 수 있다. live 모드는 저장 시 업비트 API 키가 필요하다.</div>
-    <label>거래 모드</label>
+    <label>거래 모드<span class="required-mark">*</span></label>
     <div id="modeSwitch" class="switch">
       <button type="button" data-mode="demo">DEMO</button>
       <button type="button" data-mode="live">LIVE</button>
     </div>
-    <label for="tradingProfile">투자성향</label>
+    <label for="tradingProfile">투자성향<span class="required-mark">*</span></label>
     <select id="tradingProfile"></select>
     <div id="profileDescription" class="note"></div>
     <div class="row">
       <div>
-        <label for="tradeMarket">마켓</label>
+        <label for="tradeMarket">마켓<span class="required-mark">*</span></label>
         <input id="tradeMarket" placeholder="KRW-XRP">
       </div>
       <div>
-        <label for="tradeCoin">코인</label>
+        <label for="tradeCoin">코인<span class="required-mark">*</span></label>
         <input id="tradeCoin" placeholder="XRP">
       </div>
     </div>
-    <label for="demoInitialCapital">데모 시작 투자금</label>
+    <label for="demoInitialCapital">데모 시작 투자금<span class="required-mark">*</span></label>
     <input id="demoInitialCapital" type="number" min="0" step="10000" placeholder="1000000">
-    <label for="accessKey">업비트 액세스 키</label>
+    <label for="accessKey">업비트 액세스 키<span class="required-mark live-required">*</span></label>
     <input id="accessKey" autocomplete="off">
-    <label for="secretKey">업비트 시크릿 키</label>
+    <label for="secretKey">업비트 시크릿 키<span class="required-mark live-required">*</span></label>
     <input id="secretKey" type="password" autocomplete="off">
     <div class="subsection">
       <label for="telegramToken">텔레그램 봇 토큰</label>
@@ -159,6 +207,12 @@ SETTINGS_HTML = """
       <button id="saveButton" class="primary" type="button" onclick="saveSettings()">저장</button>
       <span id="status" class="status"></span>
     </div>
+    <div id="startPanel" class="start-panel">
+      <div id="startMessage" class="note"></div>
+      <div class="actions">
+        <button id="startTradingButton" class="primary" type="button" onclick="startTradingServer()">트레이딩 서버 시작</button>
+      </div>
+    </div>
     <div id="nextSteps" class="next-steps">
       <a class="secondary" href="/health" target="_blank" rel="noreferrer">상태 확인</a>
       <a class="secondary" href="/dashboard" target="_blank" rel="noreferrer">대시보드 열기</a>
@@ -169,6 +223,7 @@ SETTINGS_HTML = """
       <div class="note">현재 선택된 투자성향의 학습 로그를 보관 폴더로 이동하고 새로 학습을 시작한다. 트레이딩 서버는 중단하지 않는다.</div>
       <div class="actions">
         <button id="resetLearningButton" class="danger-button" type="button" onclick="resetLearningData()">현재 성향 학습데이터 리셋</button>
+        <button id="resetDemoTradingButton" class="danger-button" type="button" onclick="resetDemoTradingData()">데모트레이딩데이터 리셋</button>
       </div>
     </div>
   </section>
@@ -178,6 +233,7 @@ let mode = "demo";
 let profiles = [];
 let telegramTokenVisible = false;
 let telegramTokenLoaded = false;
+let latestStartReadiness = null;
 function showStatus(message, kind = "") {
   const status = document.getElementById("status");
   status.className = `status visible ${kind}`.trim();
@@ -186,11 +242,37 @@ function showStatus(message, kind = "") {
 function showNextSteps(visible) {
   document.getElementById("nextSteps").classList.toggle("visible", visible);
 }
+function showStartPanel(visible, readiness = null) {
+  const panel = document.getElementById("startPanel");
+  const button = document.getElementById("startTradingButton");
+  const message = document.getElementById("startMessage");
+  latestStartReadiness = readiness;
+  panel.classList.toggle("visible", visible);
+  const ready = Boolean(readiness && readiness.ready);
+  panel.classList.toggle("blocked", visible && !ready);
+  button.style.display = ready ? "inline-flex" : "none";
+  message.textContent = !visible
+    ? ""
+    : ready
+      ? "필수 설정이 저장되었습니다. 트레이딩 서버를 시작할 수 있습니다."
+      : `아직 시작할 수 없습니다. ${formatReadinessProblems(readiness)}`;
+}
+function formatReadinessProblems(readiness) {
+  if (!readiness) return "필수값을 저장해야 합니다.";
+  const parts = [];
+  if (readiness.missing && readiness.missing.length) parts.push(`누락: ${readiness.missing.join(", ")}`);
+  if (readiness.invalid && readiness.invalid.length) parts.push(`확인 필요: ${readiness.invalid.join(", ")}`);
+  return parts.length ? parts.join(" / ") : readiness.message;
+}
 function setMode(next) {
   mode = next;
   document.querySelectorAll("#modeSwitch button").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === mode);
   });
+  document.querySelectorAll(".live-required").forEach((mark) => {
+    mark.style.display = mode === "live" ? "inline" : "none";
+  });
+  showStartPanel(false);
 }
 document.querySelectorAll("#modeSwitch button").forEach((button) => {
   button.addEventListener("click", () => setMode(button.dataset.mode));
@@ -271,6 +353,7 @@ async function loadSettings() {
     document.getElementById("telegramUserId").value = values.TELEGRAM_USER_ID || "";
     document.getElementById("telegramUsername").value = values.TELEGRAM_USERNAME || "";
     document.getElementById("telegramAllowFrom").value = values.TELEGRAM_ALLOW_FROM || "";
+    showStartPanel(Boolean(data.start_readiness && data.start_readiness.ready), data.start_readiness);
   } catch (error) {
     showStatus("현재 설정을 불러오지 못했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
   }
@@ -286,6 +369,8 @@ async function saveSettings() {
     TRADE_MARKET: document.getElementById("tradeMarket").value || "KRW-XRP",
     TRADE_COIN: document.getElementById("tradeCoin").value || "XRP",
     DEMO_INITIAL_CAPITAL: document.getElementById("demoInitialCapital").value || "1000000",
+    AUTO_TRADING_ENABLED: "true",
+    AUTO_TRADING_LIVE_ENABLED: mode === "live" ? "true" : "false",
     UPBIT_ACCESS_KEY: document.getElementById("accessKey").value,
     UPBIT_SECRET_KEY: document.getElementById("secretKey").value,
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,
@@ -303,16 +388,39 @@ async function saveSettings() {
     const result = await response.json();
     showStatus(
       result.saved
-        ? `저장됨: ${mode.toUpperCase()} 모드, 투자성향 ${document.getElementById("tradingProfile").selectedOptions[0].textContent}. 현재 실행 상태는 상태 확인에서 볼 수 있다. 모드/API 키/투자성향을 바꾼 경우 앱 재시작 후 런타임에 반영된다.`
+        ? `저장됨: ${mode.toUpperCase()} 모드, 투자성향 ${document.getElementById("tradingProfile").selectedOptions[0].textContent}.`
         : result.message,
       result.saved ? "" : "warning"
     );
-    showNextSteps(Boolean(result.saved));
+    showNextSteps(false);
+    showStartPanel(Boolean(result.saved), result.start_readiness);
   } catch (error) {
     showStatus("저장 요청에 실패했다. 서버가 실행 중인지 확인한 뒤 다시 시도한다.", "warning");
     showNextSteps(false);
+    showStartPanel(false);
   } finally {
     saveButton.disabled = false;
+  }
+}
+async function startTradingServer() {
+  const button = document.getElementById("startTradingButton");
+  button.disabled = true;
+  showStatus("트레이딩 서버를 시작하는 중...", "pending");
+  try {
+    const response = await fetch("/settings/trading/start", {method: "POST"});
+    const result = await response.json();
+    if (result.started) {
+      showStatus(result.message || "트레이딩 서버가 시작되었습니다.");
+      showNextSteps(true);
+      showStartPanel(false);
+      return;
+    }
+    showStatus(result.message || "트레이딩 서버를 시작하지 못했습니다.", "warning");
+    showStartPanel(true, result.start_readiness || latestStartReadiness);
+  } catch (error) {
+    showStatus("트레이딩 서버 시작 요청에 실패했습니다.", "warning");
+  } finally {
+    button.disabled = false;
   }
 }
 async function resetLearningData() {
@@ -333,6 +441,27 @@ async function resetLearningData() {
     showNextSteps(true);
   } catch (error) {
     showStatus("학습 데이터 리셋 요청에 실패했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
+  } finally {
+    button.disabled = false;
+  }
+}
+async function resetDemoTradingData() {
+  const button = document.getElementById("resetDemoTradingButton");
+  if (!confirm("현재 데모 매수/매도 데이터와 포지션 상태를 리셋할까요? 학습 로그 파일은 유지됩니다.")) return;
+  button.disabled = true;
+  showStatus("데모 트레이딩 데이터를 리셋하는 중...", "pending");
+  try {
+    const response = await fetch("/settings/demo-trading/reset", {method: "POST"});
+    const result = await response.json();
+    showStatus(
+      result.reset
+        ? `데모 트레이딩 데이터 리셋 완료. 현금 ${result.cash_balance} KRW, 보유 ${result.asset_balance} ${result.asset_currency}`
+        : result.message,
+      result.reset ? "" : "warning"
+    );
+    showNextSteps(true);
+  } catch (error) {
+    showStatus("데모 트레이딩 데이터 리셋 요청에 실패했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
   } finally {
     button.disabled = false;
   }

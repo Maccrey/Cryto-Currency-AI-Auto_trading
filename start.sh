@@ -4,9 +4,26 @@ set -eu
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT_DIR"
 
-TRADING_HOST="${TRADING_HOST:-127.0.0.1}"
-TRADING_PORT="${TRADING_PORT:-8000}"
-APP_URL="http://${TRADING_HOST}:${TRADING_PORT}"
+env_value() {
+  local key="$1"
+  if [[ -f .env ]]; then
+    awk -F= -v key="${key}" '$1 == key {print $2; exit}' .env
+  fi
+}
+
+TRADING_HOST="${TRADING_HOST:-$(env_value DASHBOARD_HOST)}"
+TRADING_HOST="${TRADING_HOST:-0.0.0.0}"
+TRADING_PORT="${TRADING_PORT:-$(env_value DASHBOARD_PORT)}"
+TRADING_PORT="${TRADING_PORT:-8080}"
+LOCAL_URL="http://127.0.0.1:${TRADING_PORT}"
+LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || ifconfig | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}' || echo 127.0.0.1)"
+if [[ "${TRADING_HOST}" == "0.0.0.0" || "${TRADING_HOST}" == "::" ]]; then
+  BROWSER_HOST="${LAN_IP}"
+else
+  BROWSER_HOST="${TRADING_HOST}"
+fi
+APP_URL="http://${BROWSER_HOST}:${TRADING_PORT}"
+DASHBOARD_URL="${APP_URL}/dashboard"
 SETTINGS_URL="${APP_URL}/settings"
 PID_FILE="${ROOT_DIR}/logs/runtime/server.pid"
 LOG_FILE="${ROOT_DIR}/logs/runtime/server.log"
@@ -42,7 +59,7 @@ install_launch_agent() {
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>cd "${ROOT_DIR}" &amp;&amp; env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" uvicorn app.main:app --host "${TRADING_HOST}" --port "${TRADING_PORT}"</string>
+    <string>cd "${ROOT_DIR}" &amp;&amp; env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" TRADING_HOST="${TRADING_HOST}" TRADING_PORT="${TRADING_PORT}" uvicorn app.main:app --host "${TRADING_HOST}" --port "${TRADING_PORT}"</string>
   </array>
   <key>WorkingDirectory</key>
   <string>${ROOT_DIR}</string>
@@ -65,6 +82,7 @@ PLIST
 if is_listening; then
   echo "트레이딩 서버가 이미 실행 중입니다: ${APP_URL}"
   open_settings
+  echo "대시보드: ${DASHBOARD_URL}"
   echo "설정창: ${SETTINGS_URL}"
   exit 0
 fi
@@ -73,7 +91,7 @@ echo "트레이딩 서버를 백그라운드에서 시작합니다..."
 if install_launch_agent; then
   echo "macOS launchd KeepAlive로 등록했습니다: ${LAUNCH_AGENT_LABEL}"
 else
-  nohup env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" \
+  nohup env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" TRADING_HOST="${TRADING_HOST}" TRADING_PORT="${TRADING_PORT}" \
     uvicorn app.main:app --host "${TRADING_HOST}" --port "${TRADING_PORT}" >>"${LOG_FILE}" 2>&1 &
   SERVER_PID=$!
   echo "${SERVER_PID}" >"${PID_FILE}"
@@ -81,9 +99,10 @@ else
 fi
 
 for _ in {1..30}; do
-  if curl -fsS "${APP_URL}/health" >/dev/null 2>&1; then
+  if curl -fsS "${LOCAL_URL}/health" >/dev/null 2>&1; then
     echo "트레이딩 서버 시작 완료: ${APP_URL}"
     open_settings
+    echo "대시보드: ${DASHBOARD_URL}"
     echo "설정창: ${SETTINGS_URL}"
     echo "로그: ${LOG_FILE}"
     exit 0

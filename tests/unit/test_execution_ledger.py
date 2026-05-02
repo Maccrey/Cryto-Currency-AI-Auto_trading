@@ -39,3 +39,38 @@ def test_execution_ledger_summarizes_buy_sell_and_stop_loss_counts() -> None:
     assert summary.stop_loss_count == 1
     assert summary.recent_stop_loss_reason == "STOP_LOSS_PRICE_HIT"
     assert summary.realized_pnl < 0.0
+
+
+def test_execution_ledger_portfolio_state_ignores_buys_that_exceed_cash() -> None:
+    ledger = ExecutionLedger()
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=820.0,
+            filled_quantity=187.8049,
+            fee=77.0,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=820.0,
+            filled_quantity=187.8049,
+            fee=77.0,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+
+    portfolio = ledger.portfolio_state(initial_cash=200000.0, asset_currency="XRP")
+
+    assert portfolio.cash_balance >= 0.0
+    assert portfolio.asset_balance == 187.8049

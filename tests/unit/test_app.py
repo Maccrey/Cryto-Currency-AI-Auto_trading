@@ -1,10 +1,16 @@
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.services.execution.demo import FillResult
+from app.services.execution.ledger import ExecutionLedger
 from app.services.learning.service import LearningEvent
+from app.services.portfolio.sync import PortfolioState
+from app.services.position.ledger import PositionLifecycleLedger
+from app.services.position.store import CurrentPositionStore
 from app.services.promotion.approval import PromotionApprovalResult
 from app.services.promotion.evaluator import PromotionEvaluation
 from app.services.promotion.runner import PromotionRunResult
+from app.services.risk.stop_loss import PositionSnapshot
 
 
 class BootNotificationDispatcherStub:
@@ -913,10 +919,12 @@ class TelegramNotifierStub:
     def __init__(self) -> None:
         self.fills = []
         self.reason_codes = []
+        self.entry_prices = []
 
-    def notify_fill(self, fill, *, reason_code=None) -> None:
+    def notify_fill(self, fill, *, reason_code=None, entry_price=None) -> None:
         self.fills.append(fill)
         self.reason_codes.append(reason_code)
+        self.entry_prices.append(entry_price)
 
 
 class TradeDecisionServiceStub:
@@ -1111,6 +1119,8 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert "/settings/secret/telegram-bot-token" in page.text
     assert "telegramAllowFrom" in page.text
     assert "telegram:group:-1003988291151" in page.text
+    assert "startTradingServer" in page.text
+    assert "required-mark" in page.text
 
     response = client.post(
         "/settings",
@@ -1125,6 +1135,11 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert response.status_code == 200
     assert response.json()["saved"] is False
     assert response.json()["missing_for_live"] == ["UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY"]
+
+    blocked_start = client.post("/settings/trading/start")
+    assert blocked_start.status_code == 200
+    assert blocked_start.json()["started"] is False
+    assert blocked_start.json()["status"] == "blocked"
 
     saved = client.post(
         "/settings",
@@ -1220,6 +1235,103 @@ def test_settings_learning_reset_archives_current_profile_log(
     assert payload["reset"] is True
     assert payload["archive_path"] is not None
     assert (log_dir / "learning.jsonl").read_text(encoding="utf-8") == ""
+
+
+def test_settings_demo_trading_reset_clears_runtime_trade_data(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = PortfolioState(
+                    cash_balance=1_000_000.0,
+                    asset_currency="XRP",
+                    asset_balance=0.0,
+                    avg_buy_price=0.0,
+                )
+                reconcile_result = None
+
+            return BootState()
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "LEARNING_ENABLED=true",
+                "DEMO_INITIAL_CAPITAL=1000000",
+                f"LEARNING_LOG_DIR={tmp_path / 'learning'}",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ENV_FILE_PATH", str(env_file))
+    monkeypatch.delenv("TRADING_MODE", raising=False)
+    monkeypatch.delenv("LEARNING_LOG_DIR", raising=False)
+
+    execution_ledger = ExecutionLedger()
+    execution_ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=800.0,
+            filled_quantity=100.0,
+            fee=40.0,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    position = PositionSnapshot(
+        market="KRW-XRP",
+        signal_level="medium",
+        entry_price=800.0,
+        quantity=100.0,
+        stop_loss_price=790.4,
+        stop_loss_pct=0.012,
+        validation_window_sec=180,
+        min_expected_return_pct=0.004,
+        stop_loss_reason=None,
+    )
+    position_store = CurrentPositionStore()
+    position_store.save(position)
+    position_lifecycle_ledger = PositionLifecycleLedger()
+    position_lifecycle_ledger.record(event_type="opened", position=position)
+
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            execution_ledger=execution_ledger,
+            position_store=position_store,
+            position_lifecycle_ledger=position_lifecycle_ledger,
+        ),
+    )
+
+    page = client.get("/settings")
+    assert "resetDemoTradingData" in page.text
+    assert "데모트레이딩데이터 리셋" in page.text
+
+    response = client.post("/settings/demo-trading/reset")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["reset"] is True
+    assert payload["cash_balance"] == 1_000_000.0
+    assert payload["asset_balance"] == 0.0
+    assert execution_ledger.list_records() == []
+    assert position_lifecycle_ledger.list_records() == []
+    assert position_store.get() is None
+
+    summary = client.get("/dashboard/summary").json()
+    assert summary["cash_balance"] == 1_000_000.0
+    assert summary["coin_balance"] == 0.0
+    assert summary["buy_count"] == 0
 
 
 def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
@@ -2014,6 +2126,13 @@ def test_dashboard_market_endpoint_returns_market_summary(monkeypatch) -> None:
 
             return BootState()
 
+    class NoopCurrentPriceProvider:
+        def __init__(self, *, base_url: str) -> None:
+            self.base_url = base_url
+
+        def get_current_snapshot(self, market: str):
+            return None
+
     timestamps = iter(
         [
             "2026-04-19T20:40:00+09:00",
@@ -2024,6 +2143,7 @@ def test_dashboard_market_endpoint_returns_market_summary(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_MODE", "demo")
     monkeypatch.setenv("LEARNING_ENABLED", "true")
     monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
+    monkeypatch.setattr("app.main.UpbitTickerPriceProvider", NoopCurrentPriceProvider)
 
     client = TestClient(
         create_app(
@@ -2629,23 +2749,16 @@ def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch
     )
 
     assert len(StubTelegramGateway.instances) == 1
-    assert StubTelegramGateway.instances[0].messages == [
-        "[SERVER_STARTED]\n"
-        "app=upbit-auto-trader\n"
-        "started_at=2026-05-01T10:00:00+09:00\n"
-        "cause=process_restart\n"
-        "status=ok\n"
-        "market=KRW-XRP\n"
-        "mode=demo\n"
-        "learning_enabled=True\n"
-        "safe_mode=False\n"
-        "hard_stop=False\n"
-        "trading_ready=True\n"
-        "failure_stage=None\n"
-        "cash_balance=unknown\n"
-        "asset_currency=unknown\n"
-        "asset_balance=unknown"
-    ]
+    message = StubTelegramGateway.instances[0].messages[0]
+    assert message.startswith("자동매매 앱 서버가 시작되었습니다.\n")
+    assert "앱 이름은 upbit-auto-trader이고 시작 시각은 2026-05-01T10:00:00+09:00입니다." in message
+    assert "거래 시장은 KRW-XRP이고 거래 모드는 demo입니다." in message
+    assert "자동 트레이딩은 아직 시작되지 않았습니다." in message
+    assert "트레이딩 준비 상태는 정상" in message
+    assert "대시보드는 브라우저에서 http://" in message
+    assert "/dashboard 주소로 열 수 있습니다." in message
+    assert "설정 화면은 브라우저에서 http://" in message
+    assert "/settings 주소로 열 수 있습니다." in message
 
 
 def test_promotion_review_endpoint_returns_runner_result(monkeypatch) -> None:

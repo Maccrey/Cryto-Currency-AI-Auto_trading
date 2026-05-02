@@ -8,6 +8,7 @@ from app.core.trading_profile import TRADING_PROFILES, get_trading_profile
 SECRET_KEYS = {"UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY", "TELEGRAM_BOT_TOKEN"}
 SECRET_MASK = "***"
 LIVE_REQUIRED_KEYS = ["UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY"]
+DEMO_REQUIRED_KEYS = ["TRADING_MODE", "TRADING_PROFILE", "TRADE_MARKET", "TRADE_COIN", "DEMO_INITIAL_CAPITAL"]
 
 
 class EnvFileService:
@@ -21,6 +22,7 @@ class EnvFileService:
         mode = values.get("TRADING_MODE", "demo")
         profile = values.get("TRADING_PROFILE", "scalping")
         missing_for_live = self._missing_for_live(values) if mode == "live" else []
+        start_readiness = self.trading_start_readiness(values)
         return {
             "status": "ok",
             "mode": mode,
@@ -28,6 +30,7 @@ class EnvFileService:
             "profiles": self._profile_payload(),
             "values": self._masked(values),
             "missing_for_live": missing_for_live,
+            "start_readiness": start_readiness,
             "env_path": str(self._env_path),
         }
 
@@ -97,7 +100,40 @@ class EnvFileService:
             "saved": True,
             "profile": profile,
             "missing_for_live": [],
+            "start_readiness": self.trading_start_readiness(values),
             "message": "settings saved",
+        }
+
+    def trading_start_readiness(self, values: dict[str, str] | None = None) -> dict[str, object]:
+        current_values = self._read() if values is None else values
+        mode = current_values.get("TRADING_MODE", "demo").strip()
+        missing = [key for key in DEMO_REQUIRED_KEYS if not current_values.get(key, "").strip()]
+        invalid: list[str] = []
+
+        if mode not in {"demo", "live"}:
+            invalid.append("TRADING_MODE")
+        try:
+            get_trading_profile(current_values.get("TRADING_PROFILE", ""))
+        except ValueError:
+            invalid.append("TRADING_PROFILE")
+        try:
+            if int(current_values.get("DEMO_INITIAL_CAPITAL", "0")) <= 0:
+                invalid.append("DEMO_INITIAL_CAPITAL")
+        except ValueError:
+            invalid.append("DEMO_INITIAL_CAPITAL")
+
+        if mode == "live":
+            missing.extend(self._missing_for_live(current_values))
+
+        missing = sorted(set(missing))
+        invalid = sorted(set(invalid))
+        return {
+            "ready": not missing and not invalid,
+            "mode": mode,
+            "missing": missing,
+            "invalid": invalid,
+            "required": sorted(set(DEMO_REQUIRED_KEYS + (LIVE_REQUIRED_KEYS if mode == "live" else []))),
+            "message": self._readiness_message(mode=mode, missing=missing, invalid=invalid),
         }
 
     def _read(self) -> dict[str, str]:
@@ -120,6 +156,18 @@ class EnvFileService:
     @staticmethod
     def _missing_for_live(values: dict[str, str]) -> list[str]:
         return [key for key in LIVE_REQUIRED_KEYS if not values.get(key, "").strip()]
+
+    @staticmethod
+    def _readiness_message(*, mode: str, missing: list[str], invalid: list[str]) -> str:
+        if not missing and not invalid:
+            return "trading can be started"
+        problems = []
+        if missing:
+            problems.append("missing: " + ", ".join(missing))
+        if invalid:
+            problems.append("invalid: " + ", ".join(invalid))
+        prefix = "live mode" if mode == "live" else "demo mode"
+        return f"{prefix} start requirements are not satisfied; " + "; ".join(problems)
 
     @staticmethod
     def _masked(values: dict[str, str]) -> dict[str, str]:

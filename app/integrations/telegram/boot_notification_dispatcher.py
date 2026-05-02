@@ -13,9 +13,13 @@ class BootNotificationDispatcher:
         *,
         restart_notifier: RestartNotifier | None = None,
         hard_stop_notifier: HardStopNotifier | None = None,
+        dashboard_url: str | None = None,
+        settings_url: str | None = None,
     ) -> None:
         self._restart_notifier = restart_notifier
         self._hard_stop_notifier = hard_stop_notifier
+        self._dashboard_url = dashboard_url
+        self._settings_url = settings_url
 
     def dispatch_boot_event(
         self,
@@ -49,4 +53,6 @@ class BootNotificationDispatcher:
             market=market,
             trading_mode=trading_mode,
             learning_enabled=learning_enabled,
+            dashboard_url=self._dashboard_url,
+            settings_url=self._settings_url,
         )
