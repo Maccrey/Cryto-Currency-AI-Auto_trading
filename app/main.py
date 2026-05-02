@@ -340,12 +340,14 @@ def create_app(
             return {
                 "status": "already_running",
                 "started": True,
+                "running": True,
                 "message": "트레이딩 서버가 이미 실행 중입니다.",
             }
         if not auto_trading_service.should_run():
             return {
                 "status": "not_ready",
                 "started": False,
+                "running": False,
                 "message": "트레이딩 서버를 시작할 수 없습니다. 안전 모드, HARD_STOP, live 실행 허용 설정을 확인하세요.",
             }
         auto_trading_service.start()
@@ -366,7 +368,53 @@ def create_app(
         return {
             "status": "started",
             "started": True,
+            "running": True,
             "message": "트레이딩 서버가 시작되었습니다.",
+        }
+
+    def trading_status_service() -> dict[str, object]:
+        running = auto_trading_service.is_running()
+        startable = auto_trading_service.should_run()
+        if running:
+            message = "트레이딩 서버가 실행 중입니다."
+        elif startable:
+            message = "트레이딩 서버를 시작할 수 있습니다."
+        else:
+            message = "트레이딩 서버를 시작할 수 없습니다. 안전 모드, HARD_STOP, live 실행 허용 설정을 확인하세요."
+        return {
+            "status": "running" if running else "stopped",
+            "running": running,
+            "startable": startable,
+            "message": message,
+        }
+
+    async def stop_trading_service() -> dict[str, object]:
+        if not auto_trading_service.is_running():
+            return {
+                "status": "already_stopped",
+                "stopped": True,
+                "running": False,
+                "message": "트레이딩 서버가 이미 중지되어 있습니다.",
+            }
+        await auto_trading_service.stop()
+        if telegram_gateway is not None:
+            try:
+                telegram_gateway.send_message(
+                    "\n".join(
+                        [
+                            "트레이딩 서버가 중지되었습니다.",
+                            f"거래 시장은 {settings.trade_market}이고 거래 모드는 {settings.trading_mode}입니다.",
+                            "설정 화면은 계속 열려 있으며 시작 버튼으로 다시 실행할 수 있습니다.",
+                        ],
+                    ),
+                )
+            except Exception:
+                pass
+        return {
+            "status": "stopped",
+            "stopped": True,
+            "running": False,
+            "message": "트레이딩 서버가 중지되었습니다.",
         }
 
     def reset_demo_trading_data_service() -> dict[str, object]:
@@ -432,6 +480,8 @@ def create_app(
             learning_data_reset_service=LearningDataResetService(log_dir=profile_learning_log_dir),
             learning_service=learning_service,
             start_trading_service=start_trading_service,
+            stop_trading_service=stop_trading_service,
+            trading_status_service=trading_status_service,
             reset_demo_trading_data_service=reset_demo_trading_data_service,
         ),
     )

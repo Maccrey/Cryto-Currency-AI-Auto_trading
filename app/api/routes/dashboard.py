@@ -481,8 +481,31 @@ function deriveReadinessProgress(readiness) {
     lines: [
       "모델 학습 준비도 기준.",
       `총 ${number(metrics.total_events || 0)}/${number(required.total_events || 0)}`,
-      `신호 ${number(metrics.signal_events || 0)}/${number(required.signal_events || 0)}`,
+      `매매판단신호 ${number(metrics.signal_events || 0)}/${number(required.signal_events || 0)}`,
       `체결 ${number(metrics.fill_events || 0)}/${number(required.fill_events || 0)}`
+    ]
+  };
+}
+
+function deriveInvestmentValue(summary, market) {
+  const cash = Number(summary.cash_balance || 0);
+  const coin = Number(summary.coin_balance || 0);
+  const currentPrice = Number(market.current_price);
+  if (Number.isNaN(currentPrice)) {
+    return {
+      total: cash,
+      lines: [
+        `현금 ${number(cash, 0)} KRW`,
+        `보유 코인 ${number(coin, 8)}개, 현재가 데이터 없음`
+      ]
+    };
+  }
+  const coinValue = coin * currentPrice;
+  return {
+    total: cash + coinValue,
+    lines: [
+      `현금 ${number(cash, 0)} KRW`,
+      `보유 ${number(coin, 8)}개 × 현재가 ${number(currentPrice, 4)} KRW = ${number(coinValue, 0)} KRW`
     ]
   };
 }
@@ -550,8 +573,9 @@ function renderDashboard(data) {
       : `거래량 <span class="badge ${trendBadgeClass(trendStreak.trend)}">${trendStreak.trend}(${trendStreak.count})</span>`,
     trendText
   );
-  document.getElementById("capitalMetric").textContent = `${number(summary.cash_balance, 0)} KRW`;
-  document.getElementById("capitalSub").textContent = summary.trading_mode === "demo" ? "데모 가상 투자금 1,000,000 KRW 기준" : "실계좌 사용 가능 현금 기준";
+  const investment = deriveInvestmentValue(summary, market);
+  setTextWithTitle("capitalMetric", `${number(investment.total, 0)} KRW`);
+  setLinesWithTitle("capitalSub", investment.lines);
   document.getElementById("learningProgressMetric").textContent = `${progress}%`;
   document.getElementById("learningProgressBar").style.width = `${progress}%`;
   setLinesWithTitle("learningProgressSub", readinessProgress.lines);

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -16,6 +16,8 @@ def build_settings_router(
     learning_data_reset_service: LearningDataResetService | None = None,
     learning_service: LearningService | None = None,
     start_trading_service: Callable[[], dict[str, object]] | None = None,
+    stop_trading_service: Callable[[], Awaitable[dict[str, object]] | dict[str, object]] | None = None,
+    trading_status_service: Callable[[], dict[str, object]] | None = None,
     reset_demo_trading_data_service: Callable[[], dict[str, object]] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/settings")
@@ -48,6 +50,17 @@ def build_settings_router(
             "start_readiness": env_file_service.trading_start_readiness(),
         }
 
+    @router.get("/trading/status")
+    def trading_status() -> dict[str, object]:
+        if trading_status_service is None:
+            return {
+                "status": "not_configured",
+                "running": False,
+                "startable": False,
+                "message": "trading status service is not configured",
+            }
+        return trading_status_service()
+
     @router.post("/trading/start")
     async def start_trading() -> dict[str, object]:
         readiness = env_file_service.trading_start_readiness()
@@ -70,6 +83,20 @@ def build_settings_router(
             **result,
             "start_readiness": readiness,
         }
+
+    @router.post("/trading/stop")
+    async def stop_trading() -> dict[str, object]:
+        if stop_trading_service is None:
+            return {
+                "status": "not_configured",
+                "stopped": False,
+                "running": False,
+                "message": "trading stop service is not configured",
+            }
+        result = stop_trading_service()
+        if hasattr(result, "__await__"):
+            result = await result
+        return result
 
     @router.post("/learning/reset")
     def reset_learning_data() -> dict[str, object]:
@@ -134,6 +161,7 @@ SETTINGS_HTML = """
     .warning { border-color: #f1b8b1; background: #fff1f0; color: #b42318; font-weight: 700; }
     .pending { border-color: #b8c4ce; background: #edf2f5; color: #33424c; }
     .danger-button { background: #b42318; color: white; border: 0; border-radius: 6px; padding: 11px 16px; font-weight: 700; cursor: pointer; }
+    .danger-button:disabled { background: #c9847c; cursor: wait; }
     .danger-zone { margin-top: 18px; padding-top: 16px; border-top: 1px solid #f1b8b1; }
     .subsection { margin-top: 18px; padding-top: 16px; border-top: 1px solid #d8e0e6; }
     .next-steps { display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
@@ -210,7 +238,7 @@ SETTINGS_HTML = """
     <div id="startPanel" class="start-panel">
       <div id="startMessage" class="note"></div>
       <div class="actions">
-        <button id="startTradingButton" class="primary" type="button" onclick="startTradingServer()">트레이딩 서버 시작</button>
+        <button id="startTradingButton" class="primary" type="button" onclick="toggleTradingServer()">트레이딩 서버 시작</button>
       </div>
     </div>
     <div id="nextSteps" class="next-steps">
@@ -234,6 +262,7 @@ let profiles = [];
 let telegramTokenVisible = false;
 let telegramTokenLoaded = false;
 let latestStartReadiness = null;
+let latestTradingStatus = {running: false, startable: false};
 function showStatus(message, kind = "") {
   const status = document.getElementById("status");
   status.className = `status visible ${kind}`.trim();
@@ -242,20 +271,26 @@ function showStatus(message, kind = "") {
 function showNextSteps(visible) {
   document.getElementById("nextSteps").classList.toggle("visible", visible);
 }
-function showStartPanel(visible, readiness = null) {
+function showStartPanel(visible, readiness = null, tradingStatus = null) {
   const panel = document.getElementById("startPanel");
   const button = document.getElementById("startTradingButton");
   const message = document.getElementById("startMessage");
   latestStartReadiness = readiness;
+  if (tradingStatus) latestTradingStatus = tradingStatus;
   panel.classList.toggle("visible", visible);
   const ready = Boolean(readiness && readiness.ready);
+  const running = Boolean(latestTradingStatus && latestTradingStatus.running);
   panel.classList.toggle("blocked", visible && !ready);
   button.style.display = ready ? "inline-flex" : "none";
+  button.textContent = running ? "트레이딩 서버 중지" : "트레이딩 서버 시작";
+  button.className = running ? "danger-button" : "primary";
   message.textContent = !visible
     ? ""
-    : ready
-      ? "필수 설정이 저장되었습니다. 트레이딩 서버를 시작할 수 있습니다."
-      : `아직 시작할 수 없습니다. ${formatReadinessProblems(readiness)}`;
+    : running
+      ? "트레이딩 서버가 실행 중입니다. 중지 버튼을 누르면 자동매매 루프만 멈추고 설정 화면은 유지됩니다."
+      : ready
+        ? "필수 설정이 저장되었습니다. 트레이딩 서버를 시작할 수 있습니다."
+        : `아직 시작할 수 없습니다. ${formatReadinessProblems(readiness)}`;
 }
 function formatReadinessProblems(readiness) {
   if (!readiness) return "필수값을 저장해야 합니다.";
@@ -354,8 +389,19 @@ async function loadSettings() {
     document.getElementById("telegramUsername").value = values.TELEGRAM_USERNAME || "";
     document.getElementById("telegramAllowFrom").value = values.TELEGRAM_ALLOW_FROM || "";
     showStartPanel(Boolean(data.start_readiness && data.start_readiness.ready), data.start_readiness);
+    await refreshTradingStatus(data.start_readiness);
   } catch (error) {
     showStatus("현재 설정을 불러오지 못했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
+  }
+}
+async function refreshTradingStatus(readiness = latestStartReadiness) {
+  try {
+    const response = await fetch("/settings/trading/status");
+    const status = await response.json();
+    latestTradingStatus = status;
+    showStartPanel(Boolean(readiness && readiness.ready), readiness, status);
+  } catch (error) {
+    latestTradingStatus = {running: false, startable: false};
   }
 }
 async function saveSettings() {
@@ -394,6 +440,7 @@ async function saveSettings() {
     );
     showNextSteps(false);
     showStartPanel(Boolean(result.saved), result.start_readiness);
+    await refreshTradingStatus(result.start_readiness);
   } catch (error) {
     showStatus("저장 요청에 실패했다. 서버가 실행 중인지 확인한 뒤 다시 시도한다.", "warning");
     showNextSteps(false);
@@ -401,6 +448,13 @@ async function saveSettings() {
   } finally {
     saveButton.disabled = false;
   }
+}
+async function toggleTradingServer() {
+  if (latestTradingStatus && latestTradingStatus.running) {
+    await stopTradingServer();
+    return;
+  }
+  await startTradingServer();
 }
 async function startTradingServer() {
   const button = document.getElementById("startTradingButton");
@@ -412,13 +466,34 @@ async function startTradingServer() {
     if (result.started) {
       showStatus(result.message || "트레이딩 서버가 시작되었습니다.");
       showNextSteps(true);
-      showStartPanel(false);
+      await refreshTradingStatus(result.start_readiness || latestStartReadiness);
       return;
     }
     showStatus(result.message || "트레이딩 서버를 시작하지 못했습니다.", "warning");
     showStartPanel(true, result.start_readiness || latestStartReadiness);
   } catch (error) {
     showStatus("트레이딩 서버 시작 요청에 실패했습니다.", "warning");
+  } finally {
+    button.disabled = false;
+  }
+}
+async function stopTradingServer() {
+  const button = document.getElementById("startTradingButton");
+  button.disabled = true;
+  showStatus("트레이딩 서버를 중지하는 중...", "pending");
+  try {
+    const response = await fetch("/settings/trading/stop", {method: "POST"});
+    const result = await response.json();
+    if (result.stopped || result.status === "already_stopped") {
+      showStatus(result.message || "트레이딩 서버가 중지되었습니다.");
+      showNextSteps(true);
+      await refreshTradingStatus(latestStartReadiness);
+      return;
+    }
+    showStatus(result.message || "트레이딩 서버를 중지하지 못했습니다.", "warning");
+    await refreshTradingStatus(latestStartReadiness);
+  } catch (error) {
+    showStatus("트레이딩 서버 중지 요청에 실패했습니다.", "warning");
   } finally {
     button.disabled = false;
   }

@@ -1081,6 +1081,8 @@ def test_dashboard_page_renders_human_readable_monitor(monkeypatch) -> None:
     assert "투자성향" in response.text
     assert "setLinesWithTitle(\"modeSub\"" in response.text
     assert "모델 학습 준비도 기준." in response.text
+    assert "deriveInvestmentValue" in response.text
+    assert "보유 ${number(coin, 8)}개 × 현재가" in response.text
     assert "/dashboard/summary" in response.text
 
 
@@ -1120,7 +1122,22 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert "telegramAllowFrom" in page.text
     assert "telegram:group:-1003988291151" in page.text
     assert "startTradingServer" in page.text
+    assert "stopTradingServer" in page.text
+    assert "toggleTradingServer" in page.text
+    assert "/settings/trading/status" in page.text
+    assert "/settings/trading/stop" in page.text
+    assert "트레이딩 서버 중지" in page.text
     assert "required-mark" in page.text
+
+    status = client.get("/settings/trading/status")
+    assert status.status_code == 200
+    assert status.json()["running"] is False
+    assert status.json()["startable"] is True
+
+    stopped = client.post("/settings/trading/stop")
+    assert stopped.status_code == 200
+    assert stopped.json()["status"] == "already_stopped"
+    assert stopped.json()["stopped"] is True
 
     response = client.post(
         "/settings",
