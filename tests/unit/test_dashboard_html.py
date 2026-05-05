@@ -46,6 +46,9 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'id="contextStatus"' in DASHBOARD_HTML
     assert 'id="contextRecordedAt"' in DASHBOARD_HTML
     assert "formatExternalContextSource" in DASHBOARD_HTML
+    assert "formatContextState" in DASHBOARD_HTML
+    assert 'neutral: "중립"' in DASHBOARD_HTML
+    assert 'not_applicable: "해당 없음"' in DASHBOARD_HTML
 
 
 def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
@@ -57,6 +60,14 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert 'id="noTradeBlockedReasons"' in DASHBOARD_HTML
     assert 'id="noTradeExternalContext"' in DASHBOARD_HTML
     assert "formatDiagnosticsExternalContext" in DASHBOARD_HTML
+    assert "formatDiagnosisState" in DASHBOARD_HTML
+    assert "formatMitigationAction" in DASHBOARD_HTML
+    assert "formatBlockedReason" in DASHBOARD_HTML
+    assert 'TRADE_BLOCKED_BY_RULES: "매매 규칙 차단"' in DASHBOARD_HTML
+    assert 'RELAX_ENTRY_RULES_FOR_DEMO: "데모 진입 규칙 완화 검토"' in DASHBOARD_HTML
+    assert 'MARKET_HISTORY_WARMING_UP: "시세 이력 준비 중"' in DASHBOARD_HTML
+    assert 'AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달"' in DASHBOARD_HTML
+    assert 'FEE_ADJUSTED_EDGE_LIMIT: "수수료 반영 기대수익 부족"' in DASHBOARD_HTML
 
 
 def test_dashboard_displays_learning_log_context() -> None:
@@ -99,6 +110,9 @@ def test_settings_includes_rule_review_pipeline_panel() -> None:
     assert 'row("히스토리 경고"' in SETTINGS_HTML
     assert "formatRuleExternalContext" in SETTINGS_HTML
     assert "formatRuleHistoryWarnings" in SETTINGS_HTML
+    assert "formatContextState" in SETTINGS_HTML
+    assert 'neutral: "중립"' in SETTINGS_HTML
+    assert 'not_applicable: "해당 없음"' in SETTINGS_HTML
     assert "commit_hash" in SETTINGS_HTML
     assert "commit ${item.commit_hash}" in SETTINGS_HTML
 

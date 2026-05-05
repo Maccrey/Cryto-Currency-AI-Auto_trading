@@ -636,8 +636,8 @@ function renderRulePipeline(payload) {
 }
 
 function formatRuleExternalContext(summary) {
-  const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${key} ${number(value)}건`).join(", ") || "없음";
-  const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${key} ${number(value)}건`).join(", ") || "없음";
+  const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
+  const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
   return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
 }
 
@@ -766,8 +766,8 @@ async function refreshDashboard() {
 function renderExternalContext(context) {
   const onchain = context.onchain || {};
   const etf = context.etf || {};
-  document.getElementById("onchainState").textContent = `${onchain.state || "-"} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`;
-  document.getElementById("etfState").textContent = `${etf.state || "-"} / ${number(etf.flow_usd || 0, 0)} USD`;
+  document.getElementById("onchainState").textContent = `${formatContextState(onchain.state)} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`;
+  document.getElementById("etfState").textContent = `${formatContextState(etf.state)} / ${number(etf.flow_usd || 0, 0)} USD`;
   document.getElementById("contextWeight").textContent = number(context.learning_weight || 1, 3);
   document.getElementById("contextStatus").textContent = formatExternalContextStatus(onchain, etf);
   document.getElementById("onchainSource").textContent = formatExternalContextSource(onchain);
@@ -786,22 +786,75 @@ function formatExternalContextStatus(onchain, etf) {
 
 function formatExternalContextSource(section) {
   const source = section.source || "-";
-  return section.fetch_error ? `${source} fallback` : source;
+  const label = formatContextSource(source);
+  return section.fetch_error ? `${label} 대체값` : label;
+}
+
+function formatContextState(value) {
+  const labels = {
+    bullish: "강세",
+    bearish: "약세",
+    neutral: "중립",
+    inflow: "자금 유입",
+    outflow: "자금 유출",
+    disabled: "비활성",
+    not_applicable: "해당 없음"
+  };
+  return labels[value] || value || "-";
+}
+
+function formatContextSource(value) {
+  const labels = {
+    manual: "수동 설정",
+    http: "외부 API",
+    disabled: "비활성",
+    "-": "-"
+  };
+  return labels[value] || value || "-";
+}
+
+function formatDiagnosisState(value) {
+  const labels = {
+    TRADE_BLOCKED_BY_RULES: "매매 규칙 차단",
+    INSUFFICIENT_ACTIVITY: "활동 데이터 부족",
+    NO_TRADE_DATA: "거래 데이터 없음",
+    ACTIVE_TRADING: "거래 진행 중"
+  };
+  return labels[value] || value || "-";
+}
+
+function formatMitigationAction(value) {
+  const labels = {
+    RELAX_ENTRY_RULES_FOR_DEMO: "데모 진입 규칙 완화 검토",
+    COLLECT_MORE_DATA: "데이터 추가 수집",
+    KEEP_CURRENT_RULES: "현재 룰 유지",
+    REVIEW_RISK_RULES: "리스크 규칙 점검"
+  };
+  return labels[value] || value || "-";
+}
+
+function formatBlockedReason(value) {
+  const labels = {
+    MARKET_HISTORY_WARMING_UP: "시세 이력 준비 중",
+    AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달",
+    FEE_ADJUSTED_EDGE_LIMIT: "수수료 반영 기대수익 부족"
+  };
+  return labels[value] || value || "-";
 }
 
 function renderNoTradeDiagnostics(diagnostics) {
   const diagnosis = diagnostics.diagnosis || {};
   const mitigation = diagnostics.mitigation || {};
-  document.getElementById("noTradeDiagnosis").textContent = `${diagnosis.state || "-"} / ${diagnosis.message || ""}`.trim();
-  document.getElementById("noTradeMitigation").textContent = `${mitigation.action || "-"} / ${mitigation.message || ""}`.trim();
+  document.getElementById("noTradeDiagnosis").textContent = `${formatDiagnosisState(diagnosis.state)} / ${diagnosis.message || ""}`.trim();
+  document.getElementById("noTradeMitigation").textContent = `${formatMitigationAction(mitigation.action)} / ${mitigation.message || ""}`.trim();
   document.getElementById("noTradeBlockedReasons").textContent = formatBlockedReasons(diagnostics);
   document.getElementById("noTradeExternalContext").textContent = formatDiagnosticsExternalContext(diagnostics.external_context_summary || {});
   document.getElementById("noTradeEventsScanned").textContent = number(diagnostics.events_scanned || 0);
 }
 
 function formatDiagnosticsExternalContext(summary) {
-  const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${key} ${number(value)}건`).join(", ") || "없음";
-  const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${key} ${number(value)}건`).join(", ") || "없음";
+  const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
+  const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
   return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
 }
 
@@ -809,8 +862,8 @@ function formatBlockedReasons(diagnostics) {
   const pairs = [];
   const autoReasons = diagnostics.auto_cycle_blocked_reasons || {};
   const sizingReasons = diagnostics.sizing_blocked_reasons || {};
-  Object.entries(autoReasons).forEach(([key, value]) => pairs.push(`${key} ${number(value)}건`));
-  Object.entries(sizingReasons).forEach(([key, value]) => pairs.push(`sizing:${key} ${number(value)}건`));
+  Object.entries(autoReasons).forEach(([key, value]) => pairs.push(`${formatBlockedReason(key)} ${number(value)}건`));
+  Object.entries(sizingReasons).forEach(([key, value]) => pairs.push(`사이징: ${formatBlockedReason(key)} ${number(value)}건`));
   return pairs.length ? pairs.join(", ") : "차단 기록 없음";
 }
 

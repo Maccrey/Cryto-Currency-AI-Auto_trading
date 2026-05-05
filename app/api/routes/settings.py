@@ -563,9 +563,21 @@ function renderRulePipeline(payload) {
   ].join("");
 }
 function formatRuleExternalContext(summary) {
-  const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${key} ${value}건`).join(", ") || "없음";
-  const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${key} ${value}건`).join(", ") || "없음";
+  const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${value}건`).join(", ") || "없음";
+  const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${value}건`).join(", ") || "없음";
   return `표본 ${summary.sample_count || 0}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${summary.avg_learning_weight || 1}`;
+}
+function formatContextState(value) {
+  const labels = {
+    bullish: "강세",
+    bearish: "약세",
+    neutral: "중립",
+    inflow: "자금 유입",
+    outflow: "자금 유출",
+    disabled: "비활성",
+    not_applicable: "해당 없음"
+  };
+  return labels[value] || value || "-";
 }
 function formatRuleHistoryWarnings(warnings) {
   return warnings.length
