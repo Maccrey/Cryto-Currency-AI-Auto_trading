@@ -166,6 +166,7 @@ DASHBOARD_HTML = """
     .context-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .context-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .context-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; white-space: pre-line; }
+    .context-value.compact { font-size: 13px; line-height: 1.45; font-weight: 700; }
     .legend { margin-top: 12px; }
     .legend-toggle { margin-top: 12px; }
     .legend-panel { display: none; }
@@ -265,7 +266,7 @@ DASHBOARD_HTML = """
       <div class="context-item"><div class="context-label">진단 상태</div><div id="noTradeDiagnosis" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">대응안</div><div id="noTradeMitigation" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">차단 사유</div><div id="noTradeBlockedReasons" class="context-value">-</div></div>
-      <div class="context-item"><div class="context-label">외부 컨텍스트</div><div id="noTradeExternalContext" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">외부 컨텍스트</div><div id="noTradeExternalContext" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">스캔 이벤트</div><div id="noTradeEventsScanned" class="context-value">-</div></div>
     </div>
   </section>
@@ -861,7 +862,7 @@ function renderNoTradeDiagnostics(diagnostics) {
 function formatDiagnosticsExternalContext(summary) {
   const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
   const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
-  return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain}\nETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
+  return `표본 ${number(summary.sample_count || 0)}건\n온체인 ${onchain}\nETF ${etf}\n평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
 }
 
 function formatBlockedReasons(diagnostics) {

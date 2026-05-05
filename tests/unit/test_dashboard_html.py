@@ -58,12 +58,13 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert 'id="noTradeDiagnosis"' in DASHBOARD_HTML
     assert 'id="noTradeMitigation"' in DASHBOARD_HTML
     assert 'id="noTradeBlockedReasons"' in DASHBOARD_HTML
-    assert 'id="noTradeExternalContext"' in DASHBOARD_HTML
+    assert 'id="noTradeExternalContext" class="context-value compact"' in DASHBOARD_HTML
     assert "formatDiagnosticsExternalContext" in DASHBOARD_HTML
     assert "formatDiagnosisState" in DASHBOARD_HTML
     assert "formatMitigationAction" in DASHBOARD_HTML
     assert "formatBlockedReason" in DASHBOARD_HTML
     assert "white-space: pre-line" in DASHBOARD_HTML
+    assert ".context-value.compact { font-size: 13px;" in DASHBOARD_HTML
     assert 'TRADES_FOUND: "체결 이벤트 확인"' in DASHBOARD_HTML
     assert 'NO_LEARNING_LOG: "학습 로그 없음"' in DASHBOARD_HTML
     assert 'AUTO_TRADING_NOT_RUNNING: "자동매매 미실행"' in DASHBOARD_HTML
@@ -75,8 +76,10 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert 'MARKET_HISTORY_WARMING_UP: "시세 이력 준비 중"' in DASHBOARD_HTML
     assert 'AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달"' in DASHBOARD_HTML
     assert 'FEE_ADJUSTED_EDGE_LIMIT: "수수료 반영 기대수익 부족"' in DASHBOARD_HTML
+    assert "표본 ${number(summary.sample_count || 0)}건" in DASHBOARD_HTML
     assert "온체인 ${onchain}" in DASHBOARD_HTML
-    assert "ETF ${etf} / 평균 가중치" in DASHBOARD_HTML
+    assert "ETF ${etf}" in DASHBOARD_HTML
+    assert "평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}" in DASHBOARD_HTML
 
 
 def test_dashboard_displays_learning_log_context() -> None:
