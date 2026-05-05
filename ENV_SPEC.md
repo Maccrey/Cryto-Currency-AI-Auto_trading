@@ -274,6 +274,8 @@ false면 앱 시작 실패
 
 `event_type=correction` 행은 선택 필드 `correction_detail`을 포함할 수 있다. 이 객체에는 `reason`, `corrected_fields`, `corrected_by`를 저장해 기존 행을 수정하지 않고 보정 근거를 남긴다.
 
+`event_type=rollback` 행은 선택 필드 `rollback_detail`을 포함할 수 있다. 이 객체에는 `reason`, `target`, `rolled_back_by`를 저장해 문제가 생긴 룰 변경안을 어느 대상에서 되돌렸는지 남긴다.
+
 ### TRADE_MARKET / TRADE_COIN
 - 기본값은 `TRADE_COIN=XRP`, `TRADE_MARKET=KRW-XRP`이다.
 - 코인은 XRP에 고정하지 않는다. 예를 들어 BTC로 운용하려면 `TRADE_COIN=BTC`, `TRADE_MARKET=KRW-BTC`를 저장한다.

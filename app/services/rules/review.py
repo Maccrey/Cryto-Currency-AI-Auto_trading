@@ -288,6 +288,49 @@ class RuleReviewService:
         )
         return {"proposal": proposal, "correction": correction}
 
+    def rollback_proposal(
+        self,
+        proposal_id: str,
+        *,
+        reason: str,
+        target: str = "demo",
+        rolled_back_by: str = "",
+    ) -> dict[str, object]:
+        proposal = self._proposals[proposal_id]
+        normalized_reason = reason.strip()
+        normalized_target = target.strip() or "demo"
+        if not normalized_reason:
+            reasons = set(proposal["rejection_reasons"])
+            reasons.add("rollback_reason_required")
+            proposal["rejection_reasons"] = sorted(reasons)
+            self._save_state()
+            return {"proposal": proposal, "rollback": None}
+
+        proposal["status"] = "rolled_back"
+        proposal["rolled_back"] = True
+        proposal["rolled_back_at"] = datetime.now(UTC).isoformat()
+        proposal["rolled_back_by"] = rolled_back_by.strip()
+        proposal["rollback_target"] = normalized_target
+        if normalized_target == "live":
+            proposal["live_approved"] = False
+        if normalized_target == "demo":
+            proposal["demo_applied"] = False
+        rollback = {
+            "reason": normalized_reason,
+            "target": normalized_target,
+            "rolled_back_by": rolled_back_by.strip(),
+        }
+        self._save_state()
+        self._append_history_event(
+            event_type="rollback",
+            proposal=proposal,
+            approval_status="rolled_back",
+            approved_by=rolled_back_by,
+            change_reason=normalized_reason,
+            extra_fields={"rollback_detail": rollback},
+        )
+        return {"proposal": proposal, "rollback": rollback}
+
     def _load_state(self) -> dict[str, dict[str, dict[str, Any]]]:
         empty: dict[str, dict[str, dict[str, Any]]] = {
             "reviews": {},

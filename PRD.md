@@ -392,6 +392,7 @@ Codex가 최근 학습 로그를 읽어 손실 원인과 차단 원인을 분석
 - `POST /api/v1/rules/proposals/{id}/approve-live`
 - `POST /api/v1/rules/proposals/{id}/commit-hash`
 - `POST /api/v1/rules/proposals/{id}/history-corrections`
+- `POST /api/v1/rules/proposals/{id}/rollback`
 - `GET /api/v1/rules/proposals/{id}`
 - `GET /api/v1/rules/history`
 

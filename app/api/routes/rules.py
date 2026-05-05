@@ -31,6 +31,12 @@ class RuleHistoryCorrectionPayload(BaseModel):
     corrected_by: str = ""
 
 
+class RuleRollbackPayload(BaseModel):
+    reason: str = ""
+    target: str = "demo"
+    rolled_back_by: str = ""
+
+
 def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
     router = APIRouter(prefix="/api/v1/rules")
 
@@ -92,6 +98,18 @@ def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
             reason=payload.reason,
             corrected_fields=payload.corrected_fields,
             corrected_by=payload.corrected_by,
+        )
+
+    @router.post("/proposals/{proposal_id}/rollback")
+    def rollback_rule_proposal(
+        proposal_id: str,
+        payload: RuleRollbackPayload,
+    ) -> dict[str, object]:
+        return rule_review_service.rollback_proposal(
+            proposal_id,
+            reason=payload.reason,
+            target=payload.target,
+            rolled_back_by=payload.rolled_back_by,
         )
 
     @router.post("/proposals/{proposal_id}/approve-live")

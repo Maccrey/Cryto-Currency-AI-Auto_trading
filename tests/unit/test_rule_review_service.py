@@ -476,3 +476,44 @@ def test_rule_change_history_correction_is_append_only(tmp_path: Path) -> None:
     assert rows[1]["approval_status"] == "corrected"
     assert rows[1]["change_reason"] == "커밋 해시 설명 누락 보정"
     assert rows[1]["correction_detail"]["corrected_fields"] == {"commit_hash": "abc1234"}
+
+
+def test_rule_change_rollback_updates_proposal_and_appends_history(tmp_path: Path) -> None:
+    service = RuleReviewService(
+        market="KRW-BTC",
+        trade_coin="BTC",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+    proposal = service.create_proposal()["proposal"]
+    service.verify_replay(str(proposal["id"]), fixture_path=Path("fixtures/replay_ticks.json"))
+    service.apply_demo(str(proposal["id"]))
+
+    result = service.rollback_proposal(
+        str(proposal["id"]),
+        reason="demo 손절률 악화로 되돌림",
+        target="demo",
+        rolled_back_by="operator",
+    )
+
+    rows = [json.loads(line) for line in (tmp_path / "rule-change-history.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert result["proposal"]["status"] == "rolled_back"
+    assert result["proposal"]["demo_applied"] is False
+    assert result["rollback"] == {
+        "reason": "demo 손절률 악화로 되돌림",
+        "target": "demo",
+        "rolled_back_by": "operator",
+    }
+    assert [row["event_type"] for row in rows] == ["proposal_created", "replay_verified", "demo_applied", "rollback"]
+    assert rows[-1]["approval_status"] == "rolled_back"
+    assert rows[-1]["change_reason"] == "demo 손절률 악화로 되돌림"
+    assert rows[-1]["rollback_detail"]["target"] == "demo"

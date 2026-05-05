@@ -310,10 +310,12 @@
 - [x] [Fail] 과거 동일 파라미터 변경 실패 이력이 있으면 proposal에 경고가 표시되어야 한다
 - [x] [Fail] 룰 변경 커밋 해시는 기존 히스토리 수정 없이 append-only 이벤트로 연결되어야 한다
 - [x] [Fail] 잘못된 룰 변경 히스토리는 기존 행 수정 없이 correction 이벤트로 보정되어야 한다
+- [x] [Fail] 문제가 생긴 룰 변경안은 기존 행 수정 없이 rollback 이벤트로 되돌림 기록을 남겨야 한다
 - [x] [Code] 룰 변경 히스토리 원장 writer 구현
 - [x] [Code] proposal 생성/demo 적용/live 승인 시 history event 기록
 - [x] [Code] 룰 변경 히스토리 조회 API 구현
 - [x] [Code] 룰 변경 히스토리 correction API 구현
+- [x] [Code] 룰 변경 proposal rollback API 구현
 - [x] [Code] 설정 화면과 대시보드에 룰 변경 히스토리 패널 구현
 - [x] [Code] 룰 변경 proposal 커밋 해시 연결 API 구현
 - [x] [Code] 룰 변경 proposal 커밋 해시 연결 CLI 구현

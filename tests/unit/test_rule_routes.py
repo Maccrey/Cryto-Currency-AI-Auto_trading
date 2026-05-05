@@ -79,6 +79,23 @@ def test_rule_review_api_contract(tmp_path) -> None:
     assert corrected_history_response.json()["history"][0]["event_type"] == "correction"
     assert corrected_history_response.json()["history"][0]["correction_detail"]["corrected_by"] == "operator"
 
+    rollback_response = client.post(
+        f"/api/v1/rules/proposals/{proposal['id']}/rollback",
+        json={
+            "reason": "demo 검증 지표 악화",
+            "target": "demo",
+            "rolled_back_by": "operator",
+        },
+    )
+    assert rollback_response.status_code == 200
+    assert rollback_response.json()["proposal"]["status"] == "rolled_back"
+    assert rollback_response.json()["rollback"]["reason"] == "demo 검증 지표 악화"
+
+    rollback_history_response = client.get("/api/v1/rules/history")
+    assert rollback_history_response.status_code == 200
+    assert rollback_history_response.json()["history"][0]["event_type"] == "rollback"
+    assert rollback_history_response.json()["history"][0]["rollback_detail"]["rolled_back_by"] == "operator"
+
     detail_response = client.get(f"/api/v1/rules/proposals/{proposal['id']}")
     assert detail_response.status_code == 200
     assert detail_response.json()["proposal"]["id"] == proposal["id"]
