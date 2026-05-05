@@ -1389,6 +1389,54 @@ def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
     assert response.json() == expected
 
 
+def test_demo_start_does_not_restore_learning_log_fills_into_current_execution_ledger(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = PortfolioState(
+                    cash_balance=1_000_000.0,
+                    asset_currency="XRP",
+                    asset_balance=0.0,
+                    avg_buy_price=0.0,
+                )
+                reconcile_result = None
+
+            return BootState()
+
+    log_dir = tmp_path / "learning" / "scalping"
+    log_dir.mkdir(parents=True)
+    (log_dir / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                '{"event_name":"fill_result","market":"KRW-XRP","mode":"demo","payload":{"side":"buy","filled_price":820.0,"filled_quantity":100.0,"fee":41.0,"is_stop_loss":false}}',
+                '{"event_name":"fill_result","market":"KRW-XRP","mode":"demo","payload":{"side":"sell","filled_price":805.0,"filled_quantity":100.0,"fee":40.25,"is_stop_loss":true}}',
+            ],
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("LEARNING_LOG_DIR", str(tmp_path / "learning"))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    summary = client.get("/dashboard/summary").json()
+    executions = client.get("/dashboard/executions").json()
+
+    assert summary["cash_balance"] == 1_000_000.0
+    assert summary["coin_balance"] == 0.0
+    assert summary["buy_count"] == 0
+    assert executions == {"status": "empty", "history": []}
+
+
 def test_decision_entry_endpoint_returns_trade_decision_payload(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):

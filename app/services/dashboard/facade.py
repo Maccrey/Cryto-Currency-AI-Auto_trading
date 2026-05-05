@@ -7,6 +7,7 @@ from app.services.execution.ledger import ExecutionLedger
 from app.services.dashboard.summary import DashboardSummaryService
 from app.services.learning.service import LearningService
 from app.services.market.store import MarketPriceStore
+from app.services.portfolio.sync import PortfolioState
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.promotion.dashboard import PromotionDashboardFacade
@@ -57,15 +58,25 @@ class DashboardSummaryFacade:
     ) -> dict[str, object]:
         ledger_summary = None if self._execution_ledger is None else self._execution_ledger.summarize()
         ledger_portfolio = None
+        active_position = None if self._position_store is None else self._position_store.get()
         if (
             trading_mode == "demo"
             and self._execution_ledger is not None
             and boot_state.portfolio_state is not None
         ):
-            ledger_portfolio = self._execution_ledger.portfolio_state(
-                initial_cash=boot_state.portfolio_state.cash_balance,
-                asset_currency=boot_state.portfolio_state.asset_currency,
-            )
+            if active_position is None:
+                realized_pnl = 0.0 if ledger_summary is None else ledger_summary.realized_pnl
+                ledger_portfolio = PortfolioState(
+                    cash_balance=round(max(boot_state.portfolio_state.cash_balance + realized_pnl, 0.0), 2),
+                    asset_currency=boot_state.portfolio_state.asset_currency,
+                    asset_balance=0.0,
+                    avg_buy_price=0.0,
+                )
+            else:
+                ledger_portfolio = self._execution_ledger.portfolio_state(
+                    initial_cash=boot_state.portfolio_state.cash_balance,
+                    asset_currency=boot_state.portfolio_state.asset_currency,
+                )
         recent_learning_events = [] if self._learning_service is None else self._learning_service.recent_events()
         last_learning_event = None if not recent_learning_events else recent_learning_events[-1].event_name
         learning_signal_count = sum(
@@ -112,7 +123,7 @@ class DashboardSummaryFacade:
         last_position_event = None if not position_records else position_records[-1].event_type
         unrealized_pnl = 0.0
         if self._position_store is not None and self._market_price_store is not None:
-            position = self._position_store.get()
+            position = active_position
             if position is not None:
                 latest_price = self._market_price_store.get_price(position.market)
                 if latest_price is not None:
