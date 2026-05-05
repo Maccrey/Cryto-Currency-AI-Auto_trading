@@ -21,6 +21,13 @@ class SettingsModel(BaseModel):
     app_timezone: str = Field(default="Asia/Seoul")
     trading_mode: str = Field(default="demo")
     learning_enabled: bool = Field(default=True)
+    rule_review_enabled: bool = Field(default=True)
+    rule_review_window_days: int = Field(default=14)
+    rule_review_min_trades: int = Field(default=100)
+    rule_review_min_stoplosses: int = Field(default=20)
+    rule_change_max_params_per_run: int = Field(default=3)
+    rule_change_apply_target: str = Field(default="demo")
+    rule_change_require_manual_approval: bool = Field(default=True)
     trade_market: str = Field(default="KRW-XRP")
     trade_coin: str = Field(default="XRP")
     upbit_access_key: str = Field(default="")
@@ -96,6 +103,13 @@ class SettingsModel(BaseModel):
             raise ValueError("LEARNING_ENABLED must remain true in every mode")
         return value
 
+    @field_validator("rule_change_apply_target")
+    @classmethod
+    def validate_rule_change_apply_target(cls, value: str) -> str:
+        if value != "demo":
+            raise ValueError("RULE_CHANGE_APPLY_TARGET must be demo; live direct apply is forbidden")
+        return value
+
     @field_validator("trading_profile")
     @classmethod
     def validate_trading_profile(cls, value: str) -> str:
@@ -140,6 +154,13 @@ class AppSettings:
     app_timezone: str
     trading_mode: str
     learning_enabled: bool
+    rule_review_enabled: bool
+    rule_review_window_days: int
+    rule_review_min_trades: int
+    rule_review_min_stoplosses: int
+    rule_change_max_params_per_run: int
+    rule_change_apply_target: str
+    rule_change_require_manual_approval: bool
     trade_market: str
     trade_coin: str
     upbit_access_key: str
@@ -217,6 +238,15 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "app_timezone": _setting("APP_TIMEZONE", "Asia/Seoul", env_values),
         "trading_mode": _setting("TRADING_MODE", "demo", env_values),
         "learning_enabled": _parse_bool(_setting("LEARNING_ENABLED", "true", env_values)),
+        "rule_review_enabled": _parse_bool(_setting("RULE_REVIEW_ENABLED", "true", env_values)),
+        "rule_review_window_days": int(_setting("RULE_REVIEW_WINDOW_DAYS", "14", env_values)),
+        "rule_review_min_trades": int(_setting("RULE_REVIEW_MIN_TRADES", "100", env_values)),
+        "rule_review_min_stoplosses": int(_setting("RULE_REVIEW_MIN_STOPLOSSES", "20", env_values)),
+        "rule_change_max_params_per_run": int(_setting("RULE_CHANGE_MAX_PARAMS_PER_RUN", "3", env_values)),
+        "rule_change_apply_target": _setting("RULE_CHANGE_APPLY_TARGET", "demo", env_values),
+        "rule_change_require_manual_approval": _parse_bool(
+            _setting("RULE_CHANGE_REQUIRE_MANUAL_APPROVAL", "true", env_values),
+        ),
         "trade_market": _setting("TRADE_MARKET", "KRW-XRP", env_values),
         "trade_coin": _setting("TRADE_COIN", "XRP", env_values),
         "upbit_access_key": _setting("UPBIT_ACCESS_KEY", "", env_values),

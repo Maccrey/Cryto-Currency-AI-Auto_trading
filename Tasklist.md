@@ -1,9 +1,9 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 190개
-  - 미완료: 12개
-  - 전체: 202개
+  - 완료: 210개
+  - 미완료: 14개
+  - 전체: 224개
  
 ## 1. 작업 원칙
 - 모든 구현은 TDD 순서를 따른다.
@@ -12,6 +12,9 @@
 - Git 커밋 메시지는 반드시 한국어
 - 구현 완료 후 테스트 통과를 확인하고 한국어 커밋을 생성해야 한다
 - 커밋 전에 테스트 통과 확인 필수
+- 룰 변경도 실패 테스트와 replay 테스트를 먼저 통과해야 한다
+- 룰 변경안은 demo 선반영 후 승인받아 live에 반영한다
+- main 직접 반영 금지, 브랜치 기반 검토 필수
 
 ---
 
@@ -21,6 +24,12 @@
                                                                |                |
                                                                v                v
                                                         [learning-log]     [risk-engine]
+                                                               |
+                                                               v
+                                                    [Codex rule review loop]
+                                                               |
+                                                               v
+                                                [replay] -> [demo apply] -> [live approval]
                                                                                  |
                                                                                  v
                                                            [demo/live executor] -> [portfolio]
@@ -232,7 +241,7 @@
 
 ### 하단 패널
 - [x] [Fail] 보유 코인, 보유 현금, 손익, 카운트, 모드, 학습 상태가 표시되어야 한다
-- [x] [Fail] 재기동 후에도 학습 로그의 최근 체결이 대시보드 최근 체결에 복원되어야 한다
+- [x] [Fail] demo 재기동 후 과거 학습 로그의 체결이 현재 투자금/최근 체결에 섞이지 않아야 한다
 - [x] [Code] summary panel API 구현
 - [x] [Code] demo 체결 원장 기반 대시보드 투자금/현금/코인 수량 표시
 - [x] [Code] 학습 로그 fill_result 기반 실행 원장 seed 구현
@@ -275,6 +284,26 @@
 - [x] [Code] model training readiness service 구현
 - [x] [Code] `/learning/model-readiness` API 구현
 - [x] [Contract] TensorFlow 계열 학습 패키지는 선택 의존성 `ml`로 분리
+
+### Codex 룰 개선 파이프라인
+- [x] [Fail] 룰 리뷰 표본 수가 부족하면 변경안 생성이 차단되어야 한다
+- [x] [Fail] 손절 표본 수가 부족하면 손절 파라미터 변경안이 차단되어야 한다
+- [ ] [Fail] 한 번에 허용 개수보다 많은 파라미터 변경은 거부되어야 한다
+- [x] [Fail] replay 결과 없는 룰 변경안은 demo 적용이 거부되어야 한다
+- [x] [Fail] demo 적용과 수동 승인 없이 live 적용이 거부되어야 한다
+- [x] [Code] 룰 분석 리포트 생성기 구현
+- [x] [Code] Codex 룰 변경안 생성기 구현
+- [ ] [Code] replay 기반 변경 검증기 구현
+- [x] [Code] demo 적용 워크플로 구현
+- [x] [Code] live 승인 워크플로 구현
+- [x] [Code] `/api/v1/rules/review` API 구현
+- [x] [Code] `/api/v1/rules/proposals` API 구현
+- [x] [Code] `/api/v1/rules/proposals/{id}/apply-demo` API 구현
+- [x] [Code] `/api/v1/rules/proposals/{id}/approve-live` API 구현
+- [x] [Code] `/api/v1/rules/proposals/{id}` API 구현
+- [x] [Code] 설정 화면 룰 개선 버튼과 결과 패널 구현
+- [x] [Contract] 룰 변경 허용 파일 목록 문서화
+- [x] [Contract] replay/demo/live 승인 기준 문서화
 
 ### TensorFlow 오프라인 학습 계획
 - [ ] [Fail] 학습 데이터가 부족하면 TensorFlow 학습 CLI가 실행을 거부해야 한다

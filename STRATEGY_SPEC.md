@@ -13,6 +13,7 @@
 - 재기동/운영 이상 시 보수적으로 방어
 - 실거래 이전에 데모 기간을 충분히 확보
 - 모든 거래와 결정에서 학습 데이터 축적
+- 학습 로그를 중심으로 Codex가 룰을 분석·제안·테스트하고 demo 검증 후 승인받아 live에 반영
 
 ---
 
@@ -263,11 +264,13 @@ if elapsed_sec >= validation_window_sec and unrealized_return_pct < min_expected
 - promotion_evaluated
 
 ### 기록 목적
-- 전략 회귀 검증
-- feature 품질 분석
-- 손절 규칙 고도화
-- 승격 근거 확보
-- 모델 학습 데이터셋 생성
+우선순위는 아래 순서로 고정한다.
+
+1. 룰 개선 분석 데이터
+2. replay 검증 데이터
+3. demo→live 승격 평가 데이터
+4. 전략 회귀 검증과 feature 품질 분석
+5. 향후 모델 학습 데이터
 
 ---
 
@@ -310,17 +313,29 @@ eligible_for_live = (
 - 기본은 수동 승인
 - 자동 승격 허용 시에도 SAFE_MODE로 시작
 - 초기 실거래는 size 축소 권장
+- 룰 변경이 발생하면 승격 평가를 다시 실행한다.
+- live 운영 중 룰 변경은 즉시 반영하지 않는다.
+- 룰 변경안은 먼저 demo에 적용하고 replay + demo 지표 통과 후 승인받는다.
 
 ---
 
 ## 11. 전략 변경 절차
+초기 전략 개선은 TensorFlow 직접 학습보다 **학습 로그 기반 Codex 룰 개선 루프**를 우선한다. TensorFlow 모델은 선택 의존성 `ml`의 오프라인 학습 파이프라인으로 후순위 처리하며, 규칙 기반 리스크 게이트를 우회할 수 없다.
+
 전략 변경 시 반드시 아래를 따른다.
-1. 실패 테스트 추가
-2. replay fixture 업데이트
-3. 최소 구현
-4. 회귀 테스트 확인
-5. 문서 갱신
-6. 한국어 Git 커밋
+1. 최근 `RULE_REVIEW_WINDOW_DAYS` 학습 로그 집계
+2. 거래 수, 손절 수, 주요 손실 원인 분석
+3. 룰 변경안 생성
+4. 실패 테스트 추가
+5. replay fixture 업데이트 및 replay 테스트
+6. demo 적용
+7. demo 지표 재검증
+8. 운영자 승인
+9. live 반영
+10. 문서 갱신
+11. 한국어 Git 커밋
+
+한 번에 바꾸는 파라미터 수는 `RULE_CHANGE_MAX_PARAMS_PER_RUN` 이하로 제한한다. `RULE_REVIEW_MIN_TRADES`와 `RULE_REVIEW_MIN_STOPLOSSES` 기준을 충족하지 못하면 해당 변경안은 생성하지 않는다.
 
 ### 커밋 예시
 - `급등 신호 점수 가중치 조정과 replay 테스트 추가`

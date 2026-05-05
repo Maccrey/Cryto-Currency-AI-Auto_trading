@@ -25,6 +25,14 @@ ENV_FILE_PATH=.env
 TRADING_MODE=demo
 LEARNING_ENABLED=true
 
+RULE_REVIEW_ENABLED=true
+RULE_REVIEW_WINDOW_DAYS=14
+RULE_REVIEW_MIN_TRADES=100
+RULE_REVIEW_MIN_STOPLOSSES=20
+RULE_CHANGE_MAX_PARAMS_PER_RUN=3
+RULE_CHANGE_APPLY_TARGET=demo
+RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true
+
 TRADE_MARKET=KRW-XRP
 TRADE_COIN=XRP
 
@@ -109,6 +117,13 @@ DASHBOARD_PORT=8080
 | ENV_FILE_PATH | str | N | .env | GUI 설정 화면이 읽고 쓰는 환경 파일 경로 |
 | TRADING_MODE | str | Y | demo | 실행 모드, demo/live만 허용 |
 | LEARNING_ENABLED | bool | Y | true | 항상 true여야 함 |
+| RULE_REVIEW_ENABLED | bool | Y | true | 학습 로그 기반 룰 개선 분석 기능 활성화 여부 |
+| RULE_REVIEW_WINDOW_DAYS | int | Y | 14 | 룰 개선 분석 대상 최근 기간 |
+| RULE_REVIEW_MIN_TRADES | int | Y | 100 | 룰 변경안 생성을 허용하는 최소 거래 수 |
+| RULE_REVIEW_MIN_STOPLOSSES | int | Y | 20 | 손절 관련 룰 변경안 생성을 허용하는 최소 손절 수 |
+| RULE_CHANGE_MAX_PARAMS_PER_RUN | int | Y | 3 | 한 번의 룰 개선 실행에서 바꿀 수 있는 최대 파라미터 수 |
+| RULE_CHANGE_APPLY_TARGET | str | Y | demo | 룰 변경안 기본 적용 대상, demo만 허용 |
+| RULE_CHANGE_REQUIRE_MANUAL_APPROVAL | bool | Y | true | live 반영 전 수동 승인 필수 여부 |
 | TRADE_MARKET | str | Y | KRW-XRP | 거래 마켓 |
 | TRADE_COIN | str | Y | XRP | 거래 코인 심볼 |
 | UPBIT_ACCESS_KEY | str | Y |  | 업비트 액세스 키 |
@@ -182,6 +197,15 @@ DASHBOARD_PORT=8080
 
 false면 앱 시작 실패
 
+### RULE_REVIEW / RULE_CHANGE
+- 룰 개선은 `RULE_REVIEW_ENABLED=true`일 때만 실행한다.
+- `RULE_REVIEW_WINDOW_DAYS` 최근 로그를 기본 분석 대상으로 한다.
+- `RULE_REVIEW_MIN_TRADES` 미만이면 변경안 생성은 `insufficient_sample` 상태로 차단한다.
+- 손절 수가 `RULE_REVIEW_MIN_STOPLOSSES` 미만이면 손절 파라미터 변경안은 만들지 않는다.
+- `RULE_CHANGE_MAX_PARAMS_PER_RUN`을 초과하는 파라미터 변경은 거부한다.
+- `RULE_CHANGE_APPLY_TARGET=demo`만 허용한다. live 직접 적용은 금지한다.
+- `RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true`가 기본이며, live 반영 API는 승인 상태와 demo/replay 결과를 요구한다.
+
 ### TRADE_MARKET / TRADE_COIN
 - `TRADE_COIN=XRP`, `TRADE_MARKET=KRW-XRP`
 - 코인을 바꾸면 UI 라벨과 메시지도 함께 바뀌어야 한다
@@ -234,6 +258,13 @@ false면 앱 시작 실패
 ```bash
 TRADING_MODE=demo
 LEARNING_ENABLED=true
+RULE_REVIEW_ENABLED=true
+RULE_REVIEW_WINDOW_DAYS=14
+RULE_REVIEW_MIN_TRADES=100
+RULE_REVIEW_MIN_STOPLOSSES=20
+RULE_CHANGE_MAX_PARAMS_PER_RUN=3
+RULE_CHANGE_APPLY_TARGET=demo
+RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true
 DEMO_INITIAL_CAPITAL=1000000
 ```
 

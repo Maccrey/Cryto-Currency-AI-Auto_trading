@@ -156,12 +156,17 @@ DASHBOARD_HTML = """
     .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: white; transition: transform 120ms ease; }
     body.dark .toggle { background: var(--primary); }
     body.dark .toggle::after { transform: translateX(18px); }
+    .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .rule-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .rule-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+    .rule-label { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .rule-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
     @media (max-width: 900px) {
-      .grid, .ai-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid, .ai-grid, .rule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .panel { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
-      .grid, .section-grid { grid-template-columns: 1fr; }
+      .grid, .section-grid, .rule-grid { grid-template-columns: 1fr; }
       .wrap { padding-left: 14px; padding-right: 14px; }
     }
   </style>
@@ -288,9 +293,32 @@ DASHBOARD_HTML = """
       </table>
     </div>
   </section>
+
+  <section class="card">
+    <h2>룰 개선</h2>
+    <div class="action-row">
+      <button class="btn" type="button" onclick="runRuleReview()">룰 개선 분석 실행</button>
+      <button class="btn" type="button" onclick="createRuleProposal()">룰 변경안 생성</button>
+      <button class="btn" type="button" onclick="applyRuleProposalToDemo()">demo 적용</button>
+      <button class="btn primary" type="button" onclick="approveRuleProposalForLive()">live 승인 적용</button>
+    </div>
+    <div class="rule-grid">
+      <div class="rule-item"><div class="rule-label">분석 대상 기간</div><div id="ruleWindow" class="rule-value">-</div></div>
+      <div class="rule-item"><div class="rule-label">거래 수</div><div id="ruleTrades" class="rule-value">-</div></div>
+      <div class="rule-item"><div class="rule-label">손절 수</div><div id="ruleStopLosses" class="rule-value">-</div></div>
+      <div class="rule-item"><div class="rule-label">승인 필요</div><div id="ruleApproval" class="rule-value">-</div></div>
+    </div>
+    <table>
+      <tbody id="ruleReviewTable">
+        <tr><td class="empty">룰 개선 분석을 실행하면 결과가 표시됩니다.</td></tr>
+      </tbody>
+    </table>
+  </section>
 </main>
 <script>
 const THEME_KEY = "cryptoDashboardTheme";
+let latestRuleReviewId = null;
+let latestRuleProposalId = null;
 
 function applyTheme(theme) {
   document.body.classList.toggle("dark", theme === "dark");
@@ -516,6 +544,61 @@ async function fetchJson(url) {
   return response.json();
 }
 
+async function postJson(url, body = {}) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) throw new Error(`${url} ${response.status}`);
+  return response.json();
+}
+
+function renderRulePipeline(payload) {
+  const review = payload.review || {};
+  const proposal = payload.proposal || {};
+  latestRuleReviewId = review.id || proposal.review_id || latestRuleReviewId;
+  latestRuleProposalId = proposal.id || latestRuleProposalId;
+  const source = proposal.id ? proposal : review;
+  document.getElementById("ruleWindow").textContent = source.analysis_window_days ? `${source.analysis_window_days}일` : "-";
+  document.getElementById("ruleTrades").textContent = number(source.trade_count || 0);
+  document.getElementById("ruleStopLosses").textContent = number(source.stop_loss_count || 0);
+  document.getElementById("ruleApproval").textContent = source.approval_required ? "필요" : "불필요";
+  const causes = (source.major_loss_causes || []).map((item) => `${item.reason} ${number(item.count)}건`).join(", ") || "데이터 부족";
+  const changes = (proposal.codex_suggested_changes || []).map((item) => `${item.parameter}: ${item.proposed_value}`).join(", ") || "변경안 없음";
+  const replay = proposal.replay_result ? JSON.stringify(proposal.replay_result) : "replay 필요";
+  const reasons = (proposal.rejection_reasons || []).join(", ") || "없음";
+  document.getElementById("ruleReviewTable").innerHTML = [
+    row("주요 손실 원인", causes),
+    row("Codex 제안 변경 항목", changes),
+    row("replay 결과", replay),
+    row("차단/승인 사유", reasons),
+    row("상태", proposal.status || "reviewed")
+  ].join("");
+}
+
+async function runRuleReview() {
+  renderRulePipeline(await postJson("/api/v1/rules/review"));
+}
+
+async function createRuleProposal() {
+  renderRulePipeline(await postJson("/api/v1/rules/proposals", {review_id: latestRuleReviewId}));
+}
+
+async function applyRuleProposalToDemo() {
+  if (!latestRuleProposalId) {
+    await createRuleProposal();
+  }
+  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/apply-demo`));
+}
+
+async function approveRuleProposalForLive() {
+  if (!latestRuleProposalId) {
+    await createRuleProposal();
+  }
+  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/approve-live`, {approved_by: ""}));
+}
+
 async function refreshDashboard() {
   document.getElementById("statusLine").textContent = "데이터를 불러오는 중...";
   try {
@@ -612,7 +695,7 @@ function renderDashboard(data) {
   const history = executions.history || [];
   document.getElementById("executionsTable").innerHTML = history.length
     ? history.slice(-8).reverse().map((item) => `
-        <tr><td>${item.side}</td><td>${item.status}</td><td>${number(item.filled_price, 4)}</td><td>${number(item.filled_quantity, 6)}</td></tr>
+        <tr><td>${item.side_label || item.side}</td><td>${item.status_label || item.status}</td><td>${number(item.filled_price, 4)}</td><td>${number(item.filled_quantity, 6)}</td></tr>
       `).join("")
     : '<tr><td colspan="4" class="empty">아직 체결 기록이 없습니다.</td></tr>';
 

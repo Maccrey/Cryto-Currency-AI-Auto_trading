@@ -164,6 +164,10 @@ SETTINGS_HTML = """
     .danger-button:disabled { background: #c9847c; cursor: wait; }
     .danger-zone { margin-top: 18px; padding-top: 16px; border-top: 1px solid #f1b8b1; }
     .subsection { margin-top: 18px; padding-top: 16px; border-top: 1px solid #d8e0e6; }
+    .rule-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .rule-result { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 13px; }
+    .rule-result th, .rule-result td { padding: 8px; border-top: 1px solid #d8e0e6; text-align: left; vertical-align: top; }
+    .rule-result th { width: 150px; color: #52616d; }
     .next-steps { display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
     .next-steps.visible { display: flex; }
     .start-panel { display: none; margin-top: 14px; padding: 12px; border: 1px solid #b7d7bd; border-radius: 6px; background: #edf8ef; }
@@ -235,6 +239,21 @@ SETTINGS_HTML = """
       <button id="saveButton" class="primary" type="button" onclick="saveSettings()">저장</button>
       <span id="status" class="status"></span>
     </div>
+    <div class="subsection">
+      <label>룰 개선</label>
+      <div class="note">즉시 반영이 아니라 분석, 변경안 생성, replay 검증, demo 적용, 승인 후 live 반영 순서로 진행한다.</div>
+      <div class="rule-actions">
+        <button class="secondary" type="button" onclick="runRuleReview()">룰 개선 분석 실행</button>
+        <button class="secondary" type="button" onclick="createRuleProposal()">룰 변경안 생성</button>
+        <button class="secondary" type="button" onclick="applyRuleProposalToDemo()">demo 적용</button>
+        <button class="primary" type="button" onclick="approveRuleProposalForLive()">live 승인 적용</button>
+      </div>
+      <table class="rule-result">
+        <tbody id="ruleReviewTable">
+          <tr><td>룰 개선 분석을 실행하면 분석 대상 기간, 거래 수, 손절 수, 손실 원인, 변경안, replay 결과, 승인 필요 여부가 표시됩니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
     <div id="startPanel" class="start-panel">
       <div id="startMessage" class="note"></div>
       <div class="actions">
@@ -263,6 +282,8 @@ let telegramTokenVisible = false;
 let telegramTokenLoaded = false;
 let latestStartReadiness = null;
 let latestTradingStatus = {running: false, startable: false};
+let latestRuleReviewId = null;
+let latestRuleProposalId = null;
 function showStatus(message, kind = "") {
   const status = document.getElementById("status");
   status.className = `status visible ${kind}`.trim();
@@ -393,6 +414,53 @@ async function loadSettings() {
   } catch (error) {
     showStatus("현재 설정을 불러오지 못했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
   }
+}
+function row(label, value) {
+  return `<tr><th>${label}</th><td>${value}</td></tr>`;
+}
+async function postJson(url, body = {}) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) throw new Error(`${url} ${response.status}`);
+  return response.json();
+}
+function renderRulePipeline(payload) {
+  const review = payload.review || {};
+  const proposal = payload.proposal || {};
+  latestRuleReviewId = review.id || proposal.review_id || latestRuleReviewId;
+  latestRuleProposalId = proposal.id || latestRuleProposalId;
+  const source = proposal.id ? proposal : review;
+  const causes = (source.major_loss_causes || []).map((item) => `${item.reason} ${item.count}건`).join(", ") || "데이터 부족";
+  const changes = (proposal.codex_suggested_changes || []).map((item) => `${item.parameter}: ${item.proposed_value}`).join(", ") || "변경안 없음";
+  const replay = proposal.replay_result ? JSON.stringify(proposal.replay_result) : "replay 필요";
+  const reasons = (proposal.rejection_reasons || []).join(", ") || "없음";
+  document.getElementById("ruleReviewTable").innerHTML = [
+    row("분석 대상 기간", source.analysis_window_days ? `${source.analysis_window_days}일` : "-"),
+    row("거래 수", source.trade_count || 0),
+    row("손절 수", source.stop_loss_count || 0),
+    row("주요 손실 원인", causes),
+    row("Codex 제안 변경 항목", changes),
+    row("replay 결과", replay),
+    row("승인 필요 여부", source.approval_required ? "필요" : "불필요"),
+    row("차단/승인 사유", reasons)
+  ].join("");
+}
+async function runRuleReview() {
+  renderRulePipeline(await postJson("/api/v1/rules/review"));
+}
+async function createRuleProposal() {
+  renderRulePipeline(await postJson("/api/v1/rules/proposals", {review_id: latestRuleReviewId}));
+}
+async function applyRuleProposalToDemo() {
+  if (!latestRuleProposalId) await createRuleProposal();
+  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/apply-demo`));
+}
+async function approveRuleProposalForLive() {
+  if (!latestRuleProposalId) await createRuleProposal();
+  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/approve-live`, {approved_by: ""}));
 }
 async function refreshTradingStatus(readiness = latestStartReadiness) {
   try {

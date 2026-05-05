@@ -8,7 +8,7 @@
 
 1. Codex가 저장소를 읽고 수정할 때 **기획 의도와 구현 범위를 정확히 이해**하게 만든다.
 2. 각 작업이 문서, 테스트, 코드, 운영 기준까지 **같은 계약 아래**에서 움직이게 만든다.
-3. 데모 운영 → 학습 축적 → 실거래 승격까지의 전 과정을 **누락 없이 구현**하게 만든다.
+3. 데모 운영 → 학습 축적 → Codex 룰 개선 → replay/demo 검증 → 실거래 승격까지의 전 과정을 **누락 없이 구현**하게 만든다.
 
 ---
 
@@ -37,6 +37,7 @@
 - **모든 모드에서 항상 학습 로그 활성화**
 - 초기에는 `demo` 모드로 일정 기간 운영 후 기준 충족 시 `live` 전환
 - 구조화 로그 기반 데이터셋 생성 및 전략 고도화
+- 학습 로그 기반 Codex 룰 개선 리포트/변경안/replay/demo/live 승인 워크플로
 
 ### 3.2 금지 사항
 - `demo` 모드에서 실주문 호출 금지
@@ -44,6 +45,9 @@
 - 손절 없는 포지션 생성 금지
 - 재기동 직후 바로 live 거래 활성화 금지
 - 테스트 없는 전략 규칙 변경 금지
+- replay 테스트 없는 룰 변경 금지
+- 룰 변경안의 live 즉시 반영 금지
+- 승인 없는 live 룰 반영 금지
 - 텔레그램 알림 실패 무시 금지
 - structured logging 비활성화 금지
 - 영어 커밋 메시지 금지
@@ -132,6 +136,8 @@ git commit -m "매수 체결 시 손절가 주입과 손절 알림 테스트 추
 - `demo`에서 ON
 - `live`에서 ON
 - 꺼지면 안 됨
+- `LEARNING_ENABLED=true`는 필수 고정값이다.
+- 학습 로그의 1차 목적은 TensorFlow 학습이 아니라 룰 개선 분석, replay 검증, 승격 평가다.
 
 ### 6.3 demo 모드
 - 실주문 API 호출 금지
@@ -406,14 +412,67 @@ telegram-notifier
 - schema_version 포함
 
 ### 목적
-- 전략 회귀 테스트
-- feature 개선
-- 모델 학습 데이터셋
-- 승격 근거 확보
+- 룰 개선 분석 데이터
+- replay 검증 데이터
+- demo→live 승격 평가 데이터
+- 전략 회귀 테스트와 feature 개선
+- 향후 모델 학습 데이터셋
 
 ---
 
-## 14. 재기동 복구 계약
+## 14. Codex 룰 개선 루프 계약
+
+초기 전략 개선은 TensorFlow 직접 학습보다 **학습 로그 기반 Codex 룰 개선 루프**를 우선한다. TensorFlow 모델은 충분한 로그, replay 기준, demo shadow 검증이 갖춰진 뒤 선택 의존성 `ml`에서 후순위로 다룬다.
+
+### 14.1 고정 흐름
+```text
+최근 N일 학습 로그 집계
+-> 주요 손실/손절/차단 원인 분석
+-> Codex 룰 변경안 생성
+-> 실패 테스트 및 replay 테스트 작성
+-> 허용 파일만 수정
+-> replay 테스트 통과
+-> demo 적용
+-> demo 지표 재검증
+-> 운영자 승인
+-> live 반영
+```
+
+### 14.2 표본 기준
+- `RULE_REVIEW_WINDOW_DAYS` 기간의 로그만 기본 분석 대상으로 삼는다.
+- `RULE_REVIEW_MIN_TRADES` 미만이면 룰 변경안을 생성하지 않는다.
+- `RULE_REVIEW_MIN_STOPLOSSES` 미만이면 손절 파라미터 변경안을 생성하지 않는다.
+- 한 번에 변경 가능한 파라미터 수는 `RULE_CHANGE_MAX_PARAMS_PER_RUN` 이하로 제한한다.
+
+### 14.3 허용 변경 파일
+- `app/services/signals/**`
+- `app/services/sizing/**`
+- `app/services/risk/**`
+- `app/services/regime/**`
+- `app/core/settings.py`
+- `tests/**`
+- `STRATEGY_SPEC.md`, `ENV_SPEC.md`, `RUNBOOK.md`, `Tasklist.md`, `README.md`, `PRD.md`, `CODEX_HARNESS.md`
+
+이 목록 밖의 변경은 별도 작업으로 분리한다.
+
+### 14.4 룰 변경 금지 조건
+- 실패 테스트가 없으면 금지
+- replay 테스트가 없으면 금지
+- demo 선반영 없이 live 반영 금지
+- live 운영 중 즉시 반영 금지
+- main 직접 반영 금지
+- 한국어 커밋 없는 반영 금지
+
+### 14.5 Git/TDD 규칙
+- 룰 변경도 반드시 실패 테스트를 먼저 작성한다.
+- replay 테스트를 통과해야 변경안을 demo에 적용할 수 있다.
+- 변경안 생성 후 한국어 커밋을 만든다.
+- 브랜치 기반으로 검토하며 main 직접 반영은 금지한다.
+- live 반영은 운영자 승인과 demo 재검증 통과가 필요하다.
+
+---
+
+## 15. 재기동 복구 계약
 
 ### 절차
 ```text
@@ -435,7 +494,7 @@ telegram-notifier
 
 ---
 
-## 15. 테스트 하네스 계약
+## 16. 테스트 하네스 계약
 
 ### 테스트 레벨
 - 단위
@@ -456,10 +515,12 @@ telegram-notifier
 - 재기동 텔레그램 전송
 - 대시보드 마커 색상/툴팁 정합성
 - 승격 기준 미달 시 live 거부
+- 룰 변경안이 replay 테스트 없이 demo/live에 적용되지 않음
+- 승인 없는 live 룰 반영 거부
 
 ---
 
-## 16. 문서 동기화 규칙
+## 17. 문서 동기화 규칙
 Codex는 변경 시 아래 문서를 항상 함께 고려한다.
 
 - `PRD.md`
@@ -475,10 +536,11 @@ Codex는 변경 시 아래 문서를 항상 함께 고려한다.
 - 운영 절차 변경 → `RUNBOOK.md` 수정
 - 환경 변수 변경 → `ENV_SPEC.md` 수정
 - 기획 범위 변경 → `PRD.md` / `Tasklist.md` 수정
+- 룰 개선 워크플로 변경 → `CODEX_HARNESS.md` / `STRATEGY_SPEC.md` / `RUNBOOK.md` 수정
 
 ---
 
-## 17. Codex 작업 템플릿
+## 18. Codex 작업 템플릿
 
 ```text
 Task:
@@ -496,7 +558,7 @@ Acceptance criteria:
 
 ---
 
-## 18. 완료 정의(Definition of Done)
+## 19. 완료 정의(Definition of Done)
 
 작업 완료 조건:
 1. 요구사항이 문서와 일치한다
@@ -506,10 +568,11 @@ Acceptance criteria:
 5. 손절/재기동/텔레그램/대시보드 정합성이 유지된다
 6. 관련 문서가 반영되었다
 7. Git 커밋 메시지가 한국어다
+8. 룰 변경 작업은 replay + demo 검증 + 승인 정책을 통과했다
 
 ---
 
-## 19. Codex 시작 순서
+## 20. Codex 시작 순서
 Codex는 아래 순서로 문서를 읽는다.
 1. `docs/CODEX_HARNESS.md`
 2. `docs/PRD.md`

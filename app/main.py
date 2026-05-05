@@ -16,6 +16,7 @@ from app.api.routes.learning import build_learning_router
 from app.api.routes.market import build_market_router
 from app.api.routes.position import build_position_router
 from app.api.routes.promotion import build_promotion_router
+from app.api.routes.rules import build_rules_router
 from app.api.routes.settings import build_settings_router
 from app.core.logging import configure_logging
 from app.core.network import build_browser_urls
@@ -64,6 +65,7 @@ from app.services.reporting.telegram import (
     TradingReportContext,
 )
 from app.services.risk.stop_loss import StopLossInjector
+from app.services.rules.review import RuleReviewConfig, RuleReviewService
 from app.services.runtime.factory import build_runtime_services
 from app.services.signals.engine import SignalEngine
 from app.services.signals.features import MarketFeatureCalculator
@@ -186,7 +188,11 @@ def create_app(
         promotion_status_store=promotion_status_store,
     )
     execution_ledger = execution_ledger or ExecutionLedger()
-    if "PYTEST_CURRENT_TEST" not in os.environ and not execution_ledger.list_records():
+    if (
+        settings.trading_mode != "demo"
+        and "PYTEST_CURRENT_TEST" not in os.environ
+        and not execution_ledger.list_records()
+    ):
         _seed_execution_ledger_from_learning_log(
             log_path=profile_learning_log_dir / "learning.jsonl",
             execution_ledger=execution_ledger,
@@ -330,6 +336,20 @@ def create_app(
         ),
     )
     app.state.auto_trading_service = auto_trading_service
+    rule_review_service = RuleReviewService(
+        market=settings.trade_market,
+        trading_mode=settings.trading_mode,
+        learning_log_dir=profile_learning_log_dir,
+        config=RuleReviewConfig(
+            enabled=settings.rule_review_enabled,
+            window_days=settings.rule_review_window_days,
+            min_trades=settings.rule_review_min_trades,
+            min_stoplosses=settings.rule_review_min_stoplosses,
+            max_params_per_run=settings.rule_change_max_params_per_run,
+            apply_target=settings.rule_change_apply_target,
+            require_manual_approval=settings.rule_change_require_manual_approval,
+        ),
+    )
 
     @app.on_event("shutdown")
     async def stop_auto_trading_service() -> None:
@@ -538,6 +558,7 @@ def create_app(
             learning_log_dir=profile_learning_log_dir,
         ),
     )
+    app.include_router(build_rules_router(rule_review_service=rule_review_service))
     return app
 
 

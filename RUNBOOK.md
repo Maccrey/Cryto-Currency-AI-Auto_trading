@@ -257,10 +257,51 @@ order_intent
 ### 권장 정책
 - 기본은 수동 승인
 - 자동 승격을 쓰더라도 SAFE_MODE로 진입 후 활성화
+- 룰 변경이 발생하면 승격 평가를 다시 실행한다.
+- live 운영 중 룰 변경은 즉시 반영하지 않고 demo 검증으로 되돌린다.
+- replay와 demo 지표가 통과한 변경안만 live 승인 대상으로 올린다.
 
 ---
 
-## 12. 로그 / 데이터셋 운영
+## 12. 룰 개선 운영 절차
+
+설정 화면의 룰 변경 관련 버튼은 즉시 반영 버튼이 아니라 **룰 개선 파이프라인 시작 버튼**이다.
+
+### 기본 흐름
+```text
+룰 개선 분석 실행
+-> 룰 변경안 생성
+-> replay 검증
+-> demo 적용
+-> demo 지표 확인
+-> live 승인 적용
+```
+
+### 버튼별 의미
+- `룰 개선 분석 실행`: 최근 `RULE_REVIEW_WINDOW_DAYS` 학습 로그를 집계한다.
+- `룰 변경안 생성`: 거래 수와 손절 수 기준 충족 시 Codex 변경안을 만든다.
+- `demo 적용`: replay 결과가 있는 변경안만 demo에 적용한다.
+- `live 승인 적용`: demo 검증 통과와 수동 승인 후 live 반영한다.
+
+### 결과 패널 필수 정보
+- 분석 대상 기간
+- 거래 수
+- 손절 수
+- 주요 손실 원인
+- Codex 제안 변경 항목
+- replay 결과
+- 승인 필요 여부
+
+### 운영 금지 사항
+- replay 테스트 없는 룰 변경 금지
+- demo 적용 없는 live 반영 금지
+- 수동 승인 없는 live 반영 금지
+- main 직접 반영 금지
+- 한국어 커밋 없는 변경 반영 금지
+
+---
+
+## 13. 로그 / 데이터셋 운영
 
 ### 항상 저장되는 로그
 - market_tick
@@ -307,6 +348,12 @@ order_intent
 }
 ```
 
+### 로그 활용 우선순위
+1. 룰 개선 분석 데이터
+2. replay 검증 데이터
+3. 승격 평가 데이터
+4. 향후 모델 학습 데이터
+
 ### 운영 점검 항목
 - 로그 디렉터리 writable 여부
 - JSONL 파일 증가 여부
@@ -315,7 +362,7 @@ order_intent
 
 ---
 
-## 13. 장애 유형별 대응
+## 14. 장애 유형별 대응
 
 ### A. 업비트 public ws 끊김
 - reconnect manager 작동
@@ -346,7 +393,7 @@ order_intent
 
 ---
 
-## 14. 운영자 수동 명령
+## 15. 운영자 수동 명령
 - Start Demo
 - Enable Live
 - Pause
@@ -356,6 +403,10 @@ order_intent
 - Reconcile Orders
 - Test Telegram
 - Rebuild Learning Dataset
+- Run Rule Review
+- Generate Rule Proposal
+- Apply Rule Proposal To Demo
+- Approve Rule Proposal For Live
 
 ---
 

@@ -38,6 +38,22 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.min_order_amount_krw == 5000
     assert settings.profile_min_net_edge_pct == 0.0008
     assert settings.auto_trading_interval_sec == 3.0
+    assert settings.rule_review_enabled is True
+    assert settings.rule_review_window_days == 14
+    assert settings.rule_review_min_trades == 100
+    assert settings.rule_review_min_stoplosses == 20
+    assert settings.rule_change_max_params_per_run == 3
+    assert settings.rule_change_apply_target == "demo"
+    assert settings.rule_change_require_manual_approval is True
+
+
+def test_rule_change_apply_target_must_be_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("RULE_CHANGE_APPLY_TARGET", "live")
+
+    with pytest.raises(SettingsError, match="RULE_CHANGE_APPLY_TARGET"):
+        load_settings()
 
 
 def test_invalid_scalping_fee_raises(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -105,6 +121,13 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "app_timezone",
         "trading_mode",
         "learning_enabled",
+        "rule_review_enabled",
+        "rule_review_window_days",
+        "rule_review_min_trades",
+        "rule_review_min_stoplosses",
+        "rule_change_max_params_per_run",
+        "rule_change_apply_target",
+        "rule_change_require_manual_approval",
         "trade_market",
         "trade_coin",
         "upbit_access_key",
