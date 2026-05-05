@@ -76,7 +76,7 @@ class DashboardMarketFacade:
     @staticmethod
     def _extract_ticker_meta(ticker_snapshot: Any) -> dict[str, float]:
         meta: dict[str, float] = {}
-        for attr in ("acc_trade_volume_24h", "acc_trade_price_24h"):
+        for attr in ("signed_change_rate", "acc_trade_volume_24h", "acc_trade_price_24h"):
             value = getattr(ticker_snapshot, attr, None)
             if value is not None:
                 meta[attr] = float(value)

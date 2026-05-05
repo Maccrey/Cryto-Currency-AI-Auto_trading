@@ -100,6 +100,7 @@ class PublicWebExternalMarketContextProvider:
 
     BTC_ACTIVE_ADDRESSES_URL = "https://api.blockchain.info/charts/n-unique-addresses"
     BTC_ETF_FLOW_URL = "https://farside.co.uk/bitcoin-etf-flow-all-data/"
+    BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/24hr"
     XRP_LEDGERS_URL = "https://api.xrpscan.com/api/v1/ledgers"
 
     def __init__(
@@ -130,6 +131,12 @@ class PublicWebExternalMarketContextProvider:
             errors["etf"] = etf_error
         elif etf:
             payload["etf"] = etf
+
+        market_data, market_error = self._fetch_optional(("market_data", coin), lambda: self._fetch_market_data(coin))
+        if market_error:
+            errors["market_data"] = market_error
+        elif market_data:
+            payload["market_data"] = market_data
 
         if errors:
             payload["_errors"] = errors
@@ -181,6 +188,8 @@ class PublicWebExternalMarketContextProvider:
             "state": self._state_from_change(change_pct),
             "active_addresses_change_pct": round(change_pct, 3),
             "exchange_netflow_state": "neutral",
+            "whale_activity_state": "unknown",
+            "valuation_state": "unknown",
             "metric": "btc_unique_addresses",
         }
 
@@ -205,6 +214,8 @@ class PublicWebExternalMarketContextProvider:
             "state": self._state_from_change(change_pct),
             "active_addresses_change_pct": round(change_pct, 3),
             "exchange_netflow_state": "neutral",
+            "whale_activity_state": "unknown",
+            "valuation_state": "unknown",
             "metric": "xrp_recent_ledger_tx_count",
         }
 
@@ -220,7 +231,22 @@ class PublicWebExternalMarketContextProvider:
             "source": "web",
             "state": "inflow" if flow_musd > 0 else "outflow" if flow_musd < 0 else "neutral",
             "flow_usd": round(flow_musd * 1_000_000, 2),
+            "inflow_usd": round(max(flow_musd, 0.0) * 1_000_000, 2),
+            "outflow_usd": round(abs(min(flow_musd, 0.0)) * 1_000_000, 2),
             "metric": "farside_btc_etf_total_flow",
+        }
+
+    def _fetch_market_data(self, coin: str) -> dict[str, object]:
+        response = self._client.get(self.BINANCE_TICKER_URL, params={"symbol": f"{coin}USDT"})
+        response.raise_for_status()
+        raw = response.json()
+        if not isinstance(raw, dict) or raw.get("lastPrice") is None:
+            return {}
+        return {
+            "source": "web",
+            "usd_price": float(raw["lastPrice"]),
+            "usd_change_pct_24h": float(raw.get("priceChangePercent", 0.0)) / 100,
+            "quote_volume_usd_24h": float(raw.get("quoteVolume", 0.0)),
         }
 
     @staticmethod
@@ -295,6 +321,7 @@ class ExternalMarketContextService:
         provider_payload, fetch_errors = self._provider_payload(market=market, trade_coin=coin)
         onchain_payload = provider_payload.get("onchain", {})
         etf_payload = provider_payload.get("etf", {})
+        market_payload = provider_payload.get("market_data", {})
         onchain_state = self._string_value(onchain_payload.get("state"), self._config.onchain_state)
         onchain_exchange_netflow_state = self._string_value(
             onchain_payload.get("exchange_netflow_state"),
@@ -307,6 +334,13 @@ class ExternalMarketContextService:
         configured_etf_state = self._string_value(etf_payload.get("state"), self._config.etf_state)
         etf_state = configured_etf_state if coin in self.ETF_SUPPORTED_COINS else "not_applicable"
         etf_flow_usd = self._float_value(etf_payload.get("flow_usd"), self._config.etf_flow_usd)
+        market_usd_price = self._float_value(market_payload.get("usd_price"), 0.0)
+        etf_inflow_usd = self._float_value(etf_payload.get("inflow_usd"), max(etf_flow_usd, 0.0))
+        etf_outflow_usd = self._float_value(etf_payload.get("outflow_usd"), abs(min(etf_flow_usd, 0.0)))
+        etf_holding_change = self._float_value(
+            etf_payload.get("holding_change_coin"),
+            0.0 if market_usd_price <= 0 else etf_flow_usd / market_usd_price,
+        )
         onchain_source = self._string_value(onchain_payload.get("source"), "http") if onchain_payload else self._config.onchain_source
         etf_source = self._string_value(etf_payload.get("source"), "http") if etf_payload else self._config.etf_source
         context = {
@@ -318,11 +352,22 @@ class ExternalMarketContextService:
                 "state": onchain_state,
                 "active_addresses_change_pct": onchain_active_addresses_change_pct,
                 "exchange_netflow_state": onchain_exchange_netflow_state,
+                "whale_activity_state": self._string_value(onchain_payload.get("whale_activity_state"), "unknown"),
+                "valuation_state": self._string_value(onchain_payload.get("valuation_state"), "unknown"),
             },
             "etf": {
                 "source": etf_source,
                 "state": etf_state,
                 "flow_usd": etf_flow_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "inflow_usd": etf_inflow_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "outflow_usd": etf_outflow_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "holding_change_coin": etf_holding_change if coin in self.ETF_SUPPORTED_COINS else 0.0,
+            },
+            "market_data": {
+                "source": self._string_value(market_payload.get("source"), "web") if market_payload else "manual",
+                "usd_price": market_usd_price,
+                "usd_change_pct_24h": self._float_value(market_payload.get("usd_change_pct_24h"), 0.0),
+                "quote_volume_usd_24h": self._float_value(market_payload.get("quote_volume_usd_24h"), 0.0),
             },
             "learning_weight": self._learning_weight(
                 onchain_state=onchain_state,
@@ -346,7 +391,7 @@ class ExternalMarketContextService:
             errors = {
                 str(key): str(value)
                 for key, value in raw_errors.items()
-                if key in {"onchain", "etf"} and value
+                if key in {"onchain", "etf", "market_data"} and value
             } if isinstance(raw_errors, dict) else {}
             return payload, errors
         except Exception as exc:

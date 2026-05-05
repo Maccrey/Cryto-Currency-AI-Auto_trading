@@ -250,7 +250,9 @@ DASHBOARD_HTML = """
   <section class="card">
     <h2>온체인/ETF 상황</h2>
     <div class="context-grid">
+      <div class="context-item"><div class="context-label">USD 가격</div><div id="contextUsdPrice" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">온체인 상태</div><div id="onchainState" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">온체인 세부</div><div id="onchainDetails" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">ETF 상태</div><div id="etfState" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">학습 가중치</div><div id="contextWeight" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">수집 상태</div><div id="contextStatus" class="context-value">-</div></div>
@@ -400,6 +402,11 @@ function percent(value) {
   const pct = Number(value) * 100;
   const sign = pct > 0 ? "+" : "";
   return `${sign}${pct.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}%`;
+}
+
+function usd(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "데이터 없음";
+  return `$${Number(value).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`;
 }
 
 function price(value) {
@@ -560,10 +567,10 @@ function deriveReadinessProgress(readiness) {
   return {
     percent,
     lines: [
-      "모델 학습 준비도 기준.",
+      "모델 학습 준비도 기준. 체결 수는 학습 로그 누적값이며 최근 체결 표와 다를 수 있습니다.",
       `총 ${number(metrics.total_events || 0)}/${number(required.total_events || 0)}`,
       `매매판단신호 ${number(metrics.signal_events || 0)}/${number(required.signal_events || 0)}`,
-      `체결 ${number(metrics.fill_events || 0)}/${number(required.fill_events || 0)}`
+      `학습 로그 체결 ${number(metrics.fill_events || 0)}/${number(required.fill_events || 0)}`
     ]
   };
 }
@@ -767,8 +774,21 @@ async function refreshDashboard() {
 function renderExternalContext(context) {
   const onchain = context.onchain || {};
   const etf = context.etf || {};
+  const marketData = context.market_data || {};
+  const usdChange = marketData.usd_change_pct_24h;
+  document.getElementById("contextUsdPrice").innerHTML = `${usd(marketData.usd_price)}\n<span class="${changeClass(usdChange)}">24시간 ${percent(usdChange)}</span>`;
   document.getElementById("onchainState").textContent = `${formatContextState(onchain.state)} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`;
-  document.getElementById("etfState").textContent = `${formatContextState(etf.state)} / ${number(etf.flow_usd || 0, 0)} USD`;
+  document.getElementById("onchainDetails").textContent = [
+    `거래소 순유입·순유출: ${formatContextState(onchain.exchange_netflow_state)}`,
+    `고래 지갑 움직임: ${formatContextState(onchain.whale_activity_state)}`,
+    `MVRV/SOPR: ${formatContextState(onchain.valuation_state)}`
+  ].join("\n");
+  document.getElementById("etfState").textContent = [
+    `${formatContextState(etf.state)}`,
+    `순유입 ${number(etf.inflow_usd || 0, 0)} USD`,
+    `순유출 ${number(etf.outflow_usd || 0, 0)} USD`,
+    `보유수량 변화 ${number(etf.holding_change_coin || 0, 6)} ${context.trade_coin || ""}`
+  ].join("\n");
   document.getElementById("contextWeight").textContent = number(context.learning_weight || 1, 3);
   document.getElementById("contextStatus").textContent = formatExternalContextStatus(onchain, etf);
   document.getElementById("onchainSource").textContent = formatExternalContextSource(onchain);
@@ -799,7 +819,8 @@ function formatContextState(value) {
     inflow: "자금 유입",
     outflow: "자금 유출",
     disabled: "비활성",
-    not_applicable: "해당 없음"
+    not_applicable: "해당 없음",
+    unknown: "데이터 없음"
   };
   return labels[value] || value || "-";
 }
@@ -891,12 +912,13 @@ function renderDashboard(data) {
   setLinesWithTitle("modeSub", [modeDescription, `투자성향: ${profileLabel}`]);
   const trendStreak = deriveTrendStreak(market);
   const marketLabel = displayMarket(market.market);
-  const priceText = market.current_price === undefined ? "데이터 없음" : `${price(market.current_price)} (${percent(market.recent_change_pct)})`;
-  const changeText = market.current_price === undefined ? "-" : `(${percent(market.recent_change_pct)})`;
+  const upbitChangeRate = market.signed_change_rate ?? market.recent_change_pct;
+  const priceText = market.current_price === undefined ? "데이터 없음" : `${price(market.current_price)} (${percent(upbitChangeRate)})`;
+  const changeText = market.current_price === undefined ? "-" : `(${percent(upbitChangeRate)})`;
   const trendText = market.current_price === undefined ? "거래량 데이터가 아직 없습니다." : `거래량 ${trendStreak.trend}(${trendStreak.count})`;
   setTextWithTitle("priceMarket", marketLabel);
   setTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));
-  setHtmlWithTitle("priceChange", `<span class="${changeClass(market.recent_change_pct)}">${changeText}</span>`, priceText);
+  setHtmlWithTitle("priceChange", `<span class="${changeClass(upbitChangeRate)}">${changeText}</span>`, priceText);
   setHtmlWithTitle(
     "priceSub",
     market.current_price === undefined

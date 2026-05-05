@@ -140,6 +140,15 @@ def test_public_web_context_provider_fetches_btc_onchain_and_etf_data() -> None:
                     ],
                 },
             )
+        if request.url.host == "api.binance.com":
+            return httpx.Response(
+                200,
+                json={
+                    "lastPrice": "100000.00",
+                    "priceChangePercent": "2.50",
+                    "quoteVolume": "123456789.0",
+                },
+            )
         return httpx.Response(
             200,
             text="""
@@ -162,10 +171,21 @@ def test_public_web_context_provider_fetches_btc_onchain_and_etf_data() -> None:
     assert payload["etf"]["source"] == "web"
     assert payload["etf"]["state"] == "inflow"
     assert payload["etf"]["flow_usd"] == 471_300_000
+    assert payload["market_data"]["usd_price"] == 100000.0
+    assert payload["market_data"]["usd_change_pct_24h"] == 0.025
 
 
 def test_public_web_context_provider_fetches_xrp_ledger_activity() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.binance.com":
+            return httpx.Response(
+                200,
+                json={
+                    "lastPrice": "0.5000",
+                    "priceChangePercent": "-1.20",
+                    "quoteVolume": "123456.0",
+                },
+            )
         return httpx.Response(
             200,
             json={
@@ -187,3 +207,5 @@ def test_public_web_context_provider_fetches_xrp_ledger_activity() -> None:
     assert payload["onchain"]["state"] == "bullish"
     assert payload["onchain"]["active_addresses_change_pct"] == 26.316
     assert "etf" not in payload
+    assert payload["market_data"]["usd_price"] == 0.5
+    assert payload["market_data"]["usd_change_pct_24h"] == -0.012

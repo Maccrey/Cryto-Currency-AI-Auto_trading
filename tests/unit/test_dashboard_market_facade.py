@@ -103,6 +103,7 @@ def test_dashboard_market_facade_includes_ticker_volume_when_provider_supports_s
     provider = CurrentTickerProviderStub(
         UpbitTickerSnapshot(
             trade_price=846.0,
+            signed_change_rate=0.0123,
             acc_trade_volume_24h=123456.789,
             acc_trade_price_24h=255000000.0,
         ),
@@ -118,6 +119,7 @@ def test_dashboard_market_facade_includes_ticker_volume_when_provider_supports_s
 
     assert provider.calls == ["KRW-XRP"]
     assert payload["summary"]["current_price"] == 846.0
+    assert payload["summary"]["signed_change_rate"] == 0.0123
     assert payload["summary"]["acc_trade_volume_24h"] == 123456.789
     assert payload["summary"]["acc_trade_price_24h"] == 255000000.0
 

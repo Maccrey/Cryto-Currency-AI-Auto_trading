@@ -12,7 +12,8 @@ def test_dashboard_price_card_renders_change_on_separate_small_line() -> None:
     assert 'id="priceChange" class="price-change-line"' in DASHBOARD_HTML
     assert ".price-change-line { font-size: 11px;" in DASHBOARD_HTML
     assert 'setTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));' in DASHBOARD_HTML
-    assert 'setHtmlWithTitle("priceChange", `<span class="${changeClass(market.recent_change_pct)}">${changeText}</span>`, priceText);' in DASHBOARD_HTML
+    assert "const upbitChangeRate = market.signed_change_rate ?? market.recent_change_pct;" in DASHBOARD_HTML
+    assert 'setHtmlWithTitle("priceChange", `<span class="${changeClass(upbitChangeRate)}">${changeText}</span>`, priceText);' in DASHBOARD_HTML
     assert '`${price(market.current_price)} <span' not in DASHBOARD_HTML
 
 
@@ -43,6 +44,8 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert "renderExternalContext" in DASHBOARD_HTML
     assert 'id="onchainSource"' in DASHBOARD_HTML
     assert 'id="etfSource"' in DASHBOARD_HTML
+    assert 'id="contextUsdPrice"' in DASHBOARD_HTML
+    assert 'id="onchainDetails"' in DASHBOARD_HTML
     assert 'id="contextStatus"' in DASHBOARD_HTML
     assert 'id="contextRecordedAt"' in DASHBOARD_HTML
     assert "formatExternalContextSource" in DASHBOARD_HTML
@@ -50,6 +53,13 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'web: "웹 공개 데이터"' in DASHBOARD_HTML
     assert 'neutral: "중립"' in DASHBOARD_HTML
     assert 'not_applicable: "해당 없음"' in DASHBOARD_HTML
+    assert 'unknown: "데이터 없음"' in DASHBOARD_HTML
+    assert "순유입" in DASHBOARD_HTML
+    assert "순유출" in DASHBOARD_HTML
+    assert "보유수량 변화" in DASHBOARD_HTML
+    assert "거래소 순유입·순유출" in DASHBOARD_HTML
+    assert "고래 지갑 움직임" in DASHBOARD_HTML
+    assert "MVRV/SOPR" in DASHBOARD_HTML
 
 
 def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
@@ -87,6 +97,8 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
 def test_dashboard_displays_learning_log_context() -> None:
     assert "학습 로그 경로" in DASHBOARD_HTML
     assert "learningResponse.learning_log_dir" in DASHBOARD_HTML
+    assert "학습 로그 체결" in DASHBOARD_HTML
+    assert "최근 체결 표와 다를 수 있습니다." in DASHBOARD_HTML
 
 
 def test_dashboard_displays_rule_review_coin_context() -> None:

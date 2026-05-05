@@ -9,6 +9,7 @@ import httpx
 @dataclass(frozen=True)
 class UpbitTickerSnapshot:
     trade_price: float
+    signed_change_rate: float | None = None
     acc_trade_volume_24h: float | None = None
     acc_trade_price_24h: float | None = None
 
@@ -44,6 +45,7 @@ class UpbitTickerPriceProvider:
             return None
         return UpbitTickerSnapshot(
             trade_price=float(first["trade_price"]),
+            signed_change_rate=self._optional_float(first.get("signed_change_rate")),
             acc_trade_volume_24h=self._optional_float(first.get("acc_trade_volume_24h")),
             acc_trade_price_24h=self._optional_float(first.get("acc_trade_price_24h")),
         )
