@@ -107,6 +107,20 @@ class RuleReviewService:
     def get_proposal(self, proposal_id: str) -> dict[str, object]:
         return {"proposal": self._proposals[proposal_id]}
 
+    def list_proposals(self, *, limit: int = 20) -> dict[str, object]:
+        proposals = sorted(
+            self._proposals.values(),
+            key=lambda proposal: str(proposal.get("created_at", "")),
+            reverse=True,
+        )
+        limited = proposals[: max(limit, 0)]
+        return {
+            "count": len(limited),
+            "total_count": len(proposals),
+            "latest_proposal": limited[0] if limited else None,
+            "proposals": limited,
+        }
+
     def verify_replay(self, proposal_id: str, *, fixture_path: Path) -> dict[str, object]:
         proposal = self._proposals[proposal_id]
         ticks = ReplayFixtureLoader().load(fixture_path)

@@ -24,6 +24,8 @@ def test_dashboard_includes_rule_review_pipeline_panel() -> None:
     assert "demo 적용" in DASHBOARD_HTML
     assert "live 승인 적용" in DASHBOARD_HTML
     assert 'postJson("/api/v1/rules/review"' in DASHBOARD_HTML
+    assert 'fetchJson("/api/v1/rules/proposals"' in DASHBOARD_HTML
+    assert "renderLatestRuleProposal" in DASHBOARD_HTML
 
 
 def test_settings_includes_rule_review_pipeline_panel() -> None:
@@ -33,3 +35,5 @@ def test_settings_includes_rule_review_pipeline_panel() -> None:
     assert "demo 적용" in SETTINGS_HTML
     assert "live 승인 적용" in SETTINGS_HTML
     assert 'postJson("/api/v1/rules/review"' in SETTINGS_HTML
+    assert 'fetchJson("/api/v1/rules/proposals"' in SETTINGS_HTML
+    assert "renderLatestRuleProposal" in SETTINGS_HTML

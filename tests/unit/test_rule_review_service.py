@@ -167,3 +167,38 @@ def test_rule_review_state_persists_across_service_instances(tmp_path: Path) -> 
     assert restored["proposal"]["status"] == "demo_applied"
     assert restored["proposal"]["replay_result"]["status"] == "passed"
     assert (tmp_path / "rule-review-state.json").exists()
+
+
+def test_rule_review_lists_latest_proposals_after_reload(tmp_path: Path) -> None:
+    config = RuleReviewConfig(
+        enabled=True,
+        window_days=14,
+        min_trades=0,
+        min_stoplosses=0,
+        max_params_per_run=3,
+        apply_target="demo",
+        require_manual_approval=True,
+    )
+    first = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=config,
+    )
+    first_review = first.review()
+    first_proposal = first.create_proposal(review_id=str(first_review["review"]["id"]))
+    second_review = first.review()
+    second_proposal = first.create_proposal(review_id=str(second_review["review"]["id"]))
+
+    second = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=config,
+    )
+    response = second.list_proposals(limit=1)
+
+    assert response["count"] == 1
+    assert response["proposals"][0]["id"] == second_proposal["proposal"]["id"]
+    assert response["latest_proposal"]["id"] == second_proposal["proposal"]["id"]
+    assert response["proposals"][0]["id"] != first_proposal["proposal"]["id"]

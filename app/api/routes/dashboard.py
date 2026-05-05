@@ -578,6 +578,12 @@ function renderRulePipeline(payload) {
   ].join("");
 }
 
+function renderLatestRuleProposal(payload) {
+  const latest = payload.latest_proposal;
+  if (!latest) return;
+  renderRulePipeline({proposal: latest});
+}
+
 async function runRuleReview() {
   renderRulePipeline(await postJson("/api/v1/rules/review"));
 }
@@ -610,7 +616,7 @@ async function approveRuleProposalForLive() {
 async function refreshDashboard() {
   document.getElementById("statusLine").textContent = "데이터를 불러오는 중...";
   try {
-    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse] = await Promise.all([
+    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/dashboard/summary"),
       fetchJson("/dashboard/market"),
@@ -618,8 +624,10 @@ async function refreshDashboard() {
       fetchJson("/dashboard/learning/health"),
       fetchJson("/learning/model-readiness"),
       fetchJson("/dashboard/executions"),
-      fetchJson("/dashboard/promotion")
+      fetchJson("/dashboard/promotion"),
+      fetchJson("/api/v1/rules/proposals")
     ]);
+    renderLatestRuleProposal(ruleProposalResponse);
     renderDashboard({
       health,
       summary,

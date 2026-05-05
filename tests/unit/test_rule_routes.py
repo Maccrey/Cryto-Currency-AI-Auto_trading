@@ -35,6 +35,11 @@ def test_rule_review_api_contract(tmp_path) -> None:
     proposal = proposal_response.json()["proposal"]
     assert proposal["apply_target"] == "demo"
 
+    list_response = client.get("/api/v1/rules/proposals")
+    assert list_response.status_code == 200
+    assert list_response.json()["latest_proposal"]["id"] == proposal["id"]
+    assert list_response.json()["proposals"][0]["id"] == proposal["id"]
+
     detail_response = client.get(f"/api/v1/rules/proposals/{proposal['id']}")
     assert detail_response.status_code == 200
     assert detail_response.json()["proposal"]["id"] == proposal["id"]

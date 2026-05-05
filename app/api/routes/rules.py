@@ -35,6 +35,10 @@ def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
             proposed_changes=None if payload is None else payload.proposed_changes,
         )
 
+    @router.get("/proposals")
+    def list_rule_proposals(limit: int = 20) -> dict[str, object]:
+        return rule_review_service.list_proposals(limit=limit)
+
     @router.get("/proposals/{proposal_id}")
     def get_rule_proposal(proposal_id: str) -> dict[str, object]:
         return rule_review_service.get_proposal(proposal_id)

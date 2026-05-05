@@ -412,12 +412,18 @@ async function loadSettings() {
     document.getElementById("telegramAllowFrom").value = values.TELEGRAM_ALLOW_FROM || "";
     showStartPanel(Boolean(data.start_readiness && data.start_readiness.ready), data.start_readiness);
     await refreshTradingStatus(data.start_readiness);
+    renderLatestRuleProposal(await fetchJson("/api/v1/rules/proposals"));
   } catch (error) {
     showStatus("현재 설정을 불러오지 못했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
   }
 }
 function row(label, value) {
   return `<tr><th>${label}</th><td>${value}</td></tr>`;
+}
+async function fetchJson(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} ${response.status}`);
+  return response.json();
 }
 async function postJson(url, body = {}) {
   const response = await fetch(url, {
@@ -448,6 +454,11 @@ function renderRulePipeline(payload) {
     row("승인 필요 여부", source.approval_required ? "필요" : "불필요"),
     row("차단/승인 사유", reasons)
   ].join("");
+}
+function renderLatestRuleProposal(payload) {
+  const latest = payload.latest_proposal;
+  if (!latest) return;
+  renderRulePipeline({proposal: latest});
 }
 async function runRuleReview() {
   renderRulePipeline(await postJson("/api/v1/rules/review"));
