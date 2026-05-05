@@ -80,3 +80,10 @@ def get_trading_profile(key: str) -> TradingProfileSpec:
 
 def learning_log_dir_for_profile(base_dir: Path, profile: str) -> Path:
     return base_dir / profile
+
+
+def learning_log_dir_for_coin_profile(base_dir: Path, profile: str, trade_coin: str) -> Path:
+    coin = "".join(char for char in trade_coin.upper() if char.isalnum())
+    if not coin or coin == "XRP":
+        return learning_log_dir_for_profile(base_dir, profile)
+    return base_dir / coin / profile

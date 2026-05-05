@@ -1254,6 +1254,56 @@ def test_settings_learning_reset_archives_current_profile_log(
     assert (log_dir / "learning.jsonl").read_text(encoding="utf-8") == ""
 
 
+def test_learning_routes_use_coin_scoped_log_dir_for_non_default_coin(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "LEARNING_ENABLED=true",
+                "TRADING_PROFILE=scalping",
+                "TRADE_MARKET=KRW-BTC",
+                "TRADE_COIN=BTC",
+                f"LEARNING_LOG_DIR={tmp_path / 'learning'}",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    log_dir = tmp_path / "learning" / "BTC" / "scalping"
+    log_dir.mkdir(parents=True)
+    (log_dir / "learning.jsonl").write_text('{"event_name":"signal_generated"}\n', encoding="utf-8")
+    monkeypatch.setenv("ENV_FILE_PATH", str(env_file))
+    monkeypatch.delenv("TRADING_MODE", raising=False)
+    monkeypatch.delenv("TRADE_MARKET", raising=False)
+    monkeypatch.delenv("TRADE_COIN", raising=False)
+    monkeypatch.delenv("LEARNING_LOG_DIR", raising=False)
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    response = client.get("/learning/diagnostics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["market"] == "KRW-BTC"
+    assert payload["diagnostics"]["events_scanned"] == 1
+    assert payload["diagnostics"]["log_path"] == str(log_dir / "learning.jsonl")
+
+
 def test_settings_demo_trading_reset_clears_runtime_trade_data(
     monkeypatch,
     tmp_path,

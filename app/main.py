@@ -21,7 +21,7 @@ from app.api.routes.settings import build_settings_router
 from app.core.logging import configure_logging
 from app.core.network import build_browser_urls
 from app.core.settings import load_settings
-from app.core.trading_profile import get_trading_profile, learning_log_dir_for_profile
+from app.core.trading_profile import get_trading_profile, learning_log_dir_for_coin_profile
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
@@ -110,9 +110,10 @@ def create_app(
 ) -> FastAPI:
     settings = load_settings()
     trading_profile = get_trading_profile(settings.trading_profile)
-    profile_learning_log_dir = learning_log_dir_for_profile(
+    profile_learning_log_dir = learning_log_dir_for_coin_profile(
         settings.learning_log_dir,
         settings.trading_profile,
+        settings.trade_coin,
     )
     configure_logging(
         profile_learning_log_dir,

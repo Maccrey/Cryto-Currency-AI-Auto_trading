@@ -238,6 +238,7 @@ false면 앱 시작 실패
 ### TRADE_MARKET / TRADE_COIN
 - 기본값은 `TRADE_COIN=XRP`, `TRADE_MARKET=KRW-XRP`이다.
 - 코인은 XRP에 고정하지 않는다. 예를 들어 BTC로 운용하려면 `TRADE_COIN=BTC`, `TRADE_MARKET=KRW-BTC`를 저장한다.
+- XRP는 기존 호환을 위해 `LEARNING_LOG_DIR/<TRADING_PROFILE>/learning.jsonl`을 사용하고, BTC/ETH/SOL 등 다른 코인은 `LEARNING_LOG_DIR/<TRADE_COIN>/<TRADING_PROFILE>/learning.jsonl`에 학습 로그를 분리 저장한다.
 - 설정 화면에서 기본 XRP 상태에서 코인만 BTC로 바꾸면 저장 시 `TRADE_MARKET=KRW-BTC`로 보정한다.
 - 코인을 바꾸면 UI 라벨, 대시보드, 텔레그램 메시지, 학습 로그 market도 함께 바뀌어야 한다.
 
@@ -279,7 +280,7 @@ false면 앱 시작 실패
 - 업비트 공식 KRW 마켓 최소 주문 가능 금액 5,000원을 `MIN_ORDER_AMOUNT_KRW=5000`으로 사용한다.
 - 진입은 예상 엣지가 왕복 수수료 `TRADING_FEE_RATE * 2`와 `PROFILE_MIN_NET_EDGE_PCT`를 합친 값보다 클 때만 허용한다.
 - 위 조건을 넘기지 못하면 `FEE_ADJUSTED_EDGE_LIMIT`으로 차단되어 학습 로그에 남는다.
-- 학습 로그는 `LEARNING_LOG_DIR/<TRADING_PROFILE>/learning.jsonl`에 분리 저장한다.
+- 학습 로그는 기본 XRP에서는 `LEARNING_LOG_DIR/<TRADING_PROFILE>/learning.jsonl`, 다른 코인에서는 `LEARNING_LOG_DIR/<TRADE_COIN>/<TRADING_PROFILE>/learning.jsonl`에 분리 저장한다.
 
 기본 프로필:
 
