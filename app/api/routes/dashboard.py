@@ -263,11 +263,11 @@ DASHBOARD_HTML = """
   <section class="card">
     <h2>무거래 진단</h2>
     <div class="context-grid">
-      <div class="context-item"><div class="context-label">진단 상태</div><div id="noTradeDiagnosis" class="context-value">-</div></div>
-      <div class="context-item"><div class="context-label">대응안</div><div id="noTradeMitigation" class="context-value">-</div></div>
-      <div class="context-item"><div class="context-label">차단 사유</div><div id="noTradeBlockedReasons" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">진단 상태</div><div id="noTradeDiagnosis" class="context-value compact">-</div></div>
+      <div class="context-item"><div class="context-label">대응안</div><div id="noTradeMitigation" class="context-value compact">-</div></div>
+      <div class="context-item"><div class="context-label">차단 사유</div><div id="noTradeBlockedReasons" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">외부 컨텍스트</div><div id="noTradeExternalContext" class="context-value compact">-</div></div>
-      <div class="context-item"><div class="context-label">스캔 이벤트</div><div id="noTradeEventsScanned" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">스캔 이벤트</div><div id="noTradeEventsScanned" class="context-value compact">-</div></div>
     </div>
   </section>
 

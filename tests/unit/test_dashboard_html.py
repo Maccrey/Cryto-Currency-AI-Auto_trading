@@ -55,10 +55,11 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert "무거래 진단" in DASHBOARD_HTML
     assert 'fetchJson("/learning/diagnostics")' in DASHBOARD_HTML
     assert "renderNoTradeDiagnostics" in DASHBOARD_HTML
-    assert 'id="noTradeDiagnosis"' in DASHBOARD_HTML
-    assert 'id="noTradeMitigation"' in DASHBOARD_HTML
-    assert 'id="noTradeBlockedReasons"' in DASHBOARD_HTML
+    assert 'id="noTradeDiagnosis" class="context-value compact"' in DASHBOARD_HTML
+    assert 'id="noTradeMitigation" class="context-value compact"' in DASHBOARD_HTML
+    assert 'id="noTradeBlockedReasons" class="context-value compact"' in DASHBOARD_HTML
     assert 'id="noTradeExternalContext" class="context-value compact"' in DASHBOARD_HTML
+    assert 'id="noTradeEventsScanned" class="context-value compact"' in DASHBOARD_HTML
     assert "formatDiagnosticsExternalContext" in DASHBOARD_HTML
     assert "formatDiagnosisState" in DASHBOARD_HTML
     assert "formatMitigationAction" in DASHBOARD_HTML
