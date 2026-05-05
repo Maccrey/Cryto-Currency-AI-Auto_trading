@@ -46,6 +46,8 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert 'id="noTradeDiagnosis"' in DASHBOARD_HTML
     assert 'id="noTradeMitigation"' in DASHBOARD_HTML
     assert 'id="noTradeBlockedReasons"' in DASHBOARD_HTML
+    assert 'id="noTradeExternalContext"' in DASHBOARD_HTML
+    assert "formatDiagnosticsExternalContext" in DASHBOARD_HTML
 
 
 def test_dashboard_displays_learning_log_context() -> None:

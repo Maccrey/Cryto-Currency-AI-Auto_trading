@@ -18,6 +18,7 @@ class LearningLogDiagnostics:
         auto_cycles = [event for event in events if event.get("event_name") == "auto_trade_cycle"]
         fills = [event for event in events if event.get("event_name") == "fill_result"]
         signals = [event for event in events if event.get("event_name") == "signal_generated"]
+        external_context_samples = self._external_context_samples(events)
         blocked_reasons = Counter(
             str((event.get("payload") or {}).get("reason"))
             for event in auto_cycles
@@ -49,6 +50,7 @@ class LearningLogDiagnostics:
             "auto_cycle_blocked_reasons": dict(blocked_reasons),
             "sizing_blocked_reasons": dict(sizing_blocked_reasons),
             "signal_reason_codes": dict(signal_reason_codes),
+            "external_context_summary": self._external_context_summary(external_context_samples),
             "diagnosis": self._diagnose(
                 events=events,
                 auto_cycles=auto_cycles,
@@ -76,6 +78,49 @@ class LearningLogDiagnostics:
             if isinstance(payload, dict):
                 events.append(payload)
         return events
+
+    @staticmethod
+    def _external_context_samples(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        samples: list[dict[str, Any]] = []
+        for event in events:
+            event_name = str(event.get("event_name", ""))
+            payload = event.get("payload") or {}
+            if not isinstance(payload, dict):
+                continue
+            context = payload.get("external_context") if event_name == "auto_trade_cycle" else payload
+            if event_name in {"auto_trade_cycle", "external_market_context_snapshot"} and isinstance(context, dict):
+                samples.append(context)
+        return samples
+
+    @staticmethod
+    def _external_context_summary(samples: list[dict[str, Any]]) -> dict[str, object]:
+        if not samples:
+            return {
+                "sample_count": 0,
+                "onchain_state_counts": {},
+                "etf_state_counts": {},
+                "avg_learning_weight": 1.0,
+            }
+        onchain_counts: Counter[str] = Counter()
+        etf_counts: Counter[str] = Counter()
+        weights: list[float] = []
+        for sample in samples:
+            onchain = sample.get("onchain") or {}
+            etf = sample.get("etf") or {}
+            if isinstance(onchain, dict):
+                onchain_counts.update([str(onchain.get("state") or "unknown")])
+            if isinstance(etf, dict):
+                etf_counts.update([str(etf.get("state") or "unknown")])
+            try:
+                weights.append(float(sample.get("learning_weight", 1.0)))
+            except (TypeError, ValueError):
+                pass
+        return {
+            "sample_count": len(samples),
+            "onchain_state_counts": dict(onchain_counts),
+            "etf_state_counts": dict(etf_counts),
+            "avg_learning_weight": round(sum(weights) / len(weights), 3) if weights else 1.0,
+        }
 
     @staticmethod
     def _diagnose(

@@ -90,3 +90,42 @@ def test_learning_log_diagnostics_reports_found_trades(tmp_path: Path) -> None:
 
     assert diagnostics["diagnosis"]["state"] == "TRADES_FOUND"
     assert diagnostics["last_fill"] is not None
+
+
+def test_learning_log_diagnostics_summarizes_external_market_context(tmp_path: Path) -> None:
+    service = LearningService(log_dir=tmp_path)
+    service.record(
+        LearningEvent(
+            event_name="auto_trade_cycle",
+            market="KRW-BTC",
+            mode="demo",
+            payload={
+                "status": "blocked",
+                "reason": "AUTO_MIN_SIGNAL_LEVEL",
+                "external_context": {
+                    "onchain": {"state": "bullish"},
+                    "etf": {"state": "inflow"},
+                    "learning_weight": 1.2,
+                },
+            },
+        ),
+    )
+    service.record(
+        LearningEvent(
+            event_name="external_market_context_snapshot",
+            market="KRW-BTC",
+            mode="demo",
+            payload={
+                "onchain": {"state": "bearish"},
+                "etf": {"state": "outflow"},
+                "learning_weight": 0.8,
+            },
+        ),
+    )
+
+    diagnostics = LearningLogDiagnostics(log_dir=tmp_path).build()
+
+    assert diagnostics["external_context_summary"]["sample_count"] == 2
+    assert diagnostics["external_context_summary"]["onchain_state_counts"] == {"bullish": 1, "bearish": 1}
+    assert diagnostics["external_context_summary"]["etf_state_counts"] == {"inflow": 1, "outflow": 1}
+    assert diagnostics["external_context_summary"]["avg_learning_weight"] == 1.0

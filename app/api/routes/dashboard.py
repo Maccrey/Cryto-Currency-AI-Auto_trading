@@ -265,6 +265,7 @@ DASHBOARD_HTML = """
       <div class="context-item"><div class="context-label">진단 상태</div><div id="noTradeDiagnosis" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">대응안</div><div id="noTradeMitigation" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">차단 사유</div><div id="noTradeBlockedReasons" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">외부 컨텍스트</div><div id="noTradeExternalContext" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">스캔 이벤트</div><div id="noTradeEventsScanned" class="context-value">-</div></div>
     </div>
   </section>
@@ -732,7 +733,14 @@ function renderNoTradeDiagnostics(diagnostics) {
   document.getElementById("noTradeDiagnosis").textContent = `${diagnosis.state || "-"} / ${diagnosis.message || ""}`.trim();
   document.getElementById("noTradeMitigation").textContent = `${mitigation.action || "-"} / ${mitigation.message || ""}`.trim();
   document.getElementById("noTradeBlockedReasons").textContent = formatBlockedReasons(diagnostics);
+  document.getElementById("noTradeExternalContext").textContent = formatDiagnosticsExternalContext(diagnostics.external_context_summary || {});
   document.getElementById("noTradeEventsScanned").textContent = number(diagnostics.events_scanned || 0);
+}
+
+function formatDiagnosticsExternalContext(summary) {
+  const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${key} ${number(value)}건`).join(", ") || "없음";
+  const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${key} ${number(value)}건`).join(", ") || "없음";
+  return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
 }
 
 function formatBlockedReasons(diagnostics) {
