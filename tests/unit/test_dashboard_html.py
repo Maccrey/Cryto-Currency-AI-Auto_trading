@@ -45,6 +45,9 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'id="onchainSource"' in DASHBOARD_HTML
     assert 'id="etfSource"' in DASHBOARD_HTML
     assert 'id="contextUsdPrice"' in DASHBOARD_HTML
+    assert 'id="contextUsdPrice" class="context-value usd-price"' in DASHBOARD_HTML
+    assert ".context-value.usd-price { font-size: 26px;" in DASHBOARD_HTML
+    assert ".context-value.usd-price span { font-size: 13px;" in DASHBOARD_HTML
     assert 'id="onchainDetails"' in DASHBOARD_HTML
     assert 'id="contextStatus"' in DASHBOARD_HTML
     assert 'id="contextRecordedAt"' in DASHBOARD_HTML

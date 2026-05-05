@@ -167,6 +167,8 @@ DASHBOARD_HTML = """
     .context-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .context-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; white-space: pre-line; }
     .context-value.compact { font-size: 13px; line-height: 1.45; font-weight: 700; }
+    .context-value.usd-price { font-size: 26px; line-height: 1.15; font-weight: 800; }
+    .context-value.usd-price span { font-size: 13px; line-height: 1.3; font-weight: 800; }
     .legend { margin-top: 12px; }
     .legend-toggle { margin-top: 12px; }
     .legend-panel { display: none; }
@@ -250,7 +252,7 @@ DASHBOARD_HTML = """
   <section class="card">
     <h2>온체인/ETF 상황</h2>
     <div class="context-grid">
-      <div class="context-item"><div class="context-label">USD 가격</div><div id="contextUsdPrice" class="context-value compact">-</div></div>
+      <div class="context-item"><div class="context-label">USD 가격</div><div id="contextUsdPrice" class="context-value usd-price">-</div></div>
       <div class="context-item"><div class="context-label">온체인 상태</div><div id="onchainState" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">온체인 세부</div><div id="onchainDetails" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">ETF 상태</div><div id="etfState" class="context-value">-</div></div>
