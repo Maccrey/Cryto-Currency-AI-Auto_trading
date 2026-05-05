@@ -139,9 +139,11 @@ pre-commit run --all-files
 - `RULE_CHANGE_APPLY_TARGET=demo`
 - `RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true`
 - `EXTERNAL_CONTEXT_ENABLED=true`
+- `ONCHAIN_CONTEXT_URL=`
 - `ONCHAIN_STATE=neutral`
 - `ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT=0.0`
 - `ONCHAIN_EXCHANGE_NETFLOW_STATE=neutral`
+- `ETF_CONTEXT_URL=`
 - `ETF_STATE=neutral`
 - `ETF_FLOW_USD=0.0`
 - `NO_TRADE_ADAPTIVE_ENABLED=true`
@@ -185,7 +187,7 @@ BTC로 바꾸려면 설정 화면에서 코인을 `BTC`로 저장한다. 기본 
 - 항상 켜진 학습 로그 계층
 - `/learning/diagnostics` 기반 무거래/차단 사유 진단
 - `/learning/model-readiness` 기반 TensorFlow 학습 준비도 진단
-- 온체인/ETF 외부 컨텍스트를 학습 로그와 대시보드에 반영
+- 온체인/ETF 외부 컨텍스트를 HTTP JSON 또는 수동 설정으로 학습 로그와 대시보드에 반영
 - 무거래가 지속될 때 demo 기준 완화 후보를 진단하고 제한적으로 완화
 - `/api/v1/rules/review` 기반 룰 개선 분석 실행
 - `/api/v1/rules/proposals` 기반 룰 변경안 생성

@@ -30,10 +30,12 @@ class SettingsModel(BaseModel):
     rule_change_require_manual_approval: bool = Field(default=True)
     external_context_enabled: bool = Field(default=True)
     onchain_context_source: str = Field(default="manual")
+    onchain_context_url: str = Field(default="")
     onchain_state: str = Field(default="neutral")
     onchain_active_addresses_change_pct: float = Field(default=0.0)
     onchain_exchange_netflow_state: str = Field(default="neutral")
     etf_context_source: str = Field(default="manual")
+    etf_context_url: str = Field(default="")
     etf_state: str = Field(default="neutral")
     etf_flow_usd: float = Field(default=0.0)
     no_trade_adaptive_enabled: bool = Field(default=True)
@@ -174,10 +176,12 @@ class AppSettings:
     rule_change_require_manual_approval: bool
     external_context_enabled: bool
     onchain_context_source: str
+    onchain_context_url: str
     onchain_state: str
     onchain_active_addresses_change_pct: float
     onchain_exchange_netflow_state: str
     etf_context_source: str
+    etf_context_url: str
     etf_state: str
     etf_flow_usd: float
     no_trade_adaptive_enabled: bool
@@ -271,12 +275,14 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         ),
         "external_context_enabled": _parse_bool(_setting("EXTERNAL_CONTEXT_ENABLED", "true", env_values)),
         "onchain_context_source": _setting("ONCHAIN_CONTEXT_SOURCE", "manual", env_values),
+        "onchain_context_url": _setting("ONCHAIN_CONTEXT_URL", "", env_values),
         "onchain_state": _setting("ONCHAIN_STATE", "neutral", env_values),
         "onchain_active_addresses_change_pct": float(
             _setting("ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT", "0.0", env_values),
         ),
         "onchain_exchange_netflow_state": _setting("ONCHAIN_EXCHANGE_NETFLOW_STATE", "neutral", env_values),
         "etf_context_source": _setting("ETF_CONTEXT_SOURCE", "manual", env_values),
+        "etf_context_url": _setting("ETF_CONTEXT_URL", "", env_values),
         "etf_state": _setting("ETF_STATE", "neutral", env_values),
         "etf_flow_usd": float(_setting("ETF_FLOW_USD", "0.0", env_values)),
         "no_trade_adaptive_enabled": _parse_bool(_setting("NO_TRADE_ADAPTIVE_ENABLED", "true", env_values)),

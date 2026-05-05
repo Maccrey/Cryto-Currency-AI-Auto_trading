@@ -224,6 +224,8 @@ SETTINGS_HTML = """
           <input id="onchainActiveAddressesChangePct" type="number" step="0.01" placeholder="0.0">
         </div>
       </div>
+      <label for="onchainContextUrl">온체인 컨텍스트 URL</label>
+      <input id="onchainContextUrl" autocomplete="off" placeholder="https://.../onchain-context">
       <div class="row">
         <div>
           <label for="onchainExchangeNetflowState">거래소 순유입 상태</label>
@@ -243,9 +245,11 @@ SETTINGS_HTML = """
           </select>
         </div>
       </div>
+      <label for="etfContextUrl">ETF 컨텍스트 URL</label>
+      <input id="etfContextUrl" autocomplete="off" placeholder="https://.../etf-context">
       <label for="etfFlowUsd">ETF 순유입/순유출 USD</label>
       <input id="etfFlowUsd" type="number" step="1" placeholder="0.0">
-      <div class="note">BTC/ETH는 ETF 상태를 매매 컨텍스트에 반영하고, XRP 등 미지원 코인은 대시보드에서 not_applicable로 표시된다.</div>
+      <div class="note">URL이 있으면 market/coin 쿼리로 JSON을 읽어 학습 컨텍스트에 병합한다. BTC/ETH는 ETF 상태를 반영하고, XRP 등 미지원 코인은 not_applicable로 표시된다.</div>
     </div>
     <div class="subsection">
       <label>무거래 완화 정책</label>
@@ -477,9 +481,11 @@ async function loadSettings() {
     document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
     document.getElementById("demoInitialCapital").value = values.DEMO_INITIAL_CAPITAL || "1000000";
     document.getElementById("externalContextEnabled").checked = values.EXTERNAL_CONTEXT_ENABLED !== "false";
+    document.getElementById("onchainContextUrl").value = values.ONCHAIN_CONTEXT_URL || "";
     document.getElementById("onchainState").value = values.ONCHAIN_STATE || "neutral";
     document.getElementById("onchainActiveAddressesChangePct").value = values.ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT || "0.0";
     document.getElementById("onchainExchangeNetflowState").value = values.ONCHAIN_EXCHANGE_NETFLOW_STATE || "neutral";
+    document.getElementById("etfContextUrl").value = values.ETF_CONTEXT_URL || "";
     document.getElementById("etfState").value = values.ETF_STATE || "neutral";
     document.getElementById("etfFlowUsd").value = values.ETF_FLOW_USD || "0.0";
     document.getElementById("noTradeAdaptiveEnabled").checked = values.NO_TRADE_ADAPTIVE_ENABLED !== "false";
@@ -586,11 +592,13 @@ async function saveSettings() {
     AUTO_TRADING_ENABLED: "true",
     AUTO_TRADING_LIVE_ENABLED: mode === "live" ? "true" : "false",
     EXTERNAL_CONTEXT_ENABLED: document.getElementById("externalContextEnabled").checked ? "true" : "false",
-    ONCHAIN_CONTEXT_SOURCE: "manual",
+    ONCHAIN_CONTEXT_SOURCE: document.getElementById("onchainContextUrl").value ? "http" : "manual",
+    ONCHAIN_CONTEXT_URL: document.getElementById("onchainContextUrl").value,
     ONCHAIN_STATE: document.getElementById("onchainState").value || "neutral",
     ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT: document.getElementById("onchainActiveAddressesChangePct").value || "0.0",
     ONCHAIN_EXCHANGE_NETFLOW_STATE: document.getElementById("onchainExchangeNetflowState").value || "neutral",
-    ETF_CONTEXT_SOURCE: "manual",
+    ETF_CONTEXT_SOURCE: document.getElementById("etfContextUrl").value ? "http" : "manual",
+    ETF_CONTEXT_URL: document.getElementById("etfContextUrl").value,
     ETF_STATE: document.getElementById("etfState").value || "neutral",
     ETF_FLOW_USD: document.getElementById("etfFlowUsd").value || "0.0",
     NO_TRADE_ADAPTIVE_ENABLED: document.getElementById("noTradeAdaptiveEnabled").checked ? "true" : "false",

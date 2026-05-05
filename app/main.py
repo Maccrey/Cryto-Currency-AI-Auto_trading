@@ -42,7 +42,11 @@ from app.services.config.env_file import EnvFileService
 from app.services.learning.service import LearningService
 from app.services.learning.reset import LearningDataResetService
 from app.services.market.store import MarketPriceStore
-from app.services.market.context import ExternalMarketContextConfig, ExternalMarketContextService
+from app.services.market.context import (
+    ExternalMarketContextConfig,
+    ExternalMarketContextService,
+    HttpExternalMarketContextProvider,
+)
 from app.services.market.upbit_ticker import UpbitTickerPriceProvider
 from app.services.notification.factory import build_notification_services
 from app.services.dashboard.overlay import StopLossOverlayService
@@ -211,13 +215,21 @@ def create_app(
         config=ExternalMarketContextConfig(
             enabled=settings.external_context_enabled,
             onchain_source=settings.onchain_context_source,
+            onchain_url=settings.onchain_context_url,
             onchain_state=settings.onchain_state,
             onchain_active_addresses_change_pct=settings.onchain_active_addresses_change_pct,
             onchain_exchange_netflow_state=settings.onchain_exchange_netflow_state,
             etf_source=settings.etf_context_source,
+            etf_url=settings.etf_context_url,
             etf_state=settings.etf_state,
             etf_flow_usd=settings.etf_flow_usd,
         ),
+        provider=HttpExternalMarketContextProvider(
+            onchain_url=settings.onchain_context_url,
+            etf_url=settings.etf_context_url,
+        )
+        if settings.onchain_context_url or settings.etf_context_url
+        else None,
     )
     if trade_decision_service is None:
         trade_decision_service = TradeDecisionService(

@@ -35,10 +35,12 @@ RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true
 
 EXTERNAL_CONTEXT_ENABLED=true
 ONCHAIN_CONTEXT_SOURCE=manual
+ONCHAIN_CONTEXT_URL=
 ONCHAIN_STATE=neutral
 ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT=0.0
 ONCHAIN_EXCHANGE_NETFLOW_STATE=neutral
 ETF_CONTEXT_SOURCE=manual
+ETF_CONTEXT_URL=
 ETF_STATE=neutral
 ETF_FLOW_USD=0.0
 NO_TRADE_ADAPTIVE_ENABLED=true
@@ -138,10 +140,12 @@ DASHBOARD_PORT=8080
 | RULE_CHANGE_REQUIRE_MANUAL_APPROVAL | bool | Y | true | live 반영 전 수동 승인 필수 여부 |
 | EXTERNAL_CONTEXT_ENABLED | bool | Y | true | 온체인/ETF 외부 컨텍스트 학습 로그 및 대시보드 표시 활성화 |
 | ONCHAIN_CONTEXT_SOURCE | str | Y | manual | 온체인 데이터 출처, 초기값은 수동/운영 입력 |
+| ONCHAIN_CONTEXT_URL | str | N |  | 선택 HTTP 온체인 컨텍스트 JSON endpoint |
 | ONCHAIN_STATE | str | Y | neutral | 온체인 상태, bullish/neutral/bearish |
 | ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT | float | Y | 0.0 | 활성 주소 변화율 |
 | ONCHAIN_EXCHANGE_NETFLOW_STATE | str | Y | neutral | 거래소 순유입 상태, inflow/neutral/outflow |
 | ETF_CONTEXT_SOURCE | str | Y | manual | ETF 데이터 출처, 초기값은 수동/운영 입력 |
+| ETF_CONTEXT_URL | str | N |  | 선택 HTTP ETF 컨텍스트 JSON endpoint |
 | ETF_STATE | str | Y | neutral | ETF 자금 흐름 상태, inflow/neutral/outflow/not_applicable |
 | ETF_FLOW_USD | float | Y | 0.0 | ETF 순유입/순유출 금액 USD |
 | NO_TRADE_ADAPTIVE_ENABLED | bool | Y | true | 무거래 누적 시 demo 진입 기준 완화 정책 활성화 |
@@ -238,7 +242,8 @@ false면 앱 시작 실패
 ### EXTERNAL_CONTEXT / ONCHAIN / ETF
 - 온체인/ETF 컨텍스트는 학습 로그의 `external_market_context_snapshot`과 `auto_trade_cycle.external_context`에 기록한다.
 - BTC/ETH는 ETF 컨텍스트를 표시하고, 그 외 코인은 ETF 상태를 `not_applicable`로 기록한다.
-- 초기 구현은 `manual` 출처를 사용한다. 외부 API 키/제공자가 정해지면 provider를 추가한다.
+- `ONCHAIN_CONTEXT_URL` 또는 `ETF_CONTEXT_URL`이 있으면 시스템이 `market`, `coin` 쿼리 파라미터로 JSON을 조회하고, 실패하면 manual 설정값으로 fallback한다.
+- endpoint 응답은 직접 `{state, active_addresses_change_pct, exchange_netflow_state}` 또는 `{context: {...}}` 형식을 허용한다. ETF endpoint는 `{state, flow_usd}` 또는 `{context: {...}}`를 허용한다.
 - bullish/onchain outflow/ETF inflow는 학습 가중치를 높이고, bearish/onchain inflow/ETF outflow는 낮춘다.
 
 ### NO_TRADE_ADAPTIVE
