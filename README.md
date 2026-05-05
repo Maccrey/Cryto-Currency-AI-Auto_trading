@@ -339,6 +339,7 @@ pre-commit install
 - 룰 변경도 실패 테스트 먼저 작성
 - replay 테스트 없는 룰 변경 금지
 - 변경안 생성 후 한국어 커밋
+- 커밋 후 `upbit-link-rule-commit --proposal-id <id> --learning-log-dir <룰 로그 경로>`로 현재 Git 커밋 해시를 룰 변경 히스토리에 연결
 - main 직접 반영 금지, 브랜치 기반 검토 필수
 - demo 검증과 승인 없는 live 반영 금지
 

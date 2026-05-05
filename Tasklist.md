@@ -314,6 +314,7 @@
 - [x] [Code] 룰 변경 히스토리 조회 API 구현
 - [x] [Code] 설정 화면과 대시보드에 룰 변경 히스토리 패널 구현
 - [x] [Code] 룰 변경 proposal 커밋 해시 연결 API 구현
+- [x] [Code] 룰 변경 proposal 커밋 해시 연결 CLI 구현
 - [x] [Code] 설정 화면과 대시보드 히스토리 패널에 커밋 해시 표시
 - [x] [Contract] 룰 변경 히스토리 schema 문서화
 

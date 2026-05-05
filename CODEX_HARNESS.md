@@ -514,7 +514,7 @@ Codex는 매매룰을 바꿀 때 기존 룰과 새 룰의 차이뿐 아니라 �
 - 룰 변경도 반드시 실패 테스트를 먼저 작성한다.
 - replay 테스트를 통과해야 변경안을 demo에 적용할 수 있다.
 - 변경안 생성 후 한국어 커밋을 만든다.
-- 커밋 후 `rule-change-history.jsonl`에 커밋 해시와 변경 근거를 연결한다.
+- 커밋 후 `upbit-link-rule-commit --proposal-id <id> --learning-log-dir <룰 로그 경로>` 또는 API로 `rule-change-history.jsonl`에 커밋 해시와 변경 근거를 연결한다.
 - 브랜치 기반으로 검토하며 main 직접 반영은 금지한다.
 - live 반영은 운영자 승인과 demo 재검증 통과가 필요하다.
 
