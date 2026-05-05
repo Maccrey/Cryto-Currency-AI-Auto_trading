@@ -618,10 +618,12 @@ function renderRulePipeline(payload) {
   const replay = proposal.replay_result ? JSON.stringify(proposal.replay_result) : "replay 필요";
   const reasons = (proposal.rejection_reasons || []).join(", ") || "없음";
   const externalContext = formatRuleExternalContext(source.external_context_summary || {});
+  const historyWarnings = formatRuleHistoryWarnings(proposal.history_warnings || []);
   document.getElementById("ruleReviewTable").innerHTML = [
     row("대상 코인", source.trade_coin || "-"),
     row("룰 로그 경로", source.learning_log_dir || "-"),
     row("외부 컨텍스트", externalContext),
+    row("히스토리 경고", historyWarnings),
     row("주요 손실 원인", causes),
     row("Codex 제안 변경 항목", changes),
     row("replay 결과", replay),
@@ -634,6 +636,12 @@ function formatRuleExternalContext(summary) {
   const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${key} ${number(value)}건`).join(", ") || "없음";
   const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${key} ${number(value)}건`).join(", ") || "없음";
   return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
+}
+
+function formatRuleHistoryWarnings(warnings) {
+  return warnings.length
+    ? warnings.map((item) => `${item.parameter}: ${item.message}`).join(", ")
+    : "없음";
 }
 
 function renderLatestRuleProposal(payload) {

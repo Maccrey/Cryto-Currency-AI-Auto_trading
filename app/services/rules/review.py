@@ -89,6 +89,7 @@ class RuleReviewService:
         if len(changes) > self._config.max_params_per_run:
             rejection_reasons.append("too_many_parameter_changes")
             changes = changes[: self._config.max_params_per_run]
+        history_warnings = self._history_warnings_for_changes(changes)
 
         proposal = {
             "id": str(uuid4()),
@@ -104,6 +105,7 @@ class RuleReviewService:
             "major_loss_causes": review["major_loss_causes"],
             "external_context_summary": review.get("external_context_summary", self._empty_external_context_summary()),
             "codex_suggested_changes": changes,
+            "history_warnings": history_warnings,
             "replay_result": None,
             "demo_applied": False,
             "live_approved": False,
@@ -345,6 +347,46 @@ class RuleReviewService:
 
     def _proposal_has_history(self, proposal_id: str) -> bool:
         return any(str(row.get("proposal_id")) == str(proposal_id) for row in self._read_history())
+
+    def _history_warnings_for_changes(self, changes: Any) -> list[dict[str, object]]:
+        parameters = self._changed_parameters(changes)
+        if not parameters:
+            return []
+        failed_events = {
+            "replay_verified",
+            "demo_apply_rejected",
+            "live_approval_rejected",
+            "rollback",
+            "correction",
+        }
+        warnings: list[dict[str, object]] = []
+        history = list(reversed(self._read_history()))
+        for parameter in parameters:
+            previous = next(
+                (
+                    row
+                    for row in history
+                    if parameter in [str(item) for item in row.get("changed_parameters", [])]
+                    and (
+                        str(row.get("event_type")) in failed_events
+                        or str(row.get("approval_status")) in {"failed", "rejected", "rolled_back"}
+                    )
+                ),
+                None,
+            )
+            if previous is None:
+                continue
+            warnings.append(
+                {
+                    "parameter": parameter,
+                    "previous_proposal_id": previous.get("proposal_id", ""),
+                    "previous_event_type": previous.get("event_type", ""),
+                    "previous_approval_status": previous.get("approval_status", ""),
+                    "previous_blocked_reasons": previous.get("blocked_reason_summary", []),
+                    "message": f"{parameter} 파라미터는 과거 실패/거절 이력이 있습니다.",
+                },
+            )
+        return warnings
 
     def _collect_metrics(self) -> dict[str, object]:
         trade_count = 0

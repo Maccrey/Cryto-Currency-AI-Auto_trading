@@ -344,3 +344,57 @@ def test_live_approval_is_blocked_when_rule_change_history_is_missing(tmp_path: 
 
     assert result["proposal"]["live_approved"] is False
     assert "rule_change_history_required" in result["proposal"]["rejection_reasons"]
+
+
+def test_rule_proposal_warns_when_same_parameter_failed_in_history(tmp_path: Path) -> None:
+    history_path = tmp_path / "rule-change-history.jsonl"
+    history_path.write_text(
+        json.dumps(
+            {
+                "event_type": "live_approval_rejected",
+                "proposal_id": "old-proposal",
+                "changed_parameters": ["BUY_RATIO_MEDIUM"],
+                "approval_status": "rejected",
+                "blocked_reason_summary": ["demo_apply_required"],
+                "created_at": "2026-05-01T00:00:00+00:00",
+            },
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    proposal = service.create_proposal(
+        proposed_changes=[
+            {
+                "parameter": "BUY_RATIO_MEDIUM",
+                "current_value": 0.18,
+                "proposed_value": 0.16,
+                "reason": "신호 차단 완화",
+            },
+        ],
+    )["proposal"]
+
+    assert proposal["history_warnings"] == [
+        {
+            "parameter": "BUY_RATIO_MEDIUM",
+            "previous_proposal_id": "old-proposal",
+            "previous_event_type": "live_approval_rejected",
+            "previous_approval_status": "rejected",
+            "previous_blocked_reasons": ["demo_apply_required"],
+            "message": "BUY_RATIO_MEDIUM 파라미터는 과거 실패/거절 이력이 있습니다.",
+        },
+    ]
