@@ -145,6 +145,7 @@ SETTINGS_HTML = """
     label { display: block; font-size: 13px; font-weight: 650; margin-top: 14px; }
     .required-mark { color: #b42318; font-weight: 900; margin-left: 4px; }
     input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #b8c4ce; border-radius: 6px; font-size: 14px; }
+    input[type="checkbox"] { width: auto; }
     .secret-input { display: grid; grid-template-columns: 1fr 42px; gap: 8px; align-items: center; }
     .icon-button { width: 42px; height: 40px; border: 1px solid #9eb0bd; border-radius: 6px; background: white; color: #172026; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
     .icon-button svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -175,6 +176,7 @@ SETTINGS_HTML = """
     .start-panel.blocked { border-color: #f1b8b1; background: #fff1f0; color: #8a1f13; }
     .secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: white; color: #172026; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .note { color: #52616d; font-size: 13px; line-height: 1.45; }
+    .checkbox-line { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13px; font-weight: 650; }
   </style>
 </head>
 <body>
@@ -202,6 +204,67 @@ SETTINGS_HTML = """
     </div>
     <label for="demoInitialCapital">데모 시작 투자금<span class="required-mark">*</span></label>
     <input id="demoInitialCapital" type="number" min="0" step="10000" placeholder="1000000">
+    <div class="subsection">
+      <label>온체인/ETF 컨텍스트</label>
+      <div class="checkbox-line">
+        <input id="externalContextEnabled" type="checkbox">
+        <span>학습 로그와 대시보드에 외부 시장 컨텍스트 반영</span>
+      </div>
+      <div class="row">
+        <div>
+          <label for="onchainState">온체인 상태</label>
+          <select id="onchainState">
+            <option value="bullish">bullish</option>
+            <option value="neutral">neutral</option>
+            <option value="bearish">bearish</option>
+          </select>
+        </div>
+        <div>
+          <label for="onchainActiveAddressesChangePct">활성 주소 변화율(%)</label>
+          <input id="onchainActiveAddressesChangePct" type="number" step="0.01" placeholder="0.0">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="onchainExchangeNetflowState">거래소 순유입 상태</label>
+          <select id="onchainExchangeNetflowState">
+            <option value="inflow">inflow</option>
+            <option value="neutral">neutral</option>
+            <option value="outflow">outflow</option>
+          </select>
+        </div>
+        <div>
+          <label for="etfState">ETF 상태</label>
+          <select id="etfState">
+            <option value="inflow">inflow</option>
+            <option value="neutral">neutral</option>
+            <option value="outflow">outflow</option>
+            <option value="not_applicable">not_applicable</option>
+          </select>
+        </div>
+      </div>
+      <label for="etfFlowUsd">ETF 순유입/순유출 USD</label>
+      <input id="etfFlowUsd" type="number" step="1" placeholder="0.0">
+      <div class="note">BTC/ETH는 ETF 상태를 매매 컨텍스트에 반영하고, XRP 등 미지원 코인은 대시보드에서 not_applicable로 표시된다.</div>
+    </div>
+    <div class="subsection">
+      <label>무거래 완화 정책</label>
+      <div class="checkbox-line">
+        <input id="noTradeAdaptiveEnabled" type="checkbox">
+        <span>demo에서 규칙 차단만 반복될 때 약한 신호 완화 후보 허용</span>
+      </div>
+      <div class="row">
+        <div>
+          <label for="noTradeRelaxAfterCycles">완화 전 연속 차단 사이클</label>
+          <input id="noTradeRelaxAfterCycles" type="number" min="1" step="1" placeholder="100">
+        </div>
+        <div>
+          <label for="noTradeRelaxMinScore">완화 최소 신호 점수</label>
+          <input id="noTradeRelaxMinScore" type="number" min="0" max="1" step="0.01" placeholder="0.30">
+        </div>
+      </div>
+      <div class="note">live에는 즉시 완화 반영하지 않고 replay와 demo 검증 후 승인 플로우를 거친다.</div>
+    </div>
     <label for="accessKey">업비트 액세스 키<span class="required-mark live-required">*</span></label>
     <input id="accessKey" autocomplete="off">
     <label for="secretKey">업비트 시크릿 키<span class="required-mark live-required">*</span></label>
@@ -354,6 +417,17 @@ function updateProfileDescription() {
     : "";
 }
 document.getElementById("tradingProfile").addEventListener("change", updateProfileDescription);
+function syncTradeMarketFromCoin() {
+  const coin = document.getElementById("tradeCoin").value.trim().toUpperCase();
+  const marketInput = document.getElementById("tradeMarket");
+  const currentMarket = marketInput.value.trim().toUpperCase();
+  if (!coin) return;
+  document.getElementById("tradeCoin").value = coin;
+  if (!currentMarket || currentMarket.startsWith("KRW-")) {
+    marketInput.value = `KRW-${coin}`;
+  }
+}
+document.getElementById("tradeCoin").addEventListener("change", syncTradeMarketFromCoin);
 function setTelegramTokenHidden(hasToken) {
   const tokenInput = document.getElementById("telegramToken");
   const toggle = document.getElementById("telegramTokenToggle");
@@ -402,6 +476,15 @@ async function loadSettings() {
     document.getElementById("tradeMarket").value = values.TRADE_MARKET || "KRW-XRP";
     document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
     document.getElementById("demoInitialCapital").value = values.DEMO_INITIAL_CAPITAL || "1000000";
+    document.getElementById("externalContextEnabled").checked = values.EXTERNAL_CONTEXT_ENABLED !== "false";
+    document.getElementById("onchainState").value = values.ONCHAIN_STATE || "neutral";
+    document.getElementById("onchainActiveAddressesChangePct").value = values.ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT || "0.0";
+    document.getElementById("onchainExchangeNetflowState").value = values.ONCHAIN_EXCHANGE_NETFLOW_STATE || "neutral";
+    document.getElementById("etfState").value = values.ETF_STATE || "neutral";
+    document.getElementById("etfFlowUsd").value = values.ETF_FLOW_USD || "0.0";
+    document.getElementById("noTradeAdaptiveEnabled").checked = values.NO_TRADE_ADAPTIVE_ENABLED !== "false";
+    document.getElementById("noTradeRelaxAfterCycles").value = values.NO_TRADE_RELAX_AFTER_CYCLES || "100";
+    document.getElementById("noTradeRelaxMinScore").value = values.NO_TRADE_RELAX_MIN_SCORE || "0.30";
     setTelegramTokenHidden(values.TELEGRAM_BOT_TOKEN === "***");
     document.getElementById("telegramTokenStatus").textContent = values.TELEGRAM_BOT_TOKEN === "***"
       ? "저장된 봇 토큰이 있습니다. 변경하지 않으면 기존 토큰을 유지합니다."
@@ -492,6 +575,7 @@ async function saveSettings() {
   const saveButton = document.getElementById("saveButton");
   saveButton.disabled = true;
   showStatus("설정을 저장하는 중...", "pending");
+  syncTradeMarketFromCoin();
   const payload = {
     TRADING_MODE: mode,
     TRADING_PROFILE: document.getElementById("tradingProfile").value || "scalping",
@@ -501,6 +585,17 @@ async function saveSettings() {
     DEMO_INITIAL_CAPITAL: document.getElementById("demoInitialCapital").value || "1000000",
     AUTO_TRADING_ENABLED: "true",
     AUTO_TRADING_LIVE_ENABLED: mode === "live" ? "true" : "false",
+    EXTERNAL_CONTEXT_ENABLED: document.getElementById("externalContextEnabled").checked ? "true" : "false",
+    ONCHAIN_CONTEXT_SOURCE: "manual",
+    ONCHAIN_STATE: document.getElementById("onchainState").value || "neutral",
+    ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT: document.getElementById("onchainActiveAddressesChangePct").value || "0.0",
+    ONCHAIN_EXCHANGE_NETFLOW_STATE: document.getElementById("onchainExchangeNetflowState").value || "neutral",
+    ETF_CONTEXT_SOURCE: "manual",
+    ETF_STATE: document.getElementById("etfState").value || "neutral",
+    ETF_FLOW_USD: document.getElementById("etfFlowUsd").value || "0.0",
+    NO_TRADE_ADAPTIVE_ENABLED: document.getElementById("noTradeAdaptiveEnabled").checked ? "true" : "false",
+    NO_TRADE_RELAX_AFTER_CYCLES: document.getElementById("noTradeRelaxAfterCycles").value || "100",
+    NO_TRADE_RELAX_MIN_SCORE: document.getElementById("noTradeRelaxMinScore").value || "0.30",
     UPBIT_ACCESS_KEY: document.getElementById("accessKey").value,
     UPBIT_SECRET_KEY: document.getElementById("secretKey").value,
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,

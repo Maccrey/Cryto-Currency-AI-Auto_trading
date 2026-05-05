@@ -43,3 +43,21 @@ def test_settings_includes_rule_review_pipeline_panel() -> None:
     assert 'postJson("/api/v1/rules/review"' in SETTINGS_HTML
     assert 'fetchJson("/api/v1/rules/proposals"' in SETTINGS_HTML
     assert "renderLatestRuleProposal" in SETTINGS_HTML
+
+
+def test_settings_includes_external_context_and_no_trade_controls() -> None:
+    assert "온체인/ETF 컨텍스트" in SETTINGS_HTML
+    assert 'id="externalContextEnabled"' in SETTINGS_HTML
+    assert 'id="onchainState"' in SETTINGS_HTML
+    assert 'id="onchainActiveAddressesChangePct"' in SETTINGS_HTML
+    assert 'id="onchainExchangeNetflowState"' in SETTINGS_HTML
+    assert 'id="etfState"' in SETTINGS_HTML
+    assert 'id="etfFlowUsd"' in SETTINGS_HTML
+    assert "무거래 완화 정책" in SETTINGS_HTML
+    assert 'id="noTradeAdaptiveEnabled"' in SETTINGS_HTML
+    assert 'id="noTradeRelaxAfterCycles"' in SETTINGS_HTML
+    assert 'id="noTradeRelaxMinScore"' in SETTINGS_HTML
+    assert "syncTradeMarketFromCoin" in SETTINGS_HTML
+    assert "EXTERNAL_CONTEXT_ENABLED" in SETTINGS_HTML
+    assert "ONCHAIN_STATE" in SETTINGS_HTML
+    assert "NO_TRADE_RELAX_AFTER_CYCLES" in SETTINGS_HTML
