@@ -1,8 +1,8 @@
 # Tasklist.md
 
 ## 현재 진행 상황
-  - 완료: 212개
-  - 미완료: 12개
+  - 완료: 224개
+  - 미완료: 0개
   - 전체: 224개
  
 ## 1. 작업 원칙
@@ -306,18 +306,18 @@
 - [x] [Contract] replay/demo/live 승인 기준 문서화
 
 ### TensorFlow 오프라인 학습 계획
-- [ ] [Fail] 학습 데이터가 부족하면 TensorFlow 학습 CLI가 실행을 거부해야 한다
-- [ ] [Fail] train/validation/test 기간 분리가 없으면 학습이 실패해야 한다
-- [ ] [Fail] baseline보다 손실률이 나쁜 모델은 승격될 수 없어야 한다
-- [ ] [Code] `ml` extra 설치 환경에서 TensorFlow trainer CLI 구현
-- [ ] [Code] 진입 품질 모델 학습 파이프라인 구현
-- [ ] [Code] 손절 위험 모델 학습 파이프라인 구현
-- [ ] [Code] 모델 평가 리포트 저장 구현
-- [ ] [Code] shadow mode 예측 로그 구현
-- [ ] [Refactor] feature schema와 model input schema 분리
-- [ ] [Contract] 모델 아티팩트 저장 경로와 버전 규칙 문서화
-- [ ] [Contract] live 적용 전 demo shadow mode 기준 문서화
-- [ ] [Contract] TensorFlow 모델은 규칙 기반 리스크 게이트를 우회할 수 없도록 명시
+- [x] [Fail] 학습 데이터가 부족하면 TensorFlow 학습 CLI가 실행을 거부해야 한다
+- [x] [Fail] train/validation/test 기간 분리가 없으면 학습이 실패해야 한다
+- [x] [Fail] baseline보다 손실률이 나쁜 모델은 승격될 수 없어야 한다
+- [x] [Code] `ml` extra 설치 환경에서 TensorFlow trainer CLI 구현
+- [x] [Code] 진입 품질 모델 학습 파이프라인 구현
+- [x] [Code] 손절 위험 모델 학습 파이프라인 구현
+- [x] [Code] 모델 평가 리포트 저장 구현
+- [x] [Code] shadow mode 예측 로그 구현
+- [x] [Refactor] feature schema와 model input schema 분리
+- [x] [Contract] 모델 아티팩트 저장 경로와 버전 규칙 문서화
+- [x] [Contract] live 적용 전 demo shadow mode 기준 문서화
+- [x] [Contract] TensorFlow 모델은 규칙 기반 리스크 게이트를 우회할 수 없도록 명시
 
 ### replay 테스트
 - [x] [Fail] 과거 tick fixture 재생으로 전략 결과를 검증할 수 있어야 한다

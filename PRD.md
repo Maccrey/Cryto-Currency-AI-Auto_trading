@@ -75,6 +75,8 @@
 - 모델 학습은 demo/learning 로그를 이용한 오프라인 배치로 수행한다.
 - 학습된 모델은 먼저 shadow mode에서 규칙 기반 판단과 비교한다.
 - live 주문 최종 게이트는 손절/사이징/SAFE_MODE/HARD_STOP 규칙이 우선한다.
+- 표본 수, train/validation/test 기간 분리, baseline 대비 성능을 통과하지 못하면 학습 또는 승격을 거부한다.
+- 오프라인 학습 결과는 모델 평가 리포트와 shadow mode 결과로만 저장하고 live 룰에 직접 반영하지 않는다.
 
 ### 2.5 룰 개선 원칙
 - 룰 변경은 자동 반영하지 않는다.

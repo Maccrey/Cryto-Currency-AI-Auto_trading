@@ -320,7 +320,7 @@ eligible_for_live = (
 ---
 
 ## 11. 전략 변경 절차
-초기 전략 개선은 TensorFlow 직접 학습보다 **학습 로그 기반 Codex 룰 개선 루프**를 우선한다. TensorFlow 모델은 선택 의존성 `ml`의 오프라인 학습 파이프라인으로 후순위 처리하며, 규칙 기반 리스크 게이트를 우회할 수 없다.
+초기 전략 개선은 TensorFlow 직접 학습보다 **학습 로그 기반 Codex 룰 개선 루프**를 우선한다. TensorFlow 모델은 선택 의존성 `ml`의 오프라인 학습 파이프라인으로 후순위 처리하며, 규칙 기반 리스크 게이트를 우회할 수 없다. 오프라인 학습은 표본 수, train/validation/test 기간 분리, baseline 대비 성능을 통과해야 하며 결과는 먼저 shadow mode 리포트로만 저장한다.
 
 전략 변경 시 반드시 아래를 따른다.
 1. 최근 `RULE_REVIEW_WINDOW_DAYS` 학습 로그 집계

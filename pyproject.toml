@@ -19,6 +19,9 @@ ml = [
   "tensorflow>=2.16.0,<3.0.0",
 ]
 
+[project.scripts]
+upbit-train-model = "app.cli.train_model:main"
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
