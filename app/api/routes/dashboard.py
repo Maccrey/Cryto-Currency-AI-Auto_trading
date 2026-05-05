@@ -260,6 +260,16 @@ DASHBOARD_HTML = """
   </section>
 
   <section class="card">
+    <h2>무거래 진단</h2>
+    <div class="context-grid">
+      <div class="context-item"><div class="context-label">진단 상태</div><div id="noTradeDiagnosis" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">대응안</div><div id="noTradeMitigation" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">차단 사유</div><div id="noTradeBlockedReasons" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">스캔 이벤트</div><div id="noTradeEventsScanned" class="context-value">-</div></div>
+    </div>
+  </section>
+
+  <section class="card">
     <h2>AI 운용 모드</h2>
     <div class="ai-grid">
       <div class="ai-item">
@@ -648,7 +658,7 @@ async function approveRuleProposalForLive() {
 async function refreshDashboard() {
   document.getElementById("statusLine").textContent = "데이터를 불러오는 중...";
   try {
-    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse, externalContextResponse] = await Promise.all([
+    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse, externalContextResponse, diagnosticsResponse] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/dashboard/summary"),
       fetchJson("/dashboard/market"),
@@ -658,10 +668,12 @@ async function refreshDashboard() {
       fetchJson("/dashboard/executions"),
       fetchJson("/dashboard/promotion"),
       fetchJson("/api/v1/rules/proposals"),
-      fetchJson("/dashboard/external-context")
+      fetchJson("/dashboard/external-context"),
+      fetchJson("/learning/diagnostics")
     ]);
     renderLatestRuleProposal(ruleProposalResponse);
     renderExternalContext(externalContextResponse.context || {});
+    renderNoTradeDiagnostics(diagnosticsResponse.diagnostics || {});
     renderDashboard({
       health,
       summary,
@@ -701,6 +713,24 @@ function formatExternalContextStatus(onchain, etf) {
 function formatExternalContextSource(section) {
   const source = section.source || "-";
   return section.fetch_error ? `${source} fallback` : source;
+}
+
+function renderNoTradeDiagnostics(diagnostics) {
+  const diagnosis = diagnostics.diagnosis || {};
+  const mitigation = diagnostics.mitigation || {};
+  document.getElementById("noTradeDiagnosis").textContent = `${diagnosis.state || "-"} / ${diagnosis.message || ""}`.trim();
+  document.getElementById("noTradeMitigation").textContent = `${mitigation.action || "-"} / ${mitigation.message || ""}`.trim();
+  document.getElementById("noTradeBlockedReasons").textContent = formatBlockedReasons(diagnostics);
+  document.getElementById("noTradeEventsScanned").textContent = number(diagnostics.events_scanned || 0);
+}
+
+function formatBlockedReasons(diagnostics) {
+  const pairs = [];
+  const autoReasons = diagnostics.auto_cycle_blocked_reasons || {};
+  const sizingReasons = diagnostics.sizing_blocked_reasons || {};
+  Object.entries(autoReasons).forEach(([key, value]) => pairs.push(`${key} ${number(value)}건`));
+  Object.entries(sizingReasons).forEach(([key, value]) => pairs.push(`sizing:${key} ${number(value)}건`));
+  return pairs.length ? pairs.join(", ") : "차단 기록 없음";
 }
 
 function renderDashboard(data) {

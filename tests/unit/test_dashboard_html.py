@@ -39,6 +39,15 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert "formatExternalContextSource" in DASHBOARD_HTML
 
 
+def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
+    assert "무거래 진단" in DASHBOARD_HTML
+    assert 'fetchJson("/learning/diagnostics")' in DASHBOARD_HTML
+    assert "renderNoTradeDiagnostics" in DASHBOARD_HTML
+    assert 'id="noTradeDiagnosis"' in DASHBOARD_HTML
+    assert 'id="noTradeMitigation"' in DASHBOARD_HTML
+    assert 'id="noTradeBlockedReasons"' in DASHBOARD_HTML
+
+
 def test_settings_includes_rule_review_pipeline_panel() -> None:
     assert "룰 개선 분석 실행" in SETTINGS_HTML
     assert "룰 변경안 생성" in SETTINGS_HTML
