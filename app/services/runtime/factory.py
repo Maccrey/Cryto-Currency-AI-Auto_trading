@@ -99,6 +99,7 @@ def build_runtime_services(
                 restart_store=FileRestartStateStore(restart_state_path or Path("./logs/recovery/restart-state.json")),
                 restart_counter=RestartCounter(threshold=3),
                 learning_service=learning_service,
+                market=trade_market,
             )
 
     runtime_service = AppRuntimeService(

@@ -46,10 +46,12 @@ class SignalEngine:
         *,
         learning_service=None,
         trading_mode: str = "demo",
+        market: str = "unknown",
         reason_code_generator: SignalReasonCodeGenerator | None = None,
     ) -> None:
         self._learning_service = learning_service
         self._trading_mode = trading_mode
+        self._market = market
         self._reason_code_generator = reason_code_generator or SignalReasonCodeGenerator()
 
     def evaluate(self, features: FeatureSnapshot) -> SignalDecision:
@@ -112,7 +114,7 @@ class SignalEngine:
         self._learning_service.record(
             LearningEvent(
                 event_name="signal_generated",
-                market="unknown",
+                market=self._market,
                 mode=self._trading_mode,
                 payload={
                     "level": decision.level,

@@ -56,6 +56,11 @@ class LearningLogDiagnostics:
                 blocked_reasons=blocked_reasons,
                 sizing_blocked_reasons=sizing_blocked_reasons,
             ),
+            "mitigation": self._mitigation(
+                fills=fills,
+                blocked_reasons=blocked_reasons,
+                sizing_blocked_reasons=sizing_blocked_reasons,
+            ),
         }
 
     def _read_tail(self, *, limit: int) -> list[dict[str, Any]]:
@@ -104,4 +109,32 @@ class LearningLogDiagnostics:
         return {
             "state": "WAITING_FOR_SIGNAL",
             "message": "자동매매 루프가 실행 중이지만 아직 체결 조건이 충족되지 않았습니다.",
+        }
+
+    @staticmethod
+    def _mitigation(
+        *,
+        fills: list[dict[str, Any]],
+        blocked_reasons: Counter[str],
+        sizing_blocked_reasons: Counter[str],
+    ) -> dict[str, object]:
+        if fills:
+            return {
+                "action": "NONE",
+                "message": "최근 체결이 있어 완화 조치가 필요하지 않습니다.",
+            }
+        strict_blocks = (
+            blocked_reasons.get("AUTO_MIN_SIGNAL_LEVEL", 0)
+            + blocked_reasons.get("FEE_ADJUSTED_EDGE_LIMIT", 0)
+            + sizing_blocked_reasons.get("FEE_ADJUSTED_EDGE_LIMIT", 0)
+        )
+        if strict_blocks >= 3:
+            return {
+                "action": "RELAX_ENTRY_RULES_FOR_DEMO",
+                "message": "진입 규칙 차단만 반복됩니다. demo에서는 최소 신호 점수 완화, ETF/온체인 컨텍스트 가중치 확인, replay 후 룰 개선안을 생성하세요.",
+                "blocked_count": strict_blocks,
+            }
+        return {
+            "action": "MONITOR",
+            "message": "차단 원인을 더 수집한 뒤 룰 개선 여부를 판단하세요.",
         }

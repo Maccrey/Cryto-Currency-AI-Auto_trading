@@ -29,6 +29,9 @@ class AutoTradingConfig:
     spread_bps: float = 8.0
     slippage_bps: float = 12.0
     trading_fee_rate: float = 0.0005
+    no_trade_adaptive_enabled: bool = True
+    no_trade_relax_after_cycles: int = 100
+    no_trade_relax_min_score: float = 0.30
 
 
 class AutoTradingService:
@@ -51,6 +54,7 @@ class AutoTradingService:
         config: AutoTradingConfig,
         clock: Callable[[], datetime] | None = None,
         sleep: Callable[[float], Any] | None = None,
+        external_context_provider: Any | None = None,
     ) -> None:
         self._market = market
         self._trading_mode = trading_mode
@@ -66,6 +70,7 @@ class AutoTradingService:
         self._config = config
         self._clock = clock or (lambda: datetime.now().astimezone())
         self._sleep = sleep or asyncio.sleep
+        self._external_context_provider = external_context_provider
         self._prices: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._position_opened_at: datetime | None = None
@@ -75,6 +80,7 @@ class AutoTradingService:
         self._demo_asset_currency = self._market.split("-")[-1] if portfolio is None else portfolio.asset_currency
         self._demo_asset_balance = 0.0 if portfolio is None else portfolio.asset_balance
         self._demo_avg_buy_price = 0.0 if portfolio is None else portfolio.avg_buy_price
+        self._consecutive_entry_blocks = 0
 
     def should_run(self) -> bool:
         if not self._config.enabled:
@@ -184,7 +190,9 @@ class AutoTradingService:
 
         request = self._build_decision_request(snapshot.trade_price)
         decision = self._trade_decision_service.evaluate(request)
-        if decision.signal.level == "weak":
+        relaxed_signal = self._should_relax_weak_signal(decision)
+        if decision.signal.level == "weak" and not relaxed_signal:
+            self._consecutive_entry_blocks += 1
             return self._record_cycle(
                 status="blocked",
                 reason="AUTO_MIN_SIGNAL_LEVEL",
@@ -215,6 +223,7 @@ class AutoTradingService:
         self._apply_demo_execution(execution_result.execution)
         if post_fill_result.position is not None:
             self._position_opened_at = self._clock()
+            self._consecutive_entry_blocks = 0
 
         return self._record_cycle(
             status=execution_result.status,
@@ -227,6 +236,7 @@ class AutoTradingService:
                 "sizing_allowed": decision.sizing.allowed,
                 "sizing_blocked_reason": decision.sizing.blocked_reason,
                 "buy_amount": decision.sizing.buy_amount,
+                "no_trade_relaxed": relaxed_signal,
                 "post_fill_position_opened": post_fill_result.position is not None,
             },
         )
@@ -360,6 +370,9 @@ class AutoTradingService:
             "hard_stop": self._boot_state.hard_stop,
             "trading_ready": self._boot_state.trading_ready,
         }
+        external_context = self._external_context()
+        if external_context is not None:
+            payload["external_context"] = external_context
         if extra is not None:
             payload.update(extra)
         self._learning_service.record(
@@ -371,3 +384,32 @@ class AutoTradingService:
             ),
         )
         return payload
+
+    def _external_context(self) -> dict[str, object] | None:
+        if self._external_context_provider is None:
+            return None
+        snapshot = self._external_context_provider.snapshot(
+            market=self._market,
+            trade_coin=self._market.split("-")[-1],
+        )
+        self._learning_service.record(
+            LearningEvent(
+                event_name="external_market_context_snapshot",
+                market=self._market,
+                mode=self._trading_mode,
+                payload=snapshot,
+            ),
+        )
+        return snapshot
+
+    def _should_relax_weak_signal(self, decision) -> bool:
+        if not self._config.no_trade_adaptive_enabled:
+            return False
+        if self._consecutive_entry_blocks < self._config.no_trade_relax_after_cycles:
+            return False
+        return (
+            decision.signal.level == "weak"
+            and not decision.signal.blocked
+            and decision.signal.score >= self._config.no_trade_relax_min_score
+            and decision.sizing.allowed
+        )

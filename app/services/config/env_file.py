@@ -59,6 +59,14 @@ class EnvFileService:
                 normalized[key] = values[key]
         if "TELEGRAM_CHAT_ID" in normalized:
             normalized["TELEGRAM_CHAT_ID"] = self._normalize_telegram_chat_id(normalized["TELEGRAM_CHAT_ID"])
+        if "TRADE_COIN" in normalized:
+            normalized["TRADE_COIN"] = normalized["TRADE_COIN"].upper()
+        if normalized.get("TRADE_COIN") and (
+            not normalized.get("TRADE_MARKET")
+            or values.get("TRADE_MARKET") == "KRW-XRP"
+            or normalized.get("TRADE_MARKET") == "KRW-XRP"
+        ):
+            normalized["TRADE_MARKET"] = f"KRW-{normalized['TRADE_COIN']}"
         normalized.setdefault("LEARNING_ENABLED", "true")
         mode = normalized.get("TRADING_MODE", "demo")
         if mode not in {"demo", "live"}:

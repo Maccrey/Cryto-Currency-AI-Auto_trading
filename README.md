@@ -138,6 +138,13 @@ pre-commit run --all-files
 - `RULE_CHANGE_MAX_PARAMS_PER_RUN=3`
 - `RULE_CHANGE_APPLY_TARGET=demo`
 - `RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true`
+- `EXTERNAL_CONTEXT_ENABLED=true`
+- `ONCHAIN_STATE=neutral`
+- `ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT=0.0`
+- `ONCHAIN_EXCHANGE_NETFLOW_STATE=neutral`
+- `ETF_STATE=neutral`
+- `ETF_FLOW_USD=0.0`
+- `NO_TRADE_ADAPTIVE_ENABLED=true`
 - `TRADE_MARKET=KRW-XRP`
 - `TRADE_COIN=XRP`
 - `DEMO_INITIAL_CAPITAL=1000000`
@@ -149,6 +156,8 @@ pre-commit run --all-files
 - `DASHBOARD_PORT=8080`
 
 자세한 스펙은 `ENV_SPEC.md`를 따른다.
+
+BTC로 바꾸려면 설정 화면에서 코인을 `BTC`로 저장한다. 기본 XRP 상태에서 코인만 바꾸면 `TRADE_MARKET=KRW-BTC`로 보정된다. ETH, SOL 등도 같은 방식으로 `KRW-<코인>` 마켓을 사용한다.
 
 ---
 
@@ -176,6 +185,8 @@ pre-commit run --all-files
 - 항상 켜진 학습 로그 계층
 - `/learning/diagnostics` 기반 무거래/차단 사유 진단
 - `/learning/model-readiness` 기반 TensorFlow 학습 준비도 진단
+- 온체인/ETF 외부 컨텍스트를 학습 로그와 대시보드에 반영
+- 무거래가 지속될 때 demo 기준 완화 후보를 진단하고 제한적으로 완화
 - `/api/v1/rules/review` 기반 룰 개선 분석 실행
 - `/api/v1/rules/proposals` 기반 룰 변경안 생성
 - `/api/v1/rules/proposals/{id}/replay` 기반 replay 검증

@@ -42,6 +42,7 @@ from app.services.config.env_file import EnvFileService
 from app.services.learning.service import LearningService
 from app.services.learning.reset import LearningDataResetService
 from app.services.market.store import MarketPriceStore
+from app.services.market.context import ExternalMarketContextConfig, ExternalMarketContextService
 from app.services.market.upbit_ticker import UpbitTickerPriceProvider
 from app.services.notification.factory import build_notification_services
 from app.services.dashboard.overlay import StopLossOverlayService
@@ -206,12 +207,25 @@ def create_app(
     market_price_store = market_price_store or MarketPriceStore(
         timestamp_provider=timestamp_provider,
     )
+    external_context_service = ExternalMarketContextService(
+        config=ExternalMarketContextConfig(
+            enabled=settings.external_context_enabled,
+            onchain_source=settings.onchain_context_source,
+            onchain_state=settings.onchain_state,
+            onchain_active_addresses_change_pct=settings.onchain_active_addresses_change_pct,
+            onchain_exchange_netflow_state=settings.onchain_exchange_netflow_state,
+            etf_source=settings.etf_context_source,
+            etf_state=settings.etf_state,
+            etf_flow_usd=settings.etf_flow_usd,
+        ),
+    )
     if trade_decision_service is None:
         trade_decision_service = TradeDecisionService(
             feature_calculator=MarketFeatureCalculator(),
             signal_engine=SignalEngine(
                 learning_service=learning_service,
                 trading_mode=settings.trading_mode,
+                market=settings.trade_market,
             ),
             regime_engine=RegimeEngine(),
             sizing_engine=SizingEngine(
@@ -333,7 +347,11 @@ def create_app(
             spread_bps=trading_profile.spread_bps,
             slippage_bps=trading_profile.slippage_bps,
             trading_fee_rate=float(settings.trading_fee_rate),
+            no_trade_adaptive_enabled=settings.no_trade_adaptive_enabled,
+            no_trade_relax_after_cycles=settings.no_trade_relax_after_cycles,
+            no_trade_relax_min_score=settings.no_trade_relax_min_score,
         ),
+        external_context_provider=external_context_service,
     )
     app.state.auto_trading_service = auto_trading_service
     rule_review_service = RuleReviewService(
@@ -519,6 +537,10 @@ def create_app(
             dashboard_learning_facade=dashboard_services.learning_facade,
             dashboard_recovery_facade=dashboard_services.recovery_facade,
             promotion_dashboard_facade=promotion_services.dashboard_facade,
+            external_context_provider=lambda: external_context_service.snapshot(
+                market=settings.trade_market,
+                trade_coin=settings.trade_coin,
+            ),
         ),
     )
     app.include_router(

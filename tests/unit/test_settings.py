@@ -45,6 +45,11 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.rule_change_max_params_per_run == 3
     assert settings.rule_change_apply_target == "demo"
     assert settings.rule_change_require_manual_approval is True
+    assert settings.external_context_enabled is True
+    assert settings.onchain_context_source == "manual"
+    assert settings.etf_context_source == "manual"
+    assert settings.no_trade_adaptive_enabled is True
+    assert settings.no_trade_relax_after_cycles == 100
 
 
 def test_rule_change_apply_target_must_be_demo(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -128,6 +133,17 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "rule_change_max_params_per_run",
         "rule_change_apply_target",
         "rule_change_require_manual_approval",
+        "external_context_enabled",
+        "onchain_context_source",
+        "onchain_state",
+        "onchain_active_addresses_change_pct",
+        "onchain_exchange_netflow_state",
+        "etf_context_source",
+        "etf_state",
+        "etf_flow_usd",
+        "no_trade_adaptive_enabled",
+        "no_trade_relax_after_cycles",
+        "no_trade_relax_min_score",
         "trade_market",
         "trade_coin",
         "upbit_access_key",

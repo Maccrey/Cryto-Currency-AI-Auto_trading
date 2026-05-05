@@ -45,6 +45,28 @@ def test_learning_log_diagnostics_reports_blocked_rules(tmp_path: Path) -> None:
     assert diagnostics["sizing_blocked_reasons"] == {"SIGNAL_BLOCKED": 1}
 
 
+def test_learning_log_diagnostics_recommends_demo_relaxation_after_repeated_rule_blocks(tmp_path: Path) -> None:
+    service = LearningService(log_dir=tmp_path)
+    for reason in ["AUTO_MIN_SIGNAL_LEVEL", "AUTO_MIN_SIGNAL_LEVEL", "FEE_ADJUSTED_EDGE_LIMIT"]:
+        service.record(
+            LearningEvent(
+                event_name="auto_trade_cycle",
+                market="KRW-BTC",
+                mode="demo",
+                payload={
+                    "status": "blocked",
+                    "reason": reason,
+                    "sizing_blocked_reason": reason,
+                },
+            ),
+        )
+
+    diagnostics = LearningLogDiagnostics(log_dir=tmp_path).build()
+
+    assert diagnostics["diagnosis"]["state"] == "TRADE_BLOCKED_BY_RULES"
+    assert diagnostics["mitigation"]["action"] == "RELAX_ENTRY_RULES_FOR_DEMO"
+
+
 def test_learning_log_diagnostics_reports_found_trades(tmp_path: Path) -> None:
     service = LearningService(log_dir=tmp_path)
     service.record(

@@ -28,6 +28,12 @@ def test_dashboard_includes_rule_review_pipeline_panel() -> None:
     assert "renderLatestRuleProposal" in DASHBOARD_HTML
 
 
+def test_dashboard_includes_external_market_context_panel() -> None:
+    assert "온체인/ETF 상황" in DASHBOARD_HTML
+    assert 'fetchJson("/dashboard/external-context")' in DASHBOARD_HTML
+    assert "renderExternalContext" in DASHBOARD_HTML
+
+
 def test_settings_includes_rule_review_pipeline_panel() -> None:
     assert "룰 개선 분석 실행" in SETTINGS_HTML
     assert "룰 변경안 생성" in SETTINGS_HTML

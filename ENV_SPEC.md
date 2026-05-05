@@ -33,6 +33,18 @@ RULE_CHANGE_MAX_PARAMS_PER_RUN=3
 RULE_CHANGE_APPLY_TARGET=demo
 RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true
 
+EXTERNAL_CONTEXT_ENABLED=true
+ONCHAIN_CONTEXT_SOURCE=manual
+ONCHAIN_STATE=neutral
+ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT=0.0
+ONCHAIN_EXCHANGE_NETFLOW_STATE=neutral
+ETF_CONTEXT_SOURCE=manual
+ETF_STATE=neutral
+ETF_FLOW_USD=0.0
+NO_TRADE_ADAPTIVE_ENABLED=true
+NO_TRADE_RELAX_AFTER_CYCLES=100
+NO_TRADE_RELAX_MIN_SCORE=0.30
+
 TRADE_MARKET=KRW-XRP
 TRADE_COIN=XRP
 
@@ -124,6 +136,17 @@ DASHBOARD_PORT=8080
 | RULE_CHANGE_MAX_PARAMS_PER_RUN | int | Y | 3 | 한 번의 룰 개선 실행에서 바꿀 수 있는 최대 파라미터 수 |
 | RULE_CHANGE_APPLY_TARGET | str | Y | demo | 룰 변경안 기본 적용 대상, demo만 허용 |
 | RULE_CHANGE_REQUIRE_MANUAL_APPROVAL | bool | Y | true | live 반영 전 수동 승인 필수 여부 |
+| EXTERNAL_CONTEXT_ENABLED | bool | Y | true | 온체인/ETF 외부 컨텍스트 학습 로그 및 대시보드 표시 활성화 |
+| ONCHAIN_CONTEXT_SOURCE | str | Y | manual | 온체인 데이터 출처, 초기값은 수동/운영 입력 |
+| ONCHAIN_STATE | str | Y | neutral | 온체인 상태, bullish/neutral/bearish |
+| ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT | float | Y | 0.0 | 활성 주소 변화율 |
+| ONCHAIN_EXCHANGE_NETFLOW_STATE | str | Y | neutral | 거래소 순유입 상태, inflow/neutral/outflow |
+| ETF_CONTEXT_SOURCE | str | Y | manual | ETF 데이터 출처, 초기값은 수동/운영 입력 |
+| ETF_STATE | str | Y | neutral | ETF 자금 흐름 상태, inflow/neutral/outflow/not_applicable |
+| ETF_FLOW_USD | float | Y | 0.0 | ETF 순유입/순유출 금액 USD |
+| NO_TRADE_ADAPTIVE_ENABLED | bool | Y | true | 무거래 누적 시 demo 진입 기준 완화 정책 활성화 |
+| NO_TRADE_RELAX_AFTER_CYCLES | int | Y | 100 | 완화 판단 전 연속 진입 차단 사이클 수 |
+| NO_TRADE_RELAX_MIN_SCORE | float | Y | 0.30 | 완화 시 허용할 최소 weak signal score |
 | TRADE_MARKET | str | Y | KRW-XRP | 거래 마켓 |
 | TRADE_COIN | str | Y | XRP | 거래 코인 심볼 |
 | UPBIT_ACCESS_KEY | str | Y |  | 업비트 액세스 키 |
@@ -207,8 +230,21 @@ false면 앱 시작 실패
 - `RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true`가 기본이며, live 반영 API는 승인 상태와 demo/replay 결과를 요구한다.
 
 ### TRADE_MARKET / TRADE_COIN
-- `TRADE_COIN=XRP`, `TRADE_MARKET=KRW-XRP`
-- 코인을 바꾸면 UI 라벨과 메시지도 함께 바뀌어야 한다
+- 기본값은 `TRADE_COIN=XRP`, `TRADE_MARKET=KRW-XRP`이다.
+- 코인은 XRP에 고정하지 않는다. 예를 들어 BTC로 운용하려면 `TRADE_COIN=BTC`, `TRADE_MARKET=KRW-BTC`를 저장한다.
+- 설정 화면에서 기본 XRP 상태에서 코인만 BTC로 바꾸면 저장 시 `TRADE_MARKET=KRW-BTC`로 보정한다.
+- 코인을 바꾸면 UI 라벨, 대시보드, 텔레그램 메시지, 학습 로그 market도 함께 바뀌어야 한다.
+
+### EXTERNAL_CONTEXT / ONCHAIN / ETF
+- 온체인/ETF 컨텍스트는 학습 로그의 `external_market_context_snapshot`과 `auto_trade_cycle.external_context`에 기록한다.
+- BTC/ETH는 ETF 컨텍스트를 표시하고, 그 외 코인은 ETF 상태를 `not_applicable`로 기록한다.
+- 초기 구현은 `manual` 출처를 사용한다. 외부 API 키/제공자가 정해지면 provider를 추가한다.
+- bullish/onchain outflow/ETF inflow는 학습 가중치를 높이고, bearish/onchain inflow/ETF outflow는 낮춘다.
+
+### NO_TRADE_ADAPTIVE
+- demo에서 `AUTO_MIN_SIGNAL_LEVEL` 또는 `FEE_ADJUSTED_EDGE_LIMIT` 차단만 반복되면 완화 후보로 진단한다.
+- `NO_TRADE_RELAX_AFTER_CYCLES` 이상 연속 차단되고 signal score가 `NO_TRADE_RELAX_MIN_SCORE` 이상이면 demo에서 weak 신호도 sizing 통과 시 실행 후보로 허용할 수 있다.
+- live에서는 이 완화 정책이 SAFE_MODE/HARD_STOP/API 키/리스크 게이트를 우회할 수 없다.
 
 ### AUTO_PROMOTE_TO_LIVE / 승인 정책
 - 기본은 `AUTO_PROMOTE_TO_LIVE=false`

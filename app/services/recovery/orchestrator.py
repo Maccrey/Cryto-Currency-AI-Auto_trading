@@ -92,6 +92,7 @@ class RecoveryOrchestrator:
         retry_policy: RecoveryRetryPolicy | None = None,
         sleep: Callable[[float], None] | None = None,
         learning_service=None,
+        market: str = "KRW-XRP",
     ) -> None:
         self._app_name = app_name
         self._trading_mode = trading_mode
@@ -102,6 +103,7 @@ class RecoveryOrchestrator:
         self._retry_policy = retry_policy or RecoveryRetryPolicy()
         self._sleep = sleep or time.sleep
         self._learning_service = learning_service
+        self._market = market
 
     def boot(self) -> BootState:
         restart_event = {
@@ -250,7 +252,7 @@ class RecoveryOrchestrator:
         self._learning_service.record(
             LearningEvent(
                 event_name=event_name,
-                market="KRW-XRP",
+                market=self._market,
                 mode=self._trading_mode,
                 payload=payload,
             ),

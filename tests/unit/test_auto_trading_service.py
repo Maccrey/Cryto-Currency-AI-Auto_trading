@@ -123,6 +123,17 @@ def _build_service(tmp_path: Path, prices: list[float], *, min_history: int = 4)
     )
 
 
+class ExternalContextProviderStub:
+    def snapshot(self, *, market: str, trade_coin: str) -> dict[str, object]:
+        return {
+            "market": market,
+            "trade_coin": trade_coin,
+            "onchain": {"state": "bullish"},
+            "etf": {"state": "inflow"},
+            "learning_weight": 1.1,
+        }
+
+
 def test_auto_trading_service_records_waiting_until_history_is_ready(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [800.0, 801.0], min_history=4)
 
@@ -131,6 +142,17 @@ def test_auto_trading_service_records_waiting_until_history_is_ready(tmp_path: P
     assert result["status"] == "waiting"
     assert result["reason"] == "MARKET_HISTORY_WARMING_UP"
     assert result["trading_profile"] == "scalping"
+
+
+def test_auto_trading_service_records_external_context_in_learning_cycle(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0], min_history=4)
+    service._external_context_provider = ExternalContextProviderStub()
+
+    result = service.tick()
+    latest = service._learning_service.recent_events()[-1]
+
+    assert result["external_context"]["onchain"]["state"] == "bullish"
+    assert latest.payload["external_context"]["etf"]["state"] == "inflow"
 
 
 def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -> None:

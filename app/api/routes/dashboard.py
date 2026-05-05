@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
@@ -27,6 +29,7 @@ def build_dashboard_router(
     dashboard_learning_facade: DashboardLearningFacade,
     dashboard_recovery_facade: DashboardRecoveryFacade,
     promotion_dashboard_facade: PromotionDashboardFacade,
+    external_context_provider: Callable[[], dict[str, object]] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/dashboard")
 
@@ -77,6 +80,18 @@ def build_dashboard_router(
     @router.get("/promotion/history")
     def dashboard_promotion_history() -> dict[str, object]:
         return promotion_dashboard_facade.build_history_response()
+
+    @router.get("/external-context")
+    def dashboard_external_context() -> dict[str, object]:
+        if external_context_provider is None:
+            return {
+                "status": "not_configured",
+                "context": None,
+            }
+        return {
+            "status": "ok",
+            "context": external_context_provider(),
+        }
 
     return router
 
@@ -147,6 +162,10 @@ DASHBOARD_HTML = """
     .ai-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .ai-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .ai-value { margin-top: 8px; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .context-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .context-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+    .context-label { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .context-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
     .legend { margin-top: 12px; }
     .legend-toggle { margin-top: 12px; }
     .legend-panel { display: none; }
@@ -162,11 +181,11 @@ DASHBOARD_HTML = """
     .rule-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .rule-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
     @media (max-width: 900px) {
-      .grid, .ai-grid, .rule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid, .ai-grid, .rule-grid, .context-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .panel { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
-      .grid, .section-grid, .rule-grid { grid-template-columns: 1fr; }
+      .grid, .section-grid, .rule-grid, .context-grid { grid-template-columns: 1fr; }
       .wrap { padding-left: 14px; padding-right: 14px; }
     }
   </style>
@@ -224,6 +243,15 @@ DASHBOARD_HTML = """
       <h2>손익</h2>
       <div id="pnlMetric" class="metric">-</div>
       <div id="pnlSub" class="sub">-</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>온체인/ETF 상황</h2>
+    <div class="context-grid">
+      <div class="context-item"><div class="context-label">온체인 상태</div><div id="onchainState" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">ETF 상태</div><div id="etfState" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">학습 가중치</div><div id="contextWeight" class="context-value">-</div></div>
     </div>
   </section>
 
@@ -616,7 +644,7 @@ async function approveRuleProposalForLive() {
 async function refreshDashboard() {
   document.getElementById("statusLine").textContent = "데이터를 불러오는 중...";
   try {
-    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse] = await Promise.all([
+    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse, externalContextResponse] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/dashboard/summary"),
       fetchJson("/dashboard/market"),
@@ -625,9 +653,11 @@ async function refreshDashboard() {
       fetchJson("/learning/model-readiness"),
       fetchJson("/dashboard/executions"),
       fetchJson("/dashboard/promotion"),
-      fetchJson("/api/v1/rules/proposals")
+      fetchJson("/api/v1/rules/proposals"),
+      fetchJson("/dashboard/external-context")
     ]);
     renderLatestRuleProposal(ruleProposalResponse);
+    renderExternalContext(externalContextResponse.context || {});
     renderDashboard({
       health,
       summary,
@@ -641,6 +671,14 @@ async function refreshDashboard() {
   } catch (error) {
     document.getElementById("statusLine").textContent = `대시보드 데이터를 불러오지 못했다: ${error.message}`;
   }
+}
+
+function renderExternalContext(context) {
+  const onchain = context.onchain || {};
+  const etf = context.etf || {};
+  document.getElementById("onchainState").textContent = `${onchain.state || "-"} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`;
+  document.getElementById("etfState").textContent = `${etf.state || "-"} / ${number(etf.flow_usd || 0, 0)} USD`;
+  document.getElementById("contextWeight").textContent = number(context.learning_weight || 1, 3);
 }
 
 function renderDashboard(data) {

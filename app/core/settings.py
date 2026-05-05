@@ -28,6 +28,17 @@ class SettingsModel(BaseModel):
     rule_change_max_params_per_run: int = Field(default=3)
     rule_change_apply_target: str = Field(default="demo")
     rule_change_require_manual_approval: bool = Field(default=True)
+    external_context_enabled: bool = Field(default=True)
+    onchain_context_source: str = Field(default="manual")
+    onchain_state: str = Field(default="neutral")
+    onchain_active_addresses_change_pct: float = Field(default=0.0)
+    onchain_exchange_netflow_state: str = Field(default="neutral")
+    etf_context_source: str = Field(default="manual")
+    etf_state: str = Field(default="neutral")
+    etf_flow_usd: float = Field(default=0.0)
+    no_trade_adaptive_enabled: bool = Field(default=True)
+    no_trade_relax_after_cycles: int = Field(default=100)
+    no_trade_relax_min_score: float = Field(default=0.30)
     trade_market: str = Field(default="KRW-XRP")
     trade_coin: str = Field(default="XRP")
     upbit_access_key: str = Field(default="")
@@ -161,6 +172,17 @@ class AppSettings:
     rule_change_max_params_per_run: int
     rule_change_apply_target: str
     rule_change_require_manual_approval: bool
+    external_context_enabled: bool
+    onchain_context_source: str
+    onchain_state: str
+    onchain_active_addresses_change_pct: float
+    onchain_exchange_netflow_state: str
+    etf_context_source: str
+    etf_state: str
+    etf_flow_usd: float
+    no_trade_adaptive_enabled: bool
+    no_trade_relax_after_cycles: int
+    no_trade_relax_min_score: float
     trade_market: str
     trade_coin: str
     upbit_access_key: str
@@ -247,6 +269,19 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "rule_change_require_manual_approval": _parse_bool(
             _setting("RULE_CHANGE_REQUIRE_MANUAL_APPROVAL", "true", env_values),
         ),
+        "external_context_enabled": _parse_bool(_setting("EXTERNAL_CONTEXT_ENABLED", "true", env_values)),
+        "onchain_context_source": _setting("ONCHAIN_CONTEXT_SOURCE", "manual", env_values),
+        "onchain_state": _setting("ONCHAIN_STATE", "neutral", env_values),
+        "onchain_active_addresses_change_pct": float(
+            _setting("ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT", "0.0", env_values),
+        ),
+        "onchain_exchange_netflow_state": _setting("ONCHAIN_EXCHANGE_NETFLOW_STATE", "neutral", env_values),
+        "etf_context_source": _setting("ETF_CONTEXT_SOURCE", "manual", env_values),
+        "etf_state": _setting("ETF_STATE", "neutral", env_values),
+        "etf_flow_usd": float(_setting("ETF_FLOW_USD", "0.0", env_values)),
+        "no_trade_adaptive_enabled": _parse_bool(_setting("NO_TRADE_ADAPTIVE_ENABLED", "true", env_values)),
+        "no_trade_relax_after_cycles": int(_setting("NO_TRADE_RELAX_AFTER_CYCLES", "100", env_values)),
+        "no_trade_relax_min_score": float(_setting("NO_TRADE_RELAX_MIN_SCORE", "0.30", env_values)),
         "trade_market": _setting("TRADE_MARKET", "KRW-XRP", env_values),
         "trade_coin": _setting("TRADE_COIN", "XRP", env_values),
         "upbit_access_key": _setting("UPBIT_ACCESS_KEY", "", env_values),

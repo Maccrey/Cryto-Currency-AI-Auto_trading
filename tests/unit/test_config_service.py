@@ -158,3 +158,26 @@ def test_env_file_service_saves_trading_profile_defaults(tmp_path: Path) -> None
         "mid_term",
         "long_term",
     }
+
+
+def test_env_file_service_updates_market_when_coin_changes_from_default_xrp(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "TRADING_MODE=demo\nLEARNING_ENABLED=true\nTRADE_MARKET=KRW-XRP\nTRADE_COIN=XRP\n",
+        encoding="utf-8",
+    )
+    service = EnvFileService(env_path)
+
+    result = service.save(
+        {
+            "TRADING_MODE": "demo",
+            "TRADING_PROFILE": "scalping",
+            "TRADE_COIN": "btc",
+            "DEMO_INITIAL_CAPITAL": "1000000",
+        },
+    )
+
+    assert result["saved"] is True
+    env_text = env_path.read_text(encoding="utf-8")
+    assert "TRADE_COIN=BTC" in env_text
+    assert "TRADE_MARKET=KRW-BTC" in env_text
