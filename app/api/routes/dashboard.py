@@ -776,19 +776,19 @@ function renderExternalContext(context) {
   const etf = context.etf || {};
   const marketData = context.market_data || {};
   const usdChange = marketData.usd_change_pct_24h;
-  document.getElementById("contextUsdPrice").innerHTML = `${usd(marketData.usd_price)}\n<span class="${changeClass(usdChange)}">24시간 ${percent(usdChange)}</span>`;
+  document.getElementById("contextUsdPrice").innerHTML = `${usd(marketData.usd_price)}<br><span class="${changeClass(usdChange)}">24시간 ${percent(usdChange)}</span>`;
   document.getElementById("onchainState").textContent = `${formatContextState(onchain.state)} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`;
   document.getElementById("onchainDetails").textContent = [
     `거래소 순유입·순유출: ${formatContextState(onchain.exchange_netflow_state)}`,
     `고래 지갑 움직임: ${formatContextState(onchain.whale_activity_state)}`,
     `MVRV/SOPR: ${formatContextState(onchain.valuation_state)}`
-  ].join("\n");
+  ].join("\\n");
   document.getElementById("etfState").textContent = [
     `${formatContextState(etf.state)}`,
     `순유입 ${number(etf.inflow_usd || 0, 0)} USD`,
     `순유출 ${number(etf.outflow_usd || 0, 0)} USD`,
     `보유수량 변화 ${number(etf.holding_change_coin || 0, 6)} ${context.trade_coin || ""}`
-  ].join("\n");
+  ].join("\\n");
   document.getElementById("contextWeight").textContent = number(context.learning_weight || 1, 3);
   document.getElementById("contextStatus").textContent = formatExternalContextStatus(onchain, etf);
   document.getElementById("onchainSource").textContent = formatExternalContextSource(onchain);

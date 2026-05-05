@@ -60,6 +60,8 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert "거래소 순유입·순유출" in DASHBOARD_HTML
     assert "고래 지갑 움직임" in DASHBOARD_HTML
     assert "MVRV/SOPR" in DASHBOARD_HTML
+    assert '${usd(marketData.usd_price)}<br><span class="${changeClass(usdChange)}">' in DASHBOARD_HTML
+    assert '].join("\\n");' in DASHBOARD_HTML
 
 
 def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
