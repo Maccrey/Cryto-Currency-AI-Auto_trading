@@ -280,6 +280,7 @@ order_intent
 ### 버튼별 의미
 - `룰 개선 분석 실행`: 최근 `RULE_REVIEW_WINDOW_DAYS` 학습 로그를 집계한다.
 - `룰 변경안 생성`: 거래 수와 손절 수 기준 충족 시 Codex 변경안을 만든다.
+- `replay 검증`: 변경안을 과거 tick fixture로 재생해 신호 결과와 차단 결과를 확인한다.
 - `demo 적용`: replay 결과가 있는 변경안만 demo에 적용한다.
 - `live 승인 적용`: demo 검증 통과와 수동 승인 후 live 반영한다.
 

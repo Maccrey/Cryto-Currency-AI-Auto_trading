@@ -43,6 +43,13 @@ def test_rule_review_api_contract(tmp_path) -> None:
     assert demo_response.status_code == 200
     assert demo_response.json()["proposal"]["demo_applied"] is False
 
+    replay_response = client.post(
+        f"/api/v1/rules/proposals/{proposal['id']}/replay",
+        json={"fixture_path": "fixtures/replay_ticks.json"},
+    )
+    assert replay_response.status_code == 200
+    assert replay_response.json()["proposal"]["replay_result"]["status"] == "passed"
+
     live_response = client.post(f"/api/v1/rules/proposals/{proposal['id']}/approve-live", json={"approved_by": ""})
     assert live_response.status_code == 200
     assert live_response.json()["proposal"]["live_approved"] is False

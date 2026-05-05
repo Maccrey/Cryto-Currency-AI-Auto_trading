@@ -353,6 +353,7 @@ Codex가 최근 학습 로그를 읽어 손실 원인과 차단 원인을 분석
 ### API
 - `POST /api/v1/rules/review`
 - `POST /api/v1/rules/proposals`
+- `POST /api/v1/rules/proposals/{id}/replay`
 - `POST /api/v1/rules/proposals/{id}/apply-demo`
 - `POST /api/v1/rules/proposals/{id}/approve-live`
 - `GET /api/v1/rules/proposals/{id}`

@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from app.services.replay.harness import ReplayHarness
+from app.services.replay.loader import ReplayFixtureLoader
+
 
 @dataclass(frozen=True)
 class RuleReviewConfig:
@@ -54,7 +57,12 @@ class RuleReviewService:
         self._reviews[str(review["id"])] = review
         return {"review": review}
 
-    def create_proposal(self, *, review_id: str | None = None) -> dict[str, object]:
+    def create_proposal(
+        self,
+        *,
+        review_id: str | None = None,
+        proposed_changes: list[dict[str, Any]] | None = None,
+    ) -> dict[str, object]:
         review = self._reviews.get(str(review_id)) if review_id else None
         if review is None:
             review = self.review()["review"]  # type: ignore[assignment]
@@ -67,10 +75,10 @@ class RuleReviewService:
         if int(review["stop_loss_count"]) < self._config.min_stoplosses:
             rejection_reasons.append("insufficient_stoploss_sample")
 
-        proposed_changes = [] if rejection_reasons else self._default_proposed_changes()
-        if len(proposed_changes) > self._config.max_params_per_run:
+        changes = [] if rejection_reasons else proposed_changes or self._default_proposed_changes()
+        if len(changes) > self._config.max_params_per_run:
             rejection_reasons.append("too_many_parameter_changes")
-            proposed_changes = proposed_changes[: self._config.max_params_per_run]
+            changes = changes[: self._config.max_params_per_run]
 
         proposal = {
             "id": str(uuid4()),
@@ -81,7 +89,7 @@ class RuleReviewService:
             "trade_count": review["trade_count"],
             "stop_loss_count": review["stop_loss_count"],
             "major_loss_causes": review["major_loss_causes"],
-            "codex_suggested_changes": proposed_changes,
+            "codex_suggested_changes": changes,
             "replay_result": None,
             "demo_applied": False,
             "live_approved": False,
@@ -95,11 +103,40 @@ class RuleReviewService:
     def get_proposal(self, proposal_id: str) -> dict[str, object]:
         return {"proposal": self._proposals[proposal_id]}
 
+    def verify_replay(self, proposal_id: str, *, fixture_path: Path) -> dict[str, object]:
+        proposal = self._proposals[proposal_id]
+        ticks = ReplayFixtureLoader().load(fixture_path)
+        results = ReplayHarness().run(ticks)
+        blocked_count = sum(1 for result in results if result.blocked)
+        signal_count = len(results)
+        passed = signal_count > 0 and blocked_count < signal_count
+        proposal["replay_result"] = {
+            "status": "passed" if passed else "failed",
+            "fixture_path": str(fixture_path),
+            "signal_count": signal_count,
+            "blocked_count": blocked_count,
+            "max_signal_score": max((result.signal_score for result in results), default=0.0),
+            "verified_at": datetime.now(UTC).isoformat(),
+        }
+        if not passed:
+            reasons = set(proposal["rejection_reasons"])
+            reasons.add("replay_failed")
+            proposal["rejection_reasons"] = sorted(reasons)
+            proposal["status"] = "blocked"
+        else:
+            reasons = set(proposal["rejection_reasons"])
+            reasons.discard("replay_required")
+            reasons.discard("replay_failed")
+            proposal["rejection_reasons"] = sorted(reasons)
+        return {"proposal": proposal}
+
     def apply_demo(self, proposal_id: str) -> dict[str, object]:
         proposal = self._proposals[proposal_id]
         reasons = set(proposal["rejection_reasons"])
         if proposal["replay_result"] is None:
             reasons.add("replay_required")
+        elif proposal["replay_result"].get("status") != "passed":
+            reasons.add("replay_failed")
         if proposal["status"] == "blocked":
             reasons.add("proposal_blocked")
         proposal["rejection_reasons"] = sorted(reasons)

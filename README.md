@@ -178,6 +178,7 @@ pre-commit run --all-files
 - `/learning/model-readiness` 기반 TensorFlow 학습 준비도 진단
 - `/api/v1/rules/review` 기반 룰 개선 분석 실행
 - `/api/v1/rules/proposals` 기반 룰 변경안 생성
+- `/api/v1/rules/proposals/{id}/replay` 기반 replay 검증
 - replay 검증 후 demo 적용, 승인 후 live 반영
 
 ---
@@ -262,6 +263,7 @@ XRP-KRW
 ### 룰 개선 패널
 - `룰 개선 분석 실행`
 - `룰 변경안 생성`
+- `replay 검증`
 - `demo 적용`
 - `live 승인 적용`
 

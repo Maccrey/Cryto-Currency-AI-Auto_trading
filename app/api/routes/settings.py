@@ -245,6 +245,7 @@ SETTINGS_HTML = """
       <div class="rule-actions">
         <button class="secondary" type="button" onclick="runRuleReview()">룰 개선 분석 실행</button>
         <button class="secondary" type="button" onclick="createRuleProposal()">룰 변경안 생성</button>
+        <button class="secondary" type="button" onclick="verifyRuleProposalReplay()">replay 검증</button>
         <button class="secondary" type="button" onclick="applyRuleProposalToDemo()">demo 적용</button>
         <button class="primary" type="button" onclick="approveRuleProposalForLive()">live 승인 적용</button>
       </div>
@@ -457,6 +458,10 @@ async function createRuleProposal() {
 async function applyRuleProposalToDemo() {
   if (!latestRuleProposalId) await createRuleProposal();
   renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/apply-demo`));
+}
+async function verifyRuleProposalReplay() {
+  if (!latestRuleProposalId) await createRuleProposal();
+  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/replay`, {fixture_path: "fixtures/replay_ticks.json"}));
 }
 async function approveRuleProposalForLive() {
   if (!latestRuleProposalId) await createRuleProposal();

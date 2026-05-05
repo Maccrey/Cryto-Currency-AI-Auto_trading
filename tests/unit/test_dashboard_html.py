@@ -20,6 +20,7 @@ def test_dashboard_includes_rule_review_pipeline_panel() -> None:
     assert "룰 개선" in DASHBOARD_HTML
     assert "룰 개선 분석 실행" in DASHBOARD_HTML
     assert "룰 변경안 생성" in DASHBOARD_HTML
+    assert "replay 검증" in DASHBOARD_HTML
     assert "demo 적용" in DASHBOARD_HTML
     assert "live 승인 적용" in DASHBOARD_HTML
     assert 'postJson("/api/v1/rules/review"' in DASHBOARD_HTML
@@ -28,6 +29,7 @@ def test_dashboard_includes_rule_review_pipeline_panel() -> None:
 def test_settings_includes_rule_review_pipeline_panel() -> None:
     assert "룰 개선 분석 실행" in SETTINGS_HTML
     assert "룰 변경안 생성" in SETTINGS_HTML
+    assert "replay 검증" in SETTINGS_HTML
     assert "demo 적용" in SETTINGS_HTML
     assert "live 승인 적용" in SETTINGS_HTML
     assert 'postJson("/api/v1/rules/review"' in SETTINGS_HTML

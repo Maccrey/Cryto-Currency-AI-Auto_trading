@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -8,10 +10,15 @@ from app.services.rules.review import RuleReviewService
 
 class RuleProposalPayload(BaseModel):
     review_id: str | None = None
+    proposed_changes: list[dict[str, object]] | None = None
 
 
 class RuleLiveApprovalPayload(BaseModel):
     approved_by: str = ""
+
+
+class RuleReplayPayload(BaseModel):
+    fixture_path: str = "fixtures/replay_ticks.json"
 
 
 def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
@@ -25,6 +32,7 @@ def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
     def create_rule_proposal(payload: RuleProposalPayload | None = None) -> dict[str, object]:
         return rule_review_service.create_proposal(
             review_id=None if payload is None else payload.review_id,
+            proposed_changes=None if payload is None else payload.proposed_changes,
         )
 
     @router.get("/proposals/{proposal_id}")
@@ -34,6 +42,17 @@ def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
     @router.post("/proposals/{proposal_id}/apply-demo")
     def apply_rule_proposal_to_demo(proposal_id: str) -> dict[str, object]:
         return rule_review_service.apply_demo(proposal_id)
+
+    @router.post("/proposals/{proposal_id}/replay")
+    def replay_rule_proposal(
+        proposal_id: str,
+        payload: RuleReplayPayload | None = None,
+    ) -> dict[str, object]:
+        fixture_path = "fixtures/replay_ticks.json" if payload is None else payload.fixture_path
+        return rule_review_service.verify_replay(
+            proposal_id,
+            fixture_path=Path(fixture_path),
+        )
 
     @router.post("/proposals/{proposal_id}/approve-live")
     def approve_rule_proposal_for_live(
