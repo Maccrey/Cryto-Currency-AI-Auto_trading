@@ -162,7 +162,7 @@ DASHBOARD_HTML = """
     .ai-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .ai-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .ai-value { margin-top: 8px; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
-    .context-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .context-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
     .context-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .context-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .context-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
@@ -252,6 +252,10 @@ DASHBOARD_HTML = """
       <div class="context-item"><div class="context-label">온체인 상태</div><div id="onchainState" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">ETF 상태</div><div id="etfState" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">학습 가중치</div><div id="contextWeight" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">수집 상태</div><div id="contextStatus" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">온체인 출처</div><div id="onchainSource" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">ETF 출처</div><div id="etfSource" class="context-value">-</div></div>
+      <div class="context-item"><div class="context-label">기록 시각</div><div id="contextRecordedAt" class="context-value">-</div></div>
     </div>
   </section>
 
@@ -679,6 +683,24 @@ function renderExternalContext(context) {
   document.getElementById("onchainState").textContent = `${onchain.state || "-"} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`;
   document.getElementById("etfState").textContent = `${etf.state || "-"} / ${number(etf.flow_usd || 0, 0)} USD`;
   document.getElementById("contextWeight").textContent = number(context.learning_weight || 1, 3);
+  document.getElementById("contextStatus").textContent = formatExternalContextStatus(onchain, etf);
+  document.getElementById("onchainSource").textContent = formatExternalContextSource(onchain);
+  document.getElementById("etfSource").textContent = formatExternalContextSource(etf);
+  document.getElementById("contextRecordedAt").textContent = context.recorded_at ? new Date(context.recorded_at).toLocaleString("ko-KR") : "-";
+}
+
+function formatExternalContextStatus(onchain, etf) {
+  const errors = [];
+  if (onchain.fetch_error) errors.push("온체인 오류");
+  if (etf.fetch_error) errors.push("ETF 오류");
+  if (errors.length) return errors.join(" / ");
+  if (onchain.state === "disabled" || etf.state === "disabled") return "비활성";
+  return "정상";
+}
+
+function formatExternalContextSource(section) {
+  const source = section.source || "-";
+  return section.fetch_error ? `${source} fallback` : source;
 }
 
 function renderDashboard(data) {

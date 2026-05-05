@@ -32,6 +32,11 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert "온체인/ETF 상황" in DASHBOARD_HTML
     assert 'fetchJson("/dashboard/external-context")' in DASHBOARD_HTML
     assert "renderExternalContext" in DASHBOARD_HTML
+    assert 'id="onchainSource"' in DASHBOARD_HTML
+    assert 'id="etfSource"' in DASHBOARD_HTML
+    assert 'id="contextStatus"' in DASHBOARD_HTML
+    assert 'id="contextRecordedAt"' in DASHBOARD_HTML
+    assert "formatExternalContextSource" in DASHBOARD_HTML
 
 
 def test_settings_includes_rule_review_pipeline_panel() -> None:
