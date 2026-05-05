@@ -63,11 +63,20 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert "formatDiagnosisState" in DASHBOARD_HTML
     assert "formatMitigationAction" in DASHBOARD_HTML
     assert "formatBlockedReason" in DASHBOARD_HTML
+    assert "white-space: pre-line" in DASHBOARD_HTML
+    assert 'TRADES_FOUND: "체결 이벤트 확인"' in DASHBOARD_HTML
+    assert 'NO_LEARNING_LOG: "학습 로그 없음"' in DASHBOARD_HTML
+    assert 'AUTO_TRADING_NOT_RUNNING: "자동매매 미실행"' in DASHBOARD_HTML
+    assert 'WAITING_FOR_SIGNAL: "신호 대기 중"' in DASHBOARD_HTML
     assert 'TRADE_BLOCKED_BY_RULES: "매매 규칙 차단"' in DASHBOARD_HTML
+    assert 'NONE: "조치 불필요"' in DASHBOARD_HTML
+    assert 'MONITOR: "추가 관찰"' in DASHBOARD_HTML
     assert 'RELAX_ENTRY_RULES_FOR_DEMO: "데모 진입 규칙 완화 검토"' in DASHBOARD_HTML
     assert 'MARKET_HISTORY_WARMING_UP: "시세 이력 준비 중"' in DASHBOARD_HTML
     assert 'AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달"' in DASHBOARD_HTML
     assert 'FEE_ADJUSTED_EDGE_LIMIT: "수수료 반영 기대수익 부족"' in DASHBOARD_HTML
+    assert "온체인 ${onchain}" in DASHBOARD_HTML
+    assert "ETF ${etf} / 평균 가중치" in DASHBOARD_HTML
 
 
 def test_dashboard_displays_learning_log_context() -> None:

@@ -165,7 +165,7 @@ DASHBOARD_HTML = """
     .context-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
     .context-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .context-label { color: var(--muted); font-size: 12px; font-weight: 700; }
-    .context-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+    .context-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; white-space: pre-line; }
     .legend { margin-top: 12px; }
     .legend-toggle { margin-top: 12px; }
     .legend-panel { display: none; }
@@ -815,9 +815,13 @@ function formatContextSource(value) {
 
 function formatDiagnosisState(value) {
   const labels = {
+    NO_LEARNING_LOG: "학습 로그 없음",
+    AUTO_TRADING_NOT_RUNNING: "자동매매 미실행",
+    TRADES_FOUND: "체결 이벤트 확인",
     TRADE_BLOCKED_BY_RULES: "매매 규칙 차단",
     INSUFFICIENT_ACTIVITY: "활동 데이터 부족",
     NO_TRADE_DATA: "거래 데이터 없음",
+    WAITING_FOR_SIGNAL: "신호 대기 중",
     ACTIVE_TRADING: "거래 진행 중"
   };
   return labels[value] || value || "-";
@@ -828,7 +832,9 @@ function formatMitigationAction(value) {
     RELAX_ENTRY_RULES_FOR_DEMO: "데모 진입 규칙 완화 검토",
     COLLECT_MORE_DATA: "데이터 추가 수집",
     KEEP_CURRENT_RULES: "현재 룰 유지",
-    REVIEW_RISK_RULES: "리스크 규칙 점검"
+    REVIEW_RISK_RULES: "리스크 규칙 점검",
+    NONE: "조치 불필요",
+    MONITOR: "추가 관찰"
   };
   return labels[value] || value || "-";
 }
@@ -855,7 +861,7 @@ function renderNoTradeDiagnostics(diagnostics) {
 function formatDiagnosticsExternalContext(summary) {
   const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
   const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
-  return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
+  return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain}\nETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
 }
 
 function formatBlockedReasons(diagnostics) {
