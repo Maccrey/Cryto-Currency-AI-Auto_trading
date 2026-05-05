@@ -122,6 +122,24 @@ def test_settings_loads_values_from_env_file_without_api_keys_in_demo(
     assert settings.upbit_secret_key == ""
 
 
+def test_settings_rejects_trade_market_coin_mismatch(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "LEARNING_ENABLED=true",
+                "TRADE_MARKET=KRW-ETH",
+                "TRADE_COIN=BTC",
+            ],
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SettingsError, match="TRADE_MARKET"):
+        load_settings(env_file=env_file)
+
+
 def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
     expected_fields = {
         "app_env",

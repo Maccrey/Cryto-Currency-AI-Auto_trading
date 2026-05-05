@@ -160,7 +160,7 @@ pre-commit run --all-files
 
 자세한 스펙은 `ENV_SPEC.md`를 따른다.
 
-BTC로 바꾸려면 설정 화면에서 코인을 `BTC`로 저장한다. 기본 XRP 상태에서 코인만 바꾸면 `TRADE_MARKET=KRW-BTC`로 보정된다. ETH, SOL 등도 같은 방식으로 `KRW-<코인>` 마켓을 사용한다. XRP는 기존 학습 로그 경로를 유지하고, 다른 코인은 `logs/learning/<COIN>/<투자성향>/learning.jsonl`로 분리한다.
+BTC로 바꾸려면 설정 화면에서 코인을 `BTC`로 저장한다. 기본 XRP 상태에서 코인만 바꾸면 `TRADE_MARKET=KRW-BTC`로 보정된다. ETH, SOL 등도 같은 방식으로 `KRW-<코인>` 마켓을 사용한다. `TRADE_MARKET`과 `TRADE_COIN`이 불일치하면 시작을 차단한다. XRP는 기존 학습 로그 경로를 유지하고, 다른 코인은 `logs/learning/<COIN>/<투자성향>/learning.jsonl`로 분리한다.
 
 ---
 

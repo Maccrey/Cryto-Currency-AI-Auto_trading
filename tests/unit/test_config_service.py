@@ -181,3 +181,45 @@ def test_env_file_service_updates_market_when_coin_changes_from_default_xrp(tmp_
     env_text = env_path.read_text(encoding="utf-8")
     assert "TRADE_COIN=BTC" in env_text
     assert "TRADE_MARKET=KRW-BTC" in env_text
+
+
+def test_env_file_service_normalizes_krw_market_to_trade_coin(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    service = EnvFileService(env_path)
+
+    result = service.save(
+        {
+            "TRADING_MODE": "demo",
+            "TRADING_PROFILE": "scalping",
+            "TRADE_MARKET": "KRW-ETH",
+            "TRADE_COIN": "btc",
+            "DEMO_INITIAL_CAPITAL": "1000000",
+        },
+    )
+
+    assert result["saved"] is True
+    env_text = env_path.read_text(encoding="utf-8")
+    assert "TRADE_COIN=BTC" in env_text
+    assert "TRADE_MARKET=KRW-BTC" in env_text
+
+
+def test_env_file_service_readiness_blocks_market_coin_mismatch(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "TRADING_PROFILE=scalping",
+                "TRADE_MARKET=KRW-ETH",
+                "TRADE_COIN=BTC",
+                "DEMO_INITIAL_CAPITAL=1000000",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    service = EnvFileService(env_path)
+
+    readiness = service.trading_start_readiness()
+
+    assert readiness["ready"] is False
+    assert "TRADE_MARKET" in readiness["invalid"]

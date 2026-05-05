@@ -61,12 +61,9 @@ class EnvFileService:
             normalized["TELEGRAM_CHAT_ID"] = self._normalize_telegram_chat_id(normalized["TELEGRAM_CHAT_ID"])
         if "TRADE_COIN" in normalized:
             normalized["TRADE_COIN"] = normalized["TRADE_COIN"].upper()
-        if normalized.get("TRADE_COIN") and (
-            not normalized.get("TRADE_MARKET")
-            or values.get("TRADE_MARKET") == "KRW-XRP"
-            or normalized.get("TRADE_MARKET") == "KRW-XRP"
-        ):
-            normalized["TRADE_MARKET"] = f"KRW-{normalized['TRADE_COIN']}"
+        if "TRADE_MARKET" in normalized:
+            normalized["TRADE_MARKET"] = normalized["TRADE_MARKET"].upper()
+        self._normalize_trade_market_for_coin(values=values, normalized=normalized)
         normalized.setdefault("LEARNING_ENABLED", "true")
         mode = normalized.get("TRADING_MODE", "demo")
         if mode not in {"demo", "live"}:
@@ -129,6 +126,8 @@ class EnvFileService:
                 invalid.append("DEMO_INITIAL_CAPITAL")
         except ValueError:
             invalid.append("DEMO_INITIAL_CAPITAL")
+        if not self._market_matches_coin(current_values):
+            invalid.append("TRADE_MARKET")
 
         if mode == "live":
             missing.extend(self._missing_for_live(current_values))
@@ -164,6 +163,29 @@ class EnvFileService:
     @staticmethod
     def _missing_for_live(values: dict[str, str]) -> list[str]:
         return [key for key in LIVE_REQUIRED_KEYS if not values.get(key, "").strip()]
+
+    @staticmethod
+    def _normalize_trade_market_for_coin(*, values: dict[str, str], normalized: dict[str, str]) -> None:
+        coin = normalized.get("TRADE_COIN") or values.get("TRADE_COIN", "")
+        market = normalized.get("TRADE_MARKET") or values.get("TRADE_MARKET", "")
+        if not coin:
+            return
+        if (
+            not market
+            or market == "KRW-XRP"
+            or market.startswith("KRW-")
+        ):
+            normalized["TRADE_MARKET"] = f"KRW-{coin}"
+
+    @staticmethod
+    def _market_matches_coin(values: dict[str, str]) -> bool:
+        market = values.get("TRADE_MARKET", "").strip().upper()
+        coin = values.get("TRADE_COIN", "").strip().upper()
+        if not market or not coin:
+            return True
+        if "-" not in market:
+            return False
+        return market.split("-")[-1] == coin
 
     @staticmethod
     def _readiness_message(*, mode: str, missing: list[str], invalid: list[str]) -> str:

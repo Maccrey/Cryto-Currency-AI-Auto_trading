@@ -238,6 +238,7 @@ false면 앱 시작 실패
 ### TRADE_MARKET / TRADE_COIN
 - 기본값은 `TRADE_COIN=XRP`, `TRADE_MARKET=KRW-XRP`이다.
 - 코인은 XRP에 고정하지 않는다. 예를 들어 BTC로 운용하려면 `TRADE_COIN=BTC`, `TRADE_MARKET=KRW-BTC`를 저장한다.
+- `TRADE_MARKET`의 코인 suffix는 반드시 `TRADE_COIN`과 일치해야 한다. 설정 저장 시 KRW 마켓은 코인에 맞춰 자동 보정하고, 런타임 로딩/시작 readiness에서는 불일치를 차단한다.
 - XRP는 기존 호환을 위해 `LEARNING_LOG_DIR/<TRADING_PROFILE>/learning.jsonl`을 사용하고, BTC/ETH/SOL 등 다른 코인은 `LEARNING_LOG_DIR/<TRADE_COIN>/<TRADING_PROFILE>/learning.jsonl`에 학습 로그를 분리 저장한다.
 - 설정 화면에서 기본 XRP 상태에서 코인만 BTC로 바꾸면 저장 시 `TRADE_MARKET=KRW-BTC`로 보정한다.
 - 코인을 바꾸면 UI 라벨, 대시보드, 텔레그램 메시지, 학습 로그 market도 함께 바뀌어야 한다.

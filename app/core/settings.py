@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.core.trading_profile import TRADING_PROFILES, get_trading_profile
 
@@ -131,6 +131,19 @@ class SettingsModel(BaseModel):
             allowed = ", ".join(sorted(TRADING_PROFILES))
             raise ValueError(f"TRADING_PROFILE must be one of: {allowed}")
         return value
+
+    @field_validator("trade_market", "trade_coin")
+    @classmethod
+    def normalize_market_symbol(cls, value: str) -> str:
+        return value.strip().upper()
+
+    @model_validator(mode="after")
+    def validate_trade_market_matches_coin(self) -> SettingsModel:
+        if "-" not in self.trade_market:
+            raise ValueError("TRADE_MARKET must include quote and coin, e.g. KRW-BTC")
+        if self.trade_market.split("-")[-1] != self.trade_coin:
+            raise ValueError("TRADE_MARKET coin suffix must match TRADE_COIN")
+        return self
 
     @field_validator("trading_fee_rate")
     @classmethod
