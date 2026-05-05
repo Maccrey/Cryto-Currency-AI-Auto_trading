@@ -49,6 +49,8 @@ def test_external_market_context_merges_http_provider_payload() -> None:
                     "state": "bullish",
                     "active_addresses_change_pct": 3.5,
                     "exchange_netflow_state": "outflow",
+                    "whale_activity_state": "bullish",
+                    "valuation_state": "neutral",
                 },
             )
         return httpx.Response(200, json={"state": "inflow", "flow_usd": 12_500_000})
@@ -67,10 +69,45 @@ def test_external_market_context_merges_http_provider_payload() -> None:
     assert context["onchain"]["state"] == "bullish"
     assert context["onchain"]["active_addresses_change_pct"] == 3.5
     assert context["onchain"]["exchange_netflow_state"] == "outflow"
+    assert context["onchain"]["whale_activity_state"] == "bullish"
+    assert context["onchain"]["whale_activity_basis"] == ""
+    assert context["onchain"]["valuation_state"] == "neutral"
+    assert context["onchain"]["valuation_basis"] == ""
     assert context["etf"]["source"] == "http"
     assert context["etf"]["state"] == "inflow"
     assert context["etf"]["flow_usd"] == 12_500_000.0
     assert context["learning_weight"] == 1.2
+
+
+def test_external_market_context_derives_missing_onchain_detail_states() -> None:
+    class Provider:
+        def fetch(self, *, market: str, trade_coin: str) -> dict[str, dict[str, object]]:
+            return {
+                "onchain": {
+                    "source": "web",
+                    "state": "bearish",
+                    "active_addresses_change_pct": -18.0,
+                    "exchange_netflow_state": "neutral",
+                    "whale_activity_state": "unknown",
+                    "valuation_state": "unknown",
+                },
+                "market_data": {
+                    "source": "web",
+                    "usd_price": 1.4,
+                    "usd_change_pct_24h": 0.12,
+                    "quote_volume_usd_24h": 1_500_000_000,
+                },
+            }
+
+    context = ExternalMarketContextService(
+        config=ExternalMarketContextConfig(enabled=True),
+        provider=Provider(),
+    ).snapshot(market="KRW-XRP", trade_coin="XRP")
+
+    assert context["onchain"]["whale_activity_state"] == "bearish"
+    assert context["onchain"]["whale_activity_basis"] == "activity_volume_proxy"
+    assert context["onchain"]["valuation_state"] == "bearish"
+    assert context["onchain"]["valuation_basis"] == "price_change_proxy"
 
 
 def test_external_market_context_falls_back_to_manual_when_http_provider_fails() -> None:

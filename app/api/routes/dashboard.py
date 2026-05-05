@@ -782,8 +782,8 @@ function renderExternalContext(context) {
   document.getElementById("onchainState").textContent = `${formatContextState(onchain.state)} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`;
   document.getElementById("onchainDetails").textContent = [
     `거래소 순유입·순유출: ${formatContextState(onchain.exchange_netflow_state)}`,
-    `고래 지갑 움직임: ${formatContextState(onchain.whale_activity_state)}`,
-    `MVRV/SOPR: ${formatContextState(onchain.valuation_state)}`
+    `고래 지갑 움직임: ${formatContextState(onchain.whale_activity_state)}${formatContextBasis(onchain.whale_activity_basis)}`,
+    `MVRV/SOPR: ${formatContextState(onchain.valuation_state)}${formatContextBasis(onchain.valuation_basis)}`
   ].join("\\n");
   document.getElementById("etfState").textContent = [
     `${formatContextState(etf.state)}`,
@@ -825,6 +825,14 @@ function formatContextState(value) {
     unknown: "데이터 없음"
   };
   return labels[value] || value || "-";
+}
+
+function formatContextBasis(value) {
+  const labels = {
+    activity_volume_proxy: " (활동·거래량 대체)",
+    price_change_proxy: " (가격변화 대체)"
+  };
+  return labels[value] || "";
 }
 
 function formatContextSource(value) {

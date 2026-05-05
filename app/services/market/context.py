@@ -341,6 +341,20 @@ class ExternalMarketContextService:
             etf_payload.get("holding_change_coin"),
             0.0 if market_usd_price <= 0 else etf_flow_usd / market_usd_price,
         )
+        market_usd_change_pct = self._float_value(market_payload.get("usd_change_pct_24h"), 0.0)
+        market_quote_volume_usd = self._float_value(market_payload.get("quote_volume_usd_24h"), 0.0)
+        raw_whale_activity_state = onchain_payload.get("whale_activity_state")
+        raw_valuation_state = onchain_payload.get("valuation_state")
+        derived_whale_activity_state = self._derive_whale_activity_state(
+            active_addresses_change_pct=onchain_active_addresses_change_pct,
+            quote_volume_usd_24h=market_quote_volume_usd,
+        )
+        derived_valuation_state = self._derive_valuation_state(usd_change_pct_24h=market_usd_change_pct)
+        whale_activity_state, whale_activity_derived = self._state_value(
+            raw_whale_activity_state,
+            fallback=derived_whale_activity_state,
+        )
+        valuation_state, valuation_derived = self._state_value(raw_valuation_state, fallback=derived_valuation_state)
         onchain_source = self._string_value(onchain_payload.get("source"), "http") if onchain_payload else self._config.onchain_source
         etf_source = self._string_value(etf_payload.get("source"), "http") if etf_payload else self._config.etf_source
         context = {
@@ -352,8 +366,18 @@ class ExternalMarketContextService:
                 "state": onchain_state,
                 "active_addresses_change_pct": onchain_active_addresses_change_pct,
                 "exchange_netflow_state": onchain_exchange_netflow_state,
-                "whale_activity_state": self._string_value(onchain_payload.get("whale_activity_state"), "unknown"),
-                "valuation_state": self._string_value(onchain_payload.get("valuation_state"), "unknown"),
+                "whale_activity_state": whale_activity_state,
+                "whale_activity_basis": self._basis_value(
+                    onchain_payload.get("whale_activity_basis"),
+                    fallback="activity_volume_proxy",
+                    derived=whale_activity_derived,
+                ),
+                "valuation_state": valuation_state,
+                "valuation_basis": self._basis_value(
+                    onchain_payload.get("valuation_basis"),
+                    fallback="price_change_proxy",
+                    derived=valuation_derived,
+                ),
             },
             "etf": {
                 "source": etf_source,
@@ -366,8 +390,8 @@ class ExternalMarketContextService:
             "market_data": {
                 "source": self._string_value(market_payload.get("source"), "web") if market_payload else "manual",
                 "usd_price": market_usd_price,
-                "usd_change_pct_24h": self._float_value(market_payload.get("usd_change_pct_24h"), 0.0),
-                "quote_volume_usd_24h": self._float_value(market_payload.get("quote_volume_usd_24h"), 0.0),
+                "usd_change_pct_24h": market_usd_change_pct,
+                "quote_volume_usd_24h": market_quote_volume_usd,
             },
             "learning_weight": self._learning_weight(
                 onchain_state=onchain_state,
@@ -420,10 +444,39 @@ class ExternalMarketContextService:
         return round(max(min(weight, 1.25), 0.75), 3)
 
     @staticmethod
+    def _derive_whale_activity_state(*, active_addresses_change_pct: float, quote_volume_usd_24h: float) -> str:
+        if quote_volume_usd_24h >= 1_000_000_000 or abs(active_addresses_change_pct) >= 15:
+            return "bullish" if active_addresses_change_pct >= 0 else "bearish"
+        if quote_volume_usd_24h >= 100_000_000 or abs(active_addresses_change_pct) >= 5:
+            return "neutral"
+        return "neutral"
+
+    @staticmethod
+    def _derive_valuation_state(*, usd_change_pct_24h: float) -> str:
+        if usd_change_pct_24h >= 0.08:
+            return "bearish"
+        if usd_change_pct_24h <= -0.08:
+            return "bullish"
+        return "neutral"
+
+    @staticmethod
     def _string_value(value: Any, fallback: str) -> str:
         if value is None:
             return fallback
         return str(value).strip() or fallback
+
+    @staticmethod
+    def _state_value(value: Any, *, fallback: str) -> tuple[str, bool]:
+        state = ExternalMarketContextService._string_value(value, fallback)
+        if state == "unknown":
+            return fallback, True
+        return state, state == fallback and (value is None or str(value).strip() == "")
+
+    @staticmethod
+    def _basis_value(value: Any, *, fallback: str, derived: bool) -> str:
+        if value is not None and str(value).strip():
+            return str(value).strip()
+        return fallback if derived else ""
 
     @staticmethod
     def _float_value(value: Any, fallback: float) -> float:
