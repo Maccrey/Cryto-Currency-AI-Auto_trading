@@ -253,7 +253,7 @@ DASHBOARD_HTML = """
     <h2>온체인/ETF 상황</h2>
     <div class="context-grid">
       <div class="context-item"><div class="context-label">USD 가격</div><div id="contextUsdPrice" class="context-value usd-price">-</div></div>
-      <div class="context-item"><div class="context-label">온체인 상태</div><div id="onchainState" class="context-value compact">-</div></div>
+      <div class="context-item"><div class="context-label">온체인 데이터</div><div id="onchainState" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">ETF 상태</div><div id="etfState" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">학습 가중치</div><div id="contextWeight" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">수집 상태</div><div id="contextStatus" class="context-value">-</div></div>
@@ -784,14 +784,18 @@ function renderExternalContext(context) {
     `고래 지갑 움직임: ${formatContextState(onchain.whale_activity_state)}${formatContextBasis(onchain.whale_activity_basis)}`,
     `MVRV/SOPR: ${formatContextState(onchain.valuation_state)}${formatContextBasis(onchain.valuation_basis)}`
   ].join("\\n");
-  document.getElementById("etfState").textContent = [
+  const tradeCoin = context.trade_coin || "";
+  const holdingChange = etf.holding_change_coin || 0;
+  const etfLines = [
     `${formatContextState(etf.state)}`,
     `순유입 ${number(etf.inflow_usd || 0, 0)} USD`,
     `순유출 ${number(etf.outflow_usd || 0, 0)} USD`,
-    `보유수량 변화 ${number(etf.holding_change_coin || 0, 6)} ${context.trade_coin || ""}`,
+    `보유수량 변화 <span class="${changeClass(holdingChange)}">${number(holdingChange, 0)} ${tradeCoin}</span>`,
     etf.total_aum_usd ? `총 AUM ${number(etf.total_aum_usd, 0)} USD` : "",
-    etf.total_holding_coin ? `총 보유 ${number(etf.total_holding_coin, 6)} ${context.trade_coin || ""}` : ""
-  ].filter(Boolean).join("\\n");
+    etf.total_holding_coin ? `총 보유 ${number(etf.total_holding_coin, 0)} ${tradeCoin}` : ""
+  ].filter(Boolean);
+  document.getElementById("etfState").innerHTML = etfLines.join("<br>");
+  document.getElementById("etfState").title = etfLines.map((line) => line.replace(/<[^>]*>/g, "")).join("\\n");
   document.getElementById("contextWeight").textContent = number(context.learning_weight || 1, 3);
   document.getElementById("contextStatus").textContent = formatExternalContextStatus(onchain, etf);
   document.getElementById("onchainSource").textContent = formatExternalContextSource(onchain);

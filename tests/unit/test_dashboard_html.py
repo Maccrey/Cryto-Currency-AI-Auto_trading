@@ -48,6 +48,8 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'id="contextUsdPrice" class="context-value usd-price"' in DASHBOARD_HTML
     assert ".context-value.usd-price { font-size: 26px;" in DASHBOARD_HTML
     assert ".context-value.usd-price span { font-size: 13px;" in DASHBOARD_HTML
+    assert "온체인 데이터" in DASHBOARD_HTML
+    assert "온체인 상태" not in DASHBOARD_HTML
     assert 'id="onchainState" class="context-value compact"' in DASHBOARD_HTML
     assert 'id="etfState" class="context-value compact"' in DASHBOARD_HTML
     assert 'id="onchainDetails"' not in DASHBOARD_HTML
@@ -61,9 +63,9 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'unknown: "데이터 없음"' in DASHBOARD_HTML
     assert "순유입" in DASHBOARD_HTML
     assert "순유출" in DASHBOARD_HTML
-    assert "보유수량 변화" in DASHBOARD_HTML
+    assert '보유수량 변화 <span class="${changeClass(holdingChange)}">${number(holdingChange, 0)} ${tradeCoin}</span>' in DASHBOARD_HTML
     assert "총 AUM" in DASHBOARD_HTML
-    assert "총 보유" in DASHBOARD_HTML
+    assert "총 보유 ${number(etf.total_holding_coin, 0)}" in DASHBOARD_HTML
     assert "거래소 순유입·순유출" in DASHBOARD_HTML
     assert "고래 지갑 움직임" in DASHBOARD_HTML
     assert "MVRV/SOPR" in DASHBOARD_HTML
