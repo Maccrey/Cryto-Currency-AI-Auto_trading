@@ -253,8 +253,7 @@ DASHBOARD_HTML = """
     <h2>온체인/ETF 상황</h2>
     <div class="context-grid">
       <div class="context-item"><div class="context-label">USD 가격</div><div id="contextUsdPrice" class="context-value usd-price">-</div></div>
-      <div class="context-item"><div class="context-label">온체인 상태</div><div id="onchainState" class="context-value">-</div></div>
-      <div class="context-item"><div class="context-label">온체인 세부</div><div id="onchainDetails" class="context-value compact">-</div></div>
+      <div class="context-item"><div class="context-label">온체인 상태</div><div id="onchainState" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">ETF 상태</div><div id="etfState" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">학습 가중치</div><div id="contextWeight" class="context-value">-</div></div>
       <div class="context-item"><div class="context-label">수집 상태</div><div id="contextStatus" class="context-value">-</div></div>
@@ -779,8 +778,8 @@ function renderExternalContext(context) {
   const marketData = context.market_data || {};
   const usdChange = marketData.usd_change_pct_24h;
   document.getElementById("contextUsdPrice").innerHTML = `${usd(marketData.usd_price)}<br><span class="${changeClass(usdChange)}">24시간 ${percent(usdChange)}</span>`;
-  document.getElementById("onchainState").textContent = `${formatContextState(onchain.state)} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`;
-  document.getElementById("onchainDetails").textContent = [
+  document.getElementById("onchainState").textContent = [
+    `${formatContextState(onchain.state)} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`,
     `거래소 순유입·순유출: ${formatContextState(onchain.exchange_netflow_state)}`,
     `고래 지갑 움직임: ${formatContextState(onchain.whale_activity_state)}${formatContextBasis(onchain.whale_activity_basis)}`,
     `MVRV/SOPR: ${formatContextState(onchain.valuation_state)}${formatContextBasis(onchain.valuation_basis)}`
