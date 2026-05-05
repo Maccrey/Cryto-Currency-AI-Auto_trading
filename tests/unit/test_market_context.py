@@ -110,6 +110,35 @@ def test_external_market_context_derives_missing_onchain_detail_states() -> None
     assert context["onchain"]["valuation_basis"] == "price_change_proxy"
 
 
+def test_external_market_context_includes_etf_aum_and_holdings() -> None:
+    class Provider:
+        def fetch(self, *, market: str, trade_coin: str) -> dict[str, dict[str, object]]:
+            return {
+                "etf": {
+                    "source": "web",
+                    "state": "inflow",
+                    "flow_usd": 8_940_533.82,
+                    "inflow_usd": 8_940_533.82,
+                    "outflow_usd": 0,
+                    "holding_change_coin": 6_340_804.12766,
+                    "total_aum_usd": 1_119_769_130,
+                    "total_holding_coin": 828_326_979,
+                }
+            }
+
+    context = ExternalMarketContextService(
+        config=ExternalMarketContextConfig(enabled=True),
+        provider=Provider(),
+    ).snapshot(market="KRW-XRP", trade_coin="XRP")
+
+    assert context["etf"]["source"] == "web"
+    assert context["etf"]["state"] == "inflow"
+    assert context["etf"]["flow_usd"] == 8_940_533.82
+    assert context["etf"]["holding_change_coin"] == 6_340_804.12766
+    assert context["etf"]["total_aum_usd"] == 1_119_769_130
+    assert context["etf"]["total_holding_coin"] == 828_326_979
+
+
 def test_external_market_context_falls_back_to_manual_when_http_provider_fails() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": "unavailable"})

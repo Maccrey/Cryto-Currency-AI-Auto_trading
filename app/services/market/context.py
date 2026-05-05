@@ -502,6 +502,8 @@ class ExternalMarketContextService:
             etf_payload.get("holding_change_coin"),
             0.0 if market_usd_price <= 0 else etf_flow_usd / market_usd_price,
         )
+        etf_total_aum_usd = self._float_value(etf_payload.get("total_aum_usd"), 0.0)
+        etf_total_holding_coin = self._float_value(etf_payload.get("total_holding_coin"), 0.0)
         market_usd_change_pct = self._float_value(market_payload.get("usd_change_pct_24h"), 0.0)
         market_quote_volume_usd = self._float_value(market_payload.get("quote_volume_usd_24h"), 0.0)
         raw_whale_activity_state = onchain_payload.get("whale_activity_state")
@@ -547,6 +549,8 @@ class ExternalMarketContextService:
                 "inflow_usd": etf_inflow_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
                 "outflow_usd": etf_outflow_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
                 "holding_change_coin": etf_holding_change if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "total_aum_usd": etf_total_aum_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "total_holding_coin": etf_total_holding_coin if coin in self.ETF_SUPPORTED_COINS else 0.0,
             },
             "market_data": {
                 "source": self._string_value(market_payload.get("source"), "web") if market_payload else "manual",
