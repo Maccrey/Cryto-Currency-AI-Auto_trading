@@ -29,6 +29,7 @@ class SettingsModel(BaseModel):
     rule_change_apply_target: str = Field(default="demo")
     rule_change_require_manual_approval: bool = Field(default=True)
     external_context_enabled: bool = Field(default=True)
+    external_context_cache_ttl_sec: int = Field(default=300)
     onchain_context_source: str = Field(default="manual")
     onchain_context_url: str = Field(default="")
     onchain_state: str = Field(default="neutral")
@@ -175,6 +176,7 @@ class AppSettings:
     rule_change_apply_target: str
     rule_change_require_manual_approval: bool
     external_context_enabled: bool
+    external_context_cache_ttl_sec: int
     onchain_context_source: str
     onchain_context_url: str
     onchain_state: str
@@ -274,6 +276,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
             _setting("RULE_CHANGE_REQUIRE_MANUAL_APPROVAL", "true", env_values),
         ),
         "external_context_enabled": _parse_bool(_setting("EXTERNAL_CONTEXT_ENABLED", "true", env_values)),
+        "external_context_cache_ttl_sec": int(_setting("EXTERNAL_CONTEXT_CACHE_TTL_SEC", "300", env_values)),
         "onchain_context_source": _setting("ONCHAIN_CONTEXT_SOURCE", "manual", env_values),
         "onchain_context_url": _setting("ONCHAIN_CONTEXT_URL", "", env_values),
         "onchain_state": _setting("ONCHAIN_STATE", "neutral", env_values),

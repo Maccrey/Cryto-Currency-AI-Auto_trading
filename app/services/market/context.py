@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from time import monotonic
+from typing import Any, Callable, Protocol
 
 import httpx
 
@@ -36,10 +37,15 @@ class HttpExternalMarketContextProvider:
         etf_url: str = "",
         transport: httpx.BaseTransport | None = None,
         timeout: float = 3.0,
+        cache_ttl_sec: float = 300.0,
+        monotonic_clock: Callable[[], float] = monotonic,
     ) -> None:
         self._onchain_url = onchain_url
         self._etf_url = etf_url
         self._client = httpx.Client(transport=transport, timeout=timeout)
+        self._cache_ttl_sec = max(cache_ttl_sec, 0.0)
+        self._monotonic_clock = monotonic_clock
+        self._cache: dict[tuple[str, str, str, str], tuple[float, dict[str, object]]] = {}
 
     def fetch(self, *, market: str, trade_coin: str) -> dict[str, dict[str, object]]:
         payload: dict[str, dict[str, object]] = {}
@@ -64,13 +70,22 @@ class HttpExternalMarketContextProvider:
         self._client.close()
 
     def _fetch_section(self, url: str, *, market: str, trade_coin: str) -> dict[str, object]:
+        cache_key = ("context", url, market, trade_coin.upper())
+        cached = self._cache.get(cache_key)
+        now = self._monotonic_clock()
+        if cached and cached[0] > now:
+            return dict(cached[1])
         response = self._client.get(url, params={"market": market, "coin": trade_coin.upper()})
         response.raise_for_status()
         raw = response.json()
         if not isinstance(raw, dict):
             return {}
         section = raw.get("context", raw)
-        return section if isinstance(section, dict) else {}
+        result = section if isinstance(section, dict) else {}
+        result = dict(result)
+        if self._cache_ttl_sec > 0:
+            self._cache[cache_key] = (now + self._cache_ttl_sec, result)
+        return result
 
     def _fetch_optional(self, url: str, *, market: str, trade_coin: str) -> tuple[dict[str, object], str]:
         try:

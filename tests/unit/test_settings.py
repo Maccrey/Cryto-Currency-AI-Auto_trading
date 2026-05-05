@@ -46,6 +46,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.rule_change_apply_target == "demo"
     assert settings.rule_change_require_manual_approval is True
     assert settings.external_context_enabled is True
+    assert settings.external_context_cache_ttl_sec == 300
     assert settings.onchain_context_source == "manual"
     assert settings.onchain_context_url == ""
     assert settings.etf_context_source == "manual"
@@ -136,6 +137,7 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "rule_change_apply_target",
         "rule_change_require_manual_approval",
         "external_context_enabled",
+        "external_context_cache_ttl_sec",
         "onchain_context_source",
         "onchain_context_url",
         "onchain_state",

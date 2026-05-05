@@ -210,6 +210,8 @@ SETTINGS_HTML = """
         <input id="externalContextEnabled" type="checkbox">
         <span>학습 로그와 대시보드에 외부 시장 컨텍스트 반영</span>
       </div>
+      <label for="externalContextCacheTtlSec">외부 컨텍스트 캐시 TTL(초)</label>
+      <input id="externalContextCacheTtlSec" type="number" min="0" step="1" placeholder="300">
       <div class="row">
         <div>
           <label for="onchainState">온체인 상태</label>
@@ -481,6 +483,7 @@ async function loadSettings() {
     document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
     document.getElementById("demoInitialCapital").value = values.DEMO_INITIAL_CAPITAL || "1000000";
     document.getElementById("externalContextEnabled").checked = values.EXTERNAL_CONTEXT_ENABLED !== "false";
+    document.getElementById("externalContextCacheTtlSec").value = values.EXTERNAL_CONTEXT_CACHE_TTL_SEC || "300";
     document.getElementById("onchainContextUrl").value = values.ONCHAIN_CONTEXT_URL || "";
     document.getElementById("onchainState").value = values.ONCHAIN_STATE || "neutral";
     document.getElementById("onchainActiveAddressesChangePct").value = values.ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT || "0.0";
@@ -592,6 +595,7 @@ async function saveSettings() {
     AUTO_TRADING_ENABLED: "true",
     AUTO_TRADING_LIVE_ENABLED: mode === "live" ? "true" : "false",
     EXTERNAL_CONTEXT_ENABLED: document.getElementById("externalContextEnabled").checked ? "true" : "false",
+    EXTERNAL_CONTEXT_CACHE_TTL_SEC: document.getElementById("externalContextCacheTtlSec").value || "300",
     ONCHAIN_CONTEXT_SOURCE: document.getElementById("onchainContextUrl").value ? "http" : "manual",
     ONCHAIN_CONTEXT_URL: document.getElementById("onchainContextUrl").value,
     ONCHAIN_STATE: document.getElementById("onchainState").value || "neutral",

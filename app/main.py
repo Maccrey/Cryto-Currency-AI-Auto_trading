@@ -227,6 +227,7 @@ def create_app(
         provider=HttpExternalMarketContextProvider(
             onchain_url=settings.onchain_context_url,
             etf_url=settings.etf_context_url,
+            cache_ttl_sec=settings.external_context_cache_ttl_sec,
         )
         if settings.onchain_context_url or settings.etf_context_url
         else None,

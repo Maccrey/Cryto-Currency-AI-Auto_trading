@@ -34,6 +34,7 @@ RULE_CHANGE_APPLY_TARGET=demo
 RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true
 
 EXTERNAL_CONTEXT_ENABLED=true
+EXTERNAL_CONTEXT_CACHE_TTL_SEC=300
 ONCHAIN_CONTEXT_SOURCE=manual
 ONCHAIN_CONTEXT_URL=
 ONCHAIN_STATE=neutral
@@ -139,6 +140,7 @@ DASHBOARD_PORT=8080
 | RULE_CHANGE_APPLY_TARGET | str | Y | demo | 룰 변경안 기본 적용 대상, demo만 허용 |
 | RULE_CHANGE_REQUIRE_MANUAL_APPROVAL | bool | Y | true | live 반영 전 수동 승인 필수 여부 |
 | EXTERNAL_CONTEXT_ENABLED | bool | Y | true | 온체인/ETF 외부 컨텍스트 학습 로그 및 대시보드 표시 활성화 |
+| EXTERNAL_CONTEXT_CACHE_TTL_SEC | int | Y | 300 | HTTP 온체인/ETF 컨텍스트 성공 응답 캐시 시간 |
 | ONCHAIN_CONTEXT_SOURCE | str | Y | manual | 온체인 데이터 출처, 초기값은 수동/운영 입력 |
 | ONCHAIN_CONTEXT_URL | str | N |  | 선택 HTTP 온체인 컨텍스트 JSON endpoint |
 | ONCHAIN_STATE | str | Y | neutral | 온체인 상태, bullish/neutral/bearish |
@@ -243,6 +245,7 @@ false면 앱 시작 실패
 - 온체인/ETF 컨텍스트는 학습 로그의 `external_market_context_snapshot`과 `auto_trade_cycle.external_context`에 기록한다.
 - BTC/ETH는 ETF 컨텍스트를 표시하고, 그 외 코인은 ETF 상태를 `not_applicable`로 기록한다.
 - `ONCHAIN_CONTEXT_URL` 또는 `ETF_CONTEXT_URL`이 있으면 시스템이 `market`, `coin` 쿼리 파라미터로 JSON을 조회하고, 실패하면 manual 설정값으로 fallback한다.
+- 성공 응답은 `EXTERNAL_CONTEXT_CACHE_TTL_SEC` 동안 재사용해 대시보드 새로고침과 자동매매 루프의 외부 API 호출을 제한한다.
 - endpoint 응답은 직접 `{state, active_addresses_change_pct, exchange_netflow_state}` 또는 `{context: {...}}` 형식을 허용한다. ETF endpoint는 `{state, flow_usd}` 또는 `{context: {...}}`를 허용한다.
 - bullish/onchain outflow/ETF inflow는 학습 가중치를 높이고, bearish/onchain inflow/ETF outflow는 낮춘다.
 

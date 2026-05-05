@@ -53,6 +53,7 @@ def test_settings_includes_rule_review_pipeline_panel() -> None:
 def test_settings_includes_external_context_and_no_trade_controls() -> None:
     assert "온체인/ETF 컨텍스트" in SETTINGS_HTML
     assert 'id="externalContextEnabled"' in SETTINGS_HTML
+    assert 'id="externalContextCacheTtlSec"' in SETTINGS_HTML
     assert 'id="onchainContextUrl"' in SETTINGS_HTML
     assert 'id="onchainState"' in SETTINGS_HTML
     assert 'id="onchainActiveAddressesChangePct"' in SETTINGS_HTML
@@ -66,6 +67,7 @@ def test_settings_includes_external_context_and_no_trade_controls() -> None:
     assert 'id="noTradeRelaxMinScore"' in SETTINGS_HTML
     assert "syncTradeMarketFromCoin" in SETTINGS_HTML
     assert "EXTERNAL_CONTEXT_ENABLED" in SETTINGS_HTML
+    assert "EXTERNAL_CONTEXT_CACHE_TTL_SEC" in SETTINGS_HTML
     assert "ONCHAIN_CONTEXT_URL" in SETTINGS_HTML
     assert "ONCHAIN_STATE" in SETTINGS_HTML
     assert "ETF_CONTEXT_URL" in SETTINGS_HTML

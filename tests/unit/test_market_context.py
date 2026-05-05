@@ -92,3 +92,36 @@ def test_external_market_context_falls_back_to_manual_when_http_provider_fails()
     assert context["onchain"]["state"] == "bearish"
     assert context["onchain"]["fetch_error"]
     assert context["etf"]["state"] == "not_applicable"
+
+
+def test_http_external_market_context_provider_caches_successful_sections() -> None:
+    calls = {"count": 0}
+    now = {"value": 1000.0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        return httpx.Response(
+            200,
+            json={
+                "state": "bullish",
+                "active_addresses_change_pct": calls["count"],
+                "exchange_netflow_state": "outflow",
+            },
+        )
+
+    provider = HttpExternalMarketContextProvider(
+        onchain_url="https://context.example/onchain",
+        transport=httpx.MockTransport(handler),
+        cache_ttl_sec=60,
+        monotonic_clock=lambda: now["value"],
+    )
+
+    first = provider.fetch(market="KRW-BTC", trade_coin="BTC")
+    second = provider.fetch(market="KRW-BTC", trade_coin="BTC")
+    now["value"] += 61
+    third = provider.fetch(market="KRW-BTC", trade_coin="BTC")
+
+    assert calls["count"] == 2
+    assert first["onchain"]["active_addresses_change_pct"] == 1.0
+    assert second["onchain"]["active_addresses_change_pct"] == 1.0
+    assert third["onchain"]["active_addresses_change_pct"] == 2.0
