@@ -279,3 +279,34 @@ def test_public_web_context_provider_fetches_xrp_ledger_activity() -> None:
     assert payload["etf"]["total_holding_coin"] == 200_000_000
     assert payload["market_data"]["usd_price"] == 0.5
     assert payload["market_data"]["usd_change_pct_24h"] == -0.012
+
+
+def test_public_web_context_provider_falls_back_to_xrp_insights_etf_data() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "capi.coinglass.com":
+            return httpx.Response(200, json={"code": "0", "msg": "success", "success": True})
+        return httpx.Response(
+            200,
+            text=(
+                r'\"agentData\":{\"totalNetAssets\":1119769130,\"totalTokenHoldings\":828326979,'
+                r'\"dailyNetInflow\":0,\"lastUpdated\":\"2025-12-01T17:00:00.000Z\",'
+                r'\"etfs\":[{\"dailyNetInflow\":5786640},{\"dailyNetInflow\":3153893.82}]},'
+                r'\"xrpData\":{\"price\":1.41}'
+            ),
+        )
+
+    provider = PublicWebExternalMarketContextProvider(
+        transport=httpx.MockTransport(handler),
+    )
+
+    payload = provider.fetch(market="KRW-XRP", trade_coin="XRP")
+
+    assert payload["etf"]["source"] == "web"
+    assert payload["etf"]["state"] == "inflow"
+    assert payload["etf"]["flow_usd"] == 8_940_533.82
+    assert payload["etf"]["inflow_usd"] == 8_940_533.82
+    assert payload["etf"]["outflow_usd"] == 0
+    assert payload["etf"]["holding_change_coin"] == 6_340_804.12766
+    assert payload["etf"]["total_aum_usd"] == 1_119_769_130
+    assert payload["etf"]["total_holding_coin"] == 828_326_979
+    assert payload["etf"]["metric"] == "xrp_insights_etf_tracker"

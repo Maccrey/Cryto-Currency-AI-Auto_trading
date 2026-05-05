@@ -103,6 +103,7 @@ class PublicWebExternalMarketContextProvider:
     BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/24hr"
     COINGLASS_ETF_FLOW_URL = "https://capi.coinglass.com/api/stock/{coin}/spot/inFlow"
     COINGLASS_ETF_LIST_URL = "https://capi.coinglass.com/api/stock/{coin}/list"
+    XRP_INSIGHTS_URL = "https://xrp-insights.com/"
     XRP_LEDGERS_URL = "https://api.xrpscan.com/api/v1/ledgers"
 
     def __init__(
@@ -242,7 +243,7 @@ class PublicWebExternalMarketContextProvider:
         flow_usd = self._fetch_coinglass_latest_flow_usd(coin)
         overview = self._fetch_coinglass_etf_overview(coin)
         if flow_usd is None and not overview:
-            return {}
+            return self._fetch_xrp_insights_etf(coin)
         flow_value = flow_usd or 0.0
         payload = {
             "source": "web",
@@ -258,6 +259,48 @@ class PublicWebExternalMarketContextProvider:
         if flow_usd is not None:
             payload["flow_date"] = overview.get("flow_date", "")
         return payload
+
+    def _fetch_xrp_insights_etf(self, coin: str) -> dict[str, object]:
+        if coin != "XRP":
+            return {}
+        response = self._client.get(
+            self.XRP_INSIGHTS_URL,
+            headers={
+                "accept": "text/html",
+                "user-agent": "Mozilla/5.0",
+            },
+        )
+        response.raise_for_status()
+        agent_data = self._extract_escaped_json(response.text, "agentData", "xrpData")
+        if not isinstance(agent_data, dict):
+            return {}
+        total_aum = self._optional_float(agent_data.get("totalNetAssets")) or 0.0
+        total_holding = self._optional_float(agent_data.get("totalTokenHoldings")) or 0.0
+        flow_usd = self._optional_float(agent_data.get("dailyNetInflow")) or 0.0
+        if flow_usd == 0.0:
+            etfs = agent_data.get("etfs")
+            if isinstance(etfs, list):
+                flow_usd = sum(
+                    self._optional_float(item.get("dailyNetInflow")) or 0.0
+                    for item in etfs
+                    if isinstance(item, dict)
+                )
+        xrp_price = self._extract_escaped_number(response.text, "xrpData", "price") or 0.0
+        holding_change = 0.0 if xrp_price <= 0 else flow_usd / xrp_price
+        if total_aum <= 0 and total_holding <= 0 and flow_usd == 0.0:
+            return {}
+        return {
+            "source": "web",
+            "state": "inflow" if flow_usd > 0 else "outflow" if flow_usd < 0 else "neutral",
+            "flow_usd": round(flow_usd, 2),
+            "inflow_usd": round(max(flow_usd, 0.0), 2),
+            "outflow_usd": round(abs(min(flow_usd, 0.0)), 2),
+            "holding_change_coin": round(holding_change, 6),
+            "total_aum_usd": round(total_aum, 2),
+            "total_holding_coin": round(total_holding, 6),
+            "metric": "xrp_insights_etf_tracker",
+            "flow_date": str(agent_data.get("lastUpdated") or ""),
+        }
 
     def _fetch_coinglass_latest_flow_usd(self, coin: str) -> float | None:
         response = self._client.get(
@@ -387,6 +430,27 @@ class PublicWebExternalMarketContextProvider:
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _extract_escaped_json(html: str, key: str, next_key: str) -> dict[str, object]:
+        pattern = rf'\\"{re.escape(key)}\\":(\{{.*?\}}),\\"{re.escape(next_key)}\\"'
+        match = re.search(pattern, html, flags=re.DOTALL)
+        if not match:
+            return {}
+        try:
+            import json
+
+            return json.loads(match.group(1).replace('\\"', '"'))
+        except ValueError:
+            return {}
+
+    @staticmethod
+    def _extract_escaped_number(html: str, object_key: str, number_key: str) -> float | None:
+        pattern = rf'\\"{re.escape(object_key)}\\":\{{.*?\\"{re.escape(number_key)}\\":([-0-9.]+)'
+        match = re.search(pattern, html, flags=re.DOTALL)
+        if not match:
+            return None
+        return PublicWebExternalMarketContextProvider._optional_float(match.group(1))
 
 
 class ExternalMarketContextService:
