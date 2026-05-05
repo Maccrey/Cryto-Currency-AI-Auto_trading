@@ -25,6 +25,12 @@ class RuleCommitHashPayload(BaseModel):
     commit_hash: str = ""
 
 
+class RuleHistoryCorrectionPayload(BaseModel):
+    reason: str = ""
+    corrected_fields: dict[str, object] | None = None
+    corrected_by: str = ""
+
+
 def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
     router = APIRouter(prefix="/api/v1/rules")
 
@@ -74,6 +80,18 @@ def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
         return rule_review_service.attach_commit_hash(
             proposal_id,
             commit_hash=payload.commit_hash,
+        )
+
+    @router.post("/proposals/{proposal_id}/history-corrections")
+    def append_rule_change_history_correction(
+        proposal_id: str,
+        payload: RuleHistoryCorrectionPayload,
+    ) -> dict[str, object]:
+        return rule_review_service.append_history_correction(
+            proposal_id,
+            reason=payload.reason,
+            corrected_fields=payload.corrected_fields,
+            corrected_by=payload.corrected_by,
         )
 
     @router.post("/proposals/{proposal_id}/approve-live")

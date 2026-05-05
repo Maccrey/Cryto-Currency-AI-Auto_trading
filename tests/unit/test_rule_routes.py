@@ -63,6 +63,22 @@ def test_rule_review_api_contract(tmp_path) -> None:
     assert linked_history_response.json()["history"][0]["event_type"] == "commit_linked"
     assert linked_history_response.json()["history"][0]["commit_hash"] == "abc1234"
 
+    correction_response = client.post(
+        f"/api/v1/rules/proposals/{proposal['id']}/history-corrections",
+        json={
+            "reason": "운영 메모 보정",
+            "corrected_fields": {"operator_note": "커밋 연결 확인"},
+            "corrected_by": "operator",
+        },
+    )
+    assert correction_response.status_code == 200
+    assert correction_response.json()["correction"]["reason"] == "운영 메모 보정"
+
+    corrected_history_response = client.get("/api/v1/rules/history")
+    assert corrected_history_response.status_code == 200
+    assert corrected_history_response.json()["history"][0]["event_type"] == "correction"
+    assert corrected_history_response.json()["history"][0]["correction_detail"]["corrected_by"] == "operator"
+
     detail_response = client.get(f"/api/v1/rules/proposals/{proposal['id']}")
     assert detail_response.status_code == 200
     assert detail_response.json()["proposal"]["id"] == proposal["id"]

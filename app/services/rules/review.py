@@ -256,6 +256,38 @@ class RuleReviewService:
         )
         return {"proposal": proposal}
 
+    def append_history_correction(
+        self,
+        proposal_id: str,
+        *,
+        reason: str,
+        corrected_fields: dict[str, Any] | None = None,
+        corrected_by: str = "",
+    ) -> dict[str, object]:
+        proposal = self._proposals[proposal_id]
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            return {
+                "proposal": proposal,
+                "correction": None,
+                "rejection_reasons": ["correction_reason_required"],
+            }
+
+        correction = {
+            "reason": normalized_reason,
+            "corrected_fields": corrected_fields or {},
+            "corrected_by": corrected_by.strip(),
+        }
+        self._append_history_event(
+            event_type="correction",
+            proposal=proposal,
+            approval_status="corrected",
+            approved_by=corrected_by,
+            change_reason=normalized_reason,
+            extra_fields={"correction_detail": correction},
+        )
+        return {"proposal": proposal, "correction": correction}
+
     def _load_state(self) -> dict[str, dict[str, dict[str, Any]]]:
         empty: dict[str, dict[str, dict[str, Any]]] = {
             "reviews": {},
@@ -304,6 +336,8 @@ class RuleReviewService:
         approval_status: str,
         approved_by: str = "",
         commit_hash: str | None = None,
+        change_reason: str | None = None,
+        extra_fields: dict[str, Any] | None = None,
     ) -> None:
         self._learning_log_dir.mkdir(parents=True, exist_ok=True)
         changes = proposal.get("codex_suggested_changes") or []
@@ -334,7 +368,9 @@ class RuleReviewService:
             "previous_rule_snapshot": self._previous_rule_snapshot(changes),
             "proposed_rule_snapshot": self._proposed_rule_snapshot(changes),
             "changed_parameters": self._changed_parameters(changes),
-            "change_reason": "; ".join(change_reasons) or "학습 로그 기반 Codex 룰 개선 파이프라인 이벤트",
+            "change_reason": change_reason
+            or "; ".join(change_reasons)
+            or "학습 로그 기반 Codex 룰 개선 파이프라인 이벤트",
             "expected_effect": self._expected_effect(changes),
             "known_risks": self._known_risks(changes),
             "replay_result": proposal.get("replay_result"),
@@ -348,6 +384,8 @@ class RuleReviewService:
             "created_at": datetime.now(UTC).isoformat(),
             "commit_hash": commit_hash or proposal.get("commit_hash", ""),
         }
+        if extra_fields:
+            history.update(extra_fields)
         if review is not None:
             history["review_created_at"] = review.get("created_at")
         with self._history_path.open("a", encoding="utf-8") as file:

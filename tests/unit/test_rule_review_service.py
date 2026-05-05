@@ -439,3 +439,40 @@ def test_rule_change_history_links_commit_hash_as_append_only_event(tmp_path: Pa
     assert rows[1]["commit_hash"] == "abc1234"
     assert rows[1]["approval_status"] == "linked"
     assert service.list_history()["history"][0]["event_type"] == "commit_linked"
+
+
+def test_rule_change_history_correction_is_append_only(tmp_path: Path) -> None:
+    service = RuleReviewService(
+        market="KRW-BTC",
+        trade_coin="BTC",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+    proposal = service.create_proposal()["proposal"]
+
+    result = service.append_history_correction(
+        str(proposal["id"]),
+        reason="커밋 해시 설명 누락 보정",
+        corrected_fields={"commit_hash": "abc1234"},
+        corrected_by="operator",
+    )
+
+    rows = [json.loads(line) for line in (tmp_path / "rule-change-history.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert result["correction"] == {
+        "reason": "커밋 해시 설명 누락 보정",
+        "corrected_fields": {"commit_hash": "abc1234"},
+        "corrected_by": "operator",
+    }
+    assert [row["event_type"] for row in rows] == ["proposal_created", "correction"]
+    assert rows[1]["approval_status"] == "corrected"
+    assert rows[1]["change_reason"] == "커밋 해시 설명 누락 보정"
+    assert rows[1]["correction_detail"]["corrected_fields"] == {"commit_hash": "abc1234"}

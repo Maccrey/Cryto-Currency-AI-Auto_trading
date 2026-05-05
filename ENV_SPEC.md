@@ -272,6 +272,8 @@ false면 앱 시작 실패
 | created_at | str | Y | ISO-8601 시각 |
 | commit_hash | str | Y | 커밋 hash, 커밋 전 이벤트는 빈 문자열 허용 |
 
+`event_type=correction` 행은 선택 필드 `correction_detail`을 포함할 수 있다. 이 객체에는 `reason`, `corrected_fields`, `corrected_by`를 저장해 기존 행을 수정하지 않고 보정 근거를 남긴다.
+
 ### TRADE_MARKET / TRADE_COIN
 - 기본값은 `TRADE_COIN=XRP`, `TRADE_MARKET=KRW-XRP`이다.
 - 코인은 XRP에 고정하지 않는다. 예를 들어 BTC로 운용하려면 `TRADE_COIN=BTC`, `TRADE_MARKET=KRW-BTC`를 저장한다.

@@ -484,6 +484,8 @@ Codex는 매매룰을 바꿀 때 기존 룰과 새 룰의 차이뿐 아니라 �
 | `created_at` | string | ISO-8601 기록 시각 |
 | `commit_hash` | string | 룰 변경 커밋 hash, 커밋 전 이벤트는 빈 문자열 허용 |
 
+`correction` 이벤트는 추가로 `correction_detail.reason`, `correction_detail.corrected_fields`, `correction_detail.corrected_by`를 포함할 수 있다. correction은 기존 행을 고치지 않고 새 행으로 보정 근거를 남기는 용도다.
+
 `history_warnings`는 proposal 응답 필드이며 히스토리 원장 필수 필드는 아니다. Codex는 proposal 생성 시 동일 파라미터의 과거 `*_rejected`, `failed`, `rolled_back`, `rollback`, `correction` 이벤트를 검사해 `history_warnings`에 표시한다.
 
 히스토리는 수정/삭제하지 않는다. 잘못된 기록이 있으면 새 correction 이벤트를 추가한다. Codex는 룰 변경 커밋 메시지와 `commit_hash`를 히스토리에 남기고, 후속 룰 변경 전 반드시 과거 히스토리에서 같은 파라미터의 반복 실패 여부를 확인한다.
