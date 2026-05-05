@@ -8,6 +8,7 @@ from app.services.rules.review import RuleReviewConfig, RuleReviewService
 def test_rule_review_api_contract(tmp_path) -> None:
     service = RuleReviewService(
         market="KRW-XRP",
+        trade_coin="XRP",
         trading_mode="demo",
         learning_log_dir=tmp_path,
         config=RuleReviewConfig(
@@ -29,14 +30,19 @@ def test_rule_review_api_contract(tmp_path) -> None:
     review = review_response.json()["review"]
     assert review["analysis_window_days"] == 14
     assert review["approval_required"] is True
+    assert review["trade_coin"] == "XRP"
+    assert review["learning_log_dir"] == str(tmp_path)
 
     proposal_response = client.post("/api/v1/rules/proposals", json={"review_id": review["id"]})
     assert proposal_response.status_code == 200
     proposal = proposal_response.json()["proposal"]
     assert proposal["apply_target"] == "demo"
+    assert proposal["trade_coin"] == "XRP"
 
     list_response = client.get("/api/v1/rules/proposals")
     assert list_response.status_code == 200
+    assert list_response.json()["trade_coin"] == "XRP"
+    assert list_response.json()["learning_log_dir"] == str(tmp_path)
     assert list_response.json()["latest_proposal"]["id"] == proposal["id"]
     assert list_response.json()["proposals"][0]["id"] == proposal["id"]
 

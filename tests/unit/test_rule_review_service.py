@@ -202,3 +202,33 @@ def test_rule_review_lists_latest_proposals_after_reload(tmp_path: Path) -> None
     assert response["proposals"][0]["id"] == second_proposal["proposal"]["id"]
     assert response["latest_proposal"]["id"] == second_proposal["proposal"]["id"]
     assert response["proposals"][0]["id"] != first_proposal["proposal"]["id"]
+
+
+def test_rule_review_includes_coin_and_log_dir_metadata(tmp_path: Path) -> None:
+    service = RuleReviewService(
+        market="KRW-BTC",
+        trade_coin="BTC",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    review = service.review()["review"]
+    proposal = service.create_proposal(review_id=str(review["id"]))["proposal"]
+    proposals = service.list_proposals()
+
+    assert review["market"] == "KRW-BTC"
+    assert review["trade_coin"] == "BTC"
+    assert review["learning_log_dir"] == str(tmp_path)
+    assert proposal["trade_coin"] == "BTC"
+    assert proposal["learning_log_dir"] == str(tmp_path)
+    assert proposals["trade_coin"] == "BTC"
+    assert proposals["learning_log_dir"] == str(tmp_path)

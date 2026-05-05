@@ -29,11 +29,13 @@ class RuleReviewService:
         self,
         *,
         market: str,
+        trade_coin: str | None = None,
         trading_mode: str,
         learning_log_dir: Path,
         config: RuleReviewConfig,
     ) -> None:
         self._market = market
+        self._trade_coin = (trade_coin or market.split("-")[-1]).upper()
         self._trading_mode = trading_mode
         self._learning_log_dir = learning_log_dir
         self._config = config
@@ -47,7 +49,9 @@ class RuleReviewService:
         review = {
             "id": str(uuid4()),
             "market": self._market,
+            "trade_coin": self._trade_coin,
             "mode": self._trading_mode,
+            "learning_log_dir": str(self._learning_log_dir),
             "enabled": self._config.enabled,
             "analysis_window_days": self._config.window_days,
             "trade_count": metrics["trade_count"],
@@ -86,6 +90,9 @@ class RuleReviewService:
         proposal = {
             "id": str(uuid4()),
             "review_id": review["id"],
+            "market": self._market,
+            "trade_coin": self._trade_coin,
+            "learning_log_dir": str(self._learning_log_dir),
             "status": "blocked" if rejection_reasons else "proposed",
             "apply_target": self._config.apply_target,
             "analysis_window_days": review["analysis_window_days"],
@@ -105,7 +112,7 @@ class RuleReviewService:
         return {"proposal": proposal}
 
     def get_proposal(self, proposal_id: str) -> dict[str, object]:
-        return {"proposal": self._proposals[proposal_id]}
+        return {"proposal": self._with_proposal_metadata(self._proposals[proposal_id])}
 
     def list_proposals(self, *, limit: int = 20) -> dict[str, object]:
         proposals = sorted(
@@ -115,10 +122,13 @@ class RuleReviewService:
         )
         limited = proposals[: max(limit, 0)]
         return {
+            "market": self._market,
+            "trade_coin": self._trade_coin,
+            "learning_log_dir": str(self._learning_log_dir),
             "count": len(limited),
             "total_count": len(proposals),
-            "latest_proposal": limited[0] if limited else None,
-            "proposals": limited,
+            "latest_proposal": self._with_proposal_metadata(limited[0]) if limited else None,
+            "proposals": [self._with_proposal_metadata(proposal) for proposal in limited],
         }
 
     def verify_replay(self, proposal_id: str, *, fixture_path: Path) -> dict[str, object]:
@@ -214,6 +224,12 @@ class RuleReviewService:
             json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True),
             encoding="utf-8",
         )
+
+    def _with_proposal_metadata(self, proposal: dict[str, Any]) -> dict[str, Any]:
+        proposal.setdefault("market", self._market)
+        proposal.setdefault("trade_coin", self._trade_coin)
+        proposal.setdefault("learning_log_dir", str(self._learning_log_dir))
+        return proposal
 
     def _collect_metrics(self) -> dict[str, object]:
         trade_count = 0

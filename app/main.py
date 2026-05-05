@@ -370,6 +370,7 @@ def create_app(
     app.state.auto_trading_service = auto_trading_service
     rule_review_service = RuleReviewService(
         market=settings.trade_market,
+        trade_coin=settings.trade_coin,
         trading_mode=settings.trading_mode,
         learning_log_dir=profile_learning_log_dir,
         config=RuleReviewConfig(

@@ -538,6 +538,8 @@ function renderRulePipeline(payload) {
   const reasons = (proposal.rejection_reasons || []).join(", ") || "없음";
   document.getElementById("ruleReviewTable").innerHTML = [
     row("분석 대상 기간", source.analysis_window_days ? `${source.analysis_window_days}일` : "-"),
+    row("대상 코인", source.trade_coin || "-"),
+    row("룰 로그 경로", source.learning_log_dir || "-"),
     row("거래 수", source.trade_count || 0),
     row("손절 수", source.stop_loss_count || 0),
     row("주요 손실 원인", causes),

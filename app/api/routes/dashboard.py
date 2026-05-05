@@ -612,6 +612,8 @@ function renderRulePipeline(payload) {
   const replay = proposal.replay_result ? JSON.stringify(proposal.replay_result) : "replay 필요";
   const reasons = (proposal.rejection_reasons || []).join(", ") || "없음";
   document.getElementById("ruleReviewTable").innerHTML = [
+    row("대상 코인", source.trade_coin || "-"),
+    row("룰 로그 경로", source.learning_log_dir || "-"),
     row("주요 손실 원인", causes),
     row("Codex 제안 변경 항목", changes),
     row("replay 결과", replay),
