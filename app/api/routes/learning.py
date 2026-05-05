@@ -12,6 +12,7 @@ from app.services.learning.service import LearningService
 def build_learning_router(
     *,
     market: str,
+    trade_coin: str,
     learning_service: LearningService,
     learning_log_dir: Path | None = None,
 ) -> APIRouter:
@@ -24,12 +25,16 @@ def build_learning_router(
             return {
                 "status": "empty",
                 "market": market,
+                "trade_coin": trade_coin,
+                "learning_log_dir": None if learning_log_dir is None else str(learning_log_dir),
                 "events": [],
             }
 
         return {
             "status": "ok",
             "market": market,
+            "trade_coin": trade_coin,
+            "learning_log_dir": None if learning_log_dir is None else str(learning_log_dir),
             "events": events,
         }
 
@@ -39,11 +44,15 @@ def build_learning_router(
             return {
                 "status": "not_configured",
                 "market": market,
+                "trade_coin": trade_coin,
+                "learning_log_dir": None,
                 "diagnostics": None,
             }
         return {
             "status": "ok",
             "market": market,
+            "trade_coin": trade_coin,
+            "learning_log_dir": str(learning_log_dir),
             "diagnostics": LearningLogDiagnostics(log_dir=learning_log_dir).build(
                 tail_limit=tail_limit,
             ),
@@ -55,12 +64,16 @@ def build_learning_router(
             return {
                 "status": "not_configured",
                 "market": market,
+                "trade_coin": trade_coin,
+                "learning_log_dir": None,
                 "readiness": None,
             }
         readiness = ModelTrainingReadinessService(log_dir=learning_log_dir).build()
         return {
             "status": "ok",
             "market": market,
+            "trade_coin": trade_coin,
+            "learning_log_dir": str(learning_log_dir),
             "readiness": readiness,
         }
 

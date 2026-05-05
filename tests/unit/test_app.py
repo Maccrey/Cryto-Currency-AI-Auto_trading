@@ -1300,6 +1300,8 @@ def test_learning_routes_use_coin_scoped_log_dir_for_non_default_coin(
     assert response.status_code == 200
     payload = response.json()
     assert payload["market"] == "KRW-BTC"
+    assert payload["trade_coin"] == "BTC"
+    assert payload["learning_log_dir"] == str(log_dir)
     assert payload["diagnostics"]["events_scanned"] == 1
     assert payload["diagnostics"]["log_path"] == str(log_dir / "learning.jsonl")
 
@@ -2187,11 +2189,12 @@ def test_learning_recent_endpoint_returns_runtime_events(monkeypatch) -> None:
 
     response = client.get("/learning/recent")
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "empty",
-        "market": "KRW-XRP",
-        "events": [],
-    }
+    empty_payload = response.json()
+    assert empty_payload["status"] == "empty"
+    assert empty_payload["market"] == "KRW-XRP"
+    assert empty_payload["trade_coin"] == "XRP"
+    assert empty_payload["learning_log_dir"] == "logs/learning/scalping"
+    assert empty_payload["events"] == []
 
     execution_response = client.post(
         "/decision/execute",
@@ -2221,6 +2224,7 @@ def test_learning_recent_endpoint_returns_runtime_events(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["market"] == "KRW-XRP"
+    assert response.json()["trade_coin"] == "XRP"
     assert [event["event_name"] for event in response.json()["events"]] == [
         "signal_generated",
         "fill_result",

@@ -590,6 +590,7 @@ def create_app(
     app.include_router(
         build_learning_router(
             market=settings.trade_market,
+            trade_coin=settings.trade_coin,
             learning_service=learning_service,
             learning_log_dir=profile_learning_log_dir,
         ),

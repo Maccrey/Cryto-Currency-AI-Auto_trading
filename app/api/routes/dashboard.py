@@ -678,6 +678,7 @@ async function refreshDashboard() {
       health,
       summary,
       learning: learningResponse.learning || {},
+      learningLogDir: learningResponse.learning_log_dir || "",
       learningHealth: learningHealthResponse.health || {},
       readiness: readinessResponse.readiness || {},
       executions,
@@ -734,7 +735,7 @@ function formatBlockedReasons(diagnostics) {
 }
 
 function renderDashboard(data) {
-  const {health, summary, market, learning, learningHealth, readiness, executions, promotion} = data;
+  const {health, summary, market, learning, learningLogDir, learningHealth, readiness, executions, promotion} = data;
   const totalEvents = learning.total_events || learningHealth.total_events || 0;
   const readinessProgress = deriveReadinessProgress(readiness);
   const progress = readinessProgress.percent;
@@ -795,6 +796,7 @@ function renderDashboard(data) {
     row("최근 이벤트명", learning.last_event_name || "없음"),
     row("최근 기록 시각", learning.last_recorded_at || learningHealth.last_recorded_at || "없음"),
     row("신호/체결/포지션", `${number(categories.signals || 0)} / ${number(categories.fills || 0)} / ${number(categories.positions || 0)}`),
+    row("학습 로그 경로", learningLogDir || "없음"),
     row("상태", learning.state_message || learningHealth.state_message || "학습 데이터가 아직 없습니다.")
   ].join("");
 
