@@ -94,6 +94,11 @@ class OfflineModelTrainer:
                 },
             )
 
+        shadow_predictions_path = self._write_shadow_predictions(
+            rows=rows,
+            report_dir=report_dir,
+            evaluation=evaluation,
+        )
         return self._write_report(
             report_dir=report_dir,
             report={
@@ -105,6 +110,7 @@ class OfflineModelTrainer:
                 "model_family": "tensorflow",
                 "artifact_path": str(report_dir / "tensorflow-shadow-model"),
                 "shadow_mode_required": True,
+                "shadow_predictions_path": str(shadow_predictions_path),
                 "live_apply_allowed": False,
             },
         )
@@ -180,6 +186,46 @@ class OfflineModelTrainer:
             "baseline_win_rate": float(baseline_win_rate),
             "candidate_win_rate": float(candidate_win_rate),
         }
+
+    @staticmethod
+    def _write_shadow_predictions(
+        *,
+        rows: list[dict[str, Any]],
+        report_dir: Path,
+        evaluation: dict[str, float],
+    ) -> Path:
+        output_path = report_dir / "shadow-predictions.jsonl"
+        signal_rows = [
+            row for row in rows
+            if row.get("event_name") == "signal_generated"
+        ]
+        with output_path.open("w", encoding="utf-8") as handle:
+            for row in signal_rows:
+                payload = row.get("payload") or {}
+                score = OfflineModelTrainer._safe_float(payload.get("score"), default=0.0)
+                prediction = {
+                    "recorded_at": row.get("recorded_at"),
+                    "market": row.get("market"),
+                    "mode": row.get("mode"),
+                    "source_event": "signal_generated",
+                    "signal_score": score,
+                    "rule_decision": payload.get("level", "unknown"),
+                    "model_decision": "enter" if score >= 0.70 else "observe",
+                    "candidate_win_rate": evaluation["candidate_win_rate"],
+                    "baseline_win_rate": evaluation["baseline_win_rate"],
+                    "shadow_mode": True,
+                    "live_apply_allowed": False,
+                }
+                handle.write(json.dumps(prediction, ensure_ascii=True, sort_keys=True))
+                handle.write("\n")
+        return output_path
+
+    @staticmethod
+    def _safe_float(value: object, *, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
 
     @staticmethod
     def _write_report(*, report_dir: Path, report: dict[str, object]) -> dict[str, object]:

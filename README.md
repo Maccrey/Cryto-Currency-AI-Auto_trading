@@ -205,7 +205,7 @@ pip install -e ".[ml]"
 
 `ml` extra에는 `tensorflow`, `scikit-learn`, `pandas`, `pyarrow`를 포함한다. 실시간 서버에서 바로 학습하지 않고, 충분한 demo 학습 로그가 쌓인 뒤 오프라인 학습 파이프라인으로 구현한다.
 
-오프라인 학습 CLI는 먼저 학습 로그 표본, train/validation/test 기간 분리, baseline 대비 성능을 검사한다. 통과해도 결과는 shadow mode 리포트로만 저장되며 live 룰이나 주문 게이트를 직접 바꾸지 않는다.
+오프라인 학습 CLI는 먼저 학습 로그 표본, train/validation/test 기간 분리, baseline 대비 성능을 검사한다. 통과해도 결과는 `model-training-report.json`과 `shadow-predictions.jsonl`로만 저장되며 live 룰이나 주문 게이트를 직접 바꾸지 않는다.
 
 ```bash
 upbit-train-model --log-dir ./logs/learning/scalping --report-dir ./data/learning/model-reports

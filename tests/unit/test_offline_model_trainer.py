@@ -198,4 +198,10 @@ def test_offline_trainer_writes_shadow_report_when_gates_pass(tmp_path: Path) ->
     assert report["status"] == "trained"
     assert report["shadow_mode_required"] is True
     assert report["live_apply_allowed"] is False
+    assert Path(str(report["shadow_predictions_path"])).exists()
     assert Path(str(report["report_path"])).exists()
+
+    shadow_lines = Path(str(report["shadow_predictions_path"])).read_text(encoding="utf-8").splitlines()
+    assert len(shadow_lines) == 3
+    assert '"model_decision": "observe"' in shadow_lines[0]
+    assert '"live_apply_allowed": false' in shadow_lines[0]

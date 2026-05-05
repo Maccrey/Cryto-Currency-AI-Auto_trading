@@ -475,7 +475,7 @@ telegram-notifier
 - 학습 데이터 표본 수가 부족하면 학습을 거부한다.
 - train/validation/test 기간 분리가 없으면 학습을 거부한다.
 - baseline보다 낮은 성능의 모델은 승격할 수 없다.
-- 통과 결과도 먼저 shadow mode 리포트로 저장하며 live 주문 게이트를 직접 바꾸지 않는다.
+- 통과 결과도 먼저 `model-training-report.json`과 `shadow-predictions.jsonl`로 저장하며 live 주문 게이트를 직접 바꾸지 않는다.
 - 손절, 사이징, SAFE_MODE, HARD_STOP, 룰 변경 승인 게이트가 모델 출력보다 우선한다.
 
 ---
