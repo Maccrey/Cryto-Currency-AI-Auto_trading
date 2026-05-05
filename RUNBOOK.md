@@ -293,6 +293,8 @@ order_intent
 - replay 결과
 - 승인 필요 여부
 
+룰 개선 review/proposal 상태는 현재 투자성향 학습 로그 디렉터리의 `rule-review-state.json`에 저장한다. 앱 재기동 후에도 proposal 상세 조회, replay 결과, demo 적용 여부, 승인 여부를 이어서 확인할 수 있어야 한다.
+
 ### 운영 금지 사항
 - replay 테스트 없는 룰 변경 금지
 - demo 적용 없는 live 반영 금지

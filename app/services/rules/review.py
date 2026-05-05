@@ -37,8 +37,10 @@ class RuleReviewService:
         self._trading_mode = trading_mode
         self._learning_log_dir = learning_log_dir
         self._config = config
-        self._reviews: dict[str, dict[str, Any]] = {}
-        self._proposals: dict[str, dict[str, Any]] = {}
+        self._state_path = self._learning_log_dir / "rule-review-state.json"
+        state = self._load_state()
+        self._reviews: dict[str, dict[str, Any]] = state["reviews"]
+        self._proposals: dict[str, dict[str, Any]] = state["proposals"]
 
     def review(self) -> dict[str, object]:
         metrics = self._collect_metrics()
@@ -55,6 +57,7 @@ class RuleReviewService:
             "created_at": datetime.now(UTC).isoformat(),
         }
         self._reviews[str(review["id"])] = review
+        self._save_state()
         return {"review": review}
 
     def create_proposal(
@@ -98,6 +101,7 @@ class RuleReviewService:
             "created_at": datetime.now(UTC).isoformat(),
         }
         self._proposals[str(proposal["id"])] = proposal
+        self._save_state()
         return {"proposal": proposal}
 
     def get_proposal(self, proposal_id: str) -> dict[str, object]:
@@ -128,6 +132,7 @@ class RuleReviewService:
             reasons.discard("replay_required")
             reasons.discard("replay_failed")
             proposal["rejection_reasons"] = sorted(reasons)
+        self._save_state()
         return {"proposal": proposal}
 
     def apply_demo(self, proposal_id: str) -> dict[str, object]:
@@ -143,6 +148,8 @@ class RuleReviewService:
         proposal["demo_applied"] = not proposal["rejection_reasons"]
         if proposal["demo_applied"]:
             proposal["status"] = "demo_applied"
+            proposal["demo_applied_at"] = datetime.now(UTC).isoformat()
+        self._save_state()
         return {"proposal": proposal}
 
     def approve_live(self, proposal_id: str, *, approved_by: str) -> dict[str, object]:
@@ -158,7 +165,41 @@ class RuleReviewService:
             proposal["status"] = "live_approved"
             proposal["approved_by"] = approved_by
             proposal["approved_at"] = datetime.now(UTC).isoformat()
+        self._save_state()
         return {"proposal": proposal}
+
+    def _load_state(self) -> dict[str, dict[str, dict[str, Any]]]:
+        empty: dict[str, dict[str, dict[str, Any]]] = {
+            "reviews": {},
+            "proposals": {},
+        }
+        if not self._state_path.exists():
+            return empty
+        try:
+            raw_state = json.loads(self._state_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return empty
+        if not isinstance(raw_state, dict):
+            return empty
+        reviews = raw_state.get("reviews", {})
+        proposals = raw_state.get("proposals", {})
+        return {
+            "reviews": reviews if isinstance(reviews, dict) else {},
+            "proposals": proposals if isinstance(proposals, dict) else {},
+        }
+
+    def _save_state(self) -> None:
+        self._learning_log_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema_version": 1,
+            "updated_at": datetime.now(UTC).isoformat(),
+            "reviews": self._reviews,
+            "proposals": self._proposals,
+        }
+        self._state_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
 
     def _collect_metrics(self) -> dict[str, object]:
         trade_count = 0

@@ -443,6 +443,7 @@ telegram-notifier
 - `RULE_REVIEW_MIN_TRADES` 미만이면 룰 변경안을 생성하지 않는다.
 - `RULE_REVIEW_MIN_STOPLOSSES` 미만이면 손절 파라미터 변경안을 생성하지 않는다.
 - 한 번에 변경 가능한 파라미터 수는 `RULE_CHANGE_MAX_PARAMS_PER_RUN` 이하로 제한한다.
+- review/proposal 상태는 투자성향별 학습 로그 디렉터리의 `rule-review-state.json`에 저장해 재기동 후에도 이어서 검토한다.
 
 ### 14.3 허용 변경 파일
 - `app/services/signals/**`

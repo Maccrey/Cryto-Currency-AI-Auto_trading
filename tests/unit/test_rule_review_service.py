@@ -131,3 +131,39 @@ def test_live_approval_requires_demo_apply_and_manual_approval(tmp_path: Path) -
     assert result["proposal"]["live_approved"] is False
     assert "demo_apply_required" in result["proposal"]["rejection_reasons"]
     assert "manual_approval_required" in result["proposal"]["rejection_reasons"]
+
+
+def test_rule_review_state_persists_across_service_instances(tmp_path: Path) -> None:
+    config = RuleReviewConfig(
+        enabled=True,
+        window_days=14,
+        min_trades=0,
+        min_stoplosses=0,
+        max_params_per_run=3,
+        apply_target="demo",
+        require_manual_approval=True,
+    )
+    first = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=config,
+    )
+
+    review = first.review()
+    proposal = first.create_proposal(review_id=str(review["review"]["id"]))
+    first.verify_replay(str(proposal["proposal"]["id"]), fixture_path=Path("fixtures/replay_ticks.json"))
+    first.apply_demo(str(proposal["proposal"]["id"]))
+
+    second = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=config,
+    )
+    restored = second.get_proposal(str(proposal["proposal"]["id"]))
+
+    assert restored["proposal"]["id"] == proposal["proposal"]["id"]
+    assert restored["proposal"]["status"] == "demo_applied"
+    assert restored["proposal"]["replay_result"]["status"] == "passed"
+    assert (tmp_path / "rule-review-state.json").exists()
