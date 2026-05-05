@@ -236,6 +236,26 @@ class RuleReviewService:
         )
         return {"proposal": proposal}
 
+    def attach_commit_hash(self, proposal_id: str, *, commit_hash: str) -> dict[str, object]:
+        proposal = self._proposals[proposal_id]
+        normalized_commit_hash = commit_hash.strip()
+        if not normalized_commit_hash:
+            reasons = set(proposal["rejection_reasons"])
+            reasons.add("commit_hash_required")
+            proposal["rejection_reasons"] = sorted(reasons)
+            self._save_state()
+            return {"proposal": proposal}
+
+        proposal["commit_hash"] = normalized_commit_hash
+        self._save_state()
+        self._append_history_event(
+            event_type="commit_linked",
+            proposal=proposal,
+            approval_status="linked",
+            commit_hash=normalized_commit_hash,
+        )
+        return {"proposal": proposal}
+
     def _load_state(self) -> dict[str, dict[str, dict[str, Any]]]:
         empty: dict[str, dict[str, dict[str, Any]]] = {
             "reviews": {},
@@ -283,6 +303,7 @@ class RuleReviewService:
         review: dict[str, Any] | None = None,
         approval_status: str,
         approved_by: str = "",
+        commit_hash: str | None = None,
     ) -> None:
         self._learning_log_dir.mkdir(parents=True, exist_ok=True)
         changes = proposal.get("codex_suggested_changes") or []
@@ -325,7 +346,7 @@ class RuleReviewService:
             "approved_by": approved_by or proposal.get("approved_by", ""),
             "applied_target": proposal.get("apply_target", self._config.apply_target),
             "created_at": datetime.now(UTC).isoformat(),
-            "commit_hash": "",
+            "commit_hash": commit_hash or proposal.get("commit_hash", ""),
         }
         if review is not None:
             history["review_created_at"] = review.get("created_at")

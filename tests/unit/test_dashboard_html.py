@@ -64,6 +64,8 @@ def test_dashboard_displays_rule_review_coin_context() -> None:
     assert 'row("히스토리 경고"' in DASHBOARD_HTML
     assert "formatRuleExternalContext" in DASHBOARD_HTML
     assert "formatRuleHistoryWarnings" in DASHBOARD_HTML
+    assert "commit_hash" in DASHBOARD_HTML
+    assert "commit ${item.commit_hash}" in DASHBOARD_HTML
 
 
 def test_settings_includes_rule_review_pipeline_panel() -> None:
@@ -83,6 +85,8 @@ def test_settings_includes_rule_review_pipeline_panel() -> None:
     assert 'row("히스토리 경고"' in SETTINGS_HTML
     assert "formatRuleExternalContext" in SETTINGS_HTML
     assert "formatRuleHistoryWarnings" in SETTINGS_HTML
+    assert "commit_hash" in SETTINGS_HTML
+    assert "commit ${item.commit_hash}" in SETTINGS_HTML
 
 
 def test_settings_includes_external_context_and_no_trade_controls() -> None:

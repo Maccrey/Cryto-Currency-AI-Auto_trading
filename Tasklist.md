@@ -308,10 +308,13 @@
 - [x] [Fail] 히스토리에는 기존 룰 snapshot, 새 룰 snapshot, 변경 사유, 기대 효과, 알려진 리스크가 저장되어야 한다
 - [x] [Fail] 코인/투자성향별 `rule-change-history.jsonl`이 append-only로 누적되어야 한다
 - [x] [Fail] 과거 동일 파라미터 변경 실패 이력이 있으면 proposal에 경고가 표시되어야 한다
+- [x] [Fail] 룰 변경 커밋 해시는 기존 히스토리 수정 없이 append-only 이벤트로 연결되어야 한다
 - [x] [Code] 룰 변경 히스토리 원장 writer 구현
 - [x] [Code] proposal 생성/demo 적용/live 승인 시 history event 기록
 - [x] [Code] 룰 변경 히스토리 조회 API 구현
 - [x] [Code] 설정 화면과 대시보드에 룰 변경 히스토리 패널 구현
+- [x] [Code] 룰 변경 proposal 커밋 해시 연결 API 구현
+- [x] [Code] 설정 화면과 대시보드 히스토리 패널에 커밋 해시 표시
 - [x] [Contract] 룰 변경 히스토리 schema 문서화
 
 ### TensorFlow 오프라인 학습 계획

@@ -579,7 +579,7 @@ function renderRuleHistory(payload) {
   document.getElementById("ruleHistoryTable").innerHTML = history.length
     ? history.slice(0, 5).map((item) => row(
         `${item.event_type || "-"} / ${item.approval_status || "-"}`,
-        `${item.trade_coin || "-"} ${item.changed_parameters ? item.changed_parameters.join(", ") : ""} / ${item.change_reason || "-"}`
+        `${item.trade_coin || "-"} ${item.changed_parameters ? item.changed_parameters.join(", ") : ""} / ${item.change_reason || "-"}${item.commit_hash ? ` / commit ${item.commit_hash}` : ""}`
       )).join("")
     : '<tr><td>룰 변경 히스토리가 없습니다.</td></tr>';
 }

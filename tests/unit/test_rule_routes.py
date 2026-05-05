@@ -51,9 +51,22 @@ def test_rule_review_api_contract(tmp_path) -> None:
     assert history_response.json()["count"] == 1
     assert history_response.json()["history"][0]["proposal_id"] == proposal["id"]
 
+    commit_response = client.post(
+        f"/api/v1/rules/proposals/{proposal['id']}/commit-hash",
+        json={"commit_hash": "abc1234"},
+    )
+    assert commit_response.status_code == 200
+    assert commit_response.json()["proposal"]["commit_hash"] == "abc1234"
+
+    linked_history_response = client.get("/api/v1/rules/history")
+    assert linked_history_response.status_code == 200
+    assert linked_history_response.json()["history"][0]["event_type"] == "commit_linked"
+    assert linked_history_response.json()["history"][0]["commit_hash"] == "abc1234"
+
     detail_response = client.get(f"/api/v1/rules/proposals/{proposal['id']}")
     assert detail_response.status_code == 200
     assert detail_response.json()["proposal"]["id"] == proposal["id"]
+    assert detail_response.json()["proposal"]["commit_hash"] == "abc1234"
 
     demo_response = client.post(f"/api/v1/rules/proposals/{proposal['id']}/apply-demo")
     assert demo_response.status_code == 200

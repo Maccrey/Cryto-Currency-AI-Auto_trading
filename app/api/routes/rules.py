@@ -21,6 +21,10 @@ class RuleReplayPayload(BaseModel):
     fixture_path: str = "fixtures/replay_ticks.json"
 
 
+class RuleCommitHashPayload(BaseModel):
+    commit_hash: str = ""
+
+
 def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
     router = APIRouter(prefix="/api/v1/rules")
 
@@ -60,6 +64,16 @@ def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
         return rule_review_service.verify_replay(
             proposal_id,
             fixture_path=Path(fixture_path),
+        )
+
+    @router.post("/proposals/{proposal_id}/commit-hash")
+    def attach_rule_proposal_commit_hash(
+        proposal_id: str,
+        payload: RuleCommitHashPayload,
+    ) -> dict[str, object]:
+        return rule_review_service.attach_commit_hash(
+            proposal_id,
+            commit_hash=payload.commit_hash,
         )
 
     @router.post("/proposals/{proposal_id}/approve-live")

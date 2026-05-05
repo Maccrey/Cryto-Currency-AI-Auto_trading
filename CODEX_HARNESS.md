@@ -456,7 +456,7 @@ Codex는 매매룰을 바꿀 때 기존 룰과 새 룰의 차이뿐 아니라 �
 | 필드 | 타입 | 의미 |
 | --- | --- | --- |
 | `history_id` | string | 히스토리 이벤트 고유 ID |
-| `event_type` | string | `proposal_created`, `replay_verified`, `demo_applied`, `demo_apply_rejected`, `live_approved`, `live_approval_rejected`, `rollback`, `correction` |
+| `event_type` | string | `proposal_created`, `replay_verified`, `demo_applied`, `demo_apply_rejected`, `live_approved`, `live_approval_rejected`, `commit_linked`, `rollback`, `correction` |
 | `review_id` | string | 원본 룰 리뷰 ID |
 | `proposal_id` | string | 룰 변경안 ID |
 | `market` | string | 대상 마켓, 예: `KRW-BTC` |
@@ -478,7 +478,7 @@ Codex는 매매룰을 바꿀 때 기존 룰과 새 룰의 차이뿐 아니라 �
 | `known_risks` | string | 알려진 리스크 |
 | `replay_result` | object/null | replay 검증 결과 |
 | `demo_result` | object | demo 적용 결과 |
-| `approval_status` | string | `pending`, `passed`, `failed`, `applied`, `approved`, `rejected` 등 |
+| `approval_status` | string | `pending`, `passed`, `failed`, `applied`, `approved`, `rejected`, `linked` 등 |
 | `approved_by` | string | 승인자 |
 | `applied_target` | string | 적용 대상, 기본 `demo` |
 | `created_at` | string | ISO-8601 기록 시각 |

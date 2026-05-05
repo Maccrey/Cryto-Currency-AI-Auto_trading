@@ -244,7 +244,7 @@ false면 앱 시작 실패
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | history_id | str | Y | 히스토리 이벤트 ID |
-| event_type | str | Y | proposal_created/replay_verified/demo_applied/demo_apply_rejected/live_approved/live_approval_rejected/rollback/correction |
+| event_type | str | Y | proposal_created/replay_verified/demo_applied/demo_apply_rejected/live_approved/live_approval_rejected/commit_linked/rollback/correction |
 | review_id | str | Y | 리뷰 ID |
 | proposal_id | str | Y | proposal ID |
 | market | str | Y | 대상 마켓 |
@@ -266,7 +266,7 @@ false면 앱 시작 실패
 | known_risks | str | Y | 알려진 리스크 |
 | replay_result | object/null | Y | replay 결과 |
 | demo_result | object | Y | demo 적용 결과 |
-| approval_status | str | Y | pending/passed/failed/applied/approved/rejected 등 |
+| approval_status | str | Y | pending/passed/failed/applied/approved/rejected/linked 등 |
 | approved_by | str | Y | 승인자, 없으면 빈 문자열 |
 | applied_target | str | Y | 적용 대상 |
 | created_at | str | Y | ISO-8601 시각 |
