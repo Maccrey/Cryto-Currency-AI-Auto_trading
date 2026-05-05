@@ -163,6 +163,7 @@ DASHBOARD_HTML = """
     .ai-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .ai-value { margin-top: 8px; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
     .context-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .context-item.half { grid-column: span 2; }
     .context-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .context-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .context-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; white-space: pre-line; }
@@ -256,10 +257,8 @@ DASHBOARD_HTML = """
       <div class="context-item"><div class="context-label">온체인 데이터</div><div id="onchainState" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">ETF 상태</div><div id="etfState" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">학습 가중치</div><div id="contextWeight" class="context-value">-</div></div>
-      <div class="context-item"><div class="context-label">수집 상태</div><div id="contextStatus" class="context-value">-</div></div>
-      <div class="context-item"><div class="context-label">온체인 출처</div><div id="onchainSource" class="context-value">-</div></div>
-      <div class="context-item"><div class="context-label">ETF 출처</div><div id="etfSource" class="context-value">-</div></div>
-      <div class="context-item"><div class="context-label">기록 시각</div><div id="contextRecordedAt" class="context-value">-</div></div>
+      <div class="context-item half"><div class="context-label">수집 상태</div><div id="contextStatus" class="context-value">-</div></div>
+      <div class="context-item half"><div class="context-label">기록 시각</div><div id="contextRecordedAt" class="context-value">-</div></div>
     </div>
   </section>
 
@@ -798,8 +797,6 @@ function renderExternalContext(context) {
   document.getElementById("etfState").title = etfLines.map((line) => line.replace(/<[^>]*>/g, "")).join("\\n");
   document.getElementById("contextWeight").textContent = number(context.learning_weight || 1, 3);
   document.getElementById("contextStatus").textContent = formatExternalContextStatus(onchain, etf);
-  document.getElementById("onchainSource").textContent = formatExternalContextSource(onchain);
-  document.getElementById("etfSource").textContent = formatExternalContextSource(etf);
   document.getElementById("contextRecordedAt").textContent = context.recorded_at ? new Date(context.recorded_at).toLocaleString("ko-KR") : "-";
 }
 
@@ -810,12 +807,6 @@ function formatExternalContextStatus(onchain, etf) {
   if (errors.length) return errors.join(" / ");
   if (onchain.state === "disabled" || etf.state === "disabled") return "비활성";
   return "정상";
-}
-
-function formatExternalContextSource(section) {
-  const source = section.source || "-";
-  const label = formatContextSource(source);
-  return section.fetch_error ? `${label} 대체값` : label;
 }
 
 function formatContextState(value) {
@@ -838,17 +829,6 @@ function formatContextBasis(value) {
     price_change_proxy: " (가격변화 대체)"
   };
   return labels[value] || "";
-}
-
-function formatContextSource(value) {
-  const labels = {
-    manual: "수동 설정",
-    http: "외부 API",
-    web: "웹 공개 데이터",
-    disabled: "비활성",
-    "-": "-"
-  };
-  return labels[value] || value || "-";
 }
 
 function formatDiagnosisState(value) {

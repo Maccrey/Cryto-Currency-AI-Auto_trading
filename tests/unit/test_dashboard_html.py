@@ -42,8 +42,8 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert "온체인/ETF 상황" in DASHBOARD_HTML
     assert 'fetchJson("/dashboard/external-context")' in DASHBOARD_HTML
     assert "renderExternalContext" in DASHBOARD_HTML
-    assert 'id="onchainSource"' in DASHBOARD_HTML
-    assert 'id="etfSource"' in DASHBOARD_HTML
+    assert 'id="onchainSource"' not in DASHBOARD_HTML
+    assert 'id="etfSource"' not in DASHBOARD_HTML
     assert 'id="contextUsdPrice"' in DASHBOARD_HTML
     assert 'id="contextUsdPrice" class="context-value usd-price"' in DASHBOARD_HTML
     assert ".context-value.usd-price { font-size: 26px;" in DASHBOARD_HTML
@@ -55,9 +55,11 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'id="onchainDetails"' not in DASHBOARD_HTML
     assert 'id="contextStatus"' in DASHBOARD_HTML
     assert 'id="contextRecordedAt"' in DASHBOARD_HTML
-    assert "formatExternalContextSource" in DASHBOARD_HTML
+    assert 'context-item half"><div class="context-label">수집 상태' in DASHBOARD_HTML
+    assert 'context-item half"><div class="context-label">기록 시각' in DASHBOARD_HTML
+    assert ".context-item.half { grid-column: span 2; }" in DASHBOARD_HTML
+    assert "formatExternalContextSource" not in DASHBOARD_HTML
     assert "formatContextState" in DASHBOARD_HTML
-    assert 'web: "웹 공개 데이터"' in DASHBOARD_HTML
     assert 'neutral: "중립"' in DASHBOARD_HTML
     assert 'not_applicable: "해당 없음"' in DASHBOARD_HTML
     assert 'unknown: "데이터 없음"' in DASHBOARD_HTML
