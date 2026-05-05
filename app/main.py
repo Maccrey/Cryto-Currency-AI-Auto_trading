@@ -46,6 +46,7 @@ from app.services.market.context import (
     ExternalMarketContextConfig,
     ExternalMarketContextService,
     HttpExternalMarketContextProvider,
+    PublicWebExternalMarketContextProvider,
 )
 from app.services.market.upbit_ticker import UpbitTickerPriceProvider
 from app.services.notification.factory import build_notification_services
@@ -225,13 +226,17 @@ def create_app(
             etf_state=settings.etf_state,
             etf_flow_usd=settings.etf_flow_usd,
         ),
-        provider=HttpExternalMarketContextProvider(
-            onchain_url=settings.onchain_context_url,
-            etf_url=settings.etf_context_url,
-            cache_ttl_sec=settings.external_context_cache_ttl_sec,
-        )
-        if settings.onchain_context_url or settings.etf_context_url
-        else None,
+        provider=(
+            HttpExternalMarketContextProvider(
+                onchain_url=settings.onchain_context_url,
+                etf_url=settings.etf_context_url,
+                cache_ttl_sec=settings.external_context_cache_ttl_sec,
+            )
+            if settings.onchain_context_url or settings.etf_context_url
+            else PublicWebExternalMarketContextProvider(
+                cache_ttl_sec=settings.external_context_cache_ttl_sec,
+            )
+        ),
     )
     if trade_decision_service is None:
         trade_decision_service = TradeDecisionService(

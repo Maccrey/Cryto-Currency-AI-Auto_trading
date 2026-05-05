@@ -150,6 +150,8 @@ DASHBOARD_PORT=8080
 | ETF_CONTEXT_URL | str | N |  | 선택 HTTP ETF 컨텍스트 JSON endpoint |
 | ETF_STATE | str | Y | neutral | ETF 자금 흐름 상태, inflow/neutral/outflow/not_applicable |
 | ETF_FLOW_USD | float | Y | 0.0 | ETF 순유입/순유출 금액 USD |
+
+`ONCHAIN_CONTEXT_URL`과 `ETF_CONTEXT_URL`이 비어 있으면 앱은 기본 웹 공개 데이터 provider를 사용한다. BTC 온체인은 Blockchain.com Charts, XRP 온체인은 XRPSCAN ledger activity, BTC ETF는 Farside ETF flow 표를 조회한다. 조회 실패 시 기존 수동 설정값으로 fallback한다.
 | NO_TRADE_ADAPTIVE_ENABLED | bool | Y | true | 무거래 누적 시 demo 진입 기준 완화 정책 활성화 |
 | NO_TRADE_RELAX_AFTER_CYCLES | int | Y | 100 | 완화 판단 전 연속 진입 차단 사이클 수 |
 | NO_TRADE_RELAX_MIN_SCORE | float | Y | 0.30 | 완화 시 허용할 최소 weak signal score |

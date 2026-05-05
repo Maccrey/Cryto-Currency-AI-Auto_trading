@@ -150,6 +150,8 @@ pre-commit run --all-files
 - `NO_TRADE_ADAPTIVE_ENABLED=true`
 - `TRADE_MARKET=KRW-XRP`
 - `TRADE_COIN=XRP`
+
+`ONCHAIN_CONTEXT_URL`과 `ETF_CONTEXT_URL`을 비워두면 기본 웹 공개 데이터 소스를 사용한다. BTC 온체인은 Blockchain.com Charts, XRP 온체인은 XRPSCAN ledger activity, BTC ETF 흐름은 Farside ETF flow 표를 조회한다.
 - `DEMO_INITIAL_CAPITAL=1000000`
 - `UPBIT_ACCESS_KEY`
 - `UPBIT_SECRET_KEY`

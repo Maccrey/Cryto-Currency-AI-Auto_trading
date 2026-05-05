@@ -808,6 +808,7 @@ function formatContextSource(value) {
   const labels = {
     manual: "수동 설정",
     http: "외부 API",
+    web: "웹 공개 데이터",
     disabled: "비활성",
     "-": "-"
   };

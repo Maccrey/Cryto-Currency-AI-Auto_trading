@@ -252,6 +252,7 @@ SETTINGS_HTML = """
       <label for="etfFlowUsd">ETF 순유입/순유출 USD</label>
       <input id="etfFlowUsd" type="number" step="1" placeholder="0.0">
       <div class="note">URL이 있으면 market/coin 쿼리로 JSON을 읽어 학습 컨텍스트에 병합한다. BTC/ETH는 ETF 상태를 반영하고, XRP 등 미지원 코인은 not_applicable로 표시된다.</div>
+      <div class="note">URL을 비워두면 웹 공개 데이터 소스를 사용한다. BTC 온체인은 Blockchain.com 차트, XRP 온체인은 XRPSCAN 원장 활동, BTC ETF는 Farside ETF flow 표를 조회한다.</div>
     </div>
     <div class="subsection">
       <label>무거래 완화 정책</label>

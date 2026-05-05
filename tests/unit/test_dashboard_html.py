@@ -47,6 +47,7 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'id="contextRecordedAt"' in DASHBOARD_HTML
     assert "formatExternalContextSource" in DASHBOARD_HTML
     assert "formatContextState" in DASHBOARD_HTML
+    assert 'web: "웹 공개 데이터"' in DASHBOARD_HTML
     assert 'neutral: "중립"' in DASHBOARD_HTML
     assert 'not_applicable: "해당 없음"' in DASHBOARD_HTML
 
@@ -151,4 +152,7 @@ def test_settings_includes_external_context_and_no_trade_controls() -> None:
     assert "ONCHAIN_CONTEXT_URL" in SETTINGS_HTML
     assert "ONCHAIN_STATE" in SETTINGS_HTML
     assert "ETF_CONTEXT_URL" in SETTINGS_HTML
+    assert "웹 공개 데이터 소스" in SETTINGS_HTML
+    assert "Blockchain.com" in SETTINGS_HTML
+    assert "XRPSCAN" in SETTINGS_HTML
     assert "NO_TRADE_RELAX_AFTER_CYCLES" in SETTINGS_HTML

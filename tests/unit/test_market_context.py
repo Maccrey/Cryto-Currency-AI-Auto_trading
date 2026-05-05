@@ -2,6 +2,7 @@ from app.services.market.context import (
     ExternalMarketContextConfig,
     ExternalMarketContextService,
     HttpExternalMarketContextProvider,
+    PublicWebExternalMarketContextProvider,
 )
 import httpx
 
@@ -125,3 +126,64 @@ def test_http_external_market_context_provider_caches_successful_sections() -> N
     assert first["onchain"]["active_addresses_change_pct"] == 1.0
     assert second["onchain"]["active_addresses_change_pct"] == 1.0
     assert third["onchain"]["active_addresses_change_pct"] == 2.0
+
+
+def test_public_web_context_provider_fetches_btc_onchain_and_etf_data() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.blockchain.info":
+            return httpx.Response(
+                200,
+                json={
+                    "values": [
+                        {"x": 1, "y": 100_000},
+                        {"x": 2, "y": 110_000},
+                    ],
+                },
+            )
+        return httpx.Response(
+            200,
+            text="""
+            <table>
+              <tr><th>Date</th><th>IBIT</th><th>Total</th></tr>
+              <tr><td>02 Jan 2026</td><td>287.4</td><td>471.3</td></tr>
+            </table>
+            """,
+        )
+
+    provider = PublicWebExternalMarketContextProvider(
+        transport=httpx.MockTransport(handler),
+    )
+
+    payload = provider.fetch(market="KRW-BTC", trade_coin="BTC")
+
+    assert payload["onchain"]["source"] == "web"
+    assert payload["onchain"]["state"] == "bullish"
+    assert payload["onchain"]["active_addresses_change_pct"] == 10.0
+    assert payload["etf"]["source"] == "web"
+    assert payload["etf"]["state"] == "inflow"
+    assert payload["etf"]["flow_usd"] == 471_300_000
+
+
+def test_public_web_context_provider_fetches_xrp_ledger_activity() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "ledgers": [
+                    {"ledger_index": 3, "tx_count": 120},
+                    {"ledger_index": 2, "tx_count": 90},
+                    {"ledger_index": 1, "tx_count": 100},
+                ],
+            },
+        )
+
+    provider = PublicWebExternalMarketContextProvider(
+        transport=httpx.MockTransport(handler),
+    )
+
+    payload = provider.fetch(market="KRW-XRP", trade_coin="XRP")
+
+    assert payload["onchain"]["source"] == "web"
+    assert payload["onchain"]["state"] == "bullish"
+    assert payload["onchain"]["active_addresses_change_pct"] == 26.316
+    assert "etf" not in payload
