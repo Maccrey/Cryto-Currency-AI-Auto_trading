@@ -238,6 +238,40 @@ false면 앱 시작 실패
 - 히스토리에는 기존 룰 snapshot, 신규 룰 snapshot, 변경 사유, 기대 효과, 알려진 리스크, replay/demo/live 결과, 승인자, 한국어 커밋 메시지와 commit hash가 포함되어야 한다.
 - live 승인 전 동일 파라미터의 과거 실패/rollback 이력을 확인해야 한다.
 
+### RULE_CHANGE_HISTORY schema
+`rule-change-history.jsonl`은 JSON Lines 파일이며 각 줄은 하나의 append-only 이벤트다.
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| history_id | str | Y | 히스토리 이벤트 ID |
+| event_type | str | Y | proposal_created/replay_verified/demo_applied/demo_apply_rejected/live_approved/live_approval_rejected/rollback/correction |
+| review_id | str | Y | 리뷰 ID |
+| proposal_id | str | Y | proposal ID |
+| market | str | Y | 대상 마켓 |
+| trade_coin | str | Y | 대상 코인 |
+| trading_profile | str | Y | 투자성향 |
+| mode | str | Y | 실행 모드 |
+| learning_log_dir | str | Y | 학습 로그 디렉터리 |
+| analysis_window_days | int | Y | 분석 기간 |
+| trade_count | int | Y | 거래 표본 수 |
+| stop_loss_count | int | Y | 손절 표본 수 |
+| major_loss_causes | array | Y | 주요 손실 원인 |
+| blocked_reason_summary | array | Y | 차단/거절 사유 |
+| external_context_summary | object | Y | 온체인/ETF 컨텍스트 요약 |
+| previous_rule_snapshot | object | Y | 변경 전 파라미터 |
+| proposed_rule_snapshot | object | Y | 변경 후 후보 파라미터 |
+| changed_parameters | array | Y | 변경 파라미터 목록 |
+| change_reason | str | Y | 변경 사유 |
+| expected_effect | str | Y | 기대 효과 |
+| known_risks | str | Y | 알려진 리스크 |
+| replay_result | object/null | Y | replay 결과 |
+| demo_result | object | Y | demo 적용 결과 |
+| approval_status | str | Y | pending/passed/failed/applied/approved/rejected 등 |
+| approved_by | str | Y | 승인자, 없으면 빈 문자열 |
+| applied_target | str | Y | 적용 대상 |
+| created_at | str | Y | ISO-8601 시각 |
+| commit_hash | str | Y | 커밋 hash, 커밋 전 이벤트는 빈 문자열 허용 |
+
 ### TRADE_MARKET / TRADE_COIN
 - 기본값은 `TRADE_COIN=XRP`, `TRADE_MARKET=KRW-XRP`이다.
 - 코인은 XRP에 고정하지 않는다. 예를 들어 BTC로 운용하려면 `TRADE_COIN=BTC`, `TRADE_MARKET=KRW-BTC`를 저장한다.

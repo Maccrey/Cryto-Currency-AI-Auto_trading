@@ -452,33 +452,39 @@ telegram-notifier
 Codex는 매매룰을 바꿀 때 기존 룰과 새 룰의 차이뿐 아니라 “왜 바꿨는지”를 추적 가능하게 남겨야 한다. 이 히스토리는 실수를 줄이고 반복되는 잘못된 변경을 막으며, 장기적으로 최고의 트레이더에 가까워지기 위한 전략 학습 기록이다.
 
 `rule-change-history.jsonl`의 각 행은 최소 아래 필드를 가진다.
-- `history_id`
-- `review_id`
-- `proposal_id`
-- `market`
-- `trade_coin`
-- `trading_profile`
-- `mode`
-- `learning_log_dir`
-- `analysis_window_days`
-- `trade_count`
-- `stop_loss_count`
-- `major_loss_causes`
-- `blocked_reason_summary`
-- `external_context_summary`
-- `previous_rule_snapshot`
-- `proposed_rule_snapshot`
-- `changed_parameters`
-- `change_reason`
-- `expected_effect`
-- `known_risks`
-- `replay_result`
-- `demo_result`
-- `approval_status`
-- `approved_by`
-- `applied_target`
-- `created_at`
-- `commit_hash`
+
+| 필드 | 타입 | 의미 |
+| --- | --- | --- |
+| `history_id` | string | 히스토리 이벤트 고유 ID |
+| `event_type` | string | `proposal_created`, `replay_verified`, `demo_applied`, `demo_apply_rejected`, `live_approved`, `live_approval_rejected`, `rollback`, `correction` |
+| `review_id` | string | 원본 룰 리뷰 ID |
+| `proposal_id` | string | 룰 변경안 ID |
+| `market` | string | 대상 마켓, 예: `KRW-BTC` |
+| `trade_coin` | string | 대상 코인 |
+| `trading_profile` | string | 투자성향 |
+| `mode` | string | 실행 모드 |
+| `learning_log_dir` | string | 분석/히스토리 기준 로그 디렉터리 |
+| `analysis_window_days` | number | 분석 대상 기간 |
+| `trade_count` | number | 분석 표본 거래 수 |
+| `stop_loss_count` | number | 분석 표본 손절 수 |
+| `major_loss_causes` | array | 주요 손실/손절 원인 |
+| `blocked_reason_summary` | array | proposal 차단/거절 사유 |
+| `external_context_summary` | object | 온체인/ETF 표본 수, 상태 분포, 평균 가중치 |
+| `previous_rule_snapshot` | object | 변경 전 파라미터 값 |
+| `proposed_rule_snapshot` | object | 변경 후 후보 파라미터 값 |
+| `changed_parameters` | array[string] | 변경 대상 파라미터 목록 |
+| `change_reason` | string | 변경 사유 |
+| `expected_effect` | string | 기대 효과 |
+| `known_risks` | string | 알려진 리스크 |
+| `replay_result` | object/null | replay 검증 결과 |
+| `demo_result` | object | demo 적용 결과 |
+| `approval_status` | string | `pending`, `passed`, `failed`, `applied`, `approved`, `rejected` 등 |
+| `approved_by` | string | 승인자 |
+| `applied_target` | string | 적용 대상, 기본 `demo` |
+| `created_at` | string | ISO-8601 기록 시각 |
+| `commit_hash` | string | 룰 변경 커밋 hash, 커밋 전 이벤트는 빈 문자열 허용 |
+
+`history_warnings`는 proposal 응답 필드이며 히스토리 원장 필수 필드는 아니다. Codex는 proposal 생성 시 동일 파라미터의 과거 `*_rejected`, `failed`, `rolled_back`, `rollback`, `correction` 이벤트를 검사해 `history_warnings`에 표시한다.
 
 히스토리는 수정/삭제하지 않는다. 잘못된 기록이 있으면 새 correction 이벤트를 추가한다. Codex는 룰 변경 커밋 메시지와 `commit_hash`를 히스토리에 남기고, 후속 룰 변경 전 반드시 과거 히스토리에서 같은 파라미터의 반복 실패 여부를 확인한다.
 

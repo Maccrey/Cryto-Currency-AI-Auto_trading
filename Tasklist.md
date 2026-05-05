@@ -312,7 +312,7 @@
 - [x] [Code] proposal 생성/demo 적용/live 승인 시 history event 기록
 - [x] [Code] 룰 변경 히스토리 조회 API 구현
 - [x] [Code] 설정 화면과 대시보드에 룰 변경 히스토리 패널 구현
-- [ ] [Contract] 룰 변경 히스토리 schema 문서화
+- [x] [Contract] 룰 변경 히스토리 schema 문서화
 
 ### TensorFlow 오프라인 학습 계획
 - [x] [Fail] 학습 데이터가 부족하면 TensorFlow 학습 CLI가 실행을 거부해야 한다
