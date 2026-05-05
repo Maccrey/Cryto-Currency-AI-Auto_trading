@@ -317,6 +317,9 @@ SETTINGS_HTML = """
         <button class="secondary" type="button" onclick="verifyRuleProposalReplay()">replay 검증</button>
         <button class="secondary" type="button" onclick="applyRuleProposalToDemo()">demo 적용</button>
         <button class="primary" type="button" onclick="approveRuleProposalForLive()">live 승인 적용</button>
+        <button class="secondary" type="button" onclick="linkRuleProposalCommitHash()">커밋 해시 연결</button>
+        <button class="secondary" type="button" onclick="appendRuleHistoryCorrection()">히스토리 보정</button>
+        <button class="danger-button" type="button" onclick="rollbackRuleProposal()">룰 변경 롤백</button>
       </div>
       <table class="rule-result">
         <tbody id="ruleReviewTable">
@@ -583,6 +586,9 @@ function renderRuleHistory(payload) {
       )).join("")
     : '<tr><td>룰 변경 히스토리가 없습니다.</td></tr>';
 }
+async function refreshRuleHistory() {
+  renderRuleHistory(await fetchJson("/api/v1/rules/history"));
+}
 async function runRuleReview() {
   renderRulePipeline(await postJson("/api/v1/rules/review"));
 }
@@ -600,6 +606,27 @@ async function verifyRuleProposalReplay() {
 async function approveRuleProposalForLive() {
   if (!latestRuleProposalId) await createRuleProposal();
   renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/approve-live`, {approved_by: ""}));
+}
+async function linkRuleProposalCommitHash() {
+  if (!latestRuleProposalId) await createRuleProposal();
+  const commitHash = window.prompt("연결할 Git 커밋 해시를 입력하세요.", "");
+  if (!commitHash) return;
+  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/commit-hash`, {commit_hash: commitHash}));
+  await refreshRuleHistory();
+}
+async function appendRuleHistoryCorrection() {
+  if (!latestRuleProposalId) await createRuleProposal();
+  const reason = window.prompt("히스토리 보정 사유를 입력하세요.", "");
+  if (!reason) return;
+  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/history-corrections`, {reason, corrected_fields: {}, corrected_by: "operator"}));
+  await refreshRuleHistory();
+}
+async function rollbackRuleProposal() {
+  if (!latestRuleProposalId) await createRuleProposal();
+  const reason = window.prompt("룰 변경 롤백 사유를 입력하세요.", "");
+  if (!reason) return;
+  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/rollback`, {reason, target: "demo", rolled_back_by: "operator"}));
+  await refreshRuleHistory();
 }
 async function refreshTradingStatus(readiness = latestStartReadiness) {
   try {

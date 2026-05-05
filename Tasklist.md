@@ -317,6 +317,7 @@
 - [x] [Code] 룰 변경 히스토리 correction API 구현
 - [x] [Code] 룰 변경 proposal rollback API 구현
 - [x] [Code] 설정 화면과 대시보드에 룰 변경 히스토리 패널 구현
+- [x] [Code] 설정 화면과 대시보드에 커밋 해시 연결/히스토리 보정/롤백 버튼 구현
 - [x] [Code] 룰 변경 proposal 커밋 해시 연결 API 구현
 - [x] [Code] 룰 변경 proposal 커밋 해시 연결 CLI 구현
 - [x] [Code] 설정 화면과 대시보드 히스토리 패널에 커밋 해시 표시

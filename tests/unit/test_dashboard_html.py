@@ -23,9 +23,16 @@ def test_dashboard_includes_rule_review_pipeline_panel() -> None:
     assert "replay 검증" in DASHBOARD_HTML
     assert "demo 적용" in DASHBOARD_HTML
     assert "live 승인 적용" in DASHBOARD_HTML
+    assert "커밋 해시 연결" in DASHBOARD_HTML
+    assert "히스토리 보정" in DASHBOARD_HTML
+    assert "룰 변경 롤백" in DASHBOARD_HTML
     assert 'postJson("/api/v1/rules/review"' in DASHBOARD_HTML
     assert 'fetchJson("/api/v1/rules/proposals"' in DASHBOARD_HTML
     assert 'fetchJson("/api/v1/rules/history"' in DASHBOARD_HTML
+    assert "/commit-hash" in DASHBOARD_HTML
+    assert "/history-corrections" in DASHBOARD_HTML
+    assert "/rollback" in DASHBOARD_HTML
+    assert "refreshRuleHistory" in DASHBOARD_HTML
     assert "renderLatestRuleProposal" in DASHBOARD_HTML
     assert "renderRuleHistory" in DASHBOARD_HTML
 
@@ -74,9 +81,16 @@ def test_settings_includes_rule_review_pipeline_panel() -> None:
     assert "replay 검증" in SETTINGS_HTML
     assert "demo 적용" in SETTINGS_HTML
     assert "live 승인 적용" in SETTINGS_HTML
+    assert "커밋 해시 연결" in SETTINGS_HTML
+    assert "히스토리 보정" in SETTINGS_HTML
+    assert "룰 변경 롤백" in SETTINGS_HTML
     assert 'postJson("/api/v1/rules/review"' in SETTINGS_HTML
     assert 'fetchJson("/api/v1/rules/proposals"' in SETTINGS_HTML
     assert 'fetchJson("/api/v1/rules/history"' in SETTINGS_HTML
+    assert "/commit-hash" in SETTINGS_HTML
+    assert "/history-corrections" in SETTINGS_HTML
+    assert "/rollback" in SETTINGS_HTML
+    assert "refreshRuleHistory" in SETTINGS_HTML
     assert "renderLatestRuleProposal" in SETTINGS_HTML
     assert "renderRuleHistory" in SETTINGS_HTML
     assert 'row("대상 코인"' in SETTINGS_HTML
