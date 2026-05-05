@@ -170,6 +170,7 @@ DASHBOARD_HTML = """
     .context-value.compact { font-size: 13px; line-height: 1.45; font-weight: 700; }
     .context-value.usd-price { font-size: 26px; line-height: 1.15; font-weight: 800; }
     .context-value.usd-price span { font-size: 13px; line-height: 1.3; font-weight: 800; }
+    .context-value.usd-price .krw-price { display: inline-block; margin-top: 4px; font-size: 13px; line-height: 1.3; color: var(--text); }
     .legend { margin-top: 12px; }
     .legend-toggle { margin-top: 12px; }
     .legend-panel { display: none; }
@@ -753,7 +754,7 @@ async function refreshDashboard() {
     ]);
     renderLatestRuleProposal(ruleProposalResponse);
     renderRuleHistory(ruleHistoryResponse);
-    renderExternalContext(externalContextResponse.context || {});
+    renderExternalContext(externalContextResponse.context || {}, marketResponse.summary || {});
     renderNoTradeDiagnostics(diagnosticsResponse.diagnostics || {});
     renderDashboard({
       health,
@@ -771,12 +772,16 @@ async function refreshDashboard() {
   }
 }
 
-function renderExternalContext(context) {
+function renderExternalContext(context, market) {
   const onchain = context.onchain || {};
   const etf = context.etf || {};
   const marketData = context.market_data || {};
   const usdChange = marketData.usd_change_pct_24h;
-  document.getElementById("contextUsdPrice").innerHTML = `${usd(marketData.usd_price)}<br><span class="${changeClass(usdChange)}">24시간 ${percent(usdChange)}</span>`;
+  const upbitChangeRate = market.signed_change_rate ?? market.recent_change_pct;
+  const krwPriceLine = market.current_price === undefined
+    ? "현재가 데이터 없음"
+    : `<span class="krw-price">${price(market.current_price)} <span class="${changeClass(upbitChangeRate)}">(${percent(upbitChangeRate)})</span></span>`;
+  document.getElementById("contextUsdPrice").innerHTML = `${usd(marketData.usd_price)}<br><span class="${changeClass(usdChange)}">24시간 ${percent(usdChange)}</span><br>${krwPriceLine}`;
   document.getElementById("onchainState").textContent = [
     `${formatContextState(onchain.state)} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`,
     `거래소 순유입·순유출: ${formatContextState(onchain.exchange_netflow_state)}`,

@@ -48,6 +48,7 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'id="contextUsdPrice" class="context-value usd-price"' in DASHBOARD_HTML
     assert ".context-value.usd-price { font-size: 26px;" in DASHBOARD_HTML
     assert ".context-value.usd-price span { font-size: 13px;" in DASHBOARD_HTML
+    assert ".context-value.usd-price .krw-price" in DASHBOARD_HTML
     assert "온체인 데이터" in DASHBOARD_HTML
     assert "온체인 상태" not in DASHBOARD_HTML
     assert 'id="onchainState" class="context-value compact"' in DASHBOARD_HTML
@@ -74,7 +75,11 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert "formatContextBasis" in DASHBOARD_HTML
     assert 'activity_volume_proxy: " (활동·거래량 대체)"' in DASHBOARD_HTML
     assert 'price_change_proxy: " (가격변화 대체)"' in DASHBOARD_HTML
-    assert '${usd(marketData.usd_price)}<br><span class="${changeClass(usdChange)}">' in DASHBOARD_HTML
+    assert "renderExternalContext(externalContextResponse.context || {}, marketResponse.summary || {});" in DASHBOARD_HTML
+    assert "function renderExternalContext(context, market)" in DASHBOARD_HTML
+    assert 'const upbitChangeRate = market.signed_change_rate ?? market.recent_change_pct;' in DASHBOARD_HTML
+    assert 'class="krw-price">${price(market.current_price)} <span class="${changeClass(upbitChangeRate)}">' in DASHBOARD_HTML
+    assert '${usd(marketData.usd_price)}<br><span class="${changeClass(usdChange)}">24시간 ${percent(usdChange)}</span><br>${krwPriceLine}' in DASHBOARD_HTML
     assert '].join("\\n");' in DASHBOARD_HTML
 
 
