@@ -46,6 +46,11 @@ def test_rule_review_api_contract(tmp_path) -> None:
     assert list_response.json()["latest_proposal"]["id"] == proposal["id"]
     assert list_response.json()["proposals"][0]["id"] == proposal["id"]
 
+    history_response = client.get("/api/v1/rules/history")
+    assert history_response.status_code == 200
+    assert history_response.json()["count"] == 1
+    assert history_response.json()["history"][0]["proposal_id"] == proposal["id"]
+
     detail_response = client.get(f"/api/v1/rules/proposals/{proposal['id']}")
     assert detail_response.status_code == 200
     assert detail_response.json()["proposal"]["id"] == proposal["id"]

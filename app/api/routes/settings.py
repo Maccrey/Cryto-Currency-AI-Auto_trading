@@ -323,6 +323,11 @@ SETTINGS_HTML = """
           <tr><td>룰 개선 분석을 실행하면 분석 대상 기간, 거래 수, 손절 수, 손실 원인, 변경안, replay 결과, 승인 필요 여부가 표시됩니다.</td></tr>
         </tbody>
       </table>
+      <table class="rule-result">
+        <tbody id="ruleHistoryTable">
+          <tr><td>룰 변경 히스토리가 표시됩니다.</td></tr>
+        </tbody>
+      </table>
     </div>
     <div id="startPanel" class="start-panel">
       <div id="startMessage" class="note"></div>
@@ -505,6 +510,7 @@ async function loadSettings() {
     showStartPanel(Boolean(data.start_readiness && data.start_readiness.ready), data.start_readiness);
     await refreshTradingStatus(data.start_readiness);
     renderLatestRuleProposal(await fetchJson("/api/v1/rules/proposals"));
+    renderRuleHistory(await fetchJson("/api/v1/rules/history"));
   } catch (error) {
     showStatus("현재 설정을 불러오지 못했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
   }
@@ -560,6 +566,15 @@ function renderLatestRuleProposal(payload) {
   const latest = payload.latest_proposal;
   if (!latest) return;
   renderRulePipeline({proposal: latest});
+}
+function renderRuleHistory(payload) {
+  const history = payload.history || [];
+  document.getElementById("ruleHistoryTable").innerHTML = history.length
+    ? history.slice(0, 5).map((item) => row(
+        `${item.event_type || "-"} / ${item.approval_status || "-"}`,
+        `${item.trade_coin || "-"} ${item.changed_parameters ? item.changed_parameters.join(", ") : ""} / ${item.change_reason || "-"}`
+      )).join("")
+    : '<tr><td>룰 변경 히스토리가 없습니다.</td></tr>';
 }
 async function runRuleReview() {
   renderRulePipeline(await postJson("/api/v1/rules/review"));

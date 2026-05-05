@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from app.services.rules.review import RuleReviewConfig, RuleReviewService
 
@@ -270,3 +271,76 @@ def test_rule_review_summarizes_external_market_context(tmp_path: Path) -> None:
     assert review["external_context_summary"]["etf_state_counts"] == {"inflow": 1, "outflow": 1}
     assert review["external_context_summary"]["avg_learning_weight"] == 1.0
     assert proposal["external_context_summary"] == review["external_context_summary"]
+
+
+def test_rule_change_history_is_appended_for_proposal_lifecycle(tmp_path: Path) -> None:
+    service = RuleReviewService(
+        market="KRW-BTC",
+        trade_coin="BTC",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    review = service.review()["review"]
+    proposal = service.create_proposal(
+        review_id=str(review["id"]),
+        proposed_changes=[
+            {
+                "parameter": "BUY_RATIO_MEDIUM",
+                "current_value": 0.18,
+                "proposed_value": 0.16,
+                "reason": "AUTO_MIN_SIGNAL_LEVEL 차단 반복",
+            },
+        ],
+    )["proposal"]
+    service.verify_replay(str(proposal["id"]), fixture_path=Path("fixtures/replay_ticks.json"))
+    service.apply_demo(str(proposal["id"]))
+    service.approve_live(str(proposal["id"]), approved_by="operator")
+
+    history_path = tmp_path / "rule-change-history.jsonl"
+    rows = [json.loads(line) for line in history_path.read_text(encoding="utf-8").splitlines()]
+
+    assert [row["event_type"] for row in rows] == ["proposal_created", "replay_verified", "demo_applied", "live_approved"]
+    assert rows[0]["proposal_id"] == proposal["id"]
+    assert rows[0]["trade_coin"] == "BTC"
+    assert rows[0]["changed_parameters"] == ["BUY_RATIO_MEDIUM"]
+    assert rows[0]["change_reason"] == "AUTO_MIN_SIGNAL_LEVEL 차단 반복"
+    assert rows[0]["expected_effect"]
+    assert rows[0]["known_risks"]
+    assert service.list_history()["count"] == 4
+
+
+def test_live_approval_is_blocked_when_rule_change_history_is_missing(tmp_path: Path) -> None:
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    proposal = service.create_proposal()["proposal"]
+    service.verify_replay(str(proposal["id"]), fixture_path=Path("fixtures/replay_ticks.json"))
+    service.apply_demo(str(proposal["id"]))
+    (tmp_path / "rule-change-history.jsonl").unlink()
+
+    result = service.approve_live(str(proposal["id"]), approved_by="operator")
+
+    assert result["proposal"]["live_approved"] is False
+    assert "rule_change_history_required" in result["proposal"]["rejection_reasons"]

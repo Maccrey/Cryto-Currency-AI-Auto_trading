@@ -357,6 +357,11 @@ DASHBOARD_HTML = """
         <tr><td class="empty">룰 개선 분석을 실행하면 결과가 표시됩니다.</td></tr>
       </tbody>
     </table>
+    <table>
+      <tbody id="ruleHistoryTable">
+        <tr><td class="empty">룰 변경 히스토리가 표시됩니다.</td></tr>
+      </tbody>
+    </table>
   </section>
 </main>
 <script>
@@ -637,6 +642,16 @@ function renderLatestRuleProposal(payload) {
   renderRulePipeline({proposal: latest});
 }
 
+function renderRuleHistory(payload) {
+  const history = payload.history || [];
+  document.getElementById("ruleHistoryTable").innerHTML = history.length
+    ? history.slice(0, 5).map((item) => row(
+        `${item.event_type || "-"} / ${item.approval_status || "-"}`,
+        `${item.trade_coin || "-"} ${item.changed_parameters ? item.changed_parameters.join(", ") : ""} / ${item.change_reason || "-"}`
+      )).join("")
+    : '<tr><td class="empty">룰 변경 히스토리가 없습니다.</td></tr>';
+}
+
 async function runRuleReview() {
   renderRulePipeline(await postJson("/api/v1/rules/review"));
 }
@@ -669,7 +684,7 @@ async function approveRuleProposalForLive() {
 async function refreshDashboard() {
   document.getElementById("statusLine").textContent = "데이터를 불러오는 중...";
   try {
-    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse, externalContextResponse, diagnosticsResponse] = await Promise.all([
+    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse, ruleHistoryResponse, externalContextResponse, diagnosticsResponse] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/dashboard/summary"),
       fetchJson("/dashboard/market"),
@@ -679,10 +694,12 @@ async function refreshDashboard() {
       fetchJson("/dashboard/executions"),
       fetchJson("/dashboard/promotion"),
       fetchJson("/api/v1/rules/proposals"),
+      fetchJson("/api/v1/rules/history"),
       fetchJson("/dashboard/external-context"),
       fetchJson("/learning/diagnostics")
     ]);
     renderLatestRuleProposal(ruleProposalResponse);
+    renderRuleHistory(ruleHistoryResponse);
     renderExternalContext(externalContextResponse.context || {});
     renderNoTradeDiagnostics(diagnosticsResponse.diagnostics || {});
     renderDashboard({

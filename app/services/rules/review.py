@@ -41,6 +41,7 @@ class RuleReviewService:
         self._learning_log_dir = learning_log_dir
         self._config = config
         self._state_path = self._learning_log_dir / "rule-review-state.json"
+        self._history_path = self._learning_log_dir / "rule-change-history.jsonl"
         state = self._load_state()
         self._reviews: dict[str, dict[str, Any]] = state["reviews"]
         self._proposals: dict[str, dict[str, Any]] = state["proposals"]
@@ -112,6 +113,12 @@ class RuleReviewService:
         }
         self._proposals[str(proposal["id"])] = proposal
         self._save_state()
+        self._append_history_event(
+            event_type="proposal_created",
+            proposal=proposal,
+            review=review,
+            approval_status="pending",
+        )
         return {"proposal": proposal}
 
     def get_proposal(self, proposal_id: str) -> dict[str, object]:
@@ -132,6 +139,20 @@ class RuleReviewService:
             "total_count": len(proposals),
             "latest_proposal": self._with_proposal_metadata(limited[0]) if limited else None,
             "proposals": [self._with_proposal_metadata(proposal) for proposal in limited],
+        }
+
+    def list_history(self, *, limit: int = 50) -> dict[str, object]:
+        history = self._read_history()
+        limited = history[-max(limit, 0) :] if limit >= 0 else history
+        limited = list(reversed(limited))
+        return {
+            "market": self._market,
+            "trade_coin": self._trade_coin,
+            "learning_log_dir": str(self._learning_log_dir),
+            "history_path": str(self._history_path),
+            "count": len(limited),
+            "total_count": len(history),
+            "history": limited,
         }
 
     def verify_replay(self, proposal_id: str, *, fixture_path: Path) -> dict[str, object]:
@@ -160,6 +181,11 @@ class RuleReviewService:
             reasons.discard("replay_failed")
             proposal["rejection_reasons"] = sorted(reasons)
         self._save_state()
+        self._append_history_event(
+            event_type="replay_verified",
+            proposal=proposal,
+            approval_status=str(proposal["replay_result"].get("status", "unknown")),
+        )
         return {"proposal": proposal}
 
     def apply_demo(self, proposal_id: str) -> dict[str, object]:
@@ -177,6 +203,11 @@ class RuleReviewService:
             proposal["status"] = "demo_applied"
             proposal["demo_applied_at"] = datetime.now(UTC).isoformat()
         self._save_state()
+        self._append_history_event(
+            event_type="demo_applied" if proposal["demo_applied"] else "demo_apply_rejected",
+            proposal=proposal,
+            approval_status="applied" if proposal["demo_applied"] else "rejected",
+        )
         return {"proposal": proposal}
 
     def approve_live(self, proposal_id: str, *, approved_by: str) -> dict[str, object]:
@@ -186,6 +217,8 @@ class RuleReviewService:
             reasons.add("demo_apply_required")
         if self._config.require_manual_approval and not approved_by.strip():
             reasons.add("manual_approval_required")
+        if not self._proposal_has_history(proposal_id):
+            reasons.add("rule_change_history_required")
         proposal["rejection_reasons"] = sorted(reasons)
         proposal["live_approved"] = not proposal["rejection_reasons"]
         if proposal["live_approved"]:
@@ -193,6 +226,12 @@ class RuleReviewService:
             proposal["approved_by"] = approved_by
             proposal["approved_at"] = datetime.now(UTC).isoformat()
         self._save_state()
+        self._append_history_event(
+            event_type="live_approved" if proposal["live_approved"] else "live_approval_rejected",
+            proposal=proposal,
+            approval_status="approved" if proposal["live_approved"] else "rejected",
+            approved_by=approved_by,
+        )
         return {"proposal": proposal}
 
     def _load_state(self) -> dict[str, dict[str, dict[str, Any]]]:
@@ -234,6 +273,79 @@ class RuleReviewService:
         proposal.setdefault("learning_log_dir", str(self._learning_log_dir))
         return proposal
 
+    def _append_history_event(
+        self,
+        *,
+        event_type: str,
+        proposal: dict[str, Any],
+        review: dict[str, Any] | None = None,
+        approval_status: str,
+        approved_by: str = "",
+    ) -> None:
+        self._learning_log_dir.mkdir(parents=True, exist_ok=True)
+        changes = proposal.get("codex_suggested_changes") or []
+        change_reasons = [
+            str(change.get("reason"))
+            for change in changes
+            if isinstance(change, dict) and change.get("reason")
+        ]
+        history = {
+            "history_id": str(uuid4()),
+            "event_type": event_type,
+            "review_id": proposal.get("review_id"),
+            "proposal_id": proposal.get("id"),
+            "market": proposal.get("market", self._market),
+            "trade_coin": proposal.get("trade_coin", self._trade_coin),
+            "trading_profile": self._learning_log_dir.name,
+            "mode": self._trading_mode,
+            "learning_log_dir": str(self._learning_log_dir),
+            "analysis_window_days": proposal.get("analysis_window_days"),
+            "trade_count": proposal.get("trade_count"),
+            "stop_loss_count": proposal.get("stop_loss_count"),
+            "major_loss_causes": proposal.get("major_loss_causes", []),
+            "blocked_reason_summary": proposal.get("rejection_reasons", []),
+            "external_context_summary": proposal.get(
+                "external_context_summary",
+                self._empty_external_context_summary(),
+            ),
+            "previous_rule_snapshot": self._previous_rule_snapshot(changes),
+            "proposed_rule_snapshot": self._proposed_rule_snapshot(changes),
+            "changed_parameters": self._changed_parameters(changes),
+            "change_reason": "; ".join(change_reasons) or "학습 로그 기반 Codex 룰 개선 파이프라인 이벤트",
+            "expected_effect": self._expected_effect(changes),
+            "known_risks": self._known_risks(changes),
+            "replay_result": proposal.get("replay_result"),
+            "demo_result": {
+                "demo_applied": proposal.get("demo_applied", False),
+                "demo_applied_at": proposal.get("demo_applied_at"),
+            },
+            "approval_status": approval_status,
+            "approved_by": approved_by or proposal.get("approved_by", ""),
+            "applied_target": proposal.get("apply_target", self._config.apply_target),
+            "created_at": datetime.now(UTC).isoformat(),
+            "commit_hash": "",
+        }
+        if review is not None:
+            history["review_created_at"] = review.get("created_at")
+        with self._history_path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(history, ensure_ascii=True, sort_keys=True) + "\n")
+
+    def _read_history(self) -> list[dict[str, Any]]:
+        if not self._history_path.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        for line in self._history_path.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+        return rows
+
+    def _proposal_has_history(self, proposal_id: str) -> bool:
+        return any(str(row.get("proposal_id")) == str(proposal_id) for row in self._read_history())
+
     def _collect_metrics(self) -> dict[str, object]:
         trade_count = 0
         stop_loss_count = 0
@@ -271,6 +383,48 @@ class RuleReviewService:
             "major_loss_causes": causes[:5],
             "external_context_summary": self._external_context_summary(context_samples),
         }
+
+    @staticmethod
+    def _previous_rule_snapshot(changes: Any) -> dict[str, object]:
+        if not isinstance(changes, list):
+            return {}
+        return {
+            str(change.get("parameter")): change.get("current_value")
+            for change in changes
+            if isinstance(change, dict) and change.get("parameter")
+        }
+
+    @staticmethod
+    def _proposed_rule_snapshot(changes: Any) -> dict[str, object]:
+        if not isinstance(changes, list):
+            return {}
+        return {
+            str(change.get("parameter")): change.get("proposed_value")
+            for change in changes
+            if isinstance(change, dict) and change.get("parameter")
+        }
+
+    @staticmethod
+    def _changed_parameters(changes: Any) -> list[str]:
+        if not isinstance(changes, list):
+            return []
+        return [
+            str(change.get("parameter"))
+            for change in changes
+            if isinstance(change, dict) and change.get("parameter")
+        ]
+
+    @staticmethod
+    def _expected_effect(changes: Any) -> str:
+        if not isinstance(changes, list) or not changes:
+            return "룰 변경 없음 또는 표본 부족으로 변경 효과 없음"
+        return "학습 로그에서 확인된 손실/차단 원인을 줄이고 replay와 demo에서 개선 여부를 검증"
+
+    @staticmethod
+    def _known_risks(changes: Any) -> str:
+        if not isinstance(changes, list) or not changes:
+            return "변경 없음"
+        return "표본 과최적화, 특정 장세 편향, 손절/진입 빈도 변화 가능성"
 
     @staticmethod
     def _external_context_summary(samples: list[dict[str, Any]]) -> dict[str, object]:
