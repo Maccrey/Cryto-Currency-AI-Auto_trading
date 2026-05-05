@@ -304,6 +304,15 @@
 - [x] [Code] 설정 화면 룰 개선 버튼과 결과 패널 구현
 - [x] [Contract] 룰 변경 허용 파일 목록 문서화
 - [x] [Contract] replay/demo/live 승인 기준 문서화
+- [ ] [Fail] 룰 변경 히스토리가 없으면 live 승인 적용이 거부되어야 한다
+- [ ] [Fail] 히스토리에는 기존 룰 snapshot, 새 룰 snapshot, 변경 사유, 기대 효과, 알려진 리스크가 저장되어야 한다
+- [ ] [Fail] 코인/투자성향별 `rule-change-history.jsonl`이 append-only로 누적되어야 한다
+- [ ] [Fail] 과거 동일 파라미터 변경 실패 이력이 있으면 proposal에 경고가 표시되어야 한다
+- [ ] [Code] 룰 변경 히스토리 원장 writer 구현
+- [ ] [Code] proposal 생성/demo 적용/live 승인 시 history event 기록
+- [ ] [Code] 룰 변경 히스토리 조회 API 구현
+- [ ] [Code] 설정 화면과 대시보드에 룰 변경 히스토리 패널 구현
+- [ ] [Contract] 룰 변경 히스토리 schema 문서화
 
 ### TensorFlow 오프라인 학습 계획
 - [x] [Fail] 학습 데이터가 부족하면 TensorFlow 학습 CLI가 실행을 거부해야 한다

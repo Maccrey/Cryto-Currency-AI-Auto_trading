@@ -436,6 +436,7 @@ telegram-notifier
 -> demo 지표 재검증
 -> 운영자 승인
 -> live 반영
+-> 룰 변경 히스토리 원장 기록
 ```
 
 ### 14.2 표본 기준
@@ -443,31 +444,71 @@ telegram-notifier
 - `RULE_REVIEW_MIN_TRADES` 미만이면 룰 변경안을 생성하지 않는다.
 - `RULE_REVIEW_MIN_STOPLOSSES` 미만이면 손절 파라미터 변경안을 생성하지 않는다.
 - 한 번에 변경 가능한 파라미터 수는 `RULE_CHANGE_MAX_PARAMS_PER_RUN` 이하로 제한한다.
-- review/proposal 상태는 투자성향별 학습 로그 디렉터리의 `rule-review-state.json`에 저장해 재기동 후에도 이어서 검토한다.
+- review/proposal 상태는 코인/투자성향별 학습 로그 디렉터리의 `rule-review-state.json`에 저장해 재기동 후에도 이어서 검토한다.
+- 승인·거절·demo 적용·live 반영 등 의사결정 이력은 같은 디렉터리의 `rule-change-history.jsonl`에 append-only로 저장한다.
+- XRP 기본 경로는 `LEARNING_LOG_DIR/<TRADING_PROFILE>/`, 다른 코인은 `LEARNING_LOG_DIR/<TRADE_COIN>/<TRADING_PROFILE>/`를 사용한다.
 
-### 14.3 허용 변경 파일
+### 14.3 룰 변경 히스토리 원장
+Codex는 매매룰을 바꿀 때 기존 룰과 새 룰의 차이뿐 아니라 “왜 바꿨는지”를 추적 가능하게 남겨야 한다. 이 히스토리는 실수를 줄이고 반복되는 잘못된 변경을 막으며, 장기적으로 최고의 트레이더에 가까워지기 위한 전략 학습 기록이다.
+
+`rule-change-history.jsonl`의 각 행은 최소 아래 필드를 가진다.
+- `history_id`
+- `review_id`
+- `proposal_id`
+- `market`
+- `trade_coin`
+- `trading_profile`
+- `mode`
+- `learning_log_dir`
+- `analysis_window_days`
+- `trade_count`
+- `stop_loss_count`
+- `major_loss_causes`
+- `blocked_reason_summary`
+- `external_context_summary`
+- `previous_rule_snapshot`
+- `proposed_rule_snapshot`
+- `changed_parameters`
+- `change_reason`
+- `expected_effect`
+- `known_risks`
+- `replay_result`
+- `demo_result`
+- `approval_status`
+- `approved_by`
+- `applied_target`
+- `created_at`
+- `commit_hash`
+
+히스토리는 수정/삭제하지 않는다. 잘못된 기록이 있으면 새 correction 이벤트를 추가한다. Codex는 룰 변경 커밋 메시지와 `commit_hash`를 히스토리에 남기고, 후속 룰 변경 전 반드시 과거 히스토리에서 같은 파라미터의 반복 실패 여부를 확인한다.
+
+### 14.4 허용 변경 파일
 - `app/services/signals/**`
 - `app/services/sizing/**`
 - `app/services/risk/**`
 - `app/services/regime/**`
 - `app/core/settings.py`
+- `app/services/rules/**`
 - `tests/**`
 - `STRATEGY_SPEC.md`, `ENV_SPEC.md`, `RUNBOOK.md`, `Tasklist.md`, `README.md`, `PRD.md`, `CODEX_HARNESS.md`
 
 이 목록 밖의 변경은 별도 작업으로 분리한다.
 
-### 14.4 룰 변경 금지 조건
+### 14.5 룰 변경 금지 조건
 - 실패 테스트가 없으면 금지
 - replay 테스트가 없으면 금지
 - demo 선반영 없이 live 반영 금지
 - live 운영 중 즉시 반영 금지
+- 기존 룰 변경 히스토리 검토 없이 변경 금지
+- `change_reason`, `expected_effect`, `known_risks` 없는 변경 금지
 - main 직접 반영 금지
 - 한국어 커밋 없는 반영 금지
 
-### 14.5 Git/TDD 규칙
+### 14.6 Git/TDD 규칙
 - 룰 변경도 반드시 실패 테스트를 먼저 작성한다.
 - replay 테스트를 통과해야 변경안을 demo에 적용할 수 있다.
 - 변경안 생성 후 한국어 커밋을 만든다.
+- 커밋 후 `rule-change-history.jsonl`에 커밋 해시와 변경 근거를 연결한다.
 - 브랜치 기반으로 검토하며 main 직접 반영은 금지한다.
 - live 반영은 운영자 승인과 demo 재검증 통과가 필요하다.
 

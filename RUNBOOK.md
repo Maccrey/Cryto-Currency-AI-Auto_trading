@@ -289,17 +289,41 @@ order_intent
 - 거래 수
 - 손절 수
 - 주요 손실 원인
+- 온체인/ETF 외부 컨텍스트 요약
 - Codex 제안 변경 항목
 - replay 결과
 - 승인 필요 여부
+- 변경 히스토리 기록 여부
 
-룰 개선 review/proposal 상태는 현재 투자성향 학습 로그 디렉터리의 `rule-review-state.json`에 저장한다. 앱 재기동 후에도 proposal 상세 조회, replay 결과, demo 적용 여부, 승인 여부를 이어서 확인할 수 있어야 한다.
+룰 개선 review/proposal 상태는 현재 코인/투자성향 학습 로그 디렉터리의 `rule-review-state.json`에 저장한다. 앱 재기동 후에도 proposal 상세 조회, replay 결과, demo 적용 여부, 승인 여부를 이어서 확인할 수 있어야 한다.
 대시보드와 설정 화면은 `GET /api/v1/rules/proposals`로 최신 proposal을 불러와 재기동 후에도 마지막 룰 개선 상태를 먼저 표시한다.
+
+### 룰 변경 히스토리 운영
+룰 변경은 현재 상태만 저장하면 안 된다. 운영자는 시간이 지난 뒤에도 “왜 그 룰을 바꿨는지”, “그 변경이 replay/demo/live에서 어떤 결과를 냈는지”, “같은 실수를 반복하고 있는지”를 확인할 수 있어야 한다.
+
+필수 히스토리 파일:
+- XRP: `LEARNING_LOG_DIR/<TRADING_PROFILE>/rule-change-history.jsonl`
+- 그 외 코인: `LEARNING_LOG_DIR/<TRADE_COIN>/<TRADING_PROFILE>/rule-change-history.jsonl`
+
+각 룰 변경 이력에는 아래를 남긴다.
+- 기존 룰 snapshot
+- 새 룰 proposal snapshot
+- 바뀐 파라미터와 변경폭
+- 변경 근거가 된 학습 로그 기간, 거래 수, 손절 수, 손실/차단 원인
+- 온체인/ETF 상태 분포와 평균 학습 가중치
+- 기대 효과와 알려진 리스크
+- replay 결과
+- demo 적용 결과와 관찰 지표
+- 승인자, 승인 시각, 적용 대상
+- 한국어 커밋 메시지와 commit hash
+
+이 파일은 append-only 원장이다. 기존 행을 수정하지 않고, 오류가 있으면 correction 이벤트를 추가한다. live 승인 전 운영자는 동일 파라미터의 과거 변경 이력과 실패 이력을 확인한다.
 
 ### 운영 금지 사항
 - replay 테스트 없는 룰 변경 금지
 - demo 적용 없는 live 반영 금지
 - 수동 승인 없는 live 반영 금지
+- 룰 변경 히스토리 기록 없는 live 반영 금지
 - main 직접 반영 금지
 - 한국어 커밋 없는 변경 반영 금지
 

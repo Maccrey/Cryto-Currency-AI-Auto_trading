@@ -234,6 +234,9 @@ false면 앱 시작 실패
 - `RULE_CHANGE_MAX_PARAMS_PER_RUN`을 초과하는 파라미터 변경은 거부한다.
 - `RULE_CHANGE_APPLY_TARGET=demo`만 허용한다. live 직접 적용은 금지한다.
 - `RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true`가 기본이며, live 반영 API는 승인 상태와 demo/replay 결과를 요구한다.
+- 룰 변경 히스토리는 코인/투자성향별 `rule-change-history.jsonl`에 append-only로 저장한다.
+- 히스토리에는 기존 룰 snapshot, 신규 룰 snapshot, 변경 사유, 기대 효과, 알려진 리스크, replay/demo/live 결과, 승인자, 한국어 커밋 메시지와 commit hash가 포함되어야 한다.
+- live 승인 전 동일 파라미터의 과거 실패/rollback 이력을 확인해야 한다.
 
 ### TRADE_MARKET / TRADE_COIN
 - 기본값은 `TRADE_COIN=XRP`, `TRADE_MARKET=KRW-XRP`이다.

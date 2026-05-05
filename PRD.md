@@ -348,9 +348,40 @@ Codex가 최근 학습 로그를 읽어 손실 원인과 차단 원인을 분석
 - 거래 수
 - 손절 수
 - 주요 손실 원인
+- 온체인/ETF 외부 컨텍스트 요약
 - Codex 제안 변경 항목
 - replay 결과
 - 승인 필요 여부
+- 변경 히스토리 기록 여부
+
+### 룰 변경 히스토리
+룰 개선 파이프라인은 현재 proposal 상태만 보여주면 안 된다. 시스템은 기존 매매룰에서 새 매매룰로 바뀐 이유와 결과를 코인/투자성향별 히스토리로 정리 보관해야 한다.
+
+목표:
+- 학습데이터 기반 변경 근거를 보존
+- 같은 실수와 과최적화 반복 방지
+- 변경 후 replay/demo/live 성과를 추적
+- 운영자가 “왜 이 룰이 현재값이 되었는지”를 즉시 확인
+- 장기적으로 더 나은 트레이더에 가까워지는 전략 지식 축적
+
+필수 저장 위치:
+- XRP: `logs/learning/<TRADING_PROFILE>/rule-change-history.jsonl`
+- 그 외 코인: `logs/learning/<TRADE_COIN>/<TRADING_PROFILE>/rule-change-history.jsonl`
+
+필수 저장 항목:
+- 기존 룰 snapshot
+- 새 룰 proposal snapshot
+- 변경 파라미터
+- 변경 사유
+- 기대 효과
+- 알려진 리스크
+- 분석 대상 학습 로그 기간과 표본 수
+- 주요 손실/차단 원인
+- 온체인/ETF 컨텍스트 요약
+- replay 결과
+- demo 검증 결과
+- live 승인자와 승인 시각
+- 한국어 커밋 메시지와 commit hash
 
 ### API
 - `POST /api/v1/rules/review`
