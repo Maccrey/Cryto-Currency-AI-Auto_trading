@@ -189,6 +189,7 @@ BTC로 바꾸려면 설정 화면에서 코인을 `BTC`로 저장한다. 기본 
 - `/learning/diagnostics` 기반 무거래/차단 사유 진단
 - `/learning/model-readiness` 기반 TensorFlow 학습 준비도 진단
 - 온체인/ETF 외부 컨텍스트를 HTTP JSON 또는 수동 설정으로 학습 로그와 대시보드에 반영
+- 룰 개선 분석에 온체인/ETF 상태 분포와 평균 학습 가중치 요약 반영
 - 무거래가 지속될 때 demo 기준 완화 후보를 진단하고 제한적으로 완화
 - `/api/v1/rules/review` 기반 룰 개선 분석 실행
 - `/api/v1/rules/proposals` 기반 룰 변경안 생성

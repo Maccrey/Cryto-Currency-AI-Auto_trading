@@ -250,6 +250,7 @@ false면 앱 시작 실패
 - 성공 응답은 `EXTERNAL_CONTEXT_CACHE_TTL_SEC` 동안 재사용해 대시보드 새로고침과 자동매매 루프의 외부 API 호출을 제한한다.
 - endpoint 응답은 직접 `{state, active_addresses_change_pct, exchange_netflow_state}` 또는 `{context: {...}}` 형식을 허용한다. ETF endpoint는 `{state, flow_usd}` 또는 `{context: {...}}`를 허용한다.
 - bullish/onchain outflow/ETF inflow는 학습 가중치를 높이고, bearish/onchain inflow/ETF outflow는 낮춘다.
+- 룰 개선 분석은 학습 로그의 외부 컨텍스트 표본 수, 온체인/ETF 상태 분포, 평균 학습 가중치를 함께 집계한다.
 
 ### NO_TRADE_ADAPTIVE
 - demo에서 `AUTO_MIN_SIGNAL_LEVEL` 또는 `FEE_ADJUSTED_EDGE_LIMIT` 차단만 반복되면 완화 후보로 진단한다.

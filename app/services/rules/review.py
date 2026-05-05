@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -57,6 +58,7 @@ class RuleReviewService:
             "trade_count": metrics["trade_count"],
             "stop_loss_count": metrics["stop_loss_count"],
             "major_loss_causes": metrics["major_loss_causes"],
+            "external_context_summary": metrics["external_context_summary"],
             "approval_required": self._config.require_manual_approval,
             "created_at": datetime.now(UTC).isoformat(),
         }
@@ -99,6 +101,7 @@ class RuleReviewService:
             "trade_count": review["trade_count"],
             "stop_loss_count": review["stop_loss_count"],
             "major_loss_causes": review["major_loss_causes"],
+            "external_context_summary": review.get("external_context_summary", self._empty_external_context_summary()),
             "codex_suggested_changes": changes,
             "replay_result": None,
             "demo_applied": False,
@@ -235,6 +238,7 @@ class RuleReviewService:
         trade_count = 0
         stop_loss_count = 0
         cause_counts: dict[str, int] = {}
+        context_samples: list[dict[str, Any]] = []
         log_path = self._learning_log_dir / "learning.jsonl"
         if log_path.exists():
             for raw_line in log_path.read_text(encoding="utf-8").splitlines():
@@ -246,12 +250,17 @@ class RuleReviewService:
                     continue
                 event_name = str(row.get("event_name", ""))
                 payload = row.get("payload") or {}
+                if not isinstance(payload, dict):
+                    payload = {}
                 if event_name in {"fill_result", "position_closed"}:
                     trade_count += 1
                 if event_name == "stop_loss_triggered" or payload.get("is_stop_loss"):
                     stop_loss_count += 1
                     reason = str(payload.get("reason_code") or payload.get("stop_loss_reason") or "unknown")
                     cause_counts[reason] = cause_counts.get(reason, 0) + 1
+                context = payload.get("external_context") if event_name == "auto_trade_cycle" else payload
+                if event_name in {"auto_trade_cycle", "external_market_context_snapshot"} and isinstance(context, dict):
+                    context_samples.append(context)
         causes = [
             {"reason": reason, "count": count}
             for reason, count in sorted(cause_counts.items(), key=lambda item: item[1], reverse=True)
@@ -260,6 +269,41 @@ class RuleReviewService:
             "trade_count": trade_count,
             "stop_loss_count": stop_loss_count,
             "major_loss_causes": causes[:5],
+            "external_context_summary": self._external_context_summary(context_samples),
+        }
+
+    @staticmethod
+    def _external_context_summary(samples: list[dict[str, Any]]) -> dict[str, object]:
+        if not samples:
+            return RuleReviewService._empty_external_context_summary()
+        onchain_counts: Counter[str] = Counter()
+        etf_counts: Counter[str] = Counter()
+        weights: list[float] = []
+        for sample in samples:
+            onchain = sample.get("onchain") or {}
+            etf = sample.get("etf") or {}
+            if isinstance(onchain, dict):
+                onchain_counts.update([str(onchain.get("state") or "unknown")])
+            if isinstance(etf, dict):
+                etf_counts.update([str(etf.get("state") or "unknown")])
+            try:
+                weights.append(float(sample.get("learning_weight", 1.0)))
+            except (TypeError, ValueError):
+                pass
+        return {
+            "sample_count": len(samples),
+            "onchain_state_counts": dict(onchain_counts),
+            "etf_state_counts": dict(etf_counts),
+            "avg_learning_weight": round(sum(weights) / len(weights), 3) if weights else 1.0,
+        }
+
+    @staticmethod
+    def _empty_external_context_summary() -> dict[str, object]:
+        return {
+            "sample_count": 0,
+            "onchain_state_counts": {},
+            "etf_state_counts": {},
+            "avg_learning_weight": 1.0,
         }
 
     @staticmethod

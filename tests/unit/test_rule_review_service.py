@@ -232,3 +232,41 @@ def test_rule_review_includes_coin_and_log_dir_metadata(tmp_path: Path) -> None:
     assert proposal["learning_log_dir"] == str(tmp_path)
     assert proposals["trade_coin"] == "BTC"
     assert proposals["learning_log_dir"] == str(tmp_path)
+
+
+def test_rule_review_summarizes_external_market_context(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                '{"event_name":"auto_trade_cycle","payload":{"external_context":{"onchain":{"state":"bullish"},"etf":{"state":"inflow"},"learning_weight":1.2}}}',
+                '{"event_name":"external_market_context_snapshot","payload":{"onchain":{"state":"bearish"},"etf":{"state":"outflow"},"learning_weight":0.8}}',
+                '{"event_name":"fill_result","payload":{"is_stop_loss":true,"stop_loss_reason":"ETF_OUTFLOW"}}',
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-BTC",
+        trade_coin="BTC",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    review = service.review()["review"]
+    proposal = service.create_proposal(review_id=str(review["id"]))["proposal"]
+
+    assert review["external_context_summary"]["sample_count"] == 2
+    assert review["external_context_summary"]["onchain_state_counts"] == {"bullish": 1, "bearish": 1}
+    assert review["external_context_summary"]["etf_state_counts"] == {"inflow": 1, "outflow": 1}
+    assert review["external_context_summary"]["avg_learning_weight"] == 1.0
+    assert proposal["external_context_summary"] == review["external_context_summary"]

@@ -56,6 +56,8 @@ def test_dashboard_displays_learning_log_context() -> None:
 def test_dashboard_displays_rule_review_coin_context() -> None:
     assert 'row("대상 코인"' in DASHBOARD_HTML
     assert 'row("룰 로그 경로"' in DASHBOARD_HTML
+    assert 'row("외부 컨텍스트"' in DASHBOARD_HTML
+    assert "formatRuleExternalContext" in DASHBOARD_HTML
 
 
 def test_settings_includes_rule_review_pipeline_panel() -> None:
@@ -69,6 +71,8 @@ def test_settings_includes_rule_review_pipeline_panel() -> None:
     assert "renderLatestRuleProposal" in SETTINGS_HTML
     assert 'row("대상 코인"' in SETTINGS_HTML
     assert 'row("룰 로그 경로"' in SETTINGS_HTML
+    assert 'row("외부 컨텍스트"' in SETTINGS_HTML
+    assert "formatRuleExternalContext" in SETTINGS_HTML
 
 
 def test_settings_includes_external_context_and_no_trade_controls() -> None:
