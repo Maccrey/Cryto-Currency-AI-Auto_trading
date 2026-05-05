@@ -101,6 +101,8 @@ class PublicWebExternalMarketContextProvider:
     BTC_ACTIVE_ADDRESSES_URL = "https://api.blockchain.info/charts/n-unique-addresses"
     BTC_ETF_FLOW_URL = "https://farside.co.uk/bitcoin-etf-flow-all-data/"
     BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/24hr"
+    COINGLASS_ETF_FLOW_URL = "https://capi.coinglass.com/api/stock/{coin}/spot/inFlow"
+    COINGLASS_ETF_LIST_URL = "https://capi.coinglass.com/api/stock/{coin}/list"
     XRP_LEDGERS_URL = "https://api.xrpscan.com/api/v1/ledgers"
 
     def __init__(
@@ -221,12 +223,12 @@ class PublicWebExternalMarketContextProvider:
 
     def _fetch_etf(self, coin: str) -> dict[str, object]:
         if coin != "BTC":
-            return {}
+            return self._fetch_coinglass_etf(coin)
         response = self._client.get(self.BTC_ETF_FLOW_URL)
         response.raise_for_status()
         flow_musd = self._parse_farside_total_flow_musd(response.text)
         if flow_musd is None:
-            return {}
+            return self._fetch_coinglass_etf(coin)
         return {
             "source": "web",
             "state": "inflow" if flow_musd > 0 else "outflow" if flow_musd < 0 else "neutral",
@@ -234,6 +236,74 @@ class PublicWebExternalMarketContextProvider:
             "inflow_usd": round(max(flow_musd, 0.0) * 1_000_000, 2),
             "outflow_usd": round(abs(min(flow_musd, 0.0)) * 1_000_000, 2),
             "metric": "farside_btc_etf_total_flow",
+        }
+
+    def _fetch_coinglass_etf(self, coin: str) -> dict[str, object]:
+        flow_usd = self._fetch_coinglass_latest_flow_usd(coin)
+        overview = self._fetch_coinglass_etf_overview(coin)
+        if flow_usd is None and not overview:
+            return {}
+        flow_value = flow_usd or 0.0
+        payload = {
+            "source": "web",
+            "state": "inflow" if flow_value > 0 else "outflow" if flow_value < 0 else "neutral",
+            "flow_usd": round(flow_value, 2),
+            "inflow_usd": round(max(flow_value, 0.0), 2),
+            "outflow_usd": round(abs(min(flow_value, 0.0)), 2),
+            "holding_change_coin": round(overview.get("holding_change_coin", 0.0), 6),
+            "total_aum_usd": round(overview.get("total_aum_usd", 0.0), 2),
+            "total_holding_coin": round(overview.get("total_holding_coin", 0.0), 6),
+            "metric": f"coinglass_{coin.lower()}_etf",
+        }
+        if flow_usd is not None:
+            payload["flow_date"] = overview.get("flow_date", "")
+        return payload
+
+    def _fetch_coinglass_latest_flow_usd(self, coin: str) -> float | None:
+        response = self._client.get(
+            self.COINGLASS_ETF_FLOW_URL.format(coin=coin.lower()),
+            params={"ticker": "all"},
+            headers=self._coinglass_headers(coin),
+        )
+        response.raise_for_status()
+        raw = response.json()
+        data = self._coinglass_data(raw)
+        if not isinstance(data, list):
+            return None
+        for item in reversed(data):
+            if not isinstance(item, dict):
+                continue
+            value = item.get("changeUsd", item.get("change"))
+            if value is not None:
+                return float(value)
+        return None
+
+    def _fetch_coinglass_etf_overview(self, coin: str) -> dict[str, float]:
+        response = self._client.get(
+            self.COINGLASS_ETF_LIST_URL.format(coin=coin.lower()),
+            headers=self._coinglass_headers(coin),
+        )
+        response.raise_for_status()
+        raw = response.json()
+        data = self._coinglass_data(raw)
+        if not isinstance(data, list):
+            return {}
+        total_aum = 0.0
+        total_holding = 0.0
+        holding_change = 0.0
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            asset = item.get("etfAssetHistoryVo")
+            if not isinstance(asset, dict):
+                continue
+            total_aum += self._optional_float(asset.get("netAssets")) or 0.0
+            total_holding += self._optional_float(asset.get("btcAmount")) or 0.0
+            holding_change += self._optional_float(asset.get("btcAmount24hChange")) or 0.0
+        return {
+            "total_aum_usd": total_aum,
+            "total_holding_coin": total_holding,
+            "holding_change_coin": holding_change,
         }
 
     def _fetch_market_data(self, coin: str) -> dict[str, object]:
@@ -291,11 +361,38 @@ class PublicWebExternalMarketContextProvider:
             return None
         return -parsed if negative else parsed
 
+    @staticmethod
+    def _coinglass_headers(coin: str) -> dict[str, str]:
+        return {
+            "accept": "application/json, text/plain, */*",
+            "origin": "https://www.coinglass.com",
+            "referer": f"https://www.coinglass.com/etf/{coin.lower()}",
+            "user-agent": "Mozilla/5.0",
+        }
+
+    @staticmethod
+    def _coinglass_data(raw: Any) -> object:
+        if not isinstance(raw, dict):
+            return None
+        data = raw.get("data")
+        if data is None and isinstance(raw.get("result"), dict):
+            data = raw["result"].get("data")
+        return data
+
+    @staticmethod
+    def _optional_float(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
 
 class ExternalMarketContextService:
     """Build a stable on-chain and ETF context snapshot for learning and dashboard use."""
 
-    ETF_SUPPORTED_COINS = {"BTC", "ETH"}
+    ETF_SUPPORTED_COINS = {"BTC", "ETH", "SOL", "XRP"}
 
     def __init__(
         self,

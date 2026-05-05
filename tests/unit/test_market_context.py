@@ -10,10 +10,10 @@ import httpx
 def test_external_market_context_defaults_to_neutral_for_any_coin() -> None:
     context = ExternalMarketContextService(
         config=ExternalMarketContextConfig(enabled=True),
-    ).snapshot(market="KRW-SOL", trade_coin="SOL")
+    ).snapshot(market="KRW-DOGE", trade_coin="DOGE")
 
-    assert context["market"] == "KRW-SOL"
-    assert context["trade_coin"] == "SOL"
+    assert context["market"] == "KRW-DOGE"
+    assert context["trade_coin"] == "DOGE"
     assert context["onchain"]["state"] == "neutral"
     assert context["etf"]["state"] == "not_applicable"
     assert context["learning_weight"] == 1.0
@@ -129,7 +129,7 @@ def test_external_market_context_falls_back_to_manual_when_http_provider_fails()
     assert context["onchain"]["source"] == "manual"
     assert context["onchain"]["state"] == "bearish"
     assert context["onchain"]["fetch_error"]
-    assert context["etf"]["state"] == "not_applicable"
+    assert context["etf"]["state"] == "neutral"
 
 
 def test_http_external_market_context_provider_caches_successful_sections() -> None:
@@ -223,6 +223,34 @@ def test_public_web_context_provider_fetches_xrp_ledger_activity() -> None:
                     "quoteVolume": "123456.0",
                 },
             )
+        if request.url.host == "capi.coinglass.com" and str(request.url.path).endswith("/spot/inFlow"):
+            return httpx.Response(
+                200,
+                json={
+                    "code": "0",
+                    "data": [
+                        {"date": "2026-05-01", "change": -1_000_000, "price": 0.48},
+                        {"date": "2026-05-02", "change": 2_500_000, "price": 0.5},
+                    ],
+                },
+            )
+        if request.url.host == "capi.coinglass.com" and str(request.url.path).endswith("/list"):
+            return httpx.Response(
+                200,
+                json={
+                    "code": "0",
+                    "data": [
+                        {
+                            "ticker": "XRPC",
+                            "etfAssetHistoryVo": {
+                                "netAssets": 100_000_000,
+                                "btcAmount": 200_000_000,
+                                "btcAmount24hChange": 5_000_000,
+                            },
+                        }
+                    ],
+                },
+            )
         return httpx.Response(
             200,
             json={
@@ -243,6 +271,11 @@ def test_public_web_context_provider_fetches_xrp_ledger_activity() -> None:
     assert payload["onchain"]["source"] == "web"
     assert payload["onchain"]["state"] == "bullish"
     assert payload["onchain"]["active_addresses_change_pct"] == 26.316
-    assert "etf" not in payload
+    assert payload["etf"]["source"] == "web"
+    assert payload["etf"]["state"] == "inflow"
+    assert payload["etf"]["flow_usd"] == 2_500_000
+    assert payload["etf"]["holding_change_coin"] == 5_000_000
+    assert payload["etf"]["total_aum_usd"] == 100_000_000
+    assert payload["etf"]["total_holding_coin"] == 200_000_000
     assert payload["market_data"]["usd_price"] == 0.5
     assert payload["market_data"]["usd_change_pct_24h"] == -0.012
