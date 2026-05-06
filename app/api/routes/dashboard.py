@@ -880,10 +880,10 @@ function renderExternalContext(context, market) {
   ].join("\\n");
   const tradeCoin = context.trade_coin || "";
   const holdingChange = etf.holding_change_coin || 0;
+  const etfFlowLine = formatEtfFlowLine(etf);
   const etfLines = [
     `${formatContextState(etf.state)}`,
-    `순유입 ${number(etf.inflow_usd || 0, 0)} USD`,
-    `순유출 ${number(etf.outflow_usd || 0, 0)} USD`,
+    etfFlowLine,
     `보유수량 변화 <span class="${changeClass(holdingChange)}">${number(holdingChange, 0)} ${tradeCoin}</span>`,
     etf.total_aum_usd ? `총 AUM ${number(etf.total_aum_usd, 0)} USD` : "",
     etf.total_holding_coin ? `총 보유 ${number(etf.total_holding_coin, 0)} ${tradeCoin}` : ""
@@ -893,6 +893,17 @@ function renderExternalContext(context, market) {
   document.getElementById("contextWeight").textContent = number(context.learning_weight || 1, 3);
   document.getElementById("contextStatus").textContent = formatExternalContextStatus(onchain, etf);
   document.getElementById("contextRecordedAt").textContent = context.recorded_at ? new Date(context.recorded_at).toLocaleString("ko-KR") : "-";
+}
+
+function formatEtfFlowLine(etf) {
+  const flow = Number(etf.flow_usd || 0);
+  if (flow > 0) return `순유입 ${number(flow, 0)} USD`;
+  if (flow < 0) return `순유출 ${number(Math.abs(flow), 0)} USD`;
+  const inflow = Number(etf.inflow_usd || 0);
+  const outflow = Number(etf.outflow_usd || 0);
+  if (inflow > 0) return `순유입 ${number(inflow, 0)} USD`;
+  if (outflow > 0) return `순유출 ${number(outflow, 0)} USD`;
+  return etf.state === "unknown" ? "순흐름 데이터 없음" : "순흐름 0 USD";
 }
 
 function formatExternalContextStatus(onchain, etf) {
