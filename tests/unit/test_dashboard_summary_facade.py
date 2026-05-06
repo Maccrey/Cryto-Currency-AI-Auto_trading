@@ -1365,6 +1365,76 @@ def test_dashboard_summary_facade_includes_unrealized_pnl_from_latest_price() ->
     }
 
 
+def test_dashboard_summary_facade_displays_demo_virtual_portfolio_from_initial_capital() -> None:
+    ledger = ExecutionLedger()
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=2_000.0,
+            filled_quantity=100.0,
+            fee=100.0,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    position_store = CurrentPositionStore()
+    position_store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="strong",
+            entry_price=2_000.0,
+            quantity=100.0,
+            stop_loss_price=1_940.0,
+            stop_loss_pct=0.030,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    market_price_store = MarketPriceStore()
+    market_price_store.save(market="KRW-XRP", price=2_100.0)
+    facade = DashboardSummaryFacade(
+        dashboard_summary_service=DashboardSummaryService(),
+        promotion_dashboard_facade=PromotionDashboardFacade(
+            promotion_state_service=PromotionStateService(),
+            promotion_dashboard_service=PromotionDashboardService(),
+        ),
+        execution_ledger=ledger,
+        position_store=position_store,
+        market_price_store=market_price_store,
+        timestamp_provider=lambda: "2026-04-19T20:00:00+09:00",
+    )
+    boot_state = BootState(
+        safe_mode=False,
+        hard_stop=False,
+        trading_ready=True,
+        failure_stage=None,
+        portfolio_state=PortfolioState(
+            cash_balance=1_000_000.0,
+            asset_currency="XRP",
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+        ),
+        reconcile_result={"open_order_count": 0},
+    )
+
+    payload = facade.build_response(
+        boot_state=boot_state,
+        trading_mode="demo",
+        learning_enabled=True,
+    )
+
+    assert payload["cash_balance"] == 799_900.0
+    assert payload["coin_balance"] == 100.0
+    assert payload["buy_count"] == 1
+    assert payload["unrealized_pnl"] == 10_000.0
+    assert payload["summary_object"]["cash_balance"] == 799_900.0
+    assert payload["summary_object"]["coin_balance"] == 100.0
+
+
 def test_dashboard_summary_facade_includes_learning_metrics(tmp_path) -> None:
     learning_service = LearningService(log_dir=tmp_path)
     learning_service.record_many(

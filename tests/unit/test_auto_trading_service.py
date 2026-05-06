@@ -18,6 +18,7 @@ from app.services.risk.stop_loss import StopLossInjector
 from app.services.signals.engine import SignalEngine
 from app.services.signals.features import MarketFeatureCalculator
 from app.services.sizing.engine import SizingEngine
+from app.services.execution.live import LiveExecutor
 from app.services.trading.auto import AutoTradingConfig, AutoTradingService
 from app.services.trading.decision import TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
@@ -28,6 +29,20 @@ from app.services.learning.service import LearningService
 class ForbiddenLiveOrderGateway:
     def place_order(self, **kwargs):
         raise AssertionError("live gateway should not be called in auto demo trading")
+
+
+class RecordingLiveOrderGateway:
+    def __init__(self) -> None:
+        self.precheck_calls: list[dict[str, object]] = []
+        self.order_calls: list[dict[str, object]] = []
+
+    def test_order(self, **kwargs) -> dict[str, object]:
+        self.precheck_calls.append(kwargs)
+        return {"ok": True}
+
+    def place_order(self, **kwargs) -> dict[str, object]:
+        self.order_calls.append(kwargs)
+        return {"uuid": "live-buy-1", "state": "wait"}
 
 
 class SequenceTickerProvider:
@@ -42,10 +57,18 @@ class SequenceTickerProvider:
         )
 
 
-def _build_service(tmp_path: Path, prices: list[float], *, min_history: int = 4) -> AutoTradingService:
+def _build_service(
+    tmp_path: Path,
+    prices: list[float],
+    *,
+    min_history: int = 4,
+    trading_mode: str = "demo",
+    executor=None,
+    live_enabled: bool = False,
+) -> AutoTradingService:
     learning_service = LearningService(log_dir=tmp_path)
     position_store = CurrentPositionStore()
-    executor = DemoExecutor(
+    executor = executor or DemoExecutor(
         live_order_gateway=ForbiddenLiveOrderGateway(),
         learning_service=learning_service,
     )
@@ -53,7 +76,7 @@ def _build_service(tmp_path: Path, prices: list[float], *, min_history: int = 4)
     lifecycle_ledger = PositionLifecycleLedger()
     return AutoTradingService(
         market="KRW-XRP",
-        trading_mode="demo",
+        trading_mode=trading_mode,
         boot_state=BootState(
             safe_mode=False,
             hard_stop=False,
@@ -74,7 +97,7 @@ def _build_service(tmp_path: Path, prices: list[float], *, min_history: int = 4)
             feature_calculator=MarketFeatureCalculator(),
             signal_engine=SignalEngine(
                 learning_service=learning_service,
-                trading_mode="demo",
+                trading_mode=trading_mode,
             ),
             regime_engine=RegimeEngine(),
             sizing_engine=SizingEngine(
@@ -90,10 +113,10 @@ def _build_service(tmp_path: Path, prices: list[float], *, min_history: int = 4)
         post_fill_service=PostFillService(
             stop_loss_injector=StopLossInjector(
                 stop_loss_by_signal={
-                    "weak": 0.008,
-                    "medium": 0.012,
-                    "strong": 0.018,
-                    "very_strong": 0.022,
+                    "weak": 0.030,
+                    "medium": 0.030,
+                    "strong": 0.030,
+                    "very_strong": 0.030,
                 },
                 validation_window_sec=180,
                 min_expected_return_pct=0.004,
@@ -108,7 +131,7 @@ def _build_service(tmp_path: Path, prices: list[float], *, min_history: int = 4)
             hard_stop_monitor=HardStopMonitor(),
             post_entry_validator=PostEntryValidator(),
             executor=executor,
-            trading_mode="demo",
+            trading_mode=trading_mode,
             learning_service=learning_service,
             execution_ledger=execution_ledger,
             position_lifecycle_ledger=lifecycle_ledger,
@@ -116,7 +139,7 @@ def _build_service(tmp_path: Path, prices: list[float], *, min_history: int = 4)
         learning_service=learning_service,
         config=AutoTradingConfig(
             enabled=True,
-            live_enabled=False,
+            live_enabled=live_enabled,
             interval_sec=1,
             min_history=min_history,
         ),
@@ -166,6 +189,40 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert "auto_trade_cycle" in event_names
     assert "fill_result" in event_names
     assert "position_opened" in event_names
+    portfolio = service._portfolio_state()
+    assert portfolio.cash_balance < 1_000_000.0
+    assert portfolio.asset_balance > 0.0
+    assert portfolio.avg_buy_price > 0.0
+
+
+def test_auto_trading_service_submits_live_buy_after_signal_when_live_enabled(tmp_path: Path) -> None:
+    gateway = RecordingLiveOrderGateway()
+    executor = LiveExecutor(
+        live_order_gateway=gateway,
+        trading_mode="live",
+        safe_mode=False,
+        hard_stop=False,
+    )
+    service = _build_service(
+        tmp_path,
+        [800.0, 806.0, 813.0, 824.0],
+        min_history=4,
+        trading_mode="live",
+        executor=executor,
+        live_enabled=True,
+    )
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["status"] == "wait"
+    assert result["reason"] is None
+    assert result["sizing_allowed"] is True
+    assert gateway.precheck_calls
+    assert gateway.order_calls == gateway.precheck_calls
+    assert gateway.order_calls[0]["market"] == "KRW-XRP"
+    assert gateway.order_calls[0]["side"] == "buy"
+    assert gateway.order_calls[0]["order_type"] == "market"
 
 
 def test_auto_trading_service_allows_medium_scalping_entries(tmp_path: Path) -> None:
