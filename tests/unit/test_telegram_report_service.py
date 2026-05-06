@@ -125,7 +125,9 @@ def test_telegram_report_service_sends_current_trading_report(tmp_path: Path) ->
     assert gateway.messages == [message]
     assert "현재 거래 상태 보고입니다." in message
     assert "현재가는 835.00원입니다." in message
-    assert "투자금은 1,000,146.59원입니다." in message
+    assert "투자금은" not in message
+    assert "보유자산은 1,000,146.59원입니다." in message
+    assert "보유 코인 금액은 8,350.00원" in message
     assert "현금 잔고는 991,796.59원" in message
     assert "보유 수량은 10.00000000개" in message
     assert "매수는 1번" in message

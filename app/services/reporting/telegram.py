@@ -125,11 +125,13 @@ class TelegramTradingReportService:
         current_price: float | None,
     ) -> str:
         if portfolio is None or investment_total is None:
-            return "투자금은 확인되지 않았고 현금 잔고와 보유 수량도 확인되지 않았습니다."
-        price_text = "현재가 확인 불가" if current_price is None else f"현재가 {current_price:,.2f}원 반영"
+            return "보유자산은 확인되지 않았고 현금 잔고와 보유 수량도 확인되지 않았습니다."
+        coin_value = 0.0 if current_price is None else round(portfolio.asset_balance * current_price, 2)
+        price_text = "현재가 확인 불가" if current_price is None else f"현재가 {current_price:,.2f}원 기준"
         return (
-            f"투자금은 {investment_total:,.2f}원입니다. "
-            f"현금 잔고는 {portfolio.cash_balance:,.2f}원이고 "
+            f"보유자산은 {investment_total:,.2f}원입니다. "
+            f"보유 코인 금액은 {coin_value:,.2f}원이고 "
+            f"현금 잔고는 {portfolio.cash_balance:,.2f}원입니다. "
             f"보유 수량은 {portfolio.asset_balance:,.8f}개입니다. "
             f"({price_text})"
         )
