@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from app.services.execution.ledger import ExecutionLedger
 from app.services.learning.service import LearningEvent, LearningService
 from app.services.market.store import MarketPriceStore
+from app.services.portfolio.sync import PortfolioState
 from app.services.position.store import CurrentPositionStore
 from app.services.recovery.orchestrator import BootState
 
@@ -60,7 +61,11 @@ class TelegramTradingReportService:
         summary = context.execution_ledger.summarize()
         latest_price = context.market_price_store.get(context.market)
         position = context.position_store.get()
-        portfolio = context.boot_state.portfolio_state
+        portfolio = self._current_portfolio()
+        investment_total = self._investment_total(
+            portfolio=portfolio,
+            current_price=None if latest_price is None else latest_price.price,
+        )
         events = context.learning_service.recent_events()
         last_learning_event = None if not events else events[-1].event_name
 
@@ -77,13 +82,56 @@ class TelegramTradingReportService:
                 f"보고 시각은 {reported_at.isoformat()}입니다.",
                 f"{context.market}를 {context.trading_mode} 모드로 운영 중입니다.",
                 f"현재가는 {'확인되지 않았습니다' if latest_price is None else f'{latest_price.price:,.2f}원'}입니다.",
-                f"현금 잔고는 {'확인되지 않았습니다' if portfolio is None else f'{portfolio.cash_balance:,.2f}원'}이고 보유 수량은 {'확인되지 않았습니다' if portfolio is None else f'{portfolio.asset_balance:,.8f}개'}입니다.",
+                self._format_investment_line(
+                    portfolio=portfolio,
+                    investment_total=investment_total,
+                    current_price=None if latest_price is None else latest_price.price,
+                ),
                 f"현재까지 실현 손익은 {summary.realized_pnl:,.2f}원입니다.",
                 f"매수는 {summary.buy_count}번, 매도는 {summary.sell_count}번 체결되었고 손절 매도는 {summary.stop_loss_count}번입니다.",
                 active_position,
                 f"거래 가능 상태는 {'정상' if context.boot_state.trading_ready else '중지'}이며 안전 모드는 {'켜짐' if context.boot_state.safe_mode else '꺼짐'}입니다.",
                 f"최근 학습 이벤트는 {last_learning_event or '없음'}입니다.",
             ],
+        )
+
+    def _current_portfolio(self) -> PortfolioState | None:
+        boot_portfolio = self._context.boot_state.portfolio_state
+        if boot_portfolio is None:
+            return None
+        if self._context.trading_mode != "demo":
+            return boot_portfolio
+        return self._context.execution_ledger.portfolio_state(
+            initial_cash=boot_portfolio.cash_balance,
+            asset_currency=boot_portfolio.asset_currency,
+        )
+
+    @staticmethod
+    def _investment_total(
+        *,
+        portfolio: PortfolioState | None,
+        current_price: float | None,
+    ) -> float | None:
+        if portfolio is None:
+            return None
+        coin_value = 0.0 if current_price is None else portfolio.asset_balance * current_price
+        return round(portfolio.cash_balance + coin_value, 2)
+
+    @staticmethod
+    def _format_investment_line(
+        *,
+        portfolio: PortfolioState | None,
+        investment_total: float | None,
+        current_price: float | None,
+    ) -> str:
+        if portfolio is None or investment_total is None:
+            return "투자금은 확인되지 않았고 현금 잔고와 보유 수량도 확인되지 않았습니다."
+        price_text = "현재가 확인 불가" if current_price is None else f"현재가 {current_price:,.2f}원 반영"
+        return (
+            f"투자금은 {investment_total:,.2f}원입니다. "
+            f"현금 잔고는 {portfolio.cash_balance:,.2f}원이고 "
+            f"보유 수량은 {portfolio.asset_balance:,.8f}개입니다. "
+            f"({price_text})"
         )
 
     def build_daily_report(self, *, reported_at: datetime, target_date: date) -> str:
