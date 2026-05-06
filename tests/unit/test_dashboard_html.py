@@ -133,6 +133,16 @@ def test_dashboard_displays_learning_log_context() -> None:
     assert "최근 체결 표와 다를 수 있습니다." in DASHBOARD_HTML
 
 
+def test_dashboard_displays_trading_runtime_only_when_running() -> None:
+    assert 'id="tradingRuntime" class="runtime-pill"' in DASHBOARD_HTML
+    assert "트레이딩 운영시간 : ${formatTradingRuntime(status.uptime_sec)}" in DASHBOARD_HTML
+    assert "fetchJson(\"/settings/trading/status\")" in DASHBOARD_HTML
+    assert "runtime.classList.remove(\"visible\")" in DASHBOARD_HTML
+    assert "runtime.classList.add(\"visible\")" in DASHBOARD_HTML
+    assert ".runtime-pill { display: none;" in DASHBOARD_HTML
+    assert "background: #f97316; color: #ffffff;" in DASHBOARD_HTML
+
+
 def test_dashboard_displays_rule_review_coin_context() -> None:
     assert 'row("대상 코인"' in DASHBOARD_HTML
     assert 'row("룰 로그 경로"' in DASHBOARD_HTML

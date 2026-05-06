@@ -114,6 +114,8 @@ DASHBOARD_HTML = """
     .nav { display: flex; gap: 8px; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .primary { background: var(--primary); color: white; border-color: var(--primary); }
+    .runtime-pill { display: none; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #f97316; border-radius: 6px; background: #f97316; color: #ffffff; font-size: 13px; font-weight: 800; white-space: nowrap; }
+    .runtime-pill.visible { display: inline-flex; }
     .status-line { margin-top: 10px; min-height: 28px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     main.wrap { padding-top: 18px; }
     .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
@@ -219,6 +221,7 @@ DASHBOARD_HTML = """
       </div>
       <nav class="nav">
         <button id="themeToggle" class="theme-switch" type="button" onclick="toggleTheme()"><span class="toggle"></span><span id="themeLabel">다크모드</span></button>
+        <span id="tradingRuntime" class="runtime-pill" title="트레이딩 운영시간"></span>
         <button class="btn primary" type="button" onclick="refreshDashboard()">새로고침</button>
         <a class="btn" href="/settings">설정</a>
         <a class="btn" href="/health" target="_blank" rel="noreferrer">상태 API</a>
@@ -562,6 +565,26 @@ function formatDateTime(value) {
   return parts;
 }
 
+function formatTradingRuntime(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return `${days}day ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function renderTradingRuntime(status) {
+  const runtime = document.getElementById("tradingRuntime");
+  if (!status || !status.running) {
+    runtime.classList.remove("visible");
+    runtime.textContent = "";
+    return;
+  }
+  runtime.textContent = `트레이딩 운영시간 : ${formatTradingRuntime(status.uptime_sec)}`;
+  runtime.classList.add("visible");
+}
+
 function aiBadge(label, className) {
   return `<span class="badge ${className}">${label}</span>`;
 }
@@ -828,7 +851,7 @@ async function rollbackRuleProposal() {
 async function refreshDashboard() {
   document.getElementById("statusLine").textContent = "데이터를 불러오는 중...";
   try {
-    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse, ruleHistoryResponse, externalContextResponse, diagnosticsResponse] = await Promise.all([
+    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse, ruleHistoryResponse, externalContextResponse, diagnosticsResponse, tradingStatus] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/dashboard/summary"),
       fetchJson("/dashboard/market"),
@@ -840,7 +863,8 @@ async function refreshDashboard() {
       fetchJson("/api/v1/rules/proposals"),
       fetchJson("/api/v1/rules/history"),
       fetchJson("/dashboard/external-context"),
-      fetchJson("/learning/diagnostics")
+      fetchJson("/learning/diagnostics"),
+      fetchJson("/settings/trading/status")
     ]);
     renderLatestRuleProposal(ruleProposalResponse);
     renderRuleHistory(ruleHistoryResponse);
@@ -855,7 +879,8 @@ async function refreshDashboard() {
       readiness: readinessResponse.readiness || {},
       executions,
       promotion: promotionResponse.promotion,
-      market: marketResponse.summary || {market: marketResponse.market}
+      market: marketResponse.summary || {market: marketResponse.market},
+      tradingStatus
     });
   } catch (error) {
     document.getElementById("statusLine").textContent = `대시보드 데이터를 불러오지 못했다: ${error.message}`;
@@ -998,7 +1023,7 @@ function formatBlockedReasons(diagnostics) {
 }
 
 function renderDashboard(data) {
-  const {health, summary, market, learning, learningLogDir, learningHealth, readiness, executions, promotion} = data;
+  const {health, summary, market, learning, learningLogDir, learningHealth, readiness, executions, promotion, tradingStatus} = data;
   const totalEvents = learning.total_events || learningHealth.total_events || 0;
   const readinessProgress = deriveReadinessProgress(readiness);
   const progress = readinessProgress.percent;
@@ -1007,6 +1032,7 @@ function renderDashboard(data) {
   const learningBadge = summary.learning_enabled ? '<span class="badge ok">학습 기록 중</span>' : '<span class="badge warn">학습 비활성</span>';
 
   document.getElementById("statusLine").innerHTML = `${readyBadge} ${learningBadge}`;
+  renderTradingRuntime(tradingStatus);
   document.getElementById("modeMetric").textContent = String(summary.trading_mode || health.mode).toUpperCase();
   const profileLabel = summary.trading_profile_label || summary.trading_profile || "단타";
   const modeDescription = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";

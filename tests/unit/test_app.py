@@ -1133,6 +1133,8 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert status.status_code == 200
     assert status.json()["running"] is False
     assert status.json()["startable"] is True
+    assert status.json()["started_at"] is None
+    assert status.json()["uptime_sec"] is None
 
     stopped = client.post("/settings/trading/stop")
     assert stopped.status_code == 200

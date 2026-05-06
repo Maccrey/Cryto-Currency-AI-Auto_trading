@@ -77,6 +77,7 @@ class AutoTradingService:
         self._prices: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._position_opened_at: datetime | None = None
+        self._started_at: datetime | None = None
         self._task: asyncio.Task[None] | None = None
         portfolio = demo_portfolio_state if trading_mode == "demo" else getattr(boot_state, "portfolio_state", None)
         if portfolio is None:
@@ -100,10 +101,20 @@ class AutoTradingService:
             return
         if self._task is not None and not self._task.done():
             return
+        self._started_at = self._clock()
         self._task = asyncio.create_task(self._run())
 
     def is_running(self) -> bool:
         return self._task is not None and not self._task.done()
+
+    def started_at(self) -> datetime | None:
+        return self._started_at if self.is_running() else None
+
+    def uptime_sec(self) -> int | None:
+        started_at = self.started_at()
+        if started_at is None:
+            return None
+        return max(int((self._clock() - started_at).total_seconds()), 0)
 
     def reset_demo_portfolio(self) -> dict[str, object]:
         if self._trading_mode != "demo":
@@ -134,6 +145,7 @@ class AutoTradingService:
             pass
         finally:
             self._task = None
+            self._started_at = None
 
     async def _run(self) -> None:
         while True:

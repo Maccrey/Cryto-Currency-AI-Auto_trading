@@ -459,6 +459,12 @@ def create_app(
             "status": "running" if running else "stopped",
             "running": running,
             "startable": startable,
+            "started_at": (
+                None
+                if not running or auto_trading_service.started_at() is None
+                else auto_trading_service.started_at().isoformat()
+            ),
+            "uptime_sec": auto_trading_service.uptime_sec() if running else None,
             "message": message,
         }
 
