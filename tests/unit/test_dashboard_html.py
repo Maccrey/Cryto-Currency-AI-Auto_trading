@@ -135,11 +135,15 @@ def test_dashboard_displays_learning_log_context() -> None:
 
 def test_dashboard_displays_trading_runtime_only_when_running() -> None:
     assert 'id="tradingRuntime" class="runtime-pill"' in DASHBOARD_HTML
+    assert 'href="/health" target="_blank" rel="noreferrer">상태 API</a>\n        <span id="tradingRuntime"' in DASHBOARD_HTML
     assert "트레이딩 운영시간 : ${formatTradingRuntime(status.uptime_sec)}" in DASHBOARD_HTML
     assert "fetchJson(\"/settings/trading/status\")" in DASHBOARD_HTML
     assert "runtime.classList.remove(\"visible\")" in DASHBOARD_HTML
     assert "runtime.classList.add(\"visible\")" in DASHBOARD_HTML
     assert ".runtime-pill { display: none;" in DASHBOARD_HTML
+    assert "width: 258px;" in DASHBOARD_HTML
+    assert "font-variant-numeric: tabular-nums;" in DASHBOARD_HTML
+    assert "flex: 0 0 258px;" in DASHBOARD_HTML
     assert "background: #f97316; color: #ffffff;" in DASHBOARD_HTML
 
 

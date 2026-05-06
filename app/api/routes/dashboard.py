@@ -114,7 +114,7 @@ DASHBOARD_HTML = """
     .nav { display: flex; gap: 8px; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .primary { background: var(--primary); color: white; border-color: var(--primary); }
-    .runtime-pill { display: none; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #f97316; border-radius: 6px; background: #f97316; color: #ffffff; font-size: 13px; font-weight: 800; white-space: nowrap; }
+    .runtime-pill { display: none; align-items: center; justify-content: center; min-height: 36px; width: 258px; padding: 0 12px; box-sizing: border-box; border: 1px solid #f97316; border-radius: 6px; background: #f97316; color: #ffffff; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; flex: 0 0 258px; }
     .runtime-pill.visible { display: inline-flex; }
     .status-line { margin-top: 10px; min-height: 28px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     main.wrap { padding-top: 18px; }
@@ -221,10 +221,10 @@ DASHBOARD_HTML = """
       </div>
       <nav class="nav">
         <button id="themeToggle" class="theme-switch" type="button" onclick="toggleTheme()"><span class="toggle"></span><span id="themeLabel">다크모드</span></button>
-        <span id="tradingRuntime" class="runtime-pill" title="트레이딩 운영시간"></span>
         <button class="btn primary" type="button" onclick="refreshDashboard()">새로고침</button>
         <a class="btn" href="/settings">설정</a>
         <a class="btn" href="/health" target="_blank" rel="noreferrer">상태 API</a>
+        <span id="tradingRuntime" class="runtime-pill" title="트레이딩 운영시간"></span>
       </nav>
     </div>
   </div>
