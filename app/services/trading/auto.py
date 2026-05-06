@@ -32,6 +32,8 @@ class AutoTradingConfig:
     no_trade_adaptive_enabled: bool = True
     no_trade_relax_after_cycles: int = 100
     no_trade_relax_min_score: float = 0.18
+    scale_in_enabled: bool = True
+    scale_in_max_price_premium_pct: float = 0.0
 
 
 class AutoTradingService:
@@ -55,6 +57,7 @@ class AutoTradingService:
         clock: Callable[[], datetime] | None = None,
         sleep: Callable[[float], Any] | None = None,
         external_context_provider: Any | None = None,
+        demo_portfolio_state: PortfolioState | None = None,
     ) -> None:
         self._market = market
         self._trading_mode = trading_mode
@@ -75,7 +78,9 @@ class AutoTradingService:
         self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._position_opened_at: datetime | None = None
         self._task: asyncio.Task[None] | None = None
-        portfolio = getattr(boot_state, "portfolio_state", None)
+        portfolio = demo_portfolio_state if trading_mode == "demo" else getattr(boot_state, "portfolio_state", None)
+        if portfolio is None:
+            portfolio = getattr(boot_state, "portfolio_state", None)
         self._demo_cash_balance = 0.0 if portfolio is None else portfolio.cash_balance
         self._demo_asset_currency = self._market.split("-")[-1] if portfolio is None else portfolio.asset_currency
         self._demo_asset_balance = 0.0 if portfolio is None else portfolio.asset_balance
@@ -163,14 +168,21 @@ class AutoTradingService:
             if result.get("position") is None:
                 self._position_opened_at = None
             self._apply_demo_execution(result.get("execution"))
-            return self._record_cycle(
-                status="position_checked",
-                reason=None if result.get("trigger") is None else "POSITION_EXIT_TRIGGERED",
-                extra={"position_result": result},
-            )
+            if result.get("trigger") is not None:
+                return self._record_cycle(
+                    status="position_checked",
+                    reason="POSITION_EXIT_TRIGGERED",
+                    extra={"position_result": result},
+                )
+            if not self._scale_in_allowed(position=position, current_price=snapshot.trade_price):
+                return self._record_cycle(
+                    status="position_checked",
+                    reason="POSITION_HELD",
+                    extra={"position_result": result},
+                )
 
         portfolio = self._portfolio_state()
-        if self._trading_mode == "demo" and portfolio.asset_balance > 0:
+        if self._trading_mode == "demo" and portfolio.asset_balance > 0 and position is None:
             return self._record_cycle(
                 status="blocked",
                 reason="DEMO_ASSET_WITHOUT_ACTIVE_POSITION",
@@ -233,6 +245,7 @@ class AutoTradingService:
             status=execution_result.status,
             reason=execution_result.blocked_reason,
             extra={
+                "entry_type": "scale_in" if position is not None else "initial",
                 "signal_level": decision.signal.level,
                 "signal_score": decision.signal.score,
                 "signal_blocked": decision.signal.blocked,
@@ -326,6 +339,14 @@ class AutoTradingService:
             return False
         estimated_total_cost = buy_amount * (1 + self._config.trading_fee_rate)
         return estimated_total_cost <= self._demo_cash_balance + 1e-6
+
+    def _scale_in_allowed(self, *, position, current_price: float) -> bool:
+        if not self._config.scale_in_enabled:
+            return False
+        if current_price <= 0 or position.entry_price <= 0:
+            return False
+        max_price = position.entry_price * (1 + self._config.scale_in_max_price_premium_pct)
+        return current_price <= max_price
 
     def _traded_value(self, snapshot: UpbitTickerSnapshot) -> float:
         value = snapshot.acc_trade_price_24h

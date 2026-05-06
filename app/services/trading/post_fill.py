@@ -63,11 +63,20 @@ class PostFillService:
             entry_price=execution.filled_price,
             quantity=execution.filled_quantity,
         )
+        existing_position = None if self._position_store is None else self._position_store.get()
+        event_type = "opened"
+        if existing_position is not None and existing_position.market == position.market:
+            position = self._merge_position(
+                existing_position=existing_position,
+                added_position=position,
+                added_fee=execution.fee,
+            )
+            event_type = "increased"
         if self._position_store is not None:
             self._position_store.save(position)
         if self._position_lifecycle_ledger is not None:
             self._position_lifecycle_ledger.record(
-                event_type="opened",
+                event_type=event_type,
                 position=position,
             )
         if self._learning_service is not None:
@@ -81,6 +90,7 @@ class PostFillService:
                         "entry_price": position.entry_price,
                         "quantity": position.quantity,
                         "stop_loss_price": position.stop_loss_price,
+                        "event_type": event_type,
                         "validation_window_sec": position.validation_window_sec,
                         "min_expected_return_pct": position.min_expected_return_pct,
                     },
@@ -93,6 +103,35 @@ class PostFillService:
         return PostFillResult(
             execution_result=execution_result,
             position=position,
+        )
+
+    @staticmethod
+    def _merge_position(
+        *,
+        existing_position: PositionSnapshot,
+        added_position: PositionSnapshot,
+        added_fee: float,
+    ) -> PositionSnapshot:
+        total_quantity = round(existing_position.quantity + added_position.quantity, 8)
+        if total_quantity <= 0:
+            return added_position
+        total_cost = (
+            existing_position.entry_price * existing_position.quantity
+            + added_position.entry_price * added_position.quantity
+            + added_fee
+        )
+        entry_price = round(total_cost / total_quantity, 8)
+        stop_loss_pct = max(existing_position.stop_loss_pct, added_position.stop_loss_pct)
+        return PositionSnapshot(
+            market=existing_position.market,
+            signal_level=added_position.signal_level,
+            entry_price=entry_price,
+            quantity=total_quantity,
+            stop_loss_price=round(entry_price * (1 - stop_loss_pct), 2),
+            stop_loss_pct=stop_loss_pct,
+            validation_window_sec=added_position.validation_window_sec,
+            min_expected_return_pct=added_position.min_expected_return_pct,
+            stop_loss_reason=None,
         )
 
     @staticmethod

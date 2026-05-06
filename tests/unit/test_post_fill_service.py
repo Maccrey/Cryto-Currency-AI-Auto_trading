@@ -111,6 +111,50 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
     assert [event.event_name for event in learning_service.events] == ["position_opened"]
 
 
+def test_post_fill_service_merges_additional_buy_into_current_position() -> None:
+    store = CurrentPositionStore()
+    store.save(
+        StopLossInjector(
+            stop_loss_by_signal={
+                "weak": 0.008,
+                "medium": 0.012,
+                "strong": 0.018,
+                "very_strong": 0.022,
+            },
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+        ).inject(
+            market="KRW-XRP",
+            signal_level="strong",
+            entry_price=820.0,
+            quantity=10.0,
+        ),
+    )
+    lifecycle_ledger = PositionLifecycleLedger()
+    service = PostFillService(
+        stop_loss_injector=StopLossInjector(
+            stop_loss_by_signal={
+                "weak": 0.008,
+                "medium": 0.012,
+                "strong": 0.018,
+                "very_strong": 0.022,
+            },
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+        ),
+        position_store=store,
+        position_lifecycle_ledger=lifecycle_ledger,
+    )
+
+    result = service.process(_build_execution_result())
+
+    assert result.position is not None
+    assert result.position.quantity > 10.0
+    assert result.position.entry_price > 820.0
+    assert store.get() == result.position
+    assert lifecycle_ledger.list_records()[0].event_type == "increased"
+
+
 def test_post_fill_service_skips_position_when_execution_blocked() -> None:
     notifier = TelegramNotifierStub()
     service = PostFillService(

@@ -195,6 +195,45 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert portfolio.avg_buy_price > 0.0
 
 
+def test_auto_trading_service_can_scale_in_after_pullback_with_signal(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0, 806.0, 813.0, 824.0, 818.0, 823.0], min_history=4)
+
+    for _ in range(4):
+        first_entry = service.tick()
+    first_portfolio = service._portfolio_state()
+    first_position = service._position_store.get()
+
+    pullback = service.tick()
+    scale_in = service.tick()
+    scaled_portfolio = service._portfolio_state()
+    scaled_position = service._position_store.get()
+
+    assert first_entry["status"] == "filled"
+    assert pullback["status"] == "blocked"
+    assert scale_in["status"] == "filled"
+    assert scale_in["entry_type"] == "scale_in"
+    assert scaled_portfolio.asset_balance > first_portfolio.asset_balance
+    assert scaled_portfolio.cash_balance < first_portfolio.cash_balance
+    assert first_position is not None
+    assert scaled_position is not None
+    assert scaled_position.quantity > first_position.quantity
+
+
+def test_auto_trading_service_holds_position_without_scale_in_when_price_is_above_entry(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0, 806.0, 813.0, 824.0, 826.0], min_history=4)
+
+    for _ in range(4):
+        service.tick()
+    first_portfolio = service._portfolio_state()
+
+    result = service.tick()
+    held_portfolio = service._portfolio_state()
+
+    assert result["status"] == "position_checked"
+    assert result["reason"] == "POSITION_HELD"
+    assert held_portfolio.asset_balance == first_portfolio.asset_balance
+
+
 def test_auto_trading_service_submits_live_buy_after_signal_when_live_enabled(tmp_path: Path) -> None:
     gateway = RecordingLiveOrderGateway()
     executor = LiveExecutor(

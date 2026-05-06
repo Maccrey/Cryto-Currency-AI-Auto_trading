@@ -268,6 +268,17 @@ def create_app(
         )
 
     boot_state = runtime_services.runtime_service.start()
+    demo_portfolio_state = None
+    boot_portfolio_state = getattr(boot_state, "portfolio_state", None)
+    if (
+        settings.trading_mode == "demo"
+        and boot_portfolio_state is not None
+        and execution_ledger.list_records()
+    ):
+        demo_portfolio_state = execution_ledger.portfolio_state(
+            initial_cash=float(settings.demo_initial_capital),
+            asset_currency=boot_portfolio_state.asset_currency,
+        )
     executor = ExecutionFactory(
         live_order_gateway=UpbitLiveOrderGateway(
             rest_client=UpbitRestClient(
@@ -375,6 +386,7 @@ def create_app(
             no_trade_relax_min_score=settings.no_trade_relax_min_score,
         ),
         external_context_provider=external_context_service,
+        demo_portfolio_state=demo_portfolio_state,
     )
     app.state.auto_trading_service = auto_trading_service
     rule_review_service = RuleReviewService(
