@@ -194,7 +194,15 @@ def create_app(
         promotion_history_store=promotion_history_store,
         promotion_status_store=promotion_status_store,
     )
-    execution_ledger = execution_ledger or ExecutionLedger()
+    runtime_state_dir = profile_learning_log_dir / "runtime-state"
+    if execution_ledger is None:
+        execution_ledger = ExecutionLedger(
+            storage_path=(
+                runtime_state_dir / "execution-ledger.json"
+                if settings.trading_mode == "demo" and "PYTEST_CURRENT_TEST" not in os.environ
+                else None
+            ),
+        )
     if (
         settings.trading_mode != "demo"
         and "PYTEST_CURRENT_TEST" not in os.environ
@@ -285,7 +293,13 @@ def create_app(
             order_rules=order_rules,
         )
     if position_store is None:
-        position_store = CurrentPositionStore()
+        position_store = CurrentPositionStore(
+            storage_path=(
+                runtime_state_dir / "current-position.json"
+                if settings.trading_mode == "demo" and "PYTEST_CURRENT_TEST" not in os.environ
+                else None
+            ),
+        )
     current_price_provider = UpbitTickerPriceProvider(
         base_url=settings.upbit_base_url,
     )

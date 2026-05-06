@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 from app.services.execution.demo import FillResult
 from app.services.portfolio.sync import PortfolioState
@@ -24,8 +26,10 @@ class ExecutionLedgerSummary:
 class ExecutionLedger:
     """Track fill history for runtime dashboard summaries."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, storage_path: Path | None = None) -> None:
+        self._storage_path = storage_path
         self._records: list[ExecutionLedgerRecord] = []
+        self._load()
 
     def record_fill(self, fill: FillResult, *, reason_code: str | None = None) -> None:
         self._records.append(
@@ -34,12 +38,14 @@ class ExecutionLedger:
                 reason_code=reason_code,
             ),
         )
+        self._persist()
 
     def list_records(self) -> list[ExecutionLedgerRecord]:
         return list(self._records)
 
     def clear(self) -> None:
         self._records.clear()
+        self._persist()
 
     def summarize(self) -> ExecutionLedgerSummary:
         buy_count = 0
@@ -122,4 +128,60 @@ class ExecutionLedger:
             asset_currency=asset_currency,
             asset_balance=round(asset_balance, 8),
             avg_buy_price=round(average_cost, 8),
+        )
+
+    def _load(self) -> None:
+        if self._storage_path is None or not self._storage_path.exists():
+            return
+        try:
+            payload = json.loads(self._storage_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        records = payload.get("records") if isinstance(payload, dict) else None
+        if not isinstance(records, list):
+            return
+        restored: list[ExecutionLedgerRecord] = []
+        for item in records:
+            if not isinstance(item, dict):
+                continue
+            fill_payload = item.get("fill")
+            if not isinstance(fill_payload, dict):
+                continue
+            try:
+                restored.append(
+                    ExecutionLedgerRecord(
+                        fill=FillResult(
+                            market=str(fill_payload.get("market", "")),
+                            side=str(fill_payload.get("side", "")),
+                            filled_price=float(fill_payload.get("filled_price", 0.0)),
+                            filled_quantity=float(fill_payload.get("filled_quantity", 0.0)),
+                            fee=float(fill_payload.get("fee", 0.0)),
+                            status=str(fill_payload.get("status", "")),
+                            mode=str(fill_payload.get("mode", "")),
+                            is_virtual=bool(fill_payload.get("is_virtual")),
+                            is_stop_loss=bool(fill_payload.get("is_stop_loss")),
+                        ),
+                        reason_code=None if item.get("reason_code") is None else str(item.get("reason_code")),
+                    ),
+                )
+            except (TypeError, ValueError):
+                continue
+        self._records = restored
+
+    def _persist(self) -> None:
+        if self._storage_path is None:
+            return
+        self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "records": [
+                {
+                    "fill": asdict(record.fill),
+                    "reason_code": record.reason_code,
+                }
+                for record in self._records
+            ],
+        }
+        self._storage_path.write_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            encoding="utf-8",
         )

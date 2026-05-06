@@ -1489,6 +1489,72 @@ def test_demo_start_does_not_restore_learning_log_fills_into_current_execution_l
     assert executions == {"status": "empty", "history": []}
 
 
+def test_demo_start_restores_runtime_trade_state(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = PortfolioState(
+                    cash_balance=1_000_000.0,
+                    asset_currency="XRP",
+                    asset_balance=0.0,
+                    avg_buy_price=0.0,
+                )
+                reconcile_result = None
+
+            return BootState()
+
+    log_root = tmp_path / "learning"
+    state_dir = log_root / "scalping" / "runtime-state"
+    ExecutionLedger(storage_path=state_dir / "execution-ledger.json").record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=820.0,
+            filled_quantity=10.0,
+            fee=4.1,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    CurrentPositionStore(storage_path=state_dir / "current-position.json").save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="strong",
+            entry_price=820.0,
+            quantity=10.0,
+            stop_loss_price=795.4,
+            stop_loss_pct=0.03,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("LEARNING_LOG_DIR", str(log_root))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    summary = client.get("/dashboard/summary").json()
+    position = client.get("/position/current").json()
+
+    assert summary["cash_balance"] == 991795.9
+    assert summary["coin_balance"] == 10.0
+    assert summary["buy_count"] == 1
+    assert position["status"] == "ok"
+    assert position["position"]["entry_price"] == 820.0
+
+
 def test_decision_entry_endpoint_returns_trade_decision_payload(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):

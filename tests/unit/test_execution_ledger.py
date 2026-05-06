@@ -74,3 +74,51 @@ def test_execution_ledger_portfolio_state_ignores_buys_that_exceed_cash() -> Non
 
     assert portfolio.cash_balance >= 0.0
     assert portfolio.asset_balance == 187.8049
+
+
+def test_execution_ledger_persists_records(tmp_path) -> None:
+    storage_path = tmp_path / "execution-ledger.json"
+    ledger = ExecutionLedger(storage_path=storage_path)
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=820.0,
+            filled_quantity=10.0,
+            fee=4.1,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+
+    restored = ExecutionLedger(storage_path=storage_path)
+
+    assert len(restored.list_records()) == 1
+    portfolio = restored.portfolio_state(initial_cash=1_000_000.0, asset_currency="XRP")
+    assert portfolio.cash_balance == 991795.9
+    assert portfolio.asset_balance == 10.0
+
+
+def test_execution_ledger_clear_persists_empty_records(tmp_path) -> None:
+    storage_path = tmp_path / "execution-ledger.json"
+    ledger = ExecutionLedger(storage_path=storage_path)
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=820.0,
+            filled_quantity=10.0,
+            fee=4.1,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    ledger.clear()
+
+    restored = ExecutionLedger(storage_path=storage_path)
+
+    assert restored.list_records() == []
