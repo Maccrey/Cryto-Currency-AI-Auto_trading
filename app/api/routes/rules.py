@@ -21,6 +21,10 @@ class RuleReplayPayload(BaseModel):
     fixture_path: str = "fixtures/replay_ticks.json"
 
 
+class RuleAutoImprovePayload(BaseModel):
+    fixture_path: str = "fixtures/replay_ticks.json"
+
+
 class RuleCommitHashPayload(BaseModel):
     commit_hash: str = ""
 
@@ -58,6 +62,11 @@ def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
     @router.get("/history")
     def list_rule_change_history(limit: int = 50) -> dict[str, object]:
         return rule_review_service.list_history(limit=limit)
+
+    @router.post("/auto-improve")
+    def auto_improve_rules(payload: RuleAutoImprovePayload | None = None) -> dict[str, object]:
+        fixture_path = "fixtures/replay_ticks.json" if payload is None else payload.fixture_path
+        return rule_review_service.auto_improve(fixture_path=Path(fixture_path))
 
     @router.get("/proposals/{proposal_id}")
     def get_rule_proposal(proposal_id: str) -> dict[str, object]:

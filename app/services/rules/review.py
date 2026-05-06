@@ -135,6 +135,85 @@ class RuleReviewService:
         )
         return {"proposal": proposal}
 
+    def auto_improve(self, *, fixture_path: Path) -> dict[str, object]:
+        steps: list[dict[str, object]] = []
+
+        review_response = self.review()
+        review = review_response["review"]
+        steps.append(
+            {
+                "name": "Codex CLI 룰 개선 하네스 시작",
+                "status": "completed",
+                "message": "학습 로그 기반 자동 룰 개선 파이프라인을 시작했습니다.",
+            },
+        )
+        steps.append(
+            {
+                "name": "룰 개선 분석",
+                "status": "completed",
+                "message": (
+                    f"최근 {review['analysis_window_days']}일 로그에서 거래 {review['trade_count']}건, "
+                    f"손절 {review['stop_loss_count']}건을 집계했습니다."
+                ),
+                "payload": review,
+            },
+        )
+
+        proposal_response = self.create_proposal(review_id=str(review["id"]))
+        proposal = proposal_response["proposal"]
+        proposal_blocked = bool(proposal.get("rejection_reasons"))
+        steps.append(
+            {
+                "name": "Codex 룰 변경안 생성",
+                "status": "blocked" if proposal_blocked else "completed",
+                "message": self._proposal_step_message(proposal),
+                "payload": proposal,
+            },
+        )
+
+        replay_response = self.verify_replay(str(proposal["id"]), fixture_path=fixture_path)
+        proposal = replay_response["proposal"]
+        replay_result = proposal.get("replay_result") or {}
+        replay_passed = replay_result.get("status") == "passed"
+        steps.append(
+            {
+                "name": "replay 검증",
+                "status": "completed" if replay_passed else "blocked",
+                "message": self._replay_step_message(replay_result),
+                "payload": replay_result,
+            },
+        )
+
+        demo_response = self.apply_demo(str(proposal["id"]))
+        proposal = demo_response["proposal"]
+        demo_applied = bool(proposal.get("demo_applied"))
+        steps.append(
+            {
+                "name": "demo 적용",
+                "status": "completed" if demo_applied else "blocked",
+                "message": (
+                    "replay 통과 변경안을 demo에 적용했습니다."
+                    if demo_applied
+                    else f"demo 적용이 보류되었습니다: {', '.join(proposal.get('rejection_reasons', [])) or '사유 없음'}"
+                ),
+                "payload": proposal,
+            },
+        )
+
+        final_summary = self._automation_summary(proposal)
+        return {
+            "status": "completed" if demo_applied else "needs_retry",
+            "codex_cli": {
+                "mode": "local_harness",
+                "command": "codex rule-improve --from-learning-log --replay --apply-demo",
+            },
+            "steps": steps,
+            "review": review,
+            "proposal": proposal,
+            "final_summary": final_summary,
+            "can_retry": not demo_applied,
+        }
+
     def get_proposal(self, proposal_id: str) -> dict[str, object]:
         return {"proposal": self._with_proposal_metadata(self._proposals[proposal_id])}
 
@@ -501,6 +580,50 @@ class RuleReviewService:
                 },
             )
         return warnings
+
+    @staticmethod
+    def _proposal_step_message(proposal: dict[str, Any]) -> str:
+        changes = proposal.get("codex_suggested_changes") or []
+        if proposal.get("rejection_reasons"):
+            return f"변경안 생성이 보류되었습니다: {', '.join(proposal.get('rejection_reasons', []))}"
+        if not changes:
+            return "변경할 파라미터가 없습니다."
+        parameters = ", ".join(str(change.get("parameter")) for change in changes if isinstance(change, dict))
+        return f"Codex가 변경 후보 {len(changes)}개를 생성했습니다: {parameters}"
+
+    @staticmethod
+    def _replay_step_message(replay_result: dict[str, Any]) -> str:
+        if not replay_result:
+            return "replay 결과가 없습니다."
+        return (
+            f"{replay_result.get('status', 'unknown')} / "
+            f"신호 {replay_result.get('signal_count', 0)}건, "
+            f"차단 {replay_result.get('blocked_count', 0)}건, "
+            f"최대 신호점수 {replay_result.get('max_signal_score', 0.0)}"
+        )
+
+    @staticmethod
+    def _automation_summary(proposal: dict[str, Any]) -> dict[str, object]:
+        changes = proposal.get("codex_suggested_changes") or []
+        changed_parameters = [
+            str(change.get("parameter"))
+            for change in changes
+            if isinstance(change, dict) and change.get("parameter")
+        ]
+        change_reasons = [
+            str(change.get("reason"))
+            for change in changes
+            if isinstance(change, dict) and change.get("reason")
+        ]
+        return {
+            "changed_parameters": changed_parameters,
+            "change_reason": "; ".join(change_reasons) or "표본 부족 또는 차단 조건으로 실제 룰 변경 없음",
+            "demo_applied": bool(proposal.get("demo_applied")),
+            "live_requires_approval": bool(proposal.get("approval_required", True)),
+            "rejection_reasons": proposal.get("rejection_reasons", []),
+            "history_warnings": proposal.get("history_warnings", []),
+            "replay_result": proposal.get("replay_result"),
+        }
 
     def _collect_metrics(self) -> dict[str, object]:
         trade_count = 0

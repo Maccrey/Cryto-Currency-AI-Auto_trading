@@ -185,6 +185,20 @@ DASHBOARD_HTML = """
     .rule-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .rule-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .rule-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+    .modal-backdrop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(15, 23, 42, 0.56); z-index: 50; }
+    .modal-backdrop.visible { display: flex; }
+    .rule-modal { width: min(780px, 100%); max-height: min(82vh, 760px); display: flex; flex-direction: column; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 18px 48px rgba(15, 23, 42, 0.32); overflow: hidden; }
+    .rule-modal header { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .rule-modal h2 { margin: 0; font-size: 18px; }
+    .rule-modal-body { padding: 16px 18px; overflow-y: auto; line-height: 1.45; }
+    .rule-step { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .rule-step strong { display: block; margin-bottom: 4px; }
+    .rule-step.completed strong { color: #1f6b35; }
+    .rule-step.blocked strong { color: #b42318; }
+    .rule-step.running strong { color: var(--primary); }
+    .rule-final { margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); white-space: pre-line; font-size: 13px; }
+    .rule-modal-footer { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .hidden { display: none !important; }
     @media (max-width: 900px) {
       .grid, .ai-grid, .rule-grid, .context-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .panel { grid-template-columns: 1fr; }
@@ -344,10 +358,7 @@ DASHBOARD_HTML = """
   <section class="card">
     <h2>룰 개선</h2>
     <div class="action-row">
-      <button class="btn" type="button" onclick="runRuleReview()">룰 개선 분석 실행</button>
-      <button class="btn" type="button" onclick="createRuleProposal()">룰 변경안 생성</button>
-      <button class="btn" type="button" onclick="verifyRuleProposalReplay()">replay 검증</button>
-      <button class="btn" type="button" onclick="applyRuleProposalToDemo()">demo 적용</button>
+      <button class="btn primary" type="button" onclick="runCodexRuleAutomation()">Codex 자동 룰 개선 시작</button>
       <button class="btn primary" type="button" onclick="approveRuleProposalForLive()">live 승인 적용</button>
       <button class="btn" type="button" onclick="linkRuleProposalCommitHash()">커밋 해시 연결</button>
       <button class="btn" type="button" onclick="appendRuleHistoryCorrection()">히스토리 보정</button>
@@ -371,10 +382,70 @@ DASHBOARD_HTML = """
     </table>
   </section>
 </main>
+<div id="ruleAutomationModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="ruleAutomationTitle">
+  <div class="rule-modal">
+    <header>
+      <h2 id="ruleAutomationTitle">Codex 자동 룰 개선 진행</h2>
+      <div class="sub">진행 내용이 길면 아래 영역을 스크롤해서 전체 변경 이유와 결과를 확인하세요.</div>
+    </header>
+    <div class="rule-modal-body">
+      <div id="ruleAutomationSteps"></div>
+      <div id="ruleAutomationFinal" class="rule-final hidden"></div>
+    </div>
+    <div class="rule-modal-footer">
+      <button id="ruleAutomationRetry" class="btn hidden" type="button" onclick="runCodexRuleAutomation()">다시 룰 개선</button>
+      <button id="ruleAutomationClose" class="btn primary hidden" type="button" onclick="closeRuleAutomationModal()">확인</button>
+    </div>
+  </div>
+</div>
 <script>
 const THEME_KEY = "cryptoDashboardTheme";
 let latestRuleReviewId = null;
 let latestRuleProposalId = null;
+
+function openRuleAutomationModal() {
+  document.getElementById("ruleAutomationModal").classList.add("visible");
+  document.getElementById("ruleAutomationSteps").innerHTML = "";
+  document.getElementById("ruleAutomationFinal").classList.add("hidden");
+  document.getElementById("ruleAutomationFinal").textContent = "";
+  document.getElementById("ruleAutomationRetry").classList.add("hidden");
+  document.getElementById("ruleAutomationClose").classList.add("hidden");
+}
+
+function closeRuleAutomationModal() {
+  document.getElementById("ruleAutomationModal").classList.remove("visible");
+}
+
+function appendRuleAutomationStep(name, status, message) {
+  const steps = document.getElementById("ruleAutomationSteps");
+  const item = document.createElement("div");
+  item.className = `rule-step ${status}`;
+  item.innerHTML = `<strong>${name}</strong><div>${message || ""}</div>`;
+  steps.appendChild(item);
+}
+
+function renderRuleAutomationResult(payload) {
+  document.getElementById("ruleAutomationSteps").innerHTML = "";
+  (payload.steps || []).forEach((step) => appendRuleAutomationStep(step.name, step.status, step.message));
+  const summary = payload.final_summary || {};
+  const changed = (summary.changed_parameters || []).join(", ") || "실제 변경 없음";
+  const rejected = (summary.rejection_reasons || []).join(", ") || "없음";
+  const replay = summary.replay_result ? JSON.stringify(summary.replay_result, null, 2) : "replay 결과 없음";
+  const final = [
+    `완료 상태: ${payload.status === "completed" ? "demo 적용 완료" : "추가 개선 필요"}`,
+    `바뀐 항목: ${changed}`,
+    `변경 이유: ${summary.change_reason || "-"}`,
+    `replay 결과: ${replay}`,
+    `demo 적용: ${summary.demo_applied ? "완료" : "미완료"}`,
+    `live 승인 필요: ${summary.live_requires_approval ? "필요" : "불필요"}`,
+    `차단/보류 사유: ${rejected}`
+  ].join("\\n");
+  const finalBox = document.getElementById("ruleAutomationFinal");
+  finalBox.textContent = final;
+  finalBox.classList.remove("hidden");
+  document.getElementById("ruleAutomationClose").classList.remove("hidden");
+  document.getElementById("ruleAutomationRetry").classList.toggle("hidden", !payload.can_retry);
+}
 
 function applyTheme(theme) {
   document.body.classList.toggle("dark", theme === "dark");
@@ -674,6 +745,24 @@ function renderRuleHistory(payload) {
 
 async function refreshRuleHistory() {
   renderRuleHistory(await fetchJson("/api/v1/rules/history"));
+}
+
+async function runCodexRuleAutomation() {
+  openRuleAutomationModal();
+  appendRuleAutomationStep("Codex CLI 룰 개선 하네스 시작", "running", "학습 로그를 읽고 변경안을 생성하는 자동 파이프라인을 실행합니다.");
+  try {
+    const result = await postJson("/api/v1/rules/auto-improve", {fixture_path: "fixtures/replay_ticks.json"});
+    renderRuleAutomationResult(result);
+    renderRulePipeline({proposal: result.proposal || {}, review: result.review || {}});
+    await refreshRuleHistory();
+  } catch (error) {
+    appendRuleAutomationStep("자동 룰 개선 실패", "blocked", error.message);
+    const finalBox = document.getElementById("ruleAutomationFinal");
+    finalBox.textContent = "자동 룰 개선 요청이 실패했습니다. 서버 상태와 replay fixture를 확인한 뒤 다시 실행하세요.";
+    finalBox.classList.remove("hidden");
+    document.getElementById("ruleAutomationRetry").classList.remove("hidden");
+    document.getElementById("ruleAutomationClose").classList.remove("hidden");
+  }
 }
 
 async function runRuleReview() {

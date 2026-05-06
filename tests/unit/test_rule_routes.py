@@ -115,3 +115,17 @@ def test_rule_review_api_contract(tmp_path) -> None:
     live_response = client.post(f"/api/v1/rules/proposals/{proposal['id']}/approve-live", json={"approved_by": ""})
     assert live_response.status_code == 200
     assert live_response.json()["proposal"]["live_approved"] is False
+
+    auto_response = client.post("/api/v1/rules/auto-improve", json={"fixture_path": "fixtures/replay_ticks.json"})
+    assert auto_response.status_code == 200
+    auto_payload = auto_response.json()
+    assert auto_payload["codex_cli"]["mode"] == "local_harness"
+    assert [step["name"] for step in auto_payload["steps"]] == [
+        "Codex CLI 룰 개선 하네스 시작",
+        "룰 개선 분석",
+        "Codex 룰 변경안 생성",
+        "replay 검증",
+        "demo 적용",
+    ]
+    assert "final_summary" in auto_payload
+    assert auto_payload["proposal"]["id"]

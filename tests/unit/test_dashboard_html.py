@@ -19,9 +19,14 @@ def test_dashboard_price_card_renders_change_on_separate_small_line() -> None:
 
 def test_dashboard_includes_rule_review_pipeline_panel() -> None:
     assert "룰 개선" in DASHBOARD_HTML
-    assert "룰 개선 분석 실행" in DASHBOARD_HTML
-    assert "룰 변경안 생성" in DASHBOARD_HTML
-    assert "replay 검증" in DASHBOARD_HTML
+    assert "Codex 자동 룰 개선 시작" in DASHBOARD_HTML
+    assert "Codex 자동 룰 개선 진행" in DASHBOARD_HTML
+    assert "다시 룰 개선" in DASHBOARD_HTML
+    assert "진행 내용이 길면" in DASHBOARD_HTML
+    assert 'postJson("/api/v1/rules/auto-improve"' in DASHBOARD_HTML
+    assert "runCodexRuleAutomation" in DASHBOARD_HTML
+    assert "renderRuleAutomationResult" in DASHBOARD_HTML
+    assert "replay 결과" in DASHBOARD_HTML
     assert "demo 적용" in DASHBOARD_HTML
     assert "live 승인 적용" in DASHBOARD_HTML
     assert "커밋 해시 연결" in DASHBOARD_HTML
@@ -134,9 +139,14 @@ def test_dashboard_displays_rule_review_coin_context() -> None:
 
 
 def test_settings_includes_rule_review_pipeline_panel() -> None:
-    assert "룰 개선 분석 실행" in SETTINGS_HTML
-    assert "룰 변경안 생성" in SETTINGS_HTML
-    assert "replay 검증" in SETTINGS_HTML
+    assert "Codex 자동 룰 개선 시작" in SETTINGS_HTML
+    assert "Codex 자동 룰 개선 진행" in SETTINGS_HTML
+    assert "다시 룰 개선" in SETTINGS_HTML
+    assert "진행 내용이 길면" in SETTINGS_HTML
+    assert 'postJson("/api/v1/rules/auto-improve"' in SETTINGS_HTML
+    assert "runCodexRuleAutomation" in SETTINGS_HTML
+    assert "renderRuleAutomationResult" in SETTINGS_HTML
+    assert "replay 결과" in SETTINGS_HTML
     assert "demo 적용" in SETTINGS_HTML
     assert "live 승인 적용" in SETTINGS_HTML
     assert "커밋 해시 연결" in SETTINGS_HTML
