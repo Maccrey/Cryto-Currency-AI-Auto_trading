@@ -152,7 +152,7 @@ def test_position_exit_service_updates_position_after_partial_post_entry_exit() 
     )
 
     result = service.evaluate_and_execute(
-        current_price=818.0,
+        current_price=811.0,
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=0.1,
@@ -191,7 +191,7 @@ def test_position_exit_service_full_exits_when_partial_would_leave_dust() -> Non
     service = _build_service(store)
 
     result = service.evaluate_and_execute(
-        current_price=818.0,
+        current_price=811.0,
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=0.1,
@@ -230,7 +230,7 @@ def test_position_exit_service_blocks_sell_below_upbit_minimum_order_amount() ->
     )
 
     result = service.evaluate_and_execute(
-        current_price=818.0,
+        current_price=811.0,
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=0.1,

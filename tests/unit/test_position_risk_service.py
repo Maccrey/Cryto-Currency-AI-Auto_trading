@@ -58,5 +58,5 @@ def test_position_risk_service_evaluates_hard_stop_and_post_entry() -> None:
     assert result["status"] == "ok"
     assert result["hard_stop"]["triggered"] is True
     assert result["hard_stop"]["reason_code"] == "STOP_LOSS_PRICE_HIT"
-    assert result["post_entry"]["triggered"] is True
-    assert result["post_entry"]["reason_code"] == "STOP_LOSS_EXPECTATION_FAILED"
+    assert result["post_entry"]["triggered"] is False
+    assert result["post_entry"]["reason_code"] is None

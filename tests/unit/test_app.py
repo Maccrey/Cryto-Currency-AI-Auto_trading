@@ -1773,10 +1773,8 @@ def test_position_endpoints_return_saved_position_and_overlay(monkeypatch) -> No
     assert risk_response.status_code == 200
     assert risk_response.json()["status"] == "ok"
     assert risk_response.json()["hard_stop"]["triggered"] is True
-    assert (
-        risk_response.json()["post_entry"]["reason_code"]
-        == "STOP_LOSS_EXPECTATION_FAILED"
-    )
+    assert risk_response.json()["post_entry"]["triggered"] is False
+    assert risk_response.json()["post_entry"]["reason_code"] is None
 
     exit_response = client.post(
         "/position/exit",

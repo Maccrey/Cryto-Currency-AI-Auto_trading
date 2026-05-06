@@ -20,7 +20,7 @@ class PostEntryExpectationRuleset:
 
     momentum_reversal_threshold: float = 0.35
     liquidity_dropped_threshold: float = -0.2
-    min_adverse_exit_pct: float = 0.001
+    min_adverse_exit_pct: float = 0.01
 
     def evaluate(
         self,
@@ -41,9 +41,6 @@ class PostEntryExpectationRuleset:
 
         if orderbook_imbalance < self.liquidity_dropped_threshold:
             return (0.5, "STOP_LOSS_LIQUIDITY_DROPPED")
-
-        if unrealized_return_pct < position.min_expected_return_pct:
-            return (1.0, "STOP_LOSS_EXPECTATION_FAILED")
 
         return None
 
