@@ -229,6 +229,10 @@ class EnvFileService:
             "PROFILE_MIN_NET_EDGE_PCT": str(profile_spec.min_net_edge_pct),
             "VALIDATION_WINDOW_SEC": str(profile_spec.validation_window_sec),
             "MIN_EXPECTED_RETURN_PCT": str(profile_spec.min_expected_return_pct),
+            "STOP_LOSS_WEAK": str(profile_spec.fixed_stop_loss_pct),
+            "STOP_LOSS_MEDIUM": str(profile_spec.fixed_stop_loss_pct),
+            "STOP_LOSS_STRONG": str(profile_spec.fixed_stop_loss_pct),
+            "STOP_LOSS_VERY_STRONG": str(profile_spec.fixed_stop_loss_pct),
         }
 
     @staticmethod
@@ -243,6 +247,7 @@ class EnvFileService:
                 "min_net_edge_pct": spec.min_net_edge_pct,
                 "validation_window_sec": spec.validation_window_sec,
                 "min_expected_return_pct": spec.min_expected_return_pct,
+                "fixed_stop_loss_pct": spec.fixed_stop_loss_pct,
             }
             for spec in TRADING_PROFILES.values()
         ]

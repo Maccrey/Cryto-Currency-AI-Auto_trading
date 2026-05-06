@@ -71,10 +71,10 @@ SELL_RATIO_MEDIUM=0.28
 SELL_RATIO_STRONG=0.45
 SELL_RATIO_VERY_STRONG=0.70
 
-STOP_LOSS_WEAK=0.008
-STOP_LOSS_MEDIUM=0.012
-STOP_LOSS_STRONG=0.018
-STOP_LOSS_VERY_STRONG=0.022
+STOP_LOSS_WEAK=0.030
+STOP_LOSS_MEDIUM=0.030
+STOP_LOSS_STRONG=0.030
+STOP_LOSS_VERY_STRONG=0.030
 
 VALIDATION_WINDOW_SEC=180
 MIN_EXPECTED_RETURN_PCT=0.004
@@ -169,10 +169,10 @@ DASHBOARD_PORT=8080
 | SELL_RATIO_MEDIUM | float | Y | 0.28 | medium 매도 비율 |
 | SELL_RATIO_STRONG | float | Y | 0.45 | strong 매도 비율 |
 | SELL_RATIO_VERY_STRONG | float | Y | 0.70 | very strong 매도 비율 |
-| STOP_LOSS_WEAK | float | Y | 0.008 | weak 손절 비율 |
-| STOP_LOSS_MEDIUM | float | Y | 0.012 | medium 손절 비율 |
-| STOP_LOSS_STRONG | float | Y | 0.018 | strong 손절 비율 |
-| STOP_LOSS_VERY_STRONG | float | Y | 0.022 | very strong 손절 비율 |
+| STOP_LOSS_WEAK | float | Y | 프로필 고정값 | 룰 변경 대상이 아닌 고정 손절 비율 |
+| STOP_LOSS_MEDIUM | float | Y | 프로필 고정값 | 룰 변경 대상이 아닌 고정 손절 비율 |
+| STOP_LOSS_STRONG | float | Y | 프로필 고정값 | 룰 변경 대상이 아닌 고정 손절 비율 |
+| STOP_LOSS_VERY_STRONG | float | Y | 프로필 고정값 | 룰 변경 대상이 아닌 고정 손절 비율 |
 | VALIDATION_WINDOW_SEC | int | Y | 180 | 기대 검증 시간 |
 | MIN_EXPECTED_RETURN_PCT | float | Y | 0.004 | 최소 기대 수익률 |
 | TRADING_PROFILE | str | Y | scalping | 투자성향/전략 프로필, scalping/short_term/mid_term/long_term |
@@ -329,12 +329,14 @@ false면 앱 시작 실패
 
 기본 프로필:
 
-| 값 | 표시 | 주기 | 히스토리 | 최소 순엣지 | 검증 창 | 최소 기대수익 |
-|---|---|---:|---:|---:|---:|---:|
-| scalping | 단타 | 3초 | 6 | 0.08% | 180초 | 0.40% |
-| short_term | 단기 | 10초 | 12 | 0.20% | 900초 | 0.80% |
-| mid_term | 중기 | 30초 | 20 | 0.60% | 3600초 | 1.50% |
-| long_term | 장기 | 60초 | 30 | 1.20% | 14400초 | 3.00% |
+| 값 | 표시 | 주기 | 히스토리 | 최소 순엣지 | 검증 창 | 최소 기대수익 | 고정 손절 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| scalping | 단타 | 3초 | 6 | 0.08% | 180초 | 0.40% | -3.00% |
+| short_term | 단기 | 10초 | 12 | 0.20% | 900초 | 0.80% | -3.00% |
+| mid_term | 중기 | 30초 | 20 | 0.60% | 3600초 | 1.50% | -5.00% |
+| long_term | 장기 | 60초 | 30 | 1.20% | 14400초 | 3.00% | -10.00% |
+
+손절률은 투자성향의 고정값으로만 적용한다. `.env`에 `STOP_LOSS_*` 값이 남아 있어도 런타임은 프로필 고정 손절률로 덮어쓰며, Codex 룰 개선 제안은 손절 파라미터를 변경할 수 없다.
 
 ### 코드 설정 스키마 계약
 `app.core.settings.SettingsModel`과 `AppSettings`는 이 문서의 필수 변수 전체를 필드로 가진다.

@@ -16,6 +16,15 @@ class TradingProfileSpec:
     min_expected_return_pct: float
     spread_bps: float
     slippage_bps: float
+    fixed_stop_loss_pct: float
+
+    def stop_loss_by_signal(self) -> dict[str, float]:
+        return {
+            "weak": self.fixed_stop_loss_pct,
+            "medium": self.fixed_stop_loss_pct,
+            "strong": self.fixed_stop_loss_pct,
+            "very_strong": self.fixed_stop_loss_pct,
+        }
 
 
 TRADING_PROFILES: dict[str, TradingProfileSpec] = {
@@ -30,6 +39,7 @@ TRADING_PROFILES: dict[str, TradingProfileSpec] = {
         min_expected_return_pct=0.004,
         spread_bps=8.0,
         slippage_bps=12.0,
+        fixed_stop_loss_pct=0.030,
     ),
     "short_term": TradingProfileSpec(
         key="short_term",
@@ -42,6 +52,7 @@ TRADING_PROFILES: dict[str, TradingProfileSpec] = {
         min_expected_return_pct=0.008,
         spread_bps=10.0,
         slippage_bps=15.0,
+        fixed_stop_loss_pct=0.030,
     ),
     "mid_term": TradingProfileSpec(
         key="mid_term",
@@ -54,6 +65,7 @@ TRADING_PROFILES: dict[str, TradingProfileSpec] = {
         min_expected_return_pct=0.015,
         spread_bps=12.0,
         slippage_bps=18.0,
+        fixed_stop_loss_pct=0.050,
     ),
     "long_term": TradingProfileSpec(
         key="long_term",
@@ -66,6 +78,7 @@ TRADING_PROFILES: dict[str, TradingProfileSpec] = {
         min_expected_return_pct=0.030,
         spread_bps=15.0,
         slippage_bps=20.0,
+        fixed_stop_loss_pct=0.100,
     ),
 }
 

@@ -158,11 +158,17 @@ sell_amount = sell_qty * current_price
 - min_expected_return_pct
 - stop_loss_reason = null
 
-### 신호별 손절 비율 예시
-- weak: 0.008
-- medium: 0.012
-- strong: 0.018
-- very_strong: 0.022
+### 투자성향별 고정 손절 비율
+손절률은 신호 강도나 Codex 룰 변경으로 조정하지 않는다. 모든 신호 강도는 현재 투자성향의 고정 손절률을 동일하게 사용한다.
+
+| 투자성향 | 고정 손절 |
+|---|---:|
+| 단타 | -3% |
+| 단기 | -3% |
+| 중기 | -5% |
+| 장기 | -10% |
+
+`STOP_LOSS_*`, `stop_loss_pct`, `stop_loss_price`, `fixed_stop_loss_pct`는 룰 개선 파이프라인의 변경 대상이 아니다. Codex가 학습 로그를 분석하더라도 손절률 변경안은 생성하지 않고, 손절 관련 개선은 진입 조건, 사이징, 재진입 차단, 기대 검증 기준으로만 제안한다.
 
 ### 계산 예시
 ```python

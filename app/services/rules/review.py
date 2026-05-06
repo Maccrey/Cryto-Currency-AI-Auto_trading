@@ -26,6 +26,13 @@ class RuleReviewConfig:
 class RuleReviewService:
     """Build rule improvement reviews and guard proposal promotion steps."""
 
+    LOCKED_PARAMETER_PREFIXES = ("STOP_LOSS_",)
+    LOCKED_PARAMETER_NAMES = {
+        "stop_loss_pct",
+        "stop_loss_price",
+        "fixed_stop_loss_pct",
+    }
+
     def __init__(
         self,
         *,
@@ -86,6 +93,10 @@ class RuleReviewService:
             rejection_reasons.append("insufficient_stoploss_sample")
 
         changes = [] if rejection_reasons else proposed_changes or self._default_proposed_changes()
+        locked_changes = self._locked_changes(changes)
+        if locked_changes:
+            rejection_reasons.append("fixed_stop_loss_locked")
+            changes = self._without_locked_changes(changes)
         if len(changes) > self._config.max_params_per_run:
             rejection_reasons.append("too_many_parameter_changes")
             changes = changes[: self._config.max_params_per_run]
@@ -105,6 +116,7 @@ class RuleReviewService:
             "major_loss_causes": review["major_loss_causes"],
             "external_context_summary": review.get("external_context_summary", self._empty_external_context_summary()),
             "codex_suggested_changes": changes,
+            "locked_parameters": self._changed_parameters(locked_changes),
             "history_warnings": history_warnings,
             "replay_result": None,
             "demo_applied": False,
@@ -557,6 +569,35 @@ class RuleReviewService:
             for change in changes
             if isinstance(change, dict) and change.get("parameter")
         ]
+
+    @classmethod
+    def _locked_changes(cls, changes: Any) -> list[dict[str, Any]]:
+        if not isinstance(changes, list):
+            return []
+        return [
+            change
+            for change in changes
+            if isinstance(change, dict) and cls._is_locked_parameter(change.get("parameter"))
+        ]
+
+    @classmethod
+    def _without_locked_changes(cls, changes: Any) -> list[dict[str, Any]]:
+        if not isinstance(changes, list):
+            return []
+        return [
+            change
+            for change in changes
+            if isinstance(change, dict) and not cls._is_locked_parameter(change.get("parameter"))
+        ]
+
+    @classmethod
+    def _is_locked_parameter(cls, parameter: Any) -> bool:
+        normalized = str(parameter or "").strip()
+        lowered = normalized.lower()
+        return (
+            lowered in cls.LOCKED_PARAMETER_NAMES
+            or any(normalized.upper().startswith(prefix) for prefix in cls.LOCKED_PARAMETER_PREFIXES)
+        )
 
     @staticmethod
     def _expected_effect(changes: Any) -> str:

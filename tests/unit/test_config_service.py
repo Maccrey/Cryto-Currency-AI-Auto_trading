@@ -151,6 +151,10 @@ def test_env_file_service_saves_trading_profile_defaults(tmp_path: Path) -> None
     assert "AUTO_TRADING_INTERVAL_SEC=60.0" in env_text
     assert "AUTO_TRADING_MIN_HISTORY=30" in env_text
     assert "PROFILE_MIN_NET_EDGE_PCT=0.012" in env_text
+    assert "STOP_LOSS_WEAK=0.1" in env_text
+    assert "STOP_LOSS_MEDIUM=0.1" in env_text
+    assert "STOP_LOSS_STRONG=0.1" in env_text
+    assert "STOP_LOSS_VERY_STRONG=0.1" in env_text
     current = service.current()
     assert {profile["key"] for profile in current["profiles"]} == {
         "scalping",
@@ -158,6 +162,8 @@ def test_env_file_service_saves_trading_profile_defaults(tmp_path: Path) -> None
         "mid_term",
         "long_term",
     }
+    long_term = next(profile for profile in current["profiles"] if profile["key"] == "long_term")
+    assert long_term["fixed_stop_loss_pct"] == 0.1
 
 
 def test_env_file_service_updates_market_when_coin_changes_from_default_xrp(tmp_path: Path) -> None:

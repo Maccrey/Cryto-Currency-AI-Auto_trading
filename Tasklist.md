@@ -146,7 +146,8 @@
 - [x] [Fail] 매수 체결 시 entry_price와 stop_loss_price가 저장되어야 한다
 - [x] [Fail] 매수 알림에 손절가가 포함되어야 한다
 - [x] [Code] stop loss injector 구현
-- [x] [Refactor] signal strength별 손절 비율 정책 분리
+- [x] [Refactor] 투자성향별 고정 손절률 적용
+- [x] [Guard] Codex 룰 변경안에서 손절 파라미터 변경 차단
 - [x] [Contract] positions schema 반영
 
 ### 가격 손절

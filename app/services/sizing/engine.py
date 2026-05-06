@@ -80,10 +80,10 @@ class SizingEngine:
         self._buy_policy = buy_policy or BuySizingPolicy()
         self._sell_policy = sell_policy or SellSizingPolicy()
         self._stop_loss_by_signal = stop_loss_by_signal or {
-            "weak": 0.008,
-            "medium": 0.012,
-            "strong": 0.018,
-            "very_strong": 0.022,
+            "weak": 0.030,
+            "medium": 0.030,
+            "strong": 0.030,
+            "very_strong": 0.030,
         }
 
     def size_entry(

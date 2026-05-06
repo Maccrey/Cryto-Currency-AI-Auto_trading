@@ -73,13 +73,44 @@ def test_rule_proposal_rejects_too_many_parameter_changes(tmp_path: Path) -> Non
         review_id=str(review["review"]["id"]),
         proposed_changes=[
             {"parameter": "BUY_RATIO_MEDIUM", "proposed_value": 0.16},
-            {"parameter": "STOP_LOSS_MEDIUM", "proposed_value": 0.01},
+            {"parameter": "BUY_RATIO_STRONG", "proposed_value": 0.30},
         ],
     )
 
     assert proposal["proposal"]["status"] == "blocked"
     assert "too_many_parameter_changes" in proposal["proposal"]["rejection_reasons"]
     assert len(proposal["proposal"]["codex_suggested_changes"]) == 1
+
+
+def test_rule_proposal_rejects_stop_loss_parameter_changes(tmp_path: Path) -> None:
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    proposal = service.create_proposal(
+        proposed_changes=[
+            {"parameter": "STOP_LOSS_STRONG", "current_value": 0.03, "proposed_value": 0.025},
+            {"parameter": "BUY_RATIO_MEDIUM", "current_value": 0.18, "proposed_value": 0.16},
+        ],
+    )["proposal"]
+
+    assert proposal["status"] == "blocked"
+    assert "fixed_stop_loss_locked" in proposal["rejection_reasons"]
+    assert proposal["locked_parameters"] == ["STOP_LOSS_STRONG"]
+    assert proposal["codex_suggested_changes"] == [
+        {"parameter": "BUY_RATIO_MEDIUM", "current_value": 0.18, "proposed_value": 0.16},
+    ]
 
 
 def test_replay_verification_allows_demo_apply_for_valid_proposal(tmp_path: Path) -> None:

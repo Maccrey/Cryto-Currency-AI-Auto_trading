@@ -255,12 +255,7 @@ def create_app(
                 trading_fee_rate=float(settings.trading_fee_rate),
                 order_rules=order_rules,
                 min_net_edge_pct=float(settings.profile_min_net_edge_pct),
-                stop_loss_by_signal={
-                    "weak": settings.stop_loss_weak,
-                    "medium": settings.stop_loss_medium,
-                    "strong": settings.stop_loss_strong,
-                    "very_strong": settings.stop_loss_very_strong,
-                },
+                stop_loss_by_signal=trading_profile.stop_loss_by_signal(),
             ),
         )
 
@@ -328,12 +323,7 @@ def create_app(
     if post_fill_service is None:
         post_fill_service = PostFillService(
             stop_loss_injector=StopLossInjector(
-                stop_loss_by_signal={
-                    "weak": settings.stop_loss_weak,
-                    "medium": settings.stop_loss_medium,
-                    "strong": settings.stop_loss_strong,
-                    "very_strong": settings.stop_loss_very_strong,
-                },
+                stop_loss_by_signal=trading_profile.stop_loss_by_signal(),
                 validation_window_sec=settings.validation_window_sec,
                 min_expected_return_pct=settings.min_expected_return_pct,
             ),

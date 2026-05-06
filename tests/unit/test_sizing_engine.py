@@ -46,7 +46,7 @@ def test_sizing_engine_computes_buy_amount_for_strong_signal() -> None:
         sell_ratio=0.0,
         sell_amount=0.0,
         sell_quantity=0.0,
-        stop_loss_price=785.6,
+        stop_loss_price=776.0,
         blocked_reason=None,
     )
 
@@ -201,7 +201,7 @@ def test_sizing_engine_allows_medium_scalping_entry_with_relaxed_edge_buffer() -
     assert decision.allowed is True
     assert decision.buy_amount == 28800.0
     assert decision.buy_quantity == 36.0
-    assert decision.stop_loss_price == 790.4
+    assert decision.stop_loss_price == 776.0
 
 
 def test_sizing_engine_blocks_weak_scalping_entry_when_edge_does_not_clear_fees() -> None:
@@ -301,9 +301,9 @@ def test_sizing_engine_caps_buy_amount_by_stop_loss_risk_budget() -> None:
     )
 
     assert decision.allowed is True
-    assert decision.buy_amount == 55555.6
-    assert decision.buy_quantity == 69.4445
-    assert decision.stop_loss_price == 785.6
+    assert decision.buy_amount == 33333.3
+    assert decision.buy_quantity == 41.6666
+    assert decision.stop_loss_price == 776.0
 
 
 def test_buy_and_sell_sizing_policies_are_separate() -> None:
@@ -341,4 +341,4 @@ def test_sizing_engine_includes_sell_size_and_stop_loss_price() -> None:
     assert decision.sell_ratio == 0.45
     assert decision.sell_quantity == 90.0
     assert decision.sell_amount == 72000.0
-    assert decision.stop_loss_price == 785.6
+    assert decision.stop_loss_price == 776.0

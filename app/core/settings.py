@@ -60,10 +60,11 @@ class SettingsModel(BaseModel):
     sell_ratio_medium: float = Field(default=0.28)
     sell_ratio_strong: float = Field(default=0.45)
     sell_ratio_very_strong: float = Field(default=0.70)
-    stop_loss_weak: float = Field(default=0.008)
-    stop_loss_medium: float = Field(default=0.012)
-    stop_loss_strong: float = Field(default=0.018)
-    stop_loss_very_strong: float = Field(default=0.022)
+    stop_loss_weak: float = Field(default=0.030)
+    stop_loss_medium: float = Field(default=0.030)
+    stop_loss_strong: float = Field(default=0.030)
+    stop_loss_very_strong: float = Field(default=0.030)
+    fixed_stop_loss_pct: float = Field(default=0.030)
     validation_window_sec: int = Field(default=180)
     min_expected_return_pct: float = Field(default=0.004)
     trading_profile: str = Field(default="scalping")
@@ -224,6 +225,7 @@ class AppSettings:
     stop_loss_medium: float
     stop_loss_strong: float
     stop_loss_very_strong: float
+    fixed_stop_loss_pct: float
     validation_window_sec: int
     min_expected_return_pct: float
     trading_profile: str
@@ -325,10 +327,11 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "sell_ratio_medium": float(_setting("SELL_RATIO_MEDIUM", "0.28", env_values)),
         "sell_ratio_strong": float(_setting("SELL_RATIO_STRONG", "0.45", env_values)),
         "sell_ratio_very_strong": float(_setting("SELL_RATIO_VERY_STRONG", "0.70", env_values)),
-        "stop_loss_weak": float(_setting("STOP_LOSS_WEAK", "0.008", env_values)),
-        "stop_loss_medium": float(_setting("STOP_LOSS_MEDIUM", "0.012", env_values)),
-        "stop_loss_strong": float(_setting("STOP_LOSS_STRONG", "0.018", env_values)),
-        "stop_loss_very_strong": float(_setting("STOP_LOSS_VERY_STRONG", "0.022", env_values)),
+        "stop_loss_weak": profile_spec.fixed_stop_loss_pct,
+        "stop_loss_medium": profile_spec.fixed_stop_loss_pct,
+        "stop_loss_strong": profile_spec.fixed_stop_loss_pct,
+        "stop_loss_very_strong": profile_spec.fixed_stop_loss_pct,
+        "fixed_stop_loss_pct": profile_spec.fixed_stop_loss_pct,
         "validation_window_sec": int(
             _setting("VALIDATION_WINDOW_SEC", str(profile_spec.validation_window_sec), env_values),
         ),

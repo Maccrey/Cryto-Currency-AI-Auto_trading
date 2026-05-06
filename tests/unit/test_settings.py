@@ -45,6 +45,11 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.rule_change_max_params_per_run == 3
     assert settings.rule_change_apply_target == "demo"
     assert settings.rule_change_require_manual_approval is True
+    assert settings.fixed_stop_loss_pct == 0.030
+    assert settings.stop_loss_weak == 0.030
+    assert settings.stop_loss_medium == 0.030
+    assert settings.stop_loss_strong == 0.030
+    assert settings.stop_loss_very_strong == 0.030
     assert settings.external_context_enabled is True
     assert settings.external_context_cache_ttl_sec == 300
     assert settings.onchain_context_source == "manual"
@@ -92,6 +97,8 @@ def test_trading_profile_applies_profile_defaults(
     assert settings.auto_trading_min_history == 20
     assert settings.profile_min_net_edge_pct == 0.0060
     assert settings.validation_window_sec == 3600
+    assert settings.fixed_stop_loss_pct == 0.050
+    assert settings.stop_loss_strong == 0.050
 
 
 def test_settings_loads_values_from_env_file_without_api_keys_in_demo(
@@ -190,6 +197,7 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "stop_loss_medium",
         "stop_loss_strong",
         "stop_loss_very_strong",
+        "fixed_stop_loss_pct",
         "validation_window_sec",
         "min_expected_return_pct",
         "trading_profile",

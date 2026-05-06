@@ -442,7 +442,9 @@ telegram-notifier
 ### 14.2 표본 기준
 - `RULE_REVIEW_WINDOW_DAYS` 기간의 로그만 기본 분석 대상으로 삼는다.
 - `RULE_REVIEW_MIN_TRADES` 미만이면 룰 변경안을 생성하지 않는다.
-- `RULE_REVIEW_MIN_STOPLOSSES` 미만이면 손절 파라미터 변경안을 생성하지 않는다.
+- 손절률은 투자성향별 고정값이다. 단타/단기 -3%, 중기 -5%, 장기 -10%를 사용한다.
+- `STOP_LOSS_*`, `stop_loss_pct`, `stop_loss_price`, `fixed_stop_loss_pct`는 Codex 룰 변경 금지 파라미터다.
+- `RULE_REVIEW_MIN_STOPLOSSES`를 충족하더라도 손절 파라미터 변경안을 생성하지 않는다. 손절 관련 개선은 진입 조건, 사이징, 재진입 차단, 기대 검증 기준으로만 제안한다.
 - 한 번에 변경 가능한 파라미터 수는 `RULE_CHANGE_MAX_PARAMS_PER_RUN` 이하로 제한한다.
 - review/proposal 상태는 코인/투자성향별 학습 로그 디렉터리의 `rule-review-state.json`에 저장해 재기동 후에도 이어서 검토한다.
 - 승인·거절·demo 적용·live 반영 등 의사결정 이력은 같은 디렉터리의 `rule-change-history.jsonl`에 append-only로 저장한다.
@@ -509,6 +511,7 @@ Codex는 매매룰을 바꿀 때 기존 룰과 새 룰의 차이뿐 아니라 �
 - replay 테스트가 없으면 금지
 - demo 선반영 없이 live 반영 금지
 - live 운영 중 즉시 반영 금지
+- 손절률 고정값 변경 금지
 - 기존 룰 변경 히스토리 검토 없이 변경 금지
 - `change_reason`, `expected_effect`, `known_risks` 없는 변경 금지
 - main 직접 반영 금지

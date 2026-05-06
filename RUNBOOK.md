@@ -284,6 +284,8 @@ order_intent
 - `demo 적용`: replay 결과가 있는 변경안만 demo에 적용한다.
 - `live 승인 적용`: demo 검증 통과와 수동 승인 후 live 반영한다.
 
+손절률은 투자성향별 고정값이다. 단타/단기 -3%, 중기 -5%, 장기 -10%를 사용하며, 룰 변경안 생성이나 live 승인 과정에서 `STOP_LOSS_*`, `stop_loss_pct`, `stop_loss_price`, `fixed_stop_loss_pct` 변경은 금지한다.
+
 ### 결과 패널 필수 정보
 - 분석 대상 기간
 - 거래 수
