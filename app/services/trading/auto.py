@@ -31,7 +31,7 @@ class AutoTradingConfig:
     trading_fee_rate: float = 0.0005
     no_trade_adaptive_enabled: bool = True
     no_trade_relax_after_cycles: int = 100
-    no_trade_relax_min_score: float = 0.30
+    no_trade_relax_min_score: float = 0.18
 
 
 class AutoTradingService:
@@ -191,6 +191,10 @@ class AutoTradingService:
         request = self._build_decision_request(snapshot.trade_price)
         decision = self._trade_decision_service.evaluate(request)
         relaxed_signal = self._should_relax_weak_signal(decision)
+        if relaxed_signal and decision.sizing.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT":
+            decision = self._trade_decision_service.evaluate(
+                self._build_decision_request(snapshot.trade_price, relax_fee_edge=True),
+            )
         if decision.signal.level == "weak" and not relaxed_signal:
             self._consecutive_entry_blocks += 1
             return self._record_cycle(
@@ -250,7 +254,7 @@ class AutoTradingService:
             return None
         return UpbitTickerSnapshot(trade_price=float(price))
 
-    def _build_decision_request(self, current_price: float) -> TradeDecisionRequest:
+    def _build_decision_request(self, current_price: float, *, relax_fee_edge: bool = False) -> TradeDecisionRequest:
         return TradeDecisionRequest(
             prices=list(self._prices),
             traded_values=list(self._traded_values),
@@ -263,6 +267,7 @@ class AutoTradingService:
             portfolio=self._portfolio_state(),
             safe_mode=self._boot_state.safe_mode,
             recent_loss_streak=0,
+            relax_fee_edge=relax_fee_edge,
         )
 
     def _portfolio_state(self) -> PortfolioState:
@@ -403,6 +408,8 @@ class AutoTradingService:
         return snapshot
 
     def _should_relax_weak_signal(self, decision) -> bool:
+        if self._trading_mode != "demo":
+            return False
         if not self._config.no_trade_adaptive_enabled:
             return False
         if self._consecutive_entry_blocks < self._config.no_trade_relax_after_cycles:
@@ -411,5 +418,8 @@ class AutoTradingService:
             decision.signal.level == "weak"
             and not decision.signal.blocked
             and decision.signal.score >= self._config.no_trade_relax_min_score
-            and decision.sizing.allowed
+            and (
+                decision.sizing.allowed
+                or decision.sizing.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT"
+            )
         )

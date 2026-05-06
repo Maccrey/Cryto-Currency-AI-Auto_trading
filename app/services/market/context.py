@@ -242,12 +242,20 @@ class PublicWebExternalMarketContextProvider:
     def _fetch_coinglass_etf(self, coin: str) -> dict[str, object]:
         flow_usd = self._fetch_coinglass_latest_flow_usd(coin)
         overview = self._fetch_coinglass_etf_overview(coin)
-        if flow_usd is None and not overview:
-            return self._fetch_xrp_insights_etf(coin)
-        flow_value = flow_usd or 0.0
+        if flow_usd is None:
+            fallback = self._fetch_xrp_insights_etf(coin)
+            if fallback:
+                return fallback
+            if not overview:
+                return {}
+            flow_value = 0.0
+            state = "unknown"
+        else:
+            flow_value = flow_usd
+            state = "inflow" if flow_value > 0 else "outflow" if flow_value < 0 else "neutral"
         payload = {
             "source": "web",
-            "state": "inflow" if flow_value > 0 else "outflow" if flow_value < 0 else "neutral",
+            "state": state,
             "flow_usd": round(flow_value, 2),
             "inflow_usd": round(max(flow_value, 0.0), 2),
             "outflow_usd": round(abs(min(flow_value, 0.0)), 2),
@@ -278,13 +286,7 @@ class PublicWebExternalMarketContextProvider:
         total_holding = self._optional_float(agent_data.get("totalTokenHoldings")) or 0.0
         flow_usd = self._optional_float(agent_data.get("dailyNetInflow")) or 0.0
         if flow_usd == 0.0:
-            etfs = agent_data.get("etfs")
-            if isinstance(etfs, list):
-                flow_usd = sum(
-                    self._optional_float(item.get("dailyNetInflow")) or 0.0
-                    for item in etfs
-                    if isinstance(item, dict)
-                )
+            flow_usd = self._sum_xrp_insights_etf_flows(agent_data.get("etfs"))
         xrp_price = self._extract_escaped_number(response.text, "xrpData", "price") or 0.0
         holding_change = 0.0 if xrp_price <= 0 else flow_usd / xrp_price
         if total_aum <= 0 and total_holding <= 0 and flow_usd == 0.0:
@@ -316,9 +318,9 @@ class PublicWebExternalMarketContextProvider:
         for item in reversed(data):
             if not isinstance(item, dict):
                 continue
-            value = item.get("changeUsd", item.get("change"))
+            value = self._coinglass_flow_value(item)
             if value is not None:
-                return float(value)
+                return value
         return None
 
     def _fetch_coinglass_etf_overview(self, coin: str) -> dict[str, float]:
@@ -421,6 +423,35 @@ class PublicWebExternalMarketContextProvider:
         if data is None and isinstance(raw.get("result"), dict):
             data = raw["result"].get("data")
         return data
+
+    @staticmethod
+    def _coinglass_flow_value(item: dict[str, Any]) -> float | None:
+        for key in ("changeUsd", "change", "netInflowUsd", "netInflow", "dailyNetInflow"):
+            value = PublicWebExternalMarketContextProvider._optional_float(item.get(key))
+            if value is not None:
+                return value
+        inflow = PublicWebExternalMarketContextProvider._optional_float(item.get("inflow"))
+        outflow = PublicWebExternalMarketContextProvider._optional_float(item.get("outflow"))
+        if inflow is not None or outflow is not None:
+            return (inflow or 0.0) - (outflow or 0.0)
+        return None
+
+    @staticmethod
+    def _sum_xrp_insights_etf_flows(etfs: Any) -> float:
+        if not isinstance(etfs, list):
+            return 0.0
+        total = 0.0
+        for item in etfs:
+            if not isinstance(item, dict):
+                continue
+            direct = PublicWebExternalMarketContextProvider._optional_float(item.get("dailyNetInflow"))
+            if direct is not None:
+                total += direct
+                continue
+            inflow = PublicWebExternalMarketContextProvider._optional_float(item.get("inflow"))
+            outflow = PublicWebExternalMarketContextProvider._optional_float(item.get("outflow"))
+            total += (inflow or 0.0) - (outflow or 0.0)
+        return total
 
     @staticmethod
     def _optional_float(value: Any) -> float | None:

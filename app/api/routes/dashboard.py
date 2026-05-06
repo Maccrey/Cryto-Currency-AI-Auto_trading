@@ -642,7 +642,8 @@ function deriveReadinessProgress(readiness) {
       "모델 학습 준비도 기준. 체결 수는 학습 로그 누적값이며 최근 체결 표와 다를 수 있습니다.",
       `총 ${number(metrics.total_events || 0)}/${number(required.total_events || 0)}`,
       `매매판단신호 ${number(metrics.signal_events || 0)}/${number(required.signal_events || 0)}`,
-      `학습 로그 체결 ${number(metrics.fill_events || 0)}/${number(required.fill_events || 0)}`
+      `누적 학습 로그 체결 ${number(metrics.fill_events || 0)}/${number(required.fill_events || 0)}`,
+      "아래 최근 체결 표는 현재 서버 실행 중 기록만 표시합니다."
     ]
   };
 }
@@ -1044,6 +1045,7 @@ function renderDashboard(data) {
   document.getElementById("learningTable").innerHTML = [
     row("최근 이벤트", number(totalEvents)),
     row("모델학습 총 이벤트", readiness.metrics ? `${number(readiness.metrics.total_events || 0)} / ${number(readiness.required.total_events || 0)}` : "데이터 없음"),
+    row("누적 학습 로그 체결", readiness.metrics ? `${number(readiness.metrics.fill_events || 0)} / ${number(readiness.required.fill_events || 0)}` : "데이터 없음"),
     row("투자성향", summary.trading_profile_label || summary.trading_profile || "단타"),
     row("최근 이벤트명", learning.last_event_name || "없음"),
     row("최근 기록 시각", learning.last_recorded_at || learningHealth.last_recorded_at || "없음"),
@@ -1057,7 +1059,7 @@ function renderDashboard(data) {
     ? history.slice(-8).reverse().map((item) => `
         <tr><td>${item.side_label || item.side}</td><td>${item.status_label || item.status}</td><td>${number(item.filled_price, 4)}</td><td>${number(item.filled_quantity, 6)}</td></tr>
       `).join("")
-    : '<tr><td colspan="4" class="empty">아직 체결 기록이 없습니다.</td></tr>';
+    : '<tr><td colspan="4" class="empty">현재 서버 실행 중 체결 기록이 없습니다.</td></tr>';
 
   const promotionMetrics = promotion && promotion.metrics ? promotion.metrics : {};
   document.getElementById("promotionTable").innerHTML = [

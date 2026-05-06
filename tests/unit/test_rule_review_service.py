@@ -28,6 +28,66 @@ def test_rule_proposal_is_blocked_when_trade_sample_is_too_small(tmp_path: Path)
     assert "insufficient_stoploss_sample" in proposal["proposal"]["rejection_reasons"]
 
 
+def test_rule_proposal_allows_demo_no_trade_mitigation_with_small_trade_sample(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                (
+                    '{"event_name":"auto_trade_cycle","payload":'
+                    '{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL",'
+                    '"sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"}}'
+                ),
+                (
+                    '{"event_name":"auto_trade_cycle","payload":'
+                    '{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL",'
+                    '"sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"}}'
+                ),
+                (
+                    '{"event_name":"auto_trade_cycle","payload":'
+                    '{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL",'
+                    '"sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"}}'
+                ),
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=100,
+            min_stoplosses=20,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    review = service.review()["review"]
+    proposal = service.create_proposal(review_id=str(review["id"]))["proposal"]
+    initial_status = proposal["status"]
+    initial_rejection_reasons = list(proposal["rejection_reasons"])
+    initial_parameters = [change["parameter"] for change in proposal["codex_suggested_changes"]]
+    service.verify_replay(str(proposal["id"]), fixture_path=Path("fixtures/replay_ticks.json"))
+    result = service.apply_demo(str(proposal["id"]))["proposal"]
+
+    assert review["trade_count"] == 0
+    assert review["stop_loss_count"] == 0
+    assert review["no_trade_blocked_count"] == 6
+    assert initial_status == "proposed"
+    assert initial_rejection_reasons == []
+    assert initial_parameters == [
+        "NO_TRADE_RELAX_MIN_SCORE",
+        "DEMO_FEE_EDGE_RELAXATION",
+    ]
+    assert result["demo_applied"] is True
+    assert result["status"] == "demo_applied"
+
+
 def test_rule_proposal_requires_replay_before_demo_apply(tmp_path: Path) -> None:
     service = RuleReviewService(
         market="KRW-XRP",

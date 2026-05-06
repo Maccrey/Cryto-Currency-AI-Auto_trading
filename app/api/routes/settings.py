@@ -281,7 +281,7 @@ SETTINGS_HTML = """
         </div>
         <div>
           <label for="noTradeRelaxMinScore">완화 최소 신호 점수</label>
-          <input id="noTradeRelaxMinScore" type="number" min="0" max="1" step="0.01" placeholder="0.30">
+          <input id="noTradeRelaxMinScore" type="number" min="0" max="1" step="0.01" placeholder="0.18">
         </div>
       </div>
       <div class="note">live에는 즉시 완화 반영하지 않고 replay와 demo 검증 후 승인 플로우를 거친다.</div>
@@ -569,7 +569,7 @@ async function loadSettings() {
     document.getElementById("etfFlowUsd").value = values.ETF_FLOW_USD || "0.0";
     document.getElementById("noTradeAdaptiveEnabled").checked = values.NO_TRADE_ADAPTIVE_ENABLED !== "false";
     document.getElementById("noTradeRelaxAfterCycles").value = values.NO_TRADE_RELAX_AFTER_CYCLES || "100";
-    document.getElementById("noTradeRelaxMinScore").value = values.NO_TRADE_RELAX_MIN_SCORE || "0.30";
+    document.getElementById("noTradeRelaxMinScore").value = values.NO_TRADE_RELAX_MIN_SCORE || "0.18";
     setTelegramTokenHidden(values.TELEGRAM_BOT_TOKEN === "***");
     document.getElementById("telegramTokenStatus").textContent = values.TELEGRAM_BOT_TOKEN === "***"
       ? "저장된 봇 토큰이 있습니다. 변경하지 않으면 기존 토큰을 유지합니다."
@@ -762,7 +762,7 @@ async function saveSettings() {
     ETF_FLOW_USD: document.getElementById("etfFlowUsd").value || "0.0",
     NO_TRADE_ADAPTIVE_ENABLED: document.getElementById("noTradeAdaptiveEnabled").checked ? "true" : "false",
     NO_TRADE_RELAX_AFTER_CYCLES: document.getElementById("noTradeRelaxAfterCycles").value || "100",
-    NO_TRADE_RELAX_MIN_SCORE: document.getElementById("noTradeRelaxMinScore").value || "0.30",
+    NO_TRADE_RELAX_MIN_SCORE: document.getElementById("noTradeRelaxMinScore").value || "0.18",
     UPBIT_ACCESS_KEY: document.getElementById("accessKey").value,
     UPBIT_SECRET_KEY: document.getElementById("secretKey").value,
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,

@@ -46,7 +46,7 @@ ETF_STATE=neutral
 ETF_FLOW_USD=0.0
 NO_TRADE_ADAPTIVE_ENABLED=true
 NO_TRADE_RELAX_AFTER_CYCLES=100
-NO_TRADE_RELAX_MIN_SCORE=0.30
+NO_TRADE_RELAX_MIN_SCORE=0.18
 
 TRADE_MARKET=KRW-XRP
 TRADE_COIN=XRP
@@ -154,7 +154,7 @@ DASHBOARD_PORT=8080
 `ONCHAIN_CONTEXT_URL`과 `ETF_CONTEXT_URL`이 비어 있으면 앱은 기본 웹 공개 데이터 provider를 사용한다. BTC 온체인은 Blockchain.com Charts, XRP 온체인은 XRPSCAN ledger activity, BTC ETF는 Farside ETF flow 표를 조회한다. 조회 실패 시 기존 수동 설정값으로 fallback한다.
 | NO_TRADE_ADAPTIVE_ENABLED | bool | Y | true | 무거래 누적 시 demo 진입 기준 완화 정책 활성화 |
 | NO_TRADE_RELAX_AFTER_CYCLES | int | Y | 100 | 완화 판단 전 연속 진입 차단 사이클 수 |
-| NO_TRADE_RELAX_MIN_SCORE | float | Y | 0.30 | 완화 시 허용할 최소 weak signal score |
+| NO_TRADE_RELAX_MIN_SCORE | float | Y | 0.18 | 완화 시 허용할 최소 weak signal score |
 | TRADE_MARKET | str | Y | KRW-XRP | 거래 마켓 |
 | TRADE_COIN | str | Y | XRP | 거래 코인 심볼 |
 | UPBIT_ACCESS_KEY | str | Y |  | 업비트 액세스 키 |
@@ -297,7 +297,7 @@ false면 앱 시작 실패
 
 ### NO_TRADE_ADAPTIVE
 - demo에서 `AUTO_MIN_SIGNAL_LEVEL` 또는 `FEE_ADJUSTED_EDGE_LIMIT` 차단만 반복되면 완화 후보로 진단한다.
-- `NO_TRADE_RELAX_AFTER_CYCLES` 이상 연속 차단되고 signal score가 `NO_TRADE_RELAX_MIN_SCORE` 이상이면 demo에서 weak 신호도 sizing 통과 시 실행 후보로 허용할 수 있다.
+- `NO_TRADE_RELAX_AFTER_CYCLES` 이상 연속 차단되고 signal score가 `NO_TRADE_RELAX_MIN_SCORE` 이상이면 demo에서 weak 신호도 실행 후보로 허용하며, 수수료 보정 엣지 차단은 완화 재평가를 수행한다.
 - live에서는 이 완화 정책이 SAFE_MODE/HARD_STOP/API 키/리스크 게이트를 우회할 수 없다.
 
 ### AUTO_PROMOTE_TO_LIVE / 승인 정책

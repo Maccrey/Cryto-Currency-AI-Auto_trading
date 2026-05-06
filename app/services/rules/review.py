@@ -66,6 +66,9 @@ class RuleReviewService:
             "trade_count": metrics["trade_count"],
             "stop_loss_count": metrics["stop_loss_count"],
             "major_loss_causes": metrics["major_loss_causes"],
+            "blocked_reason_summary": metrics["blocked_reason_summary"],
+            "sizing_blocked_reason_summary": metrics["sizing_blocked_reason_summary"],
+            "no_trade_blocked_count": metrics["no_trade_blocked_count"],
             "external_context_summary": metrics["external_context_summary"],
             "approval_required": self._config.require_manual_approval,
             "created_at": datetime.now(UTC).isoformat(),
@@ -85,14 +88,15 @@ class RuleReviewService:
             review = self.review()["review"]  # type: ignore[assignment]
 
         rejection_reasons: list[str] = []
+        no_trade_mitigation = self._is_no_trade_mitigation_candidate(review)
         if not self._config.enabled:
             rejection_reasons.append("rule_review_disabled")
-        if int(review["trade_count"]) < self._config.min_trades:
+        if int(review["trade_count"]) < self._config.min_trades and not no_trade_mitigation:
             rejection_reasons.append("insufficient_trade_sample")
-        if int(review["stop_loss_count"]) < self._config.min_stoplosses:
+        if int(review["stop_loss_count"]) < self._config.min_stoplosses and not no_trade_mitigation:
             rejection_reasons.append("insufficient_stoploss_sample")
 
-        changes = [] if rejection_reasons else proposed_changes or self._default_proposed_changes()
+        changes = [] if rejection_reasons else proposed_changes or self._default_proposed_changes(review)
         locked_changes = self._locked_changes(changes)
         if locked_changes:
             rejection_reasons.append("fixed_stop_loss_locked")
@@ -114,6 +118,9 @@ class RuleReviewService:
             "trade_count": review["trade_count"],
             "stop_loss_count": review["stop_loss_count"],
             "major_loss_causes": review["major_loss_causes"],
+            "blocked_reason_summary": review.get("blocked_reason_summary", []),
+            "sizing_blocked_reason_summary": review.get("sizing_blocked_reason_summary", []),
+            "no_trade_blocked_count": review.get("no_trade_blocked_count", 0),
             "external_context_summary": review.get("external_context_summary", self._empty_external_context_summary()),
             "codex_suggested_changes": changes,
             "locked_parameters": self._changed_parameters(locked_changes),
@@ -629,6 +636,8 @@ class RuleReviewService:
         trade_count = 0
         stop_loss_count = 0
         cause_counts: dict[str, int] = {}
+        blocked_reasons: Counter[str] = Counter()
+        sizing_blocked_reasons: Counter[str] = Counter()
         context_samples: list[dict[str, Any]] = []
         log_path = self._learning_log_dir / "learning.jsonl"
         if log_path.exists():
@@ -649,6 +658,11 @@ class RuleReviewService:
                     stop_loss_count += 1
                     reason = str(payload.get("reason_code") or payload.get("stop_loss_reason") or "unknown")
                     cause_counts[reason] = cause_counts.get(reason, 0) + 1
+                if event_name == "auto_trade_cycle":
+                    if payload.get("reason") is not None:
+                        blocked_reasons.update([str(payload.get("reason"))])
+                    if payload.get("sizing_blocked_reason") is not None:
+                        sizing_blocked_reasons.update([str(payload.get("sizing_blocked_reason"))])
                 context = payload.get("external_context") if event_name == "auto_trade_cycle" else payload
                 if event_name in {"auto_trade_cycle", "external_market_context_snapshot"} and isinstance(context, dict):
                     context_samples.append(context)
@@ -656,10 +670,24 @@ class RuleReviewService:
             {"reason": reason, "count": count}
             for reason, count in sorted(cause_counts.items(), key=lambda item: item[1], reverse=True)
         ]
+        no_trade_blocked_count = (
+            blocked_reasons.get("AUTO_MIN_SIGNAL_LEVEL", 0)
+            + blocked_reasons.get("FEE_ADJUSTED_EDGE_LIMIT", 0)
+            + sizing_blocked_reasons.get("FEE_ADJUSTED_EDGE_LIMIT", 0)
+        )
         return {
             "trade_count": trade_count,
             "stop_loss_count": stop_loss_count,
             "major_loss_causes": causes[:5],
+            "blocked_reason_summary": [
+                {"reason": reason, "count": count}
+                for reason, count in sorted(blocked_reasons.items(), key=lambda item: item[1], reverse=True)
+            ],
+            "sizing_blocked_reason_summary": [
+                {"reason": reason, "count": count}
+                for reason, count in sorted(sizing_blocked_reasons.items(), key=lambda item: item[1], reverse=True)
+            ],
+            "no_trade_blocked_count": no_trade_blocked_count,
             "external_context_summary": self._external_context_summary(context_samples),
         }
 
@@ -768,8 +796,30 @@ class RuleReviewService:
             "avg_learning_weight": 1.0,
         }
 
-    @staticmethod
-    def _default_proposed_changes() -> list[dict[str, object]]:
+    def _is_no_trade_mitigation_candidate(self, review: dict[str, Any]) -> bool:
+        return self._trading_mode == "demo" and int(review.get("no_trade_blocked_count") or 0) >= 3
+
+    def _default_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
+        if self._is_no_trade_mitigation_candidate(review):
+            return [
+                {
+                    "file": ".env",
+                    "parameter": "NO_TRADE_RELAX_MIN_SCORE",
+                    "current_value": 0.30,
+                    "proposed_value": 0.18,
+                    "reason": (
+                        "AUTO_MIN_SIGNAL_LEVEL/FEE_ADJUSTED_EDGE_LIMIT 차단이 반복되어 "
+                        "demo weak 신호 완화 기준을 최근 로그 점수대에 맞춥니다."
+                    ),
+                },
+                {
+                    "file": "app/services/trading/auto.py",
+                    "parameter": "DEMO_FEE_EDGE_RELAXATION",
+                    "current_value": False,
+                    "proposed_value": True,
+                    "reason": "demo no-trade 완화 시 수수료 보정 엣지 차단을 재평가해 0원 주문 차단을 해소합니다.",
+                },
+            ]
         return [
             {
                 "file": "STRATEGY_SPEC.md",

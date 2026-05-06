@@ -22,6 +22,7 @@ class TradeDecisionRequest:
     portfolio: PortfolioState
     safe_mode: bool
     recent_loss_streak: int
+    relax_fee_edge: bool = False
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,7 @@ class TradeDecisionService:
             current_price=request.current_price,
             spread_bps=request.spread_bps,
             slippage_bps=request.slippage_bps,
+            relax_fee_edge=request.relax_fee_edge,
         )
         return TradeDecisionResult(
             features=features,

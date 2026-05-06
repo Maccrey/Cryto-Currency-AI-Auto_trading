@@ -235,6 +235,28 @@ def test_auto_trading_service_allows_medium_scalping_entries(tmp_path: Path) -> 
     assert result["signal_level"] == "medium"
 
 
+def test_auto_trading_service_relaxes_fee_edge_after_repeated_demo_no_trade(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0, 800.0, 800.0, 800.0], min_history=4)
+    service._consecutive_entry_blocks = 100
+    service._config = AutoTradingConfig(
+        enabled=True,
+        live_enabled=False,
+        interval_sec=1,
+        min_history=4,
+        no_trade_adaptive_enabled=True,
+        no_trade_relax_after_cycles=100,
+        no_trade_relax_min_score=0.18,
+    )
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["status"] == "filled"
+    assert result["signal_level"] == "weak"
+    assert result["sizing_allowed"] is True
+    assert result["no_trade_relaxed"] is True
+
+
 def test_auto_trading_service_does_not_run_live_without_explicit_live_flag(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [800.0], min_history=2)
     service._trading_mode = "live"

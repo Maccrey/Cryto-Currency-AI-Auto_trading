@@ -95,6 +95,7 @@ class SizingEngine:
         current_price: float,
         spread_bps: float,
         slippage_bps: float,
+        relax_fee_edge: bool = False,
     ) -> SizingDecision:
         if signal.blocked:
             return self._blocked("SIGNAL_BLOCKED")
@@ -107,7 +108,7 @@ class SizingEngine:
         edge_buffer = self._min_net_edge_pct
         if signal.level == "medium":
             edge_buffer *= 0.25
-        if self._estimated_edge_pct(signal) <= self._round_trip_fee_pct() + edge_buffer:
+        if not relax_fee_edge and self._estimated_edge_pct(signal) <= self._round_trip_fee_pct() + edge_buffer:
             return self._blocked("FEE_ADJUSTED_EDGE_LIMIT")
 
         investable_cash = max(portfolio.cash_balance - self._min_cash_reserve, 0.0)

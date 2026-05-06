@@ -41,7 +41,7 @@ class SettingsModel(BaseModel):
     etf_flow_usd: float = Field(default=0.0)
     no_trade_adaptive_enabled: bool = Field(default=True)
     no_trade_relax_after_cycles: int = Field(default=100)
-    no_trade_relax_min_score: float = Field(default=0.30)
+    no_trade_relax_min_score: float = Field(default=0.18)
     trade_market: str = Field(default="KRW-XRP")
     trade_coin: str = Field(default="XRP")
     upbit_access_key: str = Field(default="")
@@ -305,7 +305,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "etf_flow_usd": float(_setting("ETF_FLOW_USD", "0.0", env_values)),
         "no_trade_adaptive_enabled": _parse_bool(_setting("NO_TRADE_ADAPTIVE_ENABLED", "true", env_values)),
         "no_trade_relax_after_cycles": int(_setting("NO_TRADE_RELAX_AFTER_CYCLES", "100", env_values)),
-        "no_trade_relax_min_score": float(_setting("NO_TRADE_RELAX_MIN_SCORE", "0.30", env_values)),
+        "no_trade_relax_min_score": float(_setting("NO_TRADE_RELAX_MIN_SCORE", "0.18", env_values)),
         "trade_market": _setting("TRADE_MARKET", "KRW-XRP", env_values),
         "trade_coin": _setting("TRADE_COIN", "XRP", env_values),
         "upbit_access_key": _setting("UPBIT_ACCESS_KEY", "", env_values),
