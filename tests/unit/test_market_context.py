@@ -350,8 +350,10 @@ def test_public_web_context_provider_parses_coinglass_inflow_outflow_shape() -> 
 
     assert payload["etf"]["state"] == "outflow"
     assert payload["etf"]["flow_usd"] == -2_500_000
-    assert payload["etf"]["outflow_usd"] == 2_500_000
+    assert payload["etf"]["inflow_usd"] == 1_000_000
+    assert payload["etf"]["outflow_usd"] == 3_500_000
     assert payload["etf"]["total_aum_usd"] == 50_000_000
+    assert payload["etf"]["total_holding_coin_change"] == -12_500
 
 
 def test_public_web_context_provider_falls_back_to_xrp_insights_etf_data() -> None:

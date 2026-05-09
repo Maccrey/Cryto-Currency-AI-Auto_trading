@@ -240,7 +240,8 @@ class PublicWebExternalMarketContextProvider:
         }
 
     def _fetch_coinglass_etf(self, coin: str) -> dict[str, object]:
-        flow_usd = self._fetch_coinglass_latest_flow_usd(coin)
+        flow_metrics = self._fetch_coinglass_flow_metrics(coin)
+        flow_usd = None if flow_metrics is None else flow_metrics["flow_usd"]
         overview = self._fetch_coinglass_etf_overview(coin)
         if flow_usd is None:
             fallback = self._fetch_xrp_insights_etf(coin)
@@ -257,13 +258,29 @@ class PublicWebExternalMarketContextProvider:
             "source": "web",
             "state": state,
             "flow_usd": round(flow_value, 2),
-            "inflow_usd": round(max(flow_value, 0.0), 2),
-            "outflow_usd": round(abs(min(flow_value, 0.0)), 2),
+            "inflow_usd": round(
+                (flow_metrics or {}).get("inflow_usd", max(flow_value, 0.0)),
+                2,
+            ),
+            "outflow_usd": round(
+                (flow_metrics or {}).get("outflow_usd", abs(min(flow_value, 0.0))),
+                2,
+            ),
             "holding_change_coin": round(overview.get("holding_change_coin", 0.0), 6),
             "total_aum_usd": round(overview.get("total_aum_usd", 0.0), 2),
             "total_holding_coin": round(overview.get("total_holding_coin", 0.0), 6),
+            "total_aum_usd_change": round(overview.get("total_aum_usd_change", 0.0), 2),
+            "total_holding_coin_change": round(overview.get("holding_change_coin", 0.0), 6),
             "metric": f"coinglass_{coin.lower()}_etf",
         }
+        if flow_metrics is not None:
+            payload.update(
+                {
+                    "flow_usd_change": round(flow_metrics.get("flow_usd_change", 0.0), 2),
+                    "inflow_usd_change": round(flow_metrics.get("inflow_usd_change", 0.0), 2),
+                    "outflow_usd_change": round(flow_metrics.get("outflow_usd_change", 0.0), 2),
+                },
+            )
         if flow_usd is not None:
             payload["flow_date"] = overview.get("flow_date", "")
         return payload
@@ -284,27 +301,50 @@ class PublicWebExternalMarketContextProvider:
             return {}
         total_aum = self._optional_float(agent_data.get("totalNetAssets")) or 0.0
         total_holding = self._optional_float(agent_data.get("totalTokenHoldings")) or 0.0
-        flow_usd = self._optional_float(agent_data.get("dailyNetInflow")) or 0.0
-        if flow_usd == 0.0:
-            flow_usd = self._sum_xrp_insights_etf_flows(agent_data.get("etfs"))
+        flow_metrics = self._xrp_insights_flow_metrics(agent_data)
+        flow_usd = flow_metrics["flow_usd"]
         xrp_price = self._extract_escaped_number(response.text, "xrpData", "price") or 0.0
         holding_change = 0.0 if xrp_price <= 0 else flow_usd / xrp_price
+        total_aum_change = self._first_optional_float(
+            agent_data,
+            "totalNetAssets24hChange",
+            "totalNetAssetsChange24h",
+            "netAssets24hChange",
+            "netAssetsChange24h",
+        ) or 0.0
+        total_holding_change = self._first_optional_float(
+            agent_data,
+            "totalTokenHoldings24hChange",
+            "totalTokenHoldingsChange24h",
+            "tokenHoldings24hChange",
+            "tokenHoldingsChange24h",
+        )
+        total_holding_change = holding_change if total_holding_change is None else total_holding_change
         if total_aum <= 0 and total_holding <= 0 and flow_usd == 0.0:
             return {}
         return {
             "source": "web",
             "state": "inflow" if flow_usd > 0 else "outflow" if flow_usd < 0 else "neutral",
             "flow_usd": round(flow_usd, 2),
-            "inflow_usd": round(max(flow_usd, 0.0), 2),
-            "outflow_usd": round(abs(min(flow_usd, 0.0)), 2),
+            "inflow_usd": round(flow_metrics["inflow_usd"], 2),
+            "outflow_usd": round(flow_metrics["outflow_usd"], 2),
             "holding_change_coin": round(holding_change, 6),
             "total_aum_usd": round(total_aum, 2),
             "total_holding_coin": round(total_holding, 6),
+            "flow_usd_change": round(flow_metrics["flow_usd_change"], 2),
+            "inflow_usd_change": round(flow_metrics["inflow_usd_change"], 2),
+            "outflow_usd_change": round(flow_metrics["outflow_usd_change"], 2),
+            "total_aum_usd_change": round(total_aum_change, 2),
+            "total_holding_coin_change": round(total_holding_change, 6),
             "metric": "xrp_insights_etf_tracker",
             "flow_date": str(agent_data.get("lastUpdated") or ""),
         }
 
     def _fetch_coinglass_latest_flow_usd(self, coin: str) -> float | None:
+        metrics = self._fetch_coinglass_flow_metrics(coin)
+        return None if metrics is None else metrics["flow_usd"]
+
+    def _fetch_coinglass_flow_metrics(self, coin: str) -> dict[str, float] | None:
         response = self._client.get(
             self.COINGLASS_ETF_FLOW_URL.format(coin=coin.lower()),
             params={"ticker": "all"},
@@ -315,13 +355,28 @@ class PublicWebExternalMarketContextProvider:
         data = self._coinglass_data(raw)
         if not isinstance(data, list):
             return None
+        latest: dict[str, float] | None = None
+        previous: dict[str, float] | None = None
         for item in reversed(data):
             if not isinstance(item, dict):
                 continue
-            value = self._coinglass_flow_value(item)
-            if value is not None:
-                return value
-        return None
+            metrics = self._coinglass_flow_metrics(item)
+            if metrics is None:
+                continue
+            if latest is None:
+                latest = metrics
+                continue
+            previous = metrics
+            break
+        if latest is None:
+            return None
+        previous = previous or {"flow_usd": 0.0, "inflow_usd": 0.0, "outflow_usd": 0.0}
+        return {
+            **latest,
+            "flow_usd_change": latest["flow_usd"] - previous["flow_usd"],
+            "inflow_usd_change": latest["inflow_usd"] - previous["inflow_usd"],
+            "outflow_usd_change": latest["outflow_usd"] - previous["outflow_usd"],
+        }
 
     def _fetch_coinglass_etf_overview(self, coin: str) -> dict[str, float]:
         response = self._client.get(
@@ -334,6 +389,7 @@ class PublicWebExternalMarketContextProvider:
         if not isinstance(data, list):
             return {}
         total_aum = 0.0
+        total_aum_change = 0.0
         total_holding = 0.0
         holding_change = 0.0
         for item in data:
@@ -343,10 +399,18 @@ class PublicWebExternalMarketContextProvider:
             if not isinstance(asset, dict):
                 continue
             total_aum += self._optional_float(asset.get("netAssets")) or 0.0
+            total_aum_change += self._first_optional_float(
+                asset,
+                "netAssets24hChange",
+                "netAssetsChange24h",
+                "netAsset24hChange",
+                "netAssetChange24h",
+            ) or 0.0
             total_holding += self._optional_float(asset.get("btcAmount")) or 0.0
             holding_change += self._optional_float(asset.get("btcAmount24hChange")) or 0.0
         return {
             "total_aum_usd": total_aum,
+            "total_aum_usd_change": total_aum_change,
             "total_holding_coin": total_holding,
             "holding_change_coin": holding_change,
         }
@@ -426,32 +490,85 @@ class PublicWebExternalMarketContextProvider:
 
     @staticmethod
     def _coinglass_flow_value(item: dict[str, Any]) -> float | None:
+        metrics = PublicWebExternalMarketContextProvider._coinglass_flow_metrics(item)
+        return None if metrics is None else metrics["flow_usd"]
+
+    @staticmethod
+    def _coinglass_flow_metrics(item: dict[str, Any]) -> dict[str, float] | None:
         for key in ("changeUsd", "change", "netInflowUsd", "netInflow", "dailyNetInflow"):
             value = PublicWebExternalMarketContextProvider._optional_float(item.get(key))
             if value is not None:
-                return value
+                return {
+                    "flow_usd": value,
+                    "inflow_usd": max(value, 0.0),
+                    "outflow_usd": abs(min(value, 0.0)),
+                }
         inflow = PublicWebExternalMarketContextProvider._optional_float(item.get("inflow"))
         outflow = PublicWebExternalMarketContextProvider._optional_float(item.get("outflow"))
         if inflow is not None or outflow is not None:
-            return (inflow or 0.0) - (outflow or 0.0)
+            inflow_value = inflow or 0.0
+            outflow_value = outflow or 0.0
+            return {
+                "flow_usd": inflow_value - outflow_value,
+                "inflow_usd": inflow_value,
+                "outflow_usd": outflow_value,
+            }
         return None
 
     @staticmethod
     def _sum_xrp_insights_etf_flows(etfs: Any) -> float:
+        return PublicWebExternalMarketContextProvider._sum_xrp_insights_etf_flow_metrics(etfs)["flow_usd"]
+
+    @staticmethod
+    def _xrp_insights_flow_metrics(agent_data: dict[str, Any]) -> dict[str, float]:
+        direct = PublicWebExternalMarketContextProvider._optional_float(agent_data.get("dailyNetInflow"))
+        if direct is not None and direct != 0.0:
+            return {
+                "flow_usd": direct,
+                "inflow_usd": max(direct, 0.0),
+                "outflow_usd": abs(min(direct, 0.0)),
+                "flow_usd_change": 0.0,
+                "inflow_usd_change": 0.0,
+                "outflow_usd_change": 0.0,
+            }
+        metrics = PublicWebExternalMarketContextProvider._sum_xrp_insights_etf_flow_metrics(agent_data.get("etfs"))
+        return {
+            **metrics,
+            "flow_usd_change": 0.0,
+            "inflow_usd_change": 0.0,
+            "outflow_usd_change": 0.0,
+        }
+
+    @staticmethod
+    def _sum_xrp_insights_etf_flow_metrics(etfs: Any) -> dict[str, float]:
         if not isinstance(etfs, list):
-            return 0.0
+            return {"flow_usd": 0.0, "inflow_usd": 0.0, "outflow_usd": 0.0}
         total = 0.0
+        inflow_total = 0.0
+        outflow_total = 0.0
         for item in etfs:
             if not isinstance(item, dict):
                 continue
             direct = PublicWebExternalMarketContextProvider._optional_float(item.get("dailyNetInflow"))
             if direct is not None:
                 total += direct
+                inflow_total += max(direct, 0.0)
+                outflow_total += abs(min(direct, 0.0))
                 continue
             inflow = PublicWebExternalMarketContextProvider._optional_float(item.get("inflow"))
             outflow = PublicWebExternalMarketContextProvider._optional_float(item.get("outflow"))
+            inflow_total += inflow or 0.0
+            outflow_total += outflow or 0.0
             total += (inflow or 0.0) - (outflow or 0.0)
-        return total
+        return {"flow_usd": total, "inflow_usd": inflow_total, "outflow_usd": outflow_total}
+
+    @staticmethod
+    def _first_optional_float(values: dict[str, Any], *keys: str) -> float | None:
+        for key in keys:
+            parsed = PublicWebExternalMarketContextProvider._optional_float(values.get(key))
+            if parsed is not None:
+                return parsed
+        return None
 
     @staticmethod
     def _optional_float(value: Any) -> float | None:
@@ -535,6 +652,14 @@ class ExternalMarketContextService:
         )
         etf_total_aum_usd = self._float_value(etf_payload.get("total_aum_usd"), 0.0)
         etf_total_holding_coin = self._float_value(etf_payload.get("total_holding_coin"), 0.0)
+        etf_flow_change_usd = self._float_value(etf_payload.get("flow_usd_change"), 0.0)
+        etf_inflow_change_usd = self._float_value(etf_payload.get("inflow_usd_change"), 0.0)
+        etf_outflow_change_usd = self._float_value(etf_payload.get("outflow_usd_change"), 0.0)
+        etf_total_aum_change_usd = self._float_value(etf_payload.get("total_aum_usd_change"), 0.0)
+        etf_total_holding_change_coin = self._float_value(
+            etf_payload.get("total_holding_coin_change"),
+            etf_holding_change,
+        )
         market_usd_change_pct = self._float_value(market_payload.get("usd_change_pct_24h"), 0.0)
         market_quote_volume_usd = self._float_value(market_payload.get("quote_volume_usd_24h"), 0.0)
         raw_whale_activity_state = onchain_payload.get("whale_activity_state")
@@ -582,6 +707,11 @@ class ExternalMarketContextService:
                 "holding_change_coin": etf_holding_change if coin in self.ETF_SUPPORTED_COINS else 0.0,
                 "total_aum_usd": etf_total_aum_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
                 "total_holding_coin": etf_total_holding_coin if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "flow_usd_change": etf_flow_change_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "inflow_usd_change": etf_inflow_change_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "outflow_usd_change": etf_outflow_change_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "total_aum_usd_change": etf_total_aum_change_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "total_holding_coin_change": etf_total_holding_change_coin if coin in self.ETF_SUPPORTED_COINS else 0.0,
             },
             "market_data": {
                 "source": self._string_value(market_payload.get("source"), "web") if market_payload else "manual",

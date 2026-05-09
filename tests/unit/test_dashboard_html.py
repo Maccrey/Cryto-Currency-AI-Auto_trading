@@ -77,9 +77,14 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert '"순흐름 데이터 없음"' in DASHBOARD_HTML
     assert "`순유입 ${number(etf.inflow_usd || 0, 0)} USD`" not in DASHBOARD_HTML
     assert "`순유출 ${number(etf.outflow_usd || 0, 0)} USD`" not in DASHBOARD_HTML
-    assert '보유수량 변화 <span class="${changeClass(holdingChange)}">${number(holdingChange, 0)} ${tradeCoin}</span>' in DASHBOARD_HTML
+    assert "function formatEtfFlowLines(etf)" in DASHBOARD_HTML
+    assert 'formatEtfMetricLine("순유입", inflow, "USD", etf.inflow_usd_change, 0)' in DASHBOARD_HTML
+    assert 'formatEtfMetricLine("순유출", outflow, "USD", etf.outflow_usd_change, 0)' in DASHBOARD_HTML
+    assert 'formatEtfMetricLine("보유수량 변화", holdingChange, `${tradeCoin}`, holdingChange, 0)' in DASHBOARD_HTML
+    assert 'formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0)' in DASHBOARD_HTML
+    assert 'formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0)' in DASHBOARD_HTML
     assert "총 AUM" in DASHBOARD_HTML
-    assert "총 보유 ${number(etf.total_holding_coin, 0)}" in DASHBOARD_HTML
+    assert "총 보유" in DASHBOARD_HTML
     assert "거래소 순유입·순유출" in DASHBOARD_HTML
     assert "고래 지갑 움직임" in DASHBOARD_HTML
     assert "MVRV/SOPR" in DASHBOARD_HTML
@@ -131,6 +136,16 @@ def test_dashboard_displays_learning_log_context() -> None:
     assert "learningResponse.learning_log_dir" in DASHBOARD_HTML
     assert "학습 로그 체결" in DASHBOARD_HTML
     assert "최근 체결 표와 다를 수 있습니다." in DASHBOARD_HTML
+
+
+def test_dashboard_derives_win_rate_from_closed_execution_pnl() -> None:
+    assert "function deriveExecutionWinRate(executions)" in DASHBOARD_HTML
+    assert 'if (execution.side === "buy") {' in DASHBOARD_HTML
+    assert "sellPnl += (priceValue * matched) - allocatedFee - (lot.costPerUnit * matched);" in DASHBOARD_HTML
+    assert "return closedSells > 0 ? wins / closedSells : null;" in DASHBOARD_HTML
+    assert 'fetchJson("/dashboard/executions?limit=1000")' in DASHBOARD_HTML
+    assert "if (summary.realized_pnl > 0) return 1;" not in DASHBOARD_HTML
+    assert "if (summary.realized_pnl < 0) return 0;" not in DASHBOARD_HTML
 
 
 def test_dashboard_displays_trading_runtime_only_when_running() -> None:

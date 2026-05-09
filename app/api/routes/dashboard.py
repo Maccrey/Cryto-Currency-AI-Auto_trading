@@ -472,6 +472,13 @@ function number(value, digits = 0) {
   return Number(value).toLocaleString("ko-KR", { maximumFractionDigits: digits });
 }
 
+function signedNumber(value, digits = 0) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  const numeric = Number(value);
+  const sign = numeric > 0 ? "+" : "";
+  return `${sign}${numeric.toLocaleString("ko-KR", { maximumFractionDigits: digits })}`;
+}
+
 function percent(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "데이터 부족";
   const pct = Number(value) * 100;
@@ -634,13 +641,49 @@ function deriveAiState({health, summary, market, executions}) {
   return {ai: ["대기", "neutral"], trading: ["대기", "neutral"], risk: ["보통", "entry"]};
 }
 
-function deriveWinRate(summary, promotion) {
+function deriveExecutionWinRate(executions) {
+  const history = executions && Array.isArray(executions.history) ? executions.history : [];
+  const lots = [];
+  let wins = 0;
+  let closedSells = 0;
+
+  history.forEach((execution) => {
+    if (execution.status !== "filled") return;
+    const quantity = Number(execution.filled_quantity || 0);
+    const priceValue = Number(execution.filled_price || 0);
+    const fee = Number(execution.fee || 0);
+    if (quantity <= 0 || priceValue <= 0) return;
+
+    if (execution.side === "buy") {
+      lots.push({quantity, costPerUnit: ((priceValue * quantity) + fee) / quantity});
+      return;
+    }
+    if (execution.side !== "sell") return;
+
+    let remaining = quantity;
+    let sellPnl = 0;
+    while (remaining > 0 && lots.length > 0) {
+      const lot = lots[0];
+      const matched = Math.min(remaining, lot.quantity);
+      const allocatedFee = fee * (matched / quantity);
+      sellPnl += (priceValue * matched) - allocatedFee - (lot.costPerUnit * matched);
+      lot.quantity = Number((lot.quantity - matched).toFixed(8));
+      remaining = Number((remaining - matched).toFixed(8));
+      if (lot.quantity <= 0) lots.shift();
+    }
+    if (remaining < quantity) {
+      closedSells += 1;
+      if (sellPnl > 0) wins += 1;
+    }
+  });
+
+  return closedSells > 0 ? wins / closedSells : null;
+}
+
+function deriveWinRate(summary, promotion, executions) {
   const metrics = promotion && promotion.metrics ? promotion.metrics : null;
   if (metrics && metrics.win_rate !== undefined) return metrics.win_rate;
-  if (!summary.sell_count) return null;
-  if (summary.realized_pnl > 0) return 1;
-  if (summary.realized_pnl < 0) return 0;
-  return null;
+  return deriveExecutionWinRate(executions);
 }
 
 function deriveReadinessProgress(readiness) {
@@ -666,7 +709,6 @@ function deriveReadinessProgress(readiness) {
       `총 ${number(metrics.total_events || 0)}/${number(required.total_events || 0)}`,
       `매매판단신호 ${number(metrics.signal_events || 0)}/${number(required.signal_events || 0)}`,
       `누적 학습 로그 체결 ${number(metrics.fill_events || 0)}/${number(required.fill_events || 0)}`,
-      "아래 최근 체결 표는 현재 서버 실행 중 기록만 표시합니다."
     ]
   };
 }
@@ -858,7 +900,7 @@ async function refreshDashboard() {
       fetchJson("/dashboard/learning"),
       fetchJson("/dashboard/learning/health"),
       fetchJson("/learning/model-readiness"),
-      fetchJson("/dashboard/executions"),
+      fetchJson("/dashboard/executions?limit=1000"),
       fetchJson("/dashboard/promotion"),
       fetchJson("/api/v1/rules/proposals"),
       fetchJson("/api/v1/rules/history"),
@@ -904,14 +946,14 @@ function renderExternalContext(context, market) {
     `MVRV/SOPR: ${formatContextState(onchain.valuation_state)}${formatContextBasis(onchain.valuation_basis)}`
   ].join("\\n");
   const tradeCoin = context.trade_coin || "";
-  const holdingChange = etf.holding_change_coin || 0;
-  const etfFlowLine = formatEtfFlowLine(etf);
+  const holdingChange = Number(etf.holding_change_coin || 0);
+  const etfFlowLines = formatEtfFlowLines(etf);
   const etfLines = [
     `${formatContextState(etf.state)}`,
-    etfFlowLine,
-    `보유수량 변화 <span class="${changeClass(holdingChange)}">${number(holdingChange, 0)} ${tradeCoin}</span>`,
-    etf.total_aum_usd ? `총 AUM ${number(etf.total_aum_usd, 0)} USD` : "",
-    etf.total_holding_coin ? `총 보유 ${number(etf.total_holding_coin, 0)} ${tradeCoin}` : ""
+    ...etfFlowLines,
+    formatEtfMetricLine("보유수량 변화", holdingChange, `${tradeCoin}`, holdingChange, 0),
+    etf.total_aum_usd ? formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0) : "",
+    etf.total_holding_coin ? formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0) : ""
   ].filter(Boolean);
   document.getElementById("etfState").innerHTML = etfLines.join("<br>");
   document.getElementById("etfState").title = etfLines.map((line) => line.replace(/<[^>]*>/g, "")).join("\\n");
@@ -929,6 +971,28 @@ function formatEtfFlowLine(etf) {
   if (inflow > 0) return `순유입 ${number(inflow, 0)} USD`;
   if (outflow > 0) return `순유출 ${number(outflow, 0)} USD`;
   return etf.state === "unknown" ? "순흐름 데이터 없음" : "순흐름 0 USD";
+}
+
+function formatEtfFlowLines(etf) {
+  const inflow = Number(etf.inflow_usd || 0);
+  const outflow = Number(etf.outflow_usd || 0);
+  if (inflow > 0 || outflow > 0) {
+    return [
+      formatEtfMetricLine("순유입", inflow, "USD", etf.inflow_usd_change, 0),
+      formatEtfMetricLine("순유출", outflow, "USD", etf.outflow_usd_change, 0)
+    ];
+  }
+  return [formatEtfFlowLine(etf)];
+}
+
+function formatEtfMetricLine(label, value, unit, changeValue, digits = 0) {
+  const numericValue = Number(value || 0);
+  const numericChange = Number(changeValue || 0);
+  const unitText = unit ? ` ${unit}` : "";
+  const changeText = Number.isNaN(Number(changeValue))
+    ? ""
+    : ` <span class="${changeClass(numericChange)}">(${signedNumber(numericChange, digits)}${unitText})</span>`;
+  return `${label} <span class="${changeClass(numericChange)}">${number(numericValue, digits)}${unitText}</span>${changeText}`;
 }
 
 function formatExternalContextStatus(onchain, etf) {
@@ -1027,7 +1091,7 @@ function renderDashboard(data) {
   const totalEvents = learning.total_events || learningHealth.total_events || 0;
   const readinessProgress = deriveReadinessProgress(readiness);
   const progress = readinessProgress.percent;
-  const winRate = deriveWinRate(summary, promotion);
+  const winRate = deriveWinRate(summary, promotion, executions);
   const readyBadge = health.trading_ready ? '<span class="badge ok">거래 준비됨</span>' : '<span class="badge warn">점검 필요</span>';
   const learningBadge = summary.learning_enabled ? '<span class="badge ok">학습 기록 중</span>' : '<span class="badge warn">학습 비활성</span>';
 
