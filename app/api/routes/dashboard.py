@@ -405,6 +405,15 @@ DASHBOARD_HTML = """
 const THEME_KEY = "cryptoDashboardTheme";
 let latestRuleReviewId = null;
 let latestRuleProposalId = null;
+let dashboardRefreshInFlight = false;
+let dashboardSlowRefreshInFlight = false;
+let lastSlowDashboardRefreshAt = 0;
+let cachedRuleProposalResponse = {latest_proposal: null, proposals: []};
+let cachedRuleHistoryResponse = {history: []};
+let cachedExternalContextResponse = {context: {}};
+let cachedDiagnosticsResponse = {diagnostics: {}};
+const DASHBOARD_REFRESH_INTERVAL_MS = 3000;
+const DASHBOARD_SLOW_REFRESH_INTERVAL_MS = 30000;
 
 function openRuleAutomationModal() {
   document.getElementById("ruleAutomationModal").classList.add("visible");
@@ -891,9 +900,14 @@ async function rollbackRuleProposal() {
 }
 
 async function refreshDashboard() {
+  if (dashboardRefreshInFlight) return;
+  dashboardRefreshInFlight = true;
   document.getElementById("statusLine").textContent = "데이터를 불러오는 중...";
   try {
-    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, ruleProposalResponse, ruleHistoryResponse, externalContextResponse, diagnosticsResponse, tradingStatus] = await Promise.all([
+    const now = Date.now();
+    const shouldRefreshSlowData = now - lastSlowDashboardRefreshAt >= DASHBOARD_SLOW_REFRESH_INTERVAL_MS;
+    const slowRefreshPromise = shouldRefreshSlowData ? refreshSlowDashboardData(now) : Promise.resolve();
+    const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, tradingStatus] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/dashboard/summary"),
       fetchJson("/dashboard/market"),
@@ -902,16 +916,13 @@ async function refreshDashboard() {
       fetchJson("/learning/model-readiness"),
       fetchJson("/dashboard/executions?limit=1000"),
       fetchJson("/dashboard/promotion"),
-      fetchJson("/api/v1/rules/proposals"),
-      fetchJson("/api/v1/rules/history"),
-      fetchJson("/dashboard/external-context"),
-      fetchJson("/learning/diagnostics"),
       fetchJson("/settings/trading/status")
     ]);
-    renderLatestRuleProposal(ruleProposalResponse);
-    renderRuleHistory(ruleHistoryResponse);
-    renderExternalContext(externalContextResponse.context || {}, marketResponse.summary || {});
-    renderNoTradeDiagnostics(diagnosticsResponse.diagnostics || {});
+    await slowRefreshPromise;
+    renderLatestRuleProposal(cachedRuleProposalResponse);
+    renderRuleHistory(cachedRuleHistoryResponse);
+    renderExternalContext(cachedExternalContextResponse.context || {}, marketResponse.summary || {});
+    renderNoTradeDiagnostics(cachedDiagnosticsResponse.diagnostics || {});
     renderDashboard({
       health,
       summary,
@@ -926,6 +937,30 @@ async function refreshDashboard() {
     });
   } catch (error) {
     document.getElementById("statusLine").textContent = `대시보드 데이터를 불러오지 못했다: ${error.message}`;
+  } finally {
+    dashboardRefreshInFlight = false;
+  }
+}
+
+async function refreshSlowDashboardData(startedAt) {
+  if (dashboardSlowRefreshInFlight) return;
+  dashboardSlowRefreshInFlight = true;
+  try {
+    const [ruleProposalResponse, ruleHistoryResponse, externalContextResponse, diagnosticsResponse] = await Promise.all([
+      fetchJson("/api/v1/rules/proposals"),
+      fetchJson("/api/v1/rules/history"),
+      fetchJson("/dashboard/external-context"),
+      fetchJson("/learning/diagnostics")
+    ]);
+    cachedRuleProposalResponse = ruleProposalResponse;
+    cachedRuleHistoryResponse = ruleHistoryResponse;
+    cachedExternalContextResponse = externalContextResponse;
+    cachedDiagnosticsResponse = diagnosticsResponse;
+  } catch (error) {
+    console.warn(`느린 대시보드 데이터 갱신 실패: ${error.message}`);
+  } finally {
+    lastSlowDashboardRefreshAt = startedAt;
+    dashboardSlowRefreshInFlight = false;
   }
 }
 
@@ -1172,7 +1207,7 @@ function renderDashboard(data) {
 
 applyTheme(localStorage.getItem(THEME_KEY) || "light");
 refreshDashboard();
-setInterval(refreshDashboard, 1000);
+setInterval(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS);
 </script>
 </body>
 </html>

@@ -116,3 +116,40 @@ def test_boot_notification_dispatcher_is_noop_without_matching_notifier() -> Non
         cause="process_restart",
         boot_state=boot_state,
     )
+
+
+def test_boot_notification_dispatcher_suppresses_duplicate_restart_notifications(tmp_path) -> None:
+    restart_notifier = RestartNotifierStub()
+    dispatcher = BootNotificationDispatcher(
+        restart_notifier=restart_notifier,
+        dedupe_store_path=tmp_path / "boot-notification-state.json",
+        restart_cooldown_seconds=600,
+        clock=lambda: 1000.0,
+    )
+    boot_state = BootState(
+        safe_mode=False,
+        hard_stop=False,
+        trading_ready=True,
+        failure_stage=None,
+        portfolio_state=None,
+        reconcile_result=None,
+    )
+
+    dispatcher.dispatch_boot_event(
+        app_name="upbit-auto-trader",
+        market="KRW-XRP",
+        triggered_at="2026-04-18T12:55:00+09:00",
+        cause="process_restart",
+        boot_state=boot_state,
+        trading_mode="demo",
+    )
+    dispatcher.dispatch_boot_event(
+        app_name="upbit-auto-trader",
+        market="KRW-XRP",
+        triggered_at="2026-04-18T12:56:00+09:00",
+        cause="process_restart",
+        boot_state=boot_state,
+        trading_mode="demo",
+    )
+
+    assert len(restart_notifier.calls) == 1

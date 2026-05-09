@@ -2896,7 +2896,7 @@ def test_create_app_dispatches_boot_notification_when_boot_is_normal(monkeypatch
     assert dispatcher.calls[0]["boot_state"].hard_stop is False
 
 
-def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch) -> None:
+def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch, tmp_path) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -2926,6 +2926,7 @@ def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch
     monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat")
+    monkeypatch.setenv("RESTART_STATE_PATH", str(tmp_path / "restart-state.json"))
     monkeypatch.setattr("app.main.TelegramHttpGateway", StubTelegramGateway)
 
     create_app(
@@ -2944,6 +2945,43 @@ def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch
     assert "/dashboard 주소로 열 수 있습니다." in message
     assert "설정 화면은 브라우저에서 http://" in message
     assert "/settings 주소로 열 수 있습니다." in message
+
+
+def test_create_app_respects_restart_notify_disabled(monkeypatch, tmp_path) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    class StubTelegramGateway:
+        instances: list["StubTelegramGateway"] = []
+
+        def __init__(self, *, bot_token: str, chat_id: str) -> None:
+            self.messages: list[str] = []
+            self.instances.append(self)
+
+        def send_message(self, message: str) -> None:
+            self.messages.append(message)
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat")
+    monkeypatch.setenv("RESTART_NOTIFY", "false")
+    monkeypatch.setenv("RESTART_STATE_PATH", str(tmp_path / "restart-state.json"))
+    monkeypatch.setattr("app.main.TelegramHttpGateway", StubTelegramGateway)
+
+    create_app(recovery_orchestrator=SuccessfulBootOrchestrator())
+
+    assert len(StubTelegramGateway.instances) == 1
+    assert StubTelegramGateway.instances[0].messages == []
 
 
 def test_promotion_review_endpoint_returns_runner_result(monkeypatch) -> None:

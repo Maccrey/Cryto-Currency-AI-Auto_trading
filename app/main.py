@@ -148,16 +148,17 @@ def create_app(
         )
         if trade_fill_notifier is None:
             trade_fill_notifier = TelegramNotifier(gateway=telegram_gateway)
-        if restart_notifier is None:
+        if restart_notifier is None and settings.restart_notify:
             restart_notifier = RestartNotifier(gateway=telegram_gateway)
         if hard_stop_notifier is None:
             hard_stop_notifier = HardStopNotifier(gateway=telegram_gateway)
-        if boot_notification_dispatcher is None:
+        if boot_notification_dispatcher is None and settings.restart_notify:
             boot_notification_dispatcher = BootNotificationDispatcher(
                 restart_notifier=restart_notifier,
                 hard_stop_notifier=hard_stop_notifier,
                 dashboard_url=browser_urls["dashboard_url"],
                 settings_url=browser_urls["settings_url"],
+                dedupe_store_path=settings.restart_state_path.parent / "boot-notification-state.json",
             )
 
     notification_services = build_notification_services(

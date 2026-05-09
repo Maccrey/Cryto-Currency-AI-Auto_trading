@@ -94,7 +94,7 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert "formatContextBasis" in DASHBOARD_HTML
     assert 'activity_volume_proxy: " (활동·거래량 대체)"' in DASHBOARD_HTML
     assert 'price_change_proxy: " (가격변화 대체)"' in DASHBOARD_HTML
-    assert "renderExternalContext(externalContextResponse.context || {}, marketResponse.summary || {});" in DASHBOARD_HTML
+    assert "renderExternalContext(cachedExternalContextResponse.context || {}, marketResponse.summary || {});" in DASHBOARD_HTML
     assert "function renderExternalContext(context, market)" in DASHBOARD_HTML
     assert 'const upbitChangeRate = market.signed_change_rate ?? market.recent_change_pct;' in DASHBOARD_HTML
     assert 'class="krw-price">${price(market.current_price)} <span class="${changeClass(upbitChangeRate)}">' in DASHBOARD_HTML
@@ -149,6 +149,20 @@ def test_dashboard_derives_win_rate_from_closed_execution_pnl() -> None:
     assert 'fetchJson("/dashboard/executions?limit=1000")' in DASHBOARD_HTML
     assert "if (summary.realized_pnl > 0) return 1;" not in DASHBOARD_HTML
     assert "if (summary.realized_pnl < 0) return 0;" not in DASHBOARD_HTML
+
+
+def test_dashboard_refresh_throttles_overlapping_requests() -> None:
+    assert "let dashboardRefreshInFlight = false;" in DASHBOARD_HTML
+    assert "let dashboardSlowRefreshInFlight = false;" in DASHBOARD_HTML
+    assert "const DASHBOARD_REFRESH_INTERVAL_MS = 3000;" in DASHBOARD_HTML
+    assert "const DASHBOARD_SLOW_REFRESH_INTERVAL_MS = 30000;" in DASHBOARD_HTML
+    assert "if (dashboardRefreshInFlight) return;" in DASHBOARD_HTML
+    assert "dashboardRefreshInFlight = false;" in DASHBOARD_HTML
+    assert "function refreshSlowDashboardData" in DASHBOARD_HTML
+    assert "if (dashboardSlowRefreshInFlight) return;" in DASHBOARD_HTML
+    assert 'console.warn(`느린 대시보드 데이터 갱신 실패: ${error.message}`);' in DASHBOARD_HTML
+    assert "lastSlowDashboardRefreshAt = startedAt;" in DASHBOARD_HTML
+    assert "setInterval(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS);" in DASHBOARD_HTML
 
 
 def test_dashboard_displays_trading_runtime_only_when_running() -> None:
