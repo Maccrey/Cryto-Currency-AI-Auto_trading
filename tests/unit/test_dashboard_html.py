@@ -81,8 +81,11 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'formatEtfMetricLine("순유입", inflow, "USD", etf.inflow_usd_change, 0)' in DASHBOARD_HTML
     assert 'formatEtfMetricLine("순유출", outflow, "USD", etf.outflow_usd_change, 0)' in DASHBOARD_HTML
     assert 'formatEtfMetricLine("보유수량 변화", holdingChange, `${tradeCoin}`, holdingChange, 0)' in DASHBOARD_HTML
-    assert 'formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0)' in DASHBOARD_HTML
-    assert 'formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0)' in DASHBOARD_HTML
+    assert 'formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0, false)' in DASHBOARD_HTML
+    assert 'formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0, false)' in DASHBOARD_HTML
+    assert "showValueSign = true" in DASHBOARD_HTML
+    assert 'const formattedValue = showValueSign ? signedNumber(numericValue, digits) : number(numericValue, digits);' in DASHBOARD_HTML
+    assert 'signedNumber(numericChange, digits)' not in DASHBOARD_HTML
     assert "총 AUM" in DASHBOARD_HTML
     assert "총 보유" in DASHBOARD_HTML
     assert "거래소 순유입·순유출" in DASHBOARD_HTML

@@ -952,8 +952,8 @@ function renderExternalContext(context, market) {
     `${formatContextState(etf.state)}`,
     ...etfFlowLines,
     formatEtfMetricLine("보유수량 변화", holdingChange, `${tradeCoin}`, holdingChange, 0),
-    etf.total_aum_usd ? formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0) : "",
-    etf.total_holding_coin ? formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0) : ""
+    etf.total_aum_usd ? formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0, false) : "",
+    etf.total_holding_coin ? formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0, false) : ""
   ].filter(Boolean);
   document.getElementById("etfState").innerHTML = etfLines.join("<br>");
   document.getElementById("etfState").title = etfLines.map((line) => line.replace(/<[^>]*>/g, "")).join("\\n");
@@ -985,14 +985,12 @@ function formatEtfFlowLines(etf) {
   return [formatEtfFlowLine(etf)];
 }
 
-function formatEtfMetricLine(label, value, unit, changeValue, digits = 0) {
+function formatEtfMetricLine(label, value, unit, changeValue, digits = 0, showValueSign = true) {
   const numericValue = Number(value || 0);
   const numericChange = Number(changeValue || 0);
   const unitText = unit ? ` ${unit}` : "";
-  const changeText = Number.isNaN(Number(changeValue))
-    ? ""
-    : ` <span class="${changeClass(numericChange)}">(${signedNumber(numericChange, digits)}${unitText})</span>`;
-  return `${label} <span class="${changeClass(numericChange)}">${number(numericValue, digits)}${unitText}</span>${changeText}`;
+  const formattedValue = showValueSign ? signedNumber(numericValue, digits) : number(numericValue, digits);
+  return `${label} <span class="${changeClass(numericChange)}">${formattedValue}${unitText}</span>`;
 }
 
 function formatExternalContextStatus(onchain, etf) {
