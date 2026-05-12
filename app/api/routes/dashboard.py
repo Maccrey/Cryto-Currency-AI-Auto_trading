@@ -124,11 +124,11 @@ DASHBOARD_HTML = """
     .card h2 { margin: 0 0 10px; font-size: 15px; }
     .metric { min-height: 34px; font-size: 28px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
     .sub { margin-top: 6px; min-height: 36px; color: var(--muted); font-size: 13px; line-height: 1.35; }
-    .price-stack { min-height: 104px; display: grid; grid-template-rows: 20px 30px 18px 26px; align-content: start; row-gap: 4px; }
+    .price-stack { min-height: 104px; display: grid; grid-template-rows: 20px 30px 18px minmax(26px, auto); align-content: start; row-gap: 4px; }
     .price-market { color: var(--muted); font-size: 14px; font-weight: 800; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .price-line { font-size: 24px; font-weight: 800; line-height: 30px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .price-change-line { font-size: 11px; font-weight: 800; line-height: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .price-trend-line { min-height: 26px; line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .price-trend-line { min-height: 26px; font-size: 13px; line-height: 1.35; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
     .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: var(--soft); color: var(--text); font-size: 12px; font-weight: 800; }
     .ok { background: #e8f6ed; color: #1f6b35; }
     .warn { background: #fff4d6; color: #7a5400; }
@@ -346,7 +346,7 @@ DASHBOARD_HTML = """
     <div class="card table-box">
       <h2>최근 체결</h2>
       <table>
-        <thead><tr><th>구분</th><th>상태</th><th>가격</th><th>수량</th></tr></thead>
+        <thead><tr><th>일시</th><th>구분</th><th>상태</th><th>가격</th><th>수량</th></tr></thead>
         <tbody id="executionsTable"></tbody>
       </table>
     </div>
@@ -1194,9 +1194,9 @@ function renderDashboard(data) {
   const history = executions.history || [];
   document.getElementById("executionsTable").innerHTML = history.length
     ? history.slice(-8).reverse().map((item) => `
-        <tr><td>${item.side_label || item.side}</td><td>${item.status_label || item.status}</td><td>${number(item.filled_price, 4)}</td><td>${number(item.filled_quantity, 6)}</td></tr>
+        <tr><td>${formatDateTime(item.recorded_at)}</td><td>${item.side_label || item.side}</td><td>${item.status_label || item.status}</td><td>${number(item.filled_price, 4)}</td><td>${number(item.filled_quantity, 6)}</td></tr>
       `).join("")
-    : '<tr><td colspan="4" class="empty">현재 서버 실행 중 체결 기록이 없습니다.</td></tr>';
+    : '<tr><td colspan="5" class="empty">현재 서버 실행 중 체결 기록이 없습니다.</td></tr>';
 
   const promotionMetrics = promotion && promotion.metrics ? promotion.metrics : {};
   document.getElementById("promotionTable").innerHTML = [

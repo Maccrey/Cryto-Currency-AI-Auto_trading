@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 
 from app.services.execution.demo import FillResult
@@ -12,6 +13,7 @@ from app.services.portfolio.sync import PortfolioState
 class ExecutionLedgerRecord:
     fill: FillResult
     reason_code: str | None
+    recorded_at: str | None
 
 
 @dataclass(frozen=True)
@@ -31,11 +33,18 @@ class ExecutionLedger:
         self._records: list[ExecutionLedgerRecord] = []
         self._load()
 
-    def record_fill(self, fill: FillResult, *, reason_code: str | None = None) -> None:
+    def record_fill(
+        self,
+        fill: FillResult,
+        *,
+        reason_code: str | None = None,
+        recorded_at: str | None = None,
+    ) -> None:
         self._records.append(
             ExecutionLedgerRecord(
                 fill=fill,
                 reason_code=reason_code,
+                recorded_at=recorded_at or datetime.now().astimezone().isoformat(timespec="seconds"),
             ),
         )
         self._persist()
@@ -162,6 +171,7 @@ class ExecutionLedger:
                             is_stop_loss=bool(fill_payload.get("is_stop_loss")),
                         ),
                         reason_code=None if item.get("reason_code") is None else str(item.get("reason_code")),
+                        recorded_at=None if item.get("recorded_at") is None else str(item.get("recorded_at")),
                     ),
                 )
             except (TypeError, ValueError):
@@ -177,6 +187,7 @@ class ExecutionLedger:
                 {
                     "fill": asdict(record.fill),
                     "reason_code": record.reason_code,
+                    "recorded_at": record.recorded_at,
                 }
                 for record in self._records
             ],

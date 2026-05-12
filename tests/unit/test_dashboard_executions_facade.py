@@ -54,24 +54,24 @@ def test_dashboard_executions_facade_returns_recent_execution_history() -> None:
 
     payload = facade.build_history_response(limit=1)
 
-    assert payload == {
-        "status": "ok",
-        "history": [
-            {
-                "market": "KRW-XRP",
-                "side": "sell",
-                "side_label": "손절 매도",
-                "severity": "critical",
-                "state_message": "손절 매도 체결이 완료되었습니다.",
-                "filled_price": 805.0,
-                "filled_quantity": 100.0,
-                "fee": 33.5,
-                "status": "filled",
-                "status_label": "체결완료",
-                "mode": "demo",
-                "is_virtual": True,
-                "is_stop_loss": True,
-                "reason_code": "STOP_LOSS_PRICE_HIT",
-            },
-        ],
-    }
+    assert payload["status"] == "ok"
+    assert payload["history"] == [
+        {
+            "market": "KRW-XRP",
+            "side": "sell",
+            "side_label": "손절 매도",
+            "severity": "critical",
+            "state_message": "손절 매도 체결이 완료되었습니다.",
+            "filled_price": 805.0,
+            "filled_quantity": 100.0,
+            "fee": 33.5,
+            "status": "filled",
+            "status_label": "완료",
+            "mode": "demo",
+            "is_virtual": True,
+            "is_stop_loss": True,
+            "reason_code": "STOP_LOSS_PRICE_HIT",
+            "recorded_at": payload["history"][0]["recorded_at"],
+        },
+    ]
+    assert payload["history"][0]["recorded_at"] is not None

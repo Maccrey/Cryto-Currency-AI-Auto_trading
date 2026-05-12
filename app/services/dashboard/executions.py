@@ -21,6 +21,7 @@ class DashboardExecutionEntry:
     is_virtual: bool
     is_stop_loss: bool
     reason_code: str | None
+    recorded_at: str | None
 
 
 class DashboardExecutionsService:
@@ -46,6 +47,7 @@ class DashboardExecutionsService:
                 is_virtual=record.fill.is_virtual,
                 is_stop_loss=record.fill.is_stop_loss,
                 reason_code=record.reason_code,
+                recorded_at=record.recorded_at,
             )
             for record in records
         ]
@@ -83,7 +85,7 @@ class DashboardExecutionsService:
     @staticmethod
     def _derive_status_label(record: ExecutionLedgerRecord) -> str:
         labels = {
-            "filled": "체결완료",
+            "filled": "완료",
             "blocked": "차단됨",
             "wait": "대기",
             "done": "완료",
