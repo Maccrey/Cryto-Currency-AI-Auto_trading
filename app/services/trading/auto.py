@@ -325,6 +325,7 @@ class AutoTradingService:
         return UpbitTickerSnapshot(trade_price=float(price))
 
     def _build_decision_request(self, current_price: float, *, relax_fee_edge: bool = False) -> TradeDecisionRequest:
+        external_context = self._external_context(record=False)
         return TradeDecisionRequest(
             prices=list(self._prices),
             traded_values=list(self._traded_values),
@@ -338,6 +339,7 @@ class AutoTradingService:
             safe_mode=self._boot_state.safe_mode,
             recent_loss_streak=0,
             relax_fee_edge=relax_fee_edge,
+            external_context_weight=self._external_context_weight(external_context),
         )
 
     def _portfolio_state(self) -> PortfolioState:
@@ -469,13 +471,15 @@ class AutoTradingService:
         )
         return payload
 
-    def _external_context(self) -> dict[str, object] | None:
+    def _external_context(self, *, record: bool = True) -> dict[str, object] | None:
         if self._external_context_provider is None:
             return None
         snapshot = self._external_context_provider.snapshot(
             market=self._market,
             trade_coin=self._market.split("-")[-1],
         )
+        if not record:
+            return snapshot
         self._learning_service.record(
             LearningEvent(
                 event_name="external_market_context_snapshot",
@@ -485,6 +489,15 @@ class AutoTradingService:
             ),
         )
         return snapshot
+
+    @staticmethod
+    def _external_context_weight(external_context: dict[str, object] | None) -> float:
+        if not isinstance(external_context, dict):
+            return 1.0
+        try:
+            return max(min(float(external_context.get("learning_weight", 1.0)), 1.25), 0.75)
+        except (TypeError, ValueError):
+            return 1.0
 
     def _should_relax_weak_signal(self, decision) -> bool:
         if self._trading_mode != "demo":

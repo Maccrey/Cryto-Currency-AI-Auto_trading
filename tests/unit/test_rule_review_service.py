@@ -382,8 +382,8 @@ def test_rule_review_summarizes_external_market_context(tmp_path: Path) -> None:
     (tmp_path / "learning.jsonl").write_text(
         "\n".join(
             [
-                '{"event_name":"auto_trade_cycle","payload":{"external_context":{"onchain":{"state":"bullish"},"etf":{"state":"inflow"},"learning_weight":1.2}}}',
-                '{"event_name":"external_market_context_snapshot","payload":{"onchain":{"state":"bearish"},"etf":{"state":"outflow"},"learning_weight":0.8}}',
+                '{"event_name":"auto_trade_cycle","payload":{"external_context":{"onchain":{"state":"bullish","exchange_netflow_state":"outflow"},"etf":{"state":"inflow","flow_usd":125000000,"inflow_usd":125000000,"outflow_usd":0},"learning_weight":1.2}}}',
+                '{"event_name":"external_market_context_snapshot","payload":{"onchain":{"state":"bearish","exchange_netflow_state":"inflow"},"etf":{"state":"outflow","flow_usd":-50000000,"inflow_usd":0,"outflow_usd":50000000},"learning_weight":0.8}}',
                 '{"event_name":"fill_result","payload":{"is_stop_loss":true,"stop_loss_reason":"ETF_OUTFLOW"}}',
             ],
         )
@@ -411,9 +411,46 @@ def test_rule_review_summarizes_external_market_context(tmp_path: Path) -> None:
 
     assert review["external_context_summary"]["sample_count"] == 2
     assert review["external_context_summary"]["onchain_state_counts"] == {"bullish": 1, "bearish": 1}
+    assert review["external_context_summary"]["onchain_exchange_netflow_counts"] == {"outflow": 1, "inflow": 1}
     assert review["external_context_summary"]["etf_state_counts"] == {"inflow": 1, "outflow": 1}
     assert review["external_context_summary"]["avg_learning_weight"] == 1.0
+    assert review["external_context_summary"]["etf_flow_usd_total"] == 75_000_000
+    assert review["external_context_summary"]["etf_inflow_usd_total"] == 125_000_000
+    assert review["external_context_summary"]["etf_outflow_usd_total"] == 50_000_000
     assert proposal["external_context_summary"] == review["external_context_summary"]
+
+
+def test_rule_proposal_uses_external_context_for_rule_changes(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        (
+            '{"event_name":"external_market_context_snapshot","payload":'
+            '{"onchain":{"state":"bullish","exchange_netflow_state":"outflow"},'
+            '"etf":{"state":"inflow","flow_usd":125000000,"inflow_usd":125000000,"outflow_usd":0},'
+            '"learning_weight":1.16}}\n'
+        ),
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-BTC",
+        trade_coin="BTC",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    proposal = service.create_proposal()["proposal"]
+    parameters = [change["parameter"] for change in proposal["codex_suggested_changes"]]
+
+    assert "EXTERNAL_CONTEXT_BULLISH_BOOST" in parameters
+    assert "EXTERNAL_CONTEXT_POSITION_SCALING" in parameters
 
 
 def test_rule_change_history_is_appended_for_proposal_lifecycle(tmp_path: Path) -> None:

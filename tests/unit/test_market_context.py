@@ -356,6 +356,36 @@ def test_public_web_context_provider_parses_coinglass_inflow_outflow_shape() -> 
     assert payload["etf"]["total_holding_coin_change"] == -12_500
 
 
+def test_public_web_context_provider_parses_coinglass_camel_flow_keys() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.binance.com":
+            return httpx.Response(200, json={"lastPrice": "200.0", "priceChangePercent": "0", "quoteVolume": "1"})
+        if request.url.host == "capi.coinglass.com" and str(request.url.path).endswith("/spot/inFlow"):
+            return httpx.Response(
+                200,
+                json={
+                    "code": "0",
+                    "data": [
+                        {"date": "2026-05-01", "inFlowUsd": 0, "outFlowUsd": 4_200_000},
+                    ],
+                },
+            )
+        if request.url.host == "capi.coinglass.com" and str(request.url.path).endswith("/list"):
+            return httpx.Response(200, json={"code": "0", "data": []})
+        return httpx.Response(200, json={"ledgers": [{"tx_count": 1}, {"tx_count": 1}]})
+
+    provider = PublicWebExternalMarketContextProvider(
+        transport=httpx.MockTransport(handler),
+    )
+
+    payload = provider.fetch(market="KRW-SOL", trade_coin="SOL")
+
+    assert payload["etf"]["state"] == "outflow"
+    assert payload["etf"]["flow_usd"] == -4_200_000
+    assert payload["etf"]["inflow_usd"] == 0
+    assert payload["etf"]["outflow_usd"] == 4_200_000
+
+
 def test_public_web_context_provider_falls_back_to_xrp_insights_etf_data() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.host == "capi.coinglass.com":

@@ -495,7 +495,20 @@ class PublicWebExternalMarketContextProvider:
 
     @staticmethod
     def _coinglass_flow_metrics(item: dict[str, Any]) -> dict[str, float] | None:
-        for key in ("changeUsd", "change", "netInflowUsd", "netInflow", "dailyNetInflow"):
+        for key in (
+            "changeUsd",
+            "change_usd",
+            "change",
+            "netInflowUsd",
+            "netInflowUSd",
+            "netInflow",
+            "net_inflow_usd",
+            "net_inflow",
+            "dailyNetInflow",
+            "daily_net_inflow",
+            "flowUsd",
+            "flow_usd",
+        ):
             value = PublicWebExternalMarketContextProvider._optional_float(item.get(key))
             if value is not None:
                 return {
@@ -503,11 +516,31 @@ class PublicWebExternalMarketContextProvider:
                     "inflow_usd": max(value, 0.0),
                     "outflow_usd": abs(min(value, 0.0)),
                 }
-        inflow = PublicWebExternalMarketContextProvider._optional_float(item.get("inflow"))
-        outflow = PublicWebExternalMarketContextProvider._optional_float(item.get("outflow"))
+        inflow = PublicWebExternalMarketContextProvider._first_optional_float(
+            item,
+            "inflow",
+            "inFlow",
+            "inflowUsd",
+            "inFlowUsd",
+            "inflow_usd",
+            "in_flow_usd",
+            "totalInflow",
+            "total_inflow",
+        )
+        outflow = PublicWebExternalMarketContextProvider._first_optional_float(
+            item,
+            "outflow",
+            "outFlow",
+            "outflowUsd",
+            "outFlowUsd",
+            "outflow_usd",
+            "out_flow_usd",
+            "totalOutflow",
+            "total_outflow",
+        )
         if inflow is not None or outflow is not None:
             inflow_value = inflow or 0.0
-            outflow_value = outflow or 0.0
+            outflow_value = abs(outflow or 0.0)
             return {
                 "flow_usd": inflow_value - outflow_value,
                 "inflow_usd": inflow_value,

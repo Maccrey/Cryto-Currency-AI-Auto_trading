@@ -414,6 +414,8 @@ let cachedExternalContextResponse = {context: {}};
 let cachedDiagnosticsResponse = {diagnostics: {}};
 const DASHBOARD_REFRESH_INTERVAL_MS = 3000;
 const DASHBOARD_SLOW_REFRESH_INTERVAL_MS = 30000;
+const AUTO_RULE_READY_KEY = "cryptoDashboardAutoRuleImproveReady";
+let autoRuleImproveInFlight = false;
 
 function openRuleAutomationModal() {
   document.getElementById("ruleAutomationModal").classList.add("visible");
@@ -793,7 +795,8 @@ function renderRulePipeline(payload) {
 function formatRuleExternalContext(summary) {
   const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
   const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
-  return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
+  const flow = `ETF 순흐름 ${signedNumber(summary.etf_flow_usd_total || 0, 0)} USD`;
+  return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)} / ${flow}`;
 }
 
 function formatRuleHistoryWarnings(warnings) {
@@ -822,9 +825,9 @@ async function refreshRuleHistory() {
   renderRuleHistory(await fetchJson("/api/v1/rules/history"));
 }
 
-async function runCodexRuleAutomation() {
+async function runCodexRuleAutomation(initialMessage = "학습 로그를 읽고 변경안을 생성하는 자동 파이프라인을 실행합니다.") {
   openRuleAutomationModal();
-  appendRuleAutomationStep("Codex CLI 룰 개선 하네스 시작", "running", "학습 로그를 읽고 변경안을 생성하는 자동 파이프라인을 실행합니다.");
+  appendRuleAutomationStep("Codex CLI 룰 개선 하네스 시작", "running", initialMessage);
   try {
     const result = await postJson("/api/v1/rules/auto-improve", {fixture_path: "fixtures/replay_ticks.json"});
     renderRuleAutomationResult(result);
@@ -837,6 +840,18 @@ async function runCodexRuleAutomation() {
     finalBox.classList.remove("hidden");
     document.getElementById("ruleAutomationRetry").classList.remove("hidden");
     document.getElementById("ruleAutomationClose").classList.remove("hidden");
+  }
+}
+
+async function maybeRunAutoRuleImprove(progress) {
+  if (progress < 100 || autoRuleImproveInFlight) return;
+  if (sessionStorage.getItem(AUTO_RULE_READY_KEY) === "done") return;
+  autoRuleImproveInFlight = true;
+  sessionStorage.setItem(AUTO_RULE_READY_KEY, "done");
+  try {
+    await runCodexRuleAutomation("학습완료율 100% 도달로 학습 데이터, 온체인 데이터, ETF 상태를 함께 분석합니다.");
+  } finally {
+    autoRuleImproveInFlight = false;
   }
 }
 
@@ -1127,6 +1142,7 @@ function renderDashboard(data) {
   const winRate = deriveWinRate(summary, promotion, executions);
   const readyBadge = health.trading_ready ? '<span class="badge ok">거래 준비됨</span>' : '<span class="badge warn">점검 필요</span>';
   const learningBadge = summary.learning_enabled ? '<span class="badge ok">학습 기록 중</span>' : '<span class="badge warn">학습 비활성</span>';
+  maybeRunAutoRuleImprove(progress);
 
   document.getElementById("statusLine").innerHTML = `${readyBadge} ${learningBadge}`;
   renderTradingRuntime(tradingStatus);

@@ -621,6 +621,20 @@ async function loadSettings() {
 function row(label, value) {
   return `<tr><th>${label}</th><td>${value}</td></tr>`;
 }
+function number(value, digits = 0) {
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) return "-";
+  return numeric.toLocaleString("ko-KR", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  });
+}
+function signedNumber(value, digits = 0) {
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) return "-";
+  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
+  return `${sign}${number(Math.abs(numeric), digits)}`;
+}
 async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url} ${response.status}`);
@@ -665,7 +679,8 @@ function renderRulePipeline(payload) {
 function formatRuleExternalContext(summary) {
   const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${value}건`).join(", ") || "없음";
   const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${value}건`).join(", ") || "없음";
-  return `표본 ${summary.sample_count || 0}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${summary.avg_learning_weight || 1}`;
+  const flow = `ETF 순흐름 ${signedNumber(summary.etf_flow_usd_total || 0, 0)} USD`;
+  return `표본 ${summary.sample_count || 0}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${summary.avg_learning_weight || 1} / ${flow}`;
 }
 function formatContextState(value) {
   const labels = {

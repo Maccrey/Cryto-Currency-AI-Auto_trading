@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 
 from app.services.portfolio.sync import PortfolioState
 from app.services.regime.engine import RegimeEngine, RegimeSnapshot
@@ -23,6 +23,7 @@ class TradeDecisionRequest:
     safe_mode: bool
     recent_loss_streak: int
     relax_fee_edge: bool = False
+    external_context_weight: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,7 @@ class TradeDecisionService:
             regime_score=request.regime_score,
         )
         signal = self._signal_engine.evaluate(features)
+        signal = self._apply_external_context(signal, request.external_context_weight)
         regime = self._regime_engine.evaluate(
             features,
             recent_loss_streak=request.recent_loss_streak,
@@ -80,6 +82,34 @@ class TradeDecisionService:
             regime=regime,
             sizing=sizing,
         )
+
+    @staticmethod
+    def _apply_external_context(signal: SignalDecision, weight: float) -> SignalDecision:
+        normalized_weight = max(min(float(weight or 1.0), 1.25), 0.75)
+        if normalized_weight == 1.0:
+            return signal
+        adjusted_score = round(max(min(signal.score * normalized_weight, 1.0), 0.0), 2)
+        reason_codes = list(signal.reason_codes)
+        if normalized_weight > 1.0 and "EXTERNAL_CONTEXT_BULLISH_BOOST" not in reason_codes:
+            reason_codes.append("EXTERNAL_CONTEXT_BULLISH_BOOST")
+        if normalized_weight < 1.0 and "EXTERNAL_CONTEXT_RISK_OFF" not in reason_codes:
+            reason_codes.append("EXTERNAL_CONTEXT_RISK_OFF")
+        return replace(
+            signal,
+            score=adjusted_score,
+            level=TradeDecisionService._score_to_level(adjusted_score),
+            reason_codes=reason_codes,
+        )
+
+    @staticmethod
+    def _score_to_level(score: float) -> str:
+        if score >= 0.85:
+            return "very_strong"
+        if score >= 0.65:
+            return "strong"
+        if score >= 0.4:
+            return "medium"
+        return "weak"
 
     @staticmethod
     def to_payload(result: TradeDecisionResult) -> dict[str, object]:

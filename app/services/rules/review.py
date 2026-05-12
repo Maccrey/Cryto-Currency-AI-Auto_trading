@@ -813,15 +813,23 @@ class RuleReviewService:
         if not samples:
             return RuleReviewService._empty_external_context_summary()
         onchain_counts: Counter[str] = Counter()
+        onchain_exchange_counts: Counter[str] = Counter()
         etf_counts: Counter[str] = Counter()
         weights: list[float] = []
+        etf_flows: list[float] = []
+        etf_inflows: list[float] = []
+        etf_outflows: list[float] = []
         for sample in samples:
             onchain = sample.get("onchain") or {}
             etf = sample.get("etf") or {}
             if isinstance(onchain, dict):
                 onchain_counts.update([str(onchain.get("state") or "unknown")])
+                onchain_exchange_counts.update([str(onchain.get("exchange_netflow_state") or "unknown")])
             if isinstance(etf, dict):
                 etf_counts.update([str(etf.get("state") or "unknown")])
+                RuleReviewService._append_float(etf_flows, etf.get("flow_usd"))
+                RuleReviewService._append_float(etf_inflows, etf.get("inflow_usd"))
+                RuleReviewService._append_float(etf_outflows, etf.get("outflow_usd"))
             try:
                 weights.append(float(sample.get("learning_weight", 1.0)))
             except (TypeError, ValueError):
@@ -829,8 +837,12 @@ class RuleReviewService:
         return {
             "sample_count": len(samples),
             "onchain_state_counts": dict(onchain_counts),
+            "onchain_exchange_netflow_counts": dict(onchain_exchange_counts),
             "etf_state_counts": dict(etf_counts),
             "avg_learning_weight": round(sum(weights) / len(weights), 3) if weights else 1.0,
+            "etf_flow_usd_total": round(sum(etf_flows), 2),
+            "etf_inflow_usd_total": round(sum(etf_inflows), 2),
+            "etf_outflow_usd_total": round(sum(etf_outflows), 2),
         }
 
     @staticmethod
@@ -838,16 +850,28 @@ class RuleReviewService:
         return {
             "sample_count": 0,
             "onchain_state_counts": {},
+            "onchain_exchange_netflow_counts": {},
             "etf_state_counts": {},
             "avg_learning_weight": 1.0,
+            "etf_flow_usd_total": 0.0,
+            "etf_inflow_usd_total": 0.0,
+            "etf_outflow_usd_total": 0.0,
         }
+
+    @staticmethod
+    def _append_float(values: list[float], value: Any) -> None:
+        try:
+            values.append(float(value))
+        except (TypeError, ValueError):
+            pass
 
     def _is_no_trade_mitigation_candidate(self, review: dict[str, Any]) -> bool:
         return self._trading_mode == "demo" and int(review.get("no_trade_blocked_count") or 0) >= 3
 
     def _default_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
+        context_changes = self._external_context_proposed_changes(review)
         if self._is_no_trade_mitigation_candidate(review):
-            return [
+            changes = [
                 {
                     "file": ".env",
                     "parameter": "NO_TRADE_RELAX_MIN_SCORE",
@@ -866,6 +890,9 @@ class RuleReviewService:
                     "reason": "demo no-trade 완화 시 수수료 보정 엣지 차단을 재평가해 0원 주문 차단을 해소합니다.",
                 },
             ]
+            return (context_changes + changes)[: self._config.max_params_per_run]
+        if context_changes:
+            return context_changes[: self._config.max_params_per_run]
         return [
             {
                 "file": "STRATEGY_SPEC.md",
@@ -875,3 +902,69 @@ class RuleReviewService:
                 "reason": "학습 로그 분석 후 Codex가 제한된 변경안을 작성해야 합니다.",
             },
         ]
+
+    def _external_context_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
+        summary = review.get("external_context_summary")
+        if not isinstance(summary, dict) or int(summary.get("sample_count") or 0) <= 0:
+            return []
+        avg_weight = self._float(summary.get("avg_learning_weight"), 1.0)
+        etf_counts = summary.get("etf_state_counts") if isinstance(summary.get("etf_state_counts"), dict) else {}
+        onchain_counts = (
+            summary.get("onchain_state_counts") if isinstance(summary.get("onchain_state_counts"), dict) else {}
+        )
+        exchange_counts = (
+            summary.get("onchain_exchange_netflow_counts")
+            if isinstance(summary.get("onchain_exchange_netflow_counts"), dict)
+            else {}
+        )
+        etf_flow_total = self._float(summary.get("etf_flow_usd_total"), 0.0)
+        risk_on = int(etf_counts.get("inflow", 0)) + int(onchain_counts.get("bullish", 0)) + int(exchange_counts.get("outflow", 0))
+        risk_off = int(etf_counts.get("outflow", 0)) + int(onchain_counts.get("bearish", 0)) + int(exchange_counts.get("inflow", 0))
+        if avg_weight > 1.03 or risk_on > risk_off:
+            return [
+                {
+                    "file": "app/services/trading/decision.py",
+                    "parameter": "EXTERNAL_CONTEXT_BULLISH_BOOST",
+                    "current_value": "not_applied",
+                    "proposed_value": f"signal_score_x{avg_weight}",
+                    "reason": (
+                        "학습 로그의 온체인/ETF 컨텍스트가 위험선호 우위입니다. "
+                        f"ETF 순흐름 합계 {round(etf_flow_total, 2)} USD와 평균 가중치 {avg_weight}를 진입 점수에 반영합니다."
+                    ),
+                },
+                {
+                    "file": "app/services/trading/auto.py",
+                    "parameter": "EXTERNAL_CONTEXT_POSITION_SCALING",
+                    "current_value": "1.0",
+                    "proposed_value": avg_weight,
+                    "reason": "학습 데이터의 외부 컨텍스트 가중치로 매매 판단을 보정해 상승 컨텍스트에서 기회를 놓치지 않도록 합니다.",
+                },
+            ]
+        if avg_weight < 0.97 or risk_off > risk_on:
+            return [
+                {
+                    "file": "app/services/trading/decision.py",
+                    "parameter": "EXTERNAL_CONTEXT_RISK_OFF",
+                    "current_value": "not_applied",
+                    "proposed_value": f"signal_score_x{avg_weight}",
+                    "reason": (
+                        "학습 로그의 온체인/ETF 컨텍스트가 위험회피 우위입니다. "
+                        f"ETF 순흐름 합계 {round(etf_flow_total, 2)} USD와 평균 가중치 {avg_weight}를 진입 점수에 반영합니다."
+                    ),
+                },
+                {
+                    "file": "app/services/trading/auto.py",
+                    "parameter": "EXTERNAL_CONTEXT_POSITION_SCALING",
+                    "current_value": "1.0",
+                    "proposed_value": avg_weight,
+                    "reason": "ETF 순유출/온체인 약세 구간에서 진입 강도를 낮춰 손실 가능성을 줄입니다.",
+                },
+            ]
+        return []
+
+    @staticmethod
+    def _float(value: Any, fallback: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return fallback

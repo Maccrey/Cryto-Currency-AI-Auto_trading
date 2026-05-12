@@ -27,6 +27,9 @@ def test_dashboard_includes_rule_review_pipeline_panel() -> None:
     assert 'postJson("/api/v1/rules/auto-improve"' in DASHBOARD_HTML
     assert "runCodexRuleAutomation" in DASHBOARD_HTML
     assert "renderRuleAutomationResult" in DASHBOARD_HTML
+    assert "function maybeRunAutoRuleImprove(progress)" in DASHBOARD_HTML
+    assert "학습완료율 100% 도달로 학습 데이터, 온체인 데이터, ETF 상태를 함께 분석합니다." in DASHBOARD_HTML
+    assert 'sessionStorage.getItem(AUTO_RULE_READY_KEY) === "done"' in DASHBOARD_HTML
     assert "replay 결과" in DASHBOARD_HTML
     assert "demo 적용" in DASHBOARD_HTML
     assert "live 승인 적용" in DASHBOARD_HTML
