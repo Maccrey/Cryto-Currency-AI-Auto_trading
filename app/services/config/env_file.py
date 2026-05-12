@@ -23,6 +23,7 @@ class EnvFileService:
         profile = values.get("TRADING_PROFILE", "scalping")
         missing_for_live = self._missing_for_live(values) if mode == "live" else []
         start_readiness = self.trading_start_readiness(values)
+        storage_dir = values.get("STORAGE_DIR", "./storage")
         return {
             "status": "ok",
             "mode": mode,
@@ -32,6 +33,22 @@ class EnvFileService:
             "missing_for_live": missing_for_live,
             "start_readiness": start_readiness,
             "env_path": str(self._env_path),
+            "data_path_status": {
+                "storage_dir": storage_dir,
+                "learning_log_dir": values.get("LEARNING_LOG_DIR", f"{storage_dir}/logs/learning"),
+                "learning_dataset_dir": values.get("LEARNING_DATASET_DIR", f"{storage_dir}/data/learning"),
+                "restart_state_path": values.get(
+                    "RESTART_STATE_PATH",
+                    f"{storage_dir}/runtime/recovery/restart-state.json",
+                ),
+            },
+            "auto_rule_update": {
+                "enabled": values.get("AUTO_RULE_UPDATE_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
+                "learning_completion_rate_required": float(
+                    values.get("AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE", "1.0"),
+                ),
+                "win_rate_skip_threshold": float(values.get("AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD", "0.80")),
+            },
         }
 
     def secret_value(self, key: str) -> dict[str, object]:

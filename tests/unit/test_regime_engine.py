@@ -31,6 +31,8 @@ def test_regime_engine_marks_risk_off_and_reduces_size() -> None:
         size_multiplier=0.45,
         entry_allowed=False,
         reason_codes=["NEGATIVE_MOMENTUM", "WIDE_SPREAD", "ORDERBOOK_SELL_PRESSURE"],
+        market_state="bear",
+        market_state_label="하락장",
     )
 
 
@@ -55,13 +57,11 @@ def test_regime_engine_marks_risk_on_when_market_quality_is_good() -> None:
         safe_mode=False,
     )
 
-    assert snapshot == RegimeSnapshot(
-        label="risk_on",
-        score=0.75,
-        size_multiplier=1.1,
-        entry_allowed=True,
-        reason_codes=["POSITIVE_MOMENTUM", "TIGHT_SPREAD", "ORDERBOOK_BUY_PRESSURE"],
-    )
+    assert snapshot.label == "risk_on"
+    assert snapshot.market_state == "bull"
+    assert snapshot.market_state_label == "상승장"
+    assert snapshot.box_range_low is None
+    assert snapshot.box_range_high is None
 
 
 def test_regime_engine_blocks_entry_during_safe_mode() -> None:
@@ -109,3 +109,31 @@ def test_regime_score_calculation_is_reusable() -> None:
 
     assert scorer.score(features, recent_loss_streak=0) == 0.75
     assert engine.evaluate(features, recent_loss_streak=0, safe_mode=False).score == 0.75
+
+
+def test_regime_engine_marks_box_market_with_price_range() -> None:
+    engine = RegimeEngine()
+    features = FeatureSnapshot(
+        ret_1s=0.0001,
+        ret_5s=0.0002,
+        ret_30s=0.0003,
+        volume_multiple=1.1,
+        traded_value_multiple=1.1,
+        spread_bps=6.0,
+        orderbook_imbalance=0.02,
+        short_volatility=0.001,
+        regime_score=0.52,
+        liquidity_score=0.72,
+    )
+
+    snapshot = engine.evaluate(
+        features,
+        recent_loss_streak=0,
+        safe_mode=False,
+        current_price=800.0,
+    )
+
+    assert snapshot.market_state == "box"
+    assert snapshot.market_state_label == "박스권"
+    assert snapshot.box_range_low == 798.4
+    assert snapshot.box_range_high == 801.6

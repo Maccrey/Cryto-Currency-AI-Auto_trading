@@ -385,6 +385,7 @@ def create_app(
             no_trade_adaptive_enabled=settings.no_trade_adaptive_enabled,
             no_trade_relax_after_cycles=settings.no_trade_relax_after_cycles,
             no_trade_relax_min_score=settings.no_trade_relax_min_score,
+            reentry_block_seconds=settings.reentry_block_seconds,
         ),
         external_context_provider=external_context_service,
         demo_portfolio_state=demo_portfolio_state,
@@ -403,6 +404,9 @@ def create_app(
             max_params_per_run=settings.rule_change_max_params_per_run,
             apply_target=settings.rule_change_apply_target,
             require_manual_approval=settings.rule_change_require_manual_approval,
+            auto_update_enabled=settings.auto_rule_update_enabled,
+            auto_update_min_learning_completion_rate=settings.auto_rule_update_min_learning_completion_rate,
+            auto_update_win_rate_skip_threshold=settings.auto_rule_update_win_rate_skip_threshold,
         ),
     )
 

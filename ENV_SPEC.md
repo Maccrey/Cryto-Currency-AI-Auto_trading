@@ -90,10 +90,11 @@ MAX_SPREAD_BPS=15
 COOLDOWN_SECONDS=60
 REENTRY_BLOCK_SECONDS=180
 
+STORAGE_DIR=./storage
 SAFE_MODE_ON_RESTART=true
 RESTART_NOTIFY=true
 RESTART_HARD_STOP_THRESHOLD=3
-RESTART_STATE_PATH=./logs/recovery/restart-state.json
+RESTART_STATE_PATH=./storage/runtime/recovery/restart-state.json
 
 AUTO_PROMOTE_TO_LIVE=false
 PROMOTION_REQUIRE_MANUAL_APPROVAL=true
@@ -111,10 +112,13 @@ AUTO_TRADING_MIN_HISTORY=6
 
 LOG_LEVEL=INFO
 LOG_FORMAT=json
-LEARNING_LOG_DIR=./logs/learning
-LEARNING_DATASET_DIR=./data/learning
+LEARNING_LOG_DIR=./storage/logs/learning
+LEARNING_DATASET_DIR=./storage/data/learning
 MODEL_FEATURE_LOGGING=true
 DECISION_TRACE_LOGGING=true
+AUTO_RULE_UPDATE_ENABLED=false
+AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE=1.0
+AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD=0.80
 
 DASHBOARD_HOST=0.0.0.0
 DASHBOARD_PORT=8080
@@ -185,10 +189,11 @@ DASHBOARD_PORT=8080
 | MAX_SPREAD_BPS | int | Y | 15 | 허용 spread 상한 |
 | COOLDOWN_SECONDS | int | Y | 60 | 신호 cooldown |
 | REENTRY_BLOCK_SECONDS | int | Y | 180 | 손절 후 재진입 차단 |
+| STORAGE_DIR | str | Y | ./storage | 코드와 분리해 보존하는 데이터 루트 |
 | SAFE_MODE_ON_RESTART | bool | Y | true | 재기동 후 SAFE_MODE 여부 |
 | RESTART_NOTIFY | bool | Y | true | 재기동 텔레그램 알림 여부 |
 | RESTART_HARD_STOP_THRESHOLD | int | Y | 3 | 연속 재기동 허용 횟수 |
-| RESTART_STATE_PATH | str | Y | ./logs/recovery/restart-state.json | 재기동 복구 상태 파일 경로 |
+| RESTART_STATE_PATH | str | Y | ./storage/runtime/recovery/restart-state.json | 재기동 복구 상태 파일 경로 |
 | AUTO_PROMOTE_TO_LIVE | bool | Y | false | 자동 승격 허용 여부 |
 | PROMOTION_REQUIRE_MANUAL_APPROVAL | bool | Y | true | 수동 승인 필요 여부 |
 | DEMO_MIN_DAYS | int | Y | 14 | 승격 최소 데모 일수 |
@@ -204,10 +209,13 @@ DASHBOARD_PORT=8080
 | AUTO_TRADING_MIN_HISTORY | int | Y | 6 | 자동 판단 전 필요한 최소 현재가 히스토리 수 |
 | LOG_LEVEL | str | Y | INFO | 로그 레벨 |
 | LOG_FORMAT | str | Y | json | 구조화 로그 형식, json만 허용 |
-| LEARNING_LOG_DIR | str | Y | ./logs/learning | 구조화 로그 디렉터리 |
-| LEARNING_DATASET_DIR | str | Y | ./data/learning | 데이터셋 출력 디렉터리 |
+| LEARNING_LOG_DIR | str | Y | ./storage/logs/learning | 구조화 로그 디렉터리 |
+| LEARNING_DATASET_DIR | str | Y | ./storage/data/learning | 데이터셋 출력 디렉터리 |
 | MODEL_FEATURE_LOGGING | bool | Y | true | 모델 입력 feature 로그 저장 여부 |
 | DECISION_TRACE_LOGGING | bool | Y | true | 의사결정 trace 로그 저장 여부 |
+| AUTO_RULE_UPDATE_ENABLED | bool | Y | false | 자동 룰 업데이트 모드 |
+| AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE | float | Y | 1.0 | 자동 룰 업데이트에 필요한 학습데이터 충족률 |
+| AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD | float | Y | 0.80 | 이 승률 이상이면 자동 룰 업데이트 중단 |
 | DASHBOARD_HOST | str | Y | 0.0.0.0 | 대시보드 바인딩 호스트 |
 | DASHBOARD_PORT | int | Y | 8080 | 대시보드 포트 |
 
@@ -303,6 +311,18 @@ false면 앱 시작 실패
 ### AUTO_PROMOTE_TO_LIVE / 승인 정책
 - 기본은 `AUTO_PROMOTE_TO_LIVE=false`
 - 권장값은 수동 승인 필요
+
+### STORAGE_DIR / 데이터 보존 정책
+- 코드 디렉터리와 학습데이터/DB/로그/데이터셋/룰 변경 이력은 `STORAGE_DIR`로 분리한다.
+- 기본값은 `./storage`이며 Docker는 `./storage:/app/storage` 볼륨으로 영속화한다.
+- 기존 `logs/`와 `data/`를 유지하려면 업데이트 전에 `mkdir -p storage && mv logs storage/logs && mv data storage/data`를 실행하거나, `.env`에 기존 `LEARNING_LOG_DIR`/`LEARNING_DATASET_DIR` 경로를 그대로 남긴다.
+- 룰 변경 이력은 `LEARNING_LOG_DIR/<코인>/<투자성향>/rule-change-history.jsonl` 또는 기본 XRP의 `LEARNING_LOG_DIR/<투자성향>/rule-change-history.jsonl`에 append-only로 유지된다.
+
+### AUTO_RULE_UPDATE_* / 자동 룰 업데이트 정책
+- `AUTO_RULE_UPDATE_ENABLED=true`일 때만 자동 룰 재평가 게이트가 활성화된다.
+- 학습데이터 충족률이 `AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE` 미만이면 자동 변경을 차단한다.
+- 승률이 `AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD` 이상이면 자동 변경을 차단한다. 기본 0.80은 승률 80% 이상 유지 구간에서 룰을 흔들지 않기 위한 안전장치다.
+- 자동 변경은 review, proposal, replay, demo 적용 결과를 `rule-change-history.jsonl`에 기록한다. replay 실패 또는 게이트 미달이면 live 적용을 진행하지 않는다.
 
 ### AUTO_TRADING_ENABLED / live 안전 정책
 - 앱 부팅만으로 자동 운용 루프를 시작하지 않는다.

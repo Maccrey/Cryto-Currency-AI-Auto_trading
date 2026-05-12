@@ -1139,7 +1139,10 @@ function renderDashboard(data) {
   const upbitChangeRate = market.signed_change_rate ?? market.recent_change_pct;
   const priceText = market.current_price === undefined ? "데이터 없음" : `${price(market.current_price)} (${percent(upbitChangeRate)})`;
   const changeText = market.current_price === undefined ? "-" : `(${percent(upbitChangeRate)})`;
-  const trendText = market.current_price === undefined ? "거래량 데이터가 아직 없습니다." : `거래량 ${trendStreak.trend}(${trendStreak.count})`;
+  const rangeText = market.market_state === "box" && market.box_range_low !== null && market.box_range_high !== null
+    ? ` ${price(market.box_range_low)}~${price(market.box_range_high)}`
+    : "";
+  const trendText = market.current_price === undefined ? "거래량 데이터가 아직 없습니다." : `${market.market_state_label || "박스권"}${rangeText}`;
   setTextWithTitle("priceMarket", marketLabel);
   setTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));
   setHtmlWithTitle("priceChange", `<span class="${changeClass(upbitChangeRate)}">${changeText}</span>`, priceText);
@@ -1147,7 +1150,7 @@ function renderDashboard(data) {
     "priceSub",
     market.current_price === undefined
       ? trendText
-      : `거래량 <span class="badge ${trendBadgeClass(trendStreak.trend)}">${trendStreak.trend}(${trendStreak.count})</span>`,
+      : `<span class="badge ${trendBadgeClass(trendStreak.trend)}">${market.market_state_label || "박스권"}</span>${rangeText}`,
     trendText
   );
   const investment = deriveInvestmentValue(summary, market);

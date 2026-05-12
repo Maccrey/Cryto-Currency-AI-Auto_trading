@@ -28,6 +28,9 @@ class SettingsModel(BaseModel):
     rule_change_max_params_per_run: int = Field(default=3)
     rule_change_apply_target: str = Field(default="demo")
     rule_change_require_manual_approval: bool = Field(default=True)
+    auto_rule_update_enabled: bool = Field(default=False)
+    auto_rule_update_min_learning_completion_rate: float = Field(default=1.0)
+    auto_rule_update_win_rate_skip_threshold: float = Field(default=0.80)
     external_context_enabled: bool = Field(default=True)
     external_context_cache_ttl_sec: int = Field(default=300)
     onchain_context_source: str = Field(default="manual")
@@ -80,7 +83,8 @@ class SettingsModel(BaseModel):
     safe_mode_on_restart: bool = Field(default=True)
     restart_notify: bool = Field(default=True)
     restart_hard_stop_threshold: int = Field(default=3)
-    restart_state_path: Path = Field(default=Path("./logs/recovery/restart-state.json"))
+    storage_dir: Path = Field(default=Path("./storage"))
+    restart_state_path: Path = Field(default=Path("./storage/runtime/recovery/restart-state.json"))
     auto_promote_to_live: bool = Field(default=False)
     promotion_require_manual_approval: bool = Field(default=True)
     demo_min_days: int = Field(default=14)
@@ -96,8 +100,8 @@ class SettingsModel(BaseModel):
     auto_trading_min_history: int = Field(default=6)
     log_level: str = Field(default="INFO")
     log_format: str = Field(default="json")
-    learning_log_dir: Path = Field(default=Path("./logs/learning"))
-    learning_dataset_dir: Path = Field(default=Path("./data/learning"))
+    learning_log_dir: Path = Field(default=Path("./storage/logs/learning"))
+    learning_dataset_dir: Path = Field(default=Path("./storage/data/learning"))
     model_feature_logging: bool = Field(default=True)
     decision_trace_logging: bool = Field(default=True)
     dashboard_host: str = Field(default="0.0.0.0")
@@ -189,6 +193,9 @@ class AppSettings:
     rule_change_max_params_per_run: int
     rule_change_apply_target: str
     rule_change_require_manual_approval: bool
+    auto_rule_update_enabled: bool
+    auto_rule_update_min_learning_completion_rate: float
+    auto_rule_update_win_rate_skip_threshold: float
     external_context_enabled: bool
     external_context_cache_ttl_sec: int
     onchain_context_source: str
@@ -238,6 +245,7 @@ class AppSettings:
     max_spread_bps: int
     cooldown_seconds: int
     reentry_block_seconds: int
+    storage_dir: Path
     safe_mode_on_restart: bool
     restart_notify: bool
     restart_hard_stop_threshold: int
@@ -268,6 +276,7 @@ class AppSettings:
 
 def load_settings(*, env_file: Path | None = None) -> AppSettings:
     env_values = _read_env_file(env_file or Path(os.getenv("ENV_FILE_PATH", ".env")))
+    storage_dir = Path(_setting("STORAGE_DIR", "./storage", env_values))
 
     trading_profile = _setting("TRADING_PROFILE", "scalping", env_values)
     try:
@@ -289,6 +298,13 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "rule_change_apply_target": _setting("RULE_CHANGE_APPLY_TARGET", "demo", env_values),
         "rule_change_require_manual_approval": _parse_bool(
             _setting("RULE_CHANGE_REQUIRE_MANUAL_APPROVAL", "true", env_values),
+        ),
+        "auto_rule_update_enabled": _parse_bool(_setting("AUTO_RULE_UPDATE_ENABLED", "false", env_values)),
+        "auto_rule_update_min_learning_completion_rate": float(
+            _setting("AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE", "1.0", env_values),
+        ),
+        "auto_rule_update_win_rate_skip_threshold": float(
+            _setting("AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD", "0.80", env_values),
         ),
         "external_context_enabled": _parse_bool(_setting("EXTERNAL_CONTEXT_ENABLED", "true", env_values)),
         "external_context_cache_ttl_sec": int(_setting("EXTERNAL_CONTEXT_CACHE_TTL_SEC", "300", env_values)),
@@ -357,7 +373,14 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "safe_mode_on_restart": _parse_bool(_setting("SAFE_MODE_ON_RESTART", "true", env_values)),
         "restart_notify": _parse_bool(_setting("RESTART_NOTIFY", "true", env_values)),
         "restart_hard_stop_threshold": int(_setting("RESTART_HARD_STOP_THRESHOLD", "3", env_values)),
-        "restart_state_path": Path(_setting("RESTART_STATE_PATH", "./logs/recovery/restart-state.json", env_values)),
+        "storage_dir": storage_dir,
+        "restart_state_path": Path(
+            _setting(
+                "RESTART_STATE_PATH",
+                str(storage_dir / "runtime" / "recovery" / "restart-state.json"),
+                env_values,
+            ),
+        ),
         "auto_promote_to_live": _parse_bool(_setting("AUTO_PROMOTE_TO_LIVE", "false", env_values)),
         "promotion_require_manual_approval": _parse_bool(
             _setting("PROMOTION_REQUIRE_MANUAL_APPROVAL", "true", env_values),
@@ -379,8 +402,12 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         ),
         "log_level": _setting("LOG_LEVEL", "INFO", env_values),
         "log_format": _setting("LOG_FORMAT", "json", env_values),
-        "learning_log_dir": Path(_setting("LEARNING_LOG_DIR", "./logs/learning", env_values)),
-        "learning_dataset_dir": Path(_setting("LEARNING_DATASET_DIR", "./data/learning", env_values)),
+        "learning_log_dir": Path(
+            _setting("LEARNING_LOG_DIR", str(storage_dir / "logs" / "learning"), env_values),
+        ),
+        "learning_dataset_dir": Path(
+            _setting("LEARNING_DATASET_DIR", str(storage_dir / "data" / "learning"), env_values),
+        ),
         "model_feature_logging": _parse_bool(_setting("MODEL_FEATURE_LOGGING", "true", env_values)),
         "decision_trace_logging": _parse_bool(_setting("DECISION_TRACE_LOGGING", "true", env_values)),
         "dashboard_host": _setting("DASHBOARD_HOST", "0.0.0.0", env_values),

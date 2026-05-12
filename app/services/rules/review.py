@@ -21,6 +21,9 @@ class RuleReviewConfig:
     max_params_per_run: int
     apply_target: str
     require_manual_approval: bool
+    auto_update_enabled: bool = False
+    auto_update_min_learning_completion_rate: float = 1.0
+    auto_update_win_rate_skip_threshold: float = 0.80
 
 
 class RuleReviewService:
@@ -69,6 +72,8 @@ class RuleReviewService:
             "blocked_reason_summary": metrics["blocked_reason_summary"],
             "sizing_blocked_reason_summary": metrics["sizing_blocked_reason_summary"],
             "no_trade_blocked_count": metrics["no_trade_blocked_count"],
+            "learning_completion_rate": metrics["learning_completion_rate"],
+            "win_rate": metrics["win_rate"],
             "external_context_summary": metrics["external_context_summary"],
             "approval_required": self._config.require_manual_approval,
             "created_at": datetime.now(UTC).isoformat(),
@@ -121,6 +126,8 @@ class RuleReviewService:
             "blocked_reason_summary": review.get("blocked_reason_summary", []),
             "sizing_blocked_reason_summary": review.get("sizing_blocked_reason_summary", []),
             "no_trade_blocked_count": review.get("no_trade_blocked_count", 0),
+            "learning_completion_rate": review.get("learning_completion_rate", 0.0),
+            "win_rate": review.get("win_rate", 0.0),
             "external_context_summary": review.get("external_context_summary", self._empty_external_context_summary()),
             "codex_suggested_changes": changes,
             "locked_parameters": self._changed_parameters(locked_changes),
@@ -147,11 +154,16 @@ class RuleReviewService:
 
         review_response = self.review()
         review = review_response["review"]
+        auto_gate_reasons = self._auto_update_gate_reasons(review)
         steps.append(
             {
                 "name": "Codex CLI 룰 개선 하네스 시작",
-                "status": "completed",
-                "message": "학습 로그 기반 자동 룰 개선 파이프라인을 시작했습니다.",
+                "status": "blocked" if auto_gate_reasons else "completed",
+                "message": (
+                    "자동 룰 업데이트 조건을 충족하지 못했습니다: " + ", ".join(auto_gate_reasons)
+                    if auto_gate_reasons
+                    else "학습 로그 기반 자동 룰 개선 파이프라인을 시작했습니다."
+                ),
             },
         )
         steps.append(
@@ -168,6 +180,11 @@ class RuleReviewService:
 
         proposal_response = self.create_proposal(review_id=str(review["id"]))
         proposal = proposal_response["proposal"]
+        if auto_gate_reasons:
+            proposal["rejection_reasons"] = sorted(set(proposal.get("rejection_reasons", [])) | set(auto_gate_reasons))
+            proposal["status"] = "blocked"
+            self._proposals[str(proposal["id"])] = proposal
+            self._save_state()
         proposal_blocked = bool(proposal.get("rejection_reasons"))
         steps.append(
             {
@@ -209,7 +226,7 @@ class RuleReviewService:
 
         final_summary = self._automation_summary(proposal)
         return {
-            "status": "completed" if demo_applied else "needs_retry",
+            "status": "blocked" if auto_gate_reasons else ("completed" if demo_applied else "needs_retry"),
             "codex_cli": {
                 "mode": "local_harness",
                 "command": "codex rule-improve --from-learning-log --replay --apply-demo",
@@ -639,6 +656,8 @@ class RuleReviewService:
         blocked_reasons: Counter[str] = Counter()
         sizing_blocked_reasons: Counter[str] = Counter()
         context_samples: list[dict[str, Any]] = []
+        completion_rates: list[float] = []
+        closed_trade_pnls: list[float] = []
         log_path = self._learning_log_dir / "learning.jsonl"
         if log_path.exists():
             for raw_line in log_path.read_text(encoding="utf-8").splitlines():
@@ -654,11 +673,20 @@ class RuleReviewService:
                     payload = {}
                 if event_name in {"fill_result", "position_closed"}:
                     trade_count += 1
+                    if payload.get("side") == "sell" or event_name == "position_closed":
+                        try:
+                            closed_trade_pnls.append(float(payload.get("pnl", payload.get("realized_pnl", 0.0))))
+                        except (TypeError, ValueError):
+                            pass
                 if event_name == "stop_loss_triggered" or payload.get("is_stop_loss"):
                     stop_loss_count += 1
                     reason = str(payload.get("reason_code") or payload.get("stop_loss_reason") or "unknown")
                     cause_counts[reason] = cause_counts.get(reason, 0) + 1
                 if event_name == "auto_trade_cycle":
+                    try:
+                        completion_rates.append(float(payload.get("learning_completion_rate", 0.0)))
+                    except (TypeError, ValueError):
+                        pass
                     if payload.get("reason") is not None:
                         blocked_reasons.update([str(payload.get("reason"))])
                     if payload.get("sizing_blocked_reason") is not None:
@@ -689,7 +717,25 @@ class RuleReviewService:
             ],
             "no_trade_blocked_count": no_trade_blocked_count,
             "external_context_summary": self._external_context_summary(context_samples),
+            "learning_completion_rate": round(max(completion_rates, default=0.0), 3),
+            "win_rate": self._win_rate(closed_trade_pnls),
         }
+
+    def _auto_update_gate_reasons(self, review: dict[str, Any]) -> list[str]:
+        if not self._config.auto_update_enabled:
+            return []
+        reasons: list[str] = []
+        if float(review.get("learning_completion_rate") or 0.0) < self._config.auto_update_min_learning_completion_rate:
+            reasons.append("learning_completion_incomplete")
+        if float(review.get("win_rate") or 0.0) >= self._config.auto_update_win_rate_skip_threshold:
+            reasons.append("win_rate_above_auto_update_threshold")
+        return reasons
+
+    @staticmethod
+    def _win_rate(pnls: list[float]) -> float:
+        if not pnls:
+            return 0.0
+        return round(sum(1 for pnl in pnls if pnl > 0) / len(pnls), 3)
 
     @staticmethod
     def _previous_rule_snapshot(changes: Any) -> dict[str, object]:

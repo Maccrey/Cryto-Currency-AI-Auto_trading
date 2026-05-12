@@ -157,6 +157,10 @@ def test_dashboard_market_facade_returns_current_price_change_and_history() -> N
             "current_price": 830.0,
             "recorded_at": "2026-04-19T20:30:02+09:00",
             "recent_change_pct": 0.0061,
+            "market_state": "bull",
+            "market_state_label": "상승장",
+            "box_range_low": None,
+            "box_range_high": None,
             "history": [
                 {
                     "market": "KRW-XRP",

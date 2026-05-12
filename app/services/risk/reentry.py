@@ -8,6 +8,8 @@ class ReentryBlockDecision:
     allowed: bool
     remaining_seconds: int
     reason_code: str | None
+    last_exit_reason_code: str | None = None
+    last_exit_price: float | None = None
 
 
 @dataclass(frozen=True)
@@ -21,7 +23,7 @@ class FixedCooldownReentryPolicy:
 
 
 class ReentryBlocker:
-    """Prevent immediate re-entry after a stop-loss exit on the same market."""
+    """Prevent immediate re-entry after a recent sell on the same market."""
 
     def __init__(
         self,
@@ -35,12 +37,36 @@ class ReentryBlocker:
             cooldown_policy = FixedCooldownReentryPolicy(block_seconds=block_seconds)
         self._cooldown_policy = cooldown_policy
         self._last_stop_loss_at: dict[str, int] = {}
+        self._last_exit: dict[str, dict[str, object]] = {}
 
     def record_stop_loss(self, *, market: str, triggered_at: int) -> None:
         self._last_stop_loss_at[market] = triggered_at
 
-    def check(self, *, market: str, now: int) -> ReentryBlockDecision:
-        last_triggered_at = self._last_stop_loss_at.get(market)
+    def record_exit(
+        self,
+        *,
+        market: str,
+        side: str,
+        reason_code: str | None,
+        triggered_at: int,
+        price: float | None = None,
+    ) -> None:
+        if side != "sell":
+            return
+        self._last_exit[market] = {
+            "triggered_at": triggered_at,
+            "reason_code": reason_code,
+            "price": price,
+            "side": side,
+        }
+
+    def check(self, *, market: str, now: int, current_price: float | None = None) -> ReentryBlockDecision:
+        last_exit = self._last_exit.get(market)
+        last_triggered_at = (
+            int(last_exit["triggered_at"])
+            if last_exit is not None and last_exit.get("triggered_at") is not None
+            else self._last_stop_loss_at.get(market)
+        )
         if last_triggered_at is None:
             return ReentryBlockDecision(
                 allowed=True,
@@ -56,7 +82,15 @@ class ReentryBlocker:
             return ReentryBlockDecision(
                 allowed=False,
                 remaining_seconds=remaining,
-                reason_code="REENTRY_BLOCK_ACTIVE",
+                reason_code="REENTRY_BLOCK_AFTER_SELL" if last_exit is not None else "REENTRY_BLOCK_ACTIVE",
+                last_exit_reason_code=(
+                    None if last_exit is None or last_exit.get("reason_code") is None else str(last_exit["reason_code"])
+                ),
+                last_exit_price=(
+                    None
+                    if last_exit is None or last_exit.get("price") is None
+                    else float(last_exit["price"])
+                ),
             )
 
         return ReentryBlockDecision(

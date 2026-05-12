@@ -175,10 +175,16 @@ class PositionExitService:
                 "execution": None,
             }
 
+        dynamic_exit_ratio = self._dynamic_exit_ratio(
+            requested_exit_ratio=post_entry.exit_ratio,
+            reason_code=post_entry.reason_code,
+            momentum_score=momentum_score,
+            orderbook_imbalance=orderbook_imbalance,
+        )
         resolved_exit = self._resolve_exit_quantity(
             position=position,
             current_price=current_price,
-            requested_exit_ratio=post_entry.exit_ratio,
+            requested_exit_ratio=dynamic_exit_ratio,
         )
         if resolved_exit["blocked_reason"] is not None:
             self._record_exit_blocked(
@@ -281,6 +287,24 @@ class PositionExitService:
             "blocked_reason": None,
         }
 
+    @staticmethod
+    def _dynamic_exit_ratio(
+        *,
+        requested_exit_ratio: float,
+        reason_code: str | None,
+        momentum_score: float,
+        orderbook_imbalance: float,
+    ) -> float:
+        if reason_code == "TAKE_PROFIT_TARGET_HIT":
+            if momentum_score > 0.65 and orderbook_imbalance > 0:
+                return min(requested_exit_ratio, 0.5)
+            if momentum_score < 0.1 or orderbook_imbalance < -0.15:
+                return 1.0
+            return requested_exit_ratio
+        if momentum_score < -0.3 or orderbook_imbalance < -0.3:
+            return 1.0
+        return max(min(requested_exit_ratio, 1.0), 0.25)
+
     def _record_exit_blocked(
         self,
         *,
@@ -338,6 +362,7 @@ class PositionExitService:
                         "trigger_type": trigger_type,
                         "reason_code": reason_code,
                         "exit_ratio": exit_ratio,
+                        "sell_split_enabled": exit_ratio < 1.0,
                         "current_price": current_price,
                         "elapsed_sec": elapsed_sec,
                         "momentum_score": momentum_score,

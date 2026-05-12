@@ -88,6 +88,58 @@ def test_rule_proposal_allows_demo_no_trade_mitigation_with_small_trade_sample(t
     assert result["status"] == "demo_applied"
 
 
+def test_auto_rule_update_skips_when_learning_incomplete_or_win_rate_high(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                '{"event_name":"auto_trade_cycle","payload":{"learning_completion_rate":0.75}}',
+                '{"event_name":"fill_result","payload":{"side":"sell","pnl":1000}}',
+                '{"event_name":"fill_result","payload":{"side":"sell","pnl":900}}',
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+            auto_update_enabled=True,
+            auto_update_min_learning_completion_rate=1.0,
+            auto_update_win_rate_skip_threshold=0.80,
+        ),
+    )
+
+    incomplete = service.auto_improve(fixture_path=Path("fixtures/replay_ticks.json"))
+    assert incomplete["status"] == "blocked"
+    assert "learning_completion_incomplete" in incomplete["proposal"]["rejection_reasons"]
+
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                '{"event_name":"auto_trade_cycle","payload":{"learning_completion_rate":1.0}}',
+                '{"event_name":"fill_result","payload":{"side":"sell","pnl":1000}}',
+                '{"event_name":"fill_result","payload":{"side":"sell","pnl":900}}',
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    high_win_rate = service.auto_improve(fixture_path=Path("fixtures/replay_ticks.json"))
+
+    assert high_win_rate["status"] == "blocked"
+    assert high_win_rate["review"]["win_rate"] == 1.0
+    assert "win_rate_above_auto_update_threshold" in high_win_rate["proposal"]["rejection_reasons"]
+
+
 def test_rule_proposal_requires_replay_before_demo_apply(tmp_path: Path) -> None:
     service = RuleReviewService(
         market="KRW-XRP",

@@ -12,6 +12,10 @@ class RegimeSnapshot:
     size_multiplier: float
     entry_allowed: bool
     reason_codes: list[str]
+    market_state: str = "neutral"
+    market_state_label: str = "보합"
+    box_range_low: float | None = None
+    box_range_high: float | None = None
 
 
 class RegimeScorer:
@@ -44,6 +48,7 @@ class RegimeEngine:
         *,
         recent_loss_streak: int,
         safe_mode: bool,
+        current_price: float | None = None,
     ) -> RegimeSnapshot:
         if safe_mode:
             return RegimeSnapshot(
@@ -52,10 +57,14 @@ class RegimeEngine:
                 size_multiplier=0.0,
                 entry_allowed=False,
                 reason_codes=["SAFE_MODE_ACTIVE"],
+                market_state="bear",
+                market_state_label="하락장",
             )
 
         score = self._scorer.score(features, recent_loss_streak=recent_loss_streak)
         label = self._label(score)
+        market_state = self._market_state(features)
+        box_low, box_high = self._box_range(features, current_price, market_state=market_state)
         reason_codes = self._reason_codes(features)
         size_multiplier = self._size_multiplier(label, recent_loss_streak=recent_loss_streak)
         entry_allowed = label != "risk_off"
@@ -65,6 +74,10 @@ class RegimeEngine:
             size_multiplier=size_multiplier,
             entry_allowed=entry_allowed,
             reason_codes=reason_codes,
+            market_state=market_state,
+            market_state_label=self._market_state_label(market_state),
+            box_range_low=box_low,
+            box_range_high=box_high,
         )
 
     @staticmethod
@@ -102,3 +115,33 @@ class RegimeEngine:
             reason_codes.append("ORDERBOOK_SELL_PRESSURE")
 
         return reason_codes
+
+    @staticmethod
+    def _market_state(features: FeatureSnapshot) -> str:
+        if abs(features.ret_30s) <= 0.0025 and abs(features.orderbook_imbalance) <= 0.08:
+            return "box"
+        if features.ret_30s < -0.004 or features.orderbook_imbalance < -0.18:
+            return "bear"
+        if features.ret_30s > 0.004 or features.orderbook_imbalance > 0.18:
+            return "bull"
+        return "box"
+
+    @staticmethod
+    def _market_state_label(market_state: str) -> str:
+        return {
+            "bull": "상승장",
+            "bear": "하락장",
+            "box": "박스권",
+        }.get(market_state, "박스권")
+
+    @staticmethod
+    def _box_range(
+        features: FeatureSnapshot,
+        current_price: float | None,
+        *,
+        market_state: str,
+    ) -> tuple[float | None, float | None]:
+        if market_state != "box" or current_price is None or current_price <= 0:
+            return None, None
+        width_pct = max(0.002, min(features.short_volatility * 2.0, 0.02))
+        return round(current_price * (1 - width_pct), 4), round(current_price * (1 + width_pct), 4)

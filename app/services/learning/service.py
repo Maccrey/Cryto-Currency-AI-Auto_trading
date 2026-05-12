@@ -21,7 +21,9 @@ class LearningEventSerializer:
     """Serialize learning events into stable JSONL row payloads."""
 
     def to_payload(self, event: LearningEvent) -> dict[str, Any]:
-        return asdict(event)
+        payload = asdict(event)
+        payload["schema_version"] = 2
+        return payload
 
     def to_json_line(self, event: LearningEvent) -> str:
         return json.dumps(self.to_payload(event), ensure_ascii=True)

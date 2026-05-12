@@ -15,6 +15,8 @@ TRADING_HOST="${TRADING_HOST:-$(env_value DASHBOARD_HOST)}"
 TRADING_HOST="${TRADING_HOST:-0.0.0.0}"
 TRADING_PORT="${TRADING_PORT:-$(env_value DASHBOARD_PORT)}"
 TRADING_PORT="${TRADING_PORT:-8080}"
+STORAGE_DIR="${STORAGE_DIR:-$(env_value STORAGE_DIR)}"
+STORAGE_DIR="${STORAGE_DIR:-${ROOT_DIR}/storage}"
 LOCAL_URL="http://127.0.0.1:${TRADING_PORT}"
 LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || ifconfig | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}' || echo 127.0.0.1)"
 if [[ "${TRADING_HOST}" == "0.0.0.0" || "${TRADING_HOST}" == "::" ]]; then
@@ -25,13 +27,13 @@ fi
 APP_URL="http://${BROWSER_HOST}:${TRADING_PORT}"
 DASHBOARD_URL="${APP_URL}/dashboard"
 SETTINGS_URL="${APP_URL}/settings"
-PID_FILE="${ROOT_DIR}/logs/runtime/server.pid"
-LOG_FILE="${ROOT_DIR}/logs/runtime/server.log"
-ERR_LOG_FILE="${ROOT_DIR}/logs/runtime/server.err.log"
+PID_FILE="${STORAGE_DIR}/runtime/server.pid"
+LOG_FILE="${STORAGE_DIR}/runtime/server.log"
+ERR_LOG_FILE="${STORAGE_DIR}/runtime/server.err.log"
 LAUNCH_AGENT_LABEL="com.crypto-auto-trading"
 LAUNCH_AGENT_FILE="${HOME}/Library/LaunchAgents/${LAUNCH_AGENT_LABEL}.plist"
 
-mkdir -p "${ROOT_DIR}/logs/runtime"
+mkdir -p "${STORAGE_DIR}/runtime"
 
 is_listening() {
   lsof -nP -iTCP:"${TRADING_PORT}" -sTCP:LISTEN >/dev/null 2>&1
@@ -59,7 +61,7 @@ install_launch_agent() {
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>cd "${ROOT_DIR}" &amp;&amp; env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" TRADING_HOST="${TRADING_HOST}" TRADING_PORT="${TRADING_PORT}" uvicorn app.main:app --host "${TRADING_HOST}" --port "${TRADING_PORT}"</string>
+    <string>cd "${ROOT_DIR}" &amp;&amp; env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" STORAGE_DIR="${STORAGE_DIR}" TRADING_HOST="${TRADING_HOST}" TRADING_PORT="${TRADING_PORT}" uvicorn app.main:app --host "${TRADING_HOST}" --port "${TRADING_PORT}"</string>
   </array>
   <key>WorkingDirectory</key>
   <string>${ROOT_DIR}</string>
@@ -91,7 +93,7 @@ echo "트레이딩 서버를 백그라운드에서 시작합니다..."
 if install_launch_agent; then
   echo "macOS launchd KeepAlive로 등록했습니다: ${LAUNCH_AGENT_LABEL}"
 else
-  nohup env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" TRADING_HOST="${TRADING_HOST}" TRADING_PORT="${TRADING_PORT}" \
+  nohup env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" STORAGE_DIR="${STORAGE_DIR}" TRADING_HOST="${TRADING_HOST}" TRADING_PORT="${TRADING_PORT}" \
     uvicorn app.main:app --host "${TRADING_HOST}" --port "${TRADING_PORT}" >>"${LOG_FILE}" 2>&1 &
   SERVER_PID=$!
   echo "${SERVER_PID}" >"${PID_FILE}"

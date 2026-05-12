@@ -17,6 +17,7 @@ from app.services.trading.decision import TradeDecisionRequest, TradeDecisionSer
 from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
 from app.services.position.exit import PositionExitService
+from app.services.risk.reentry import ReentryBlocker
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class AutoTradingConfig:
     no_trade_relax_min_score: float = 0.18
     scale_in_enabled: bool = True
     scale_in_max_price_premium_pct: float = 0.0
+    reentry_block_seconds: int = 180
 
 
 class AutoTradingService:
@@ -87,6 +89,7 @@ class AutoTradingService:
         self._demo_asset_balance = 0.0 if portfolio is None else portfolio.asset_balance
         self._demo_avg_buy_price = 0.0 if portfolio is None else portfolio.avg_buy_price
         self._consecutive_entry_blocks = 0
+        self._reentry_blocker = ReentryBlocker(block_seconds=config.reentry_block_seconds)
 
     def should_run(self) -> bool:
         if not self._config.enabled:
@@ -181,6 +184,15 @@ class AutoTradingService:
                 self._position_opened_at = None
             self._apply_demo_execution(result.get("execution"))
             if result.get("trigger") is not None:
+                trigger = result.get("trigger")
+                if isinstance(trigger, dict):
+                    self._reentry_blocker.record_exit(
+                        market=self._market,
+                        side="sell",
+                        reason_code=None if trigger.get("reason_code") is None else str(trigger.get("reason_code")),
+                        triggered_at=int(self._clock().timestamp()),
+                        price=snapshot.trade_price,
+                    )
                 return self._record_cycle(
                     status="position_checked",
                     reason="POSITION_EXIT_TRIGGERED",
@@ -214,6 +226,25 @@ class AutoTradingService:
 
         request = self._build_decision_request(snapshot.trade_price)
         decision = self._trade_decision_service.evaluate(request)
+        reentry_decision = self._reentry_blocker.check(
+            market=self._market,
+            now=int(self._clock().timestamp()),
+            current_price=snapshot.trade_price,
+        )
+        if not reentry_decision.allowed:
+            return self._record_cycle(
+                status="blocked",
+                reason=reentry_decision.reason_code,
+                extra={
+                    "remaining_seconds": reentry_decision.remaining_seconds,
+                    "last_exit_reason_code": reentry_decision.last_exit_reason_code,
+                    "last_exit_price": reentry_decision.last_exit_price,
+                    "market_state": decision.regime.market_state,
+                    "market_state_label": decision.regime.market_state_label,
+                    "box_range_low": decision.regime.box_range_low,
+                    "box_range_high": decision.regime.box_range_high,
+                },
+            )
         relaxed_signal = self._should_relax_weak_signal(decision)
         if relaxed_signal and decision.sizing.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT":
             decision = self._trade_decision_service.evaluate(
@@ -230,10 +261,14 @@ class AutoTradingService:
                     "signal_blocked": decision.signal.blocked,
                     "signal_reason_codes": decision.signal.reason_codes,
                     "sizing_allowed": decision.sizing.allowed,
-                    "sizing_blocked_reason": decision.sizing.blocked_reason,
-                    "buy_amount": 0.0,
-                },
-            )
+                "sizing_blocked_reason": decision.sizing.blocked_reason,
+                "buy_amount": 0.0,
+                "market_state": decision.regime.market_state,
+                "market_state_label": decision.regime.market_state_label,
+                "box_range_low": decision.regime.box_range_low,
+                "box_range_high": decision.regime.box_range_high,
+            },
+        )
         if self._trading_mode == "demo" and not self._can_afford_demo_buy(decision.sizing.buy_amount):
             return self._record_cycle(
                 status="blocked",
@@ -242,10 +277,14 @@ class AutoTradingService:
                     "signal_level": decision.signal.level,
                     "signal_score": decision.signal.score,
                     "sizing_allowed": decision.sizing.allowed,
-                    "buy_amount": decision.sizing.buy_amount,
-                    "cash_balance": self._portfolio_state().cash_balance,
-                },
-            )
+                "buy_amount": decision.sizing.buy_amount,
+                "market_state": decision.regime.market_state,
+                "market_state_label": decision.regime.market_state_label,
+                "box_range_low": decision.regime.box_range_low,
+                "box_range_high": decision.regime.box_range_high,
+                "cash_balance": self._portfolio_state().cash_balance,
+            },
+        )
         execution_result = self._trade_execution_service.execute(decision)
         post_fill_result = self._post_fill_service.process(execution_result)
         self._apply_demo_execution(execution_result.execution)
@@ -265,6 +304,12 @@ class AutoTradingService:
                 "sizing_allowed": decision.sizing.allowed,
                 "sizing_blocked_reason": decision.sizing.blocked_reason,
                 "buy_amount": decision.sizing.buy_amount,
+                "sell_ratio": decision.sizing.sell_ratio,
+                "sell_quantity": decision.sizing.sell_quantity,
+                "market_state": decision.regime.market_state,
+                "market_state_label": decision.regime.market_state_label,
+                "box_range_low": decision.regime.box_range_low,
+                "box_range_high": decision.regime.box_range_high,
                 "no_trade_relaxed": relaxed_signal,
                 "post_fill_position_opened": post_fill_result.position is not None,
             },
@@ -407,6 +452,7 @@ class AutoTradingService:
             "safe_mode": self._boot_state.safe_mode,
             "hard_stop": self._boot_state.hard_stop,
             "trading_ready": self._boot_state.trading_ready,
+            "learning_completion_rate": self._learning_completion_rate(),
         }
         external_context = self._external_context()
         if external_context is not None:
@@ -456,3 +502,8 @@ class AutoTradingService:
                 or decision.sizing.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT"
             )
         )
+
+    def _learning_completion_rate(self) -> float:
+        if self._config.min_history <= 0:
+            return 1.0
+        return round(min(len(self._prices) / self._config.min_history, 1.0), 3)

@@ -148,6 +148,10 @@ pre-commit run --all-files
 - `ETF_STATE=neutral`
 - `ETF_FLOW_USD=0.0`
 - `NO_TRADE_ADAPTIVE_ENABLED=true`
+- `STORAGE_DIR=./storage`
+- `AUTO_RULE_UPDATE_ENABLED=false`
+- `AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE=1.0`
+- `AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD=0.80`
 - `TRADE_MARKET=KRW-XRP`
 - `TRADE_COIN=XRP`
 
@@ -162,7 +166,9 @@ pre-commit run --all-files
 
 자세한 스펙은 `ENV_SPEC.md`를 따른다.
 
-BTC로 바꾸려면 설정 화면에서 코인을 `BTC`로 저장한다. 기본 XRP 상태에서 코인만 바꾸면 `TRADE_MARKET=KRW-BTC`로 보정된다. ETH, SOL 등도 같은 방식으로 `KRW-<코인>` 마켓을 사용한다. `TRADE_MARKET`과 `TRADE_COIN`이 불일치하면 시작을 차단한다. XRP는 기존 학습 로그 경로를 유지하고, 다른 코인은 `logs/learning/<COIN>/<투자성향>/learning.jsonl`로 분리한다.
+BTC로 바꾸려면 설정 화면에서 코인을 `BTC`로 저장한다. 기본 XRP 상태에서 코인만 바꾸면 `TRADE_MARKET=KRW-BTC`로 보정된다. ETH, SOL 등도 같은 방식으로 `KRW-<코인>` 마켓을 사용한다. `TRADE_MARKET`과 `TRADE_COIN`이 불일치하면 시작을 차단한다. XRP는 기본 학습 로그 경로를 유지하고, 다른 코인은 `storage/logs/learning/<COIN>/<투자성향>/learning.jsonl`로 분리한다.
+
+코드와 데이터는 기본적으로 `./storage` 아래에 분리된다. 기존 `logs/`와 `data/`를 보존한 채 업데이트하려면 앱을 중지한 뒤 `mkdir -p storage && mv logs storage/logs && mv data storage/data`를 실행하거나, `.env`에 기존 `LEARNING_LOG_DIR`/`LEARNING_DATASET_DIR` 값을 그대로 남긴다. Docker 실행은 `docker compose up -d --build`를 사용하며 `./storage:/app/storage` 볼륨이 학습데이터, 런타임 상태, 룰 변경 이력을 유지한다.
 
 ---
 
@@ -225,7 +231,7 @@ pip install -e ".[ml]"
 오프라인 학습 CLI는 먼저 학습 로그 표본, train/validation/test 기간 분리, baseline 대비 성능을 검사한다. 통과해도 결과는 `model-training-report.json`과 `shadow-predictions.jsonl`로만 저장되며 live 룰이나 주문 게이트를 직접 바꾸지 않는다.
 
 ```bash
-upbit-train-model --log-dir ./logs/learning/scalping --report-dir ./data/learning/model-reports
+upbit-train-model --log-dir ./storage/logs/learning/scalping --report-dir ./storage/data/learning/model-reports
 ```
 
 ---
@@ -236,7 +242,8 @@ upbit-train-model --log-dir ./logs/learning/scalping --report-dir ./data/learnin
 - 실행 모드
 - 현재 가격
 - 가격 변동률
-- 연속 가격 추세 `UP(n)`, `DOWN(n)`, `FLAT(n)`
+- 현재 시장 상태 `상승장`, `하락장`, `박스권`
+- 박스권 상단/하단 가격 range
 - 데모 투자금 또는 실계좌 사용 가능 현금
 - 학습 완료율
 - 수익 성공률
@@ -303,7 +310,7 @@ XRP-KRW
 
 ## 10. 학습 로그 정책
 이 프로젝트는 실행 모드와 무관하게 항상 학습 로그를 저장한다.
-기본 XRP는 `logs/learning/<투자성향>/learning.jsonl`, 다른 코인은 `logs/learning/<COIN>/<투자성향>/learning.jsonl`을 사용해 코인별 룰 개선 데이터가 섞이지 않게 한다.
+기본 XRP는 `storage/logs/learning/<투자성향>/learning.jsonl`, 다른 코인은 `storage/logs/learning/<COIN>/<투자성향>/learning.jsonl`을 사용해 코인별 룰 개선 데이터가 섞이지 않게 한다.
 
 ### 저장 대상
 - 시세 feature
@@ -312,6 +319,7 @@ XRP-KRW
 - order intent
 - fill result
 - stop loss trigger
+- market_state, 박스권 range, 재진입 차단 사유, 분할 매도 비율
 - restart / recovery
 - promotion evaluation
 

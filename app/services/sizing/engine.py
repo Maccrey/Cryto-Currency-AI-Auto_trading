@@ -116,7 +116,7 @@ class SizingEngine:
             return self._blocked("MIN_CASH_RESERVE")
 
         base_buy_ratio = self._buy_policy.ratio_for(signal.level)
-        final_buy_ratio = round(base_buy_ratio * regime.size_multiplier, 3)
+        final_buy_ratio = round(base_buy_ratio * regime.size_multiplier * self._buy_market_state_multiplier(regime), 3)
         buy_amount = round(investable_cash * final_buy_ratio, 1)
         max_fee_adjusted_buy_amount = round(investable_cash / (1 + self._trading_fee_rate), 1)
         buy_amount = min(buy_amount, max_fee_adjusted_buy_amount)
@@ -133,7 +133,11 @@ class SizingEngine:
         if buy_amount < self._order_rules.min_order_amount_krw:
             return self._blocked("MIN_ORDER_AMOUNT")
         buy_quantity = round(buy_amount / current_price, 4)
-        sell_ratio = self._sell_policy.ratio_for(signal.level) if portfolio.asset_balance > 0 else 0.0
+        sell_ratio = (
+            round(self._sell_policy.ratio_for(signal.level) * self._sell_market_state_multiplier(regime), 3)
+            if portfolio.asset_balance > 0
+            else 0.0
+        )
         sell_quantity = round(portfolio.asset_balance * sell_ratio, 8)
         sell_amount = round(sell_quantity * current_price, 1)
         stop_loss_price = round(
@@ -177,3 +181,23 @@ class SizingEngine:
         if signal.level == "medium":
             return max(0.00135, signal.score * 0.003)
         return max(0.0, signal.score * 0.001)
+
+    @staticmethod
+    def _buy_market_state_multiplier(regime: RegimeSnapshot) -> float:
+        if regime.market_state == "bull":
+            return 1.08
+        if regime.market_state == "bear":
+            return 0.65
+        if regime.market_state == "box":
+            return 0.85
+        return 1.0
+
+    @staticmethod
+    def _sell_market_state_multiplier(regime: RegimeSnapshot) -> float:
+        if regime.market_state == "bull":
+            return 0.75
+        if regime.market_state == "bear":
+            return 1.25
+        if regime.market_state == "box":
+            return 1.05
+        return 1.0

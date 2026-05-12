@@ -378,3 +378,51 @@ def test_sizing_engine_includes_sell_size_and_stop_loss_price() -> None:
     assert decision.sell_quantity == 90.0
     assert decision.sell_amount == 72000.0
     assert decision.stop_loss_price == 776.0
+
+
+def test_sizing_engine_adjusts_buy_and_sell_ratios_by_market_state() -> None:
+    engine = SizingEngine(min_cash_reserve=100000, max_spread_bps=15, max_slippage_bps=20)
+    portfolio = PortfolioState(
+        cash_balance=500000.0,
+        asset_currency="XRP",
+        asset_balance=200.0,
+        avg_buy_price=780.0,
+    )
+
+    bull = engine.size_entry(
+        portfolio,
+        SignalDecision(level="strong", score=0.72, blocked=False, reason_codes=[]),
+        RegimeSnapshot(
+            label="risk_on",
+            score=0.75,
+            size_multiplier=1.1,
+            entry_allowed=True,
+            reason_codes=[],
+            market_state="bull",
+            market_state_label="상승장",
+        ),
+        current_price=800.0,
+        spread_bps=10.0,
+        slippage_bps=12.0,
+    )
+    box = engine.size_entry(
+        portfolio,
+        SignalDecision(level="strong", score=0.72, blocked=False, reason_codes=[]),
+        RegimeSnapshot(
+            label="neutral",
+            score=0.5,
+            size_multiplier=0.8,
+            entry_allowed=True,
+            reason_codes=[],
+            market_state="box",
+            market_state_label="박스권",
+            box_range_low=790.0,
+            box_range_high=810.0,
+        ),
+        current_price=800.0,
+        spread_bps=10.0,
+        slippage_bps=12.0,
+    )
+
+    assert bull.buy_ratio > box.buy_ratio
+    assert bull.sell_ratio < box.sell_ratio

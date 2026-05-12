@@ -363,27 +363,31 @@ curl http://127.0.0.1:8080/promotion/status
 학습 로그:
 
 ```text
-logs/learning/
+storage/logs/learning/
 ```
 
 decision log:
 
 ```text
-logs/learning/decision.jsonl
+storage/logs/learning/decision.jsonl
 ```
 
 재기동 복구 상태:
 
 ```text
-logs/recovery/restart-state.json
+storage/runtime/recovery/restart-state.json
 ```
 
 관련 환경 변수:
 
 ```bash
-LEARNING_LOG_DIR=./logs/learning
-RESTART_STATE_PATH=./logs/recovery/restart-state.json
+STORAGE_DIR=./storage
+LEARNING_LOG_DIR=./storage/logs/learning
+LEARNING_DATASET_DIR=./storage/data/learning
+RESTART_STATE_PATH=./storage/runtime/recovery/restart-state.json
 ```
+
+기존 데이터를 유지하며 업데이트할 때는 앱을 중지한 뒤 `mkdir -p storage && mv logs storage/logs && mv data storage/data`로 기존 로그와 데이터셋을 옮긴다. 기존 경로를 그대로 쓰려면 `.env`의 `LEARNING_LOG_DIR`와 `LEARNING_DATASET_DIR`를 변경하지 않는다.
 
 자동 복구 동작:
 - live 부팅 중 잔고 동기화가 실패하면 기본 3회까지 자동 재시도한다.

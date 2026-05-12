@@ -2,9 +2,10 @@ from app.api.routes.dashboard import DASHBOARD_HTML
 from app.api.routes.settings import SETTINGS_HTML
 
 
-def test_dashboard_price_card_labels_trend_as_volume() -> None:
-    assert "`거래량 ${trendStreak.trend}(${trendStreak.count})`" in DASHBOARD_HTML
-    assert "`거래량 <span class=\"badge ${trendBadgeClass(trendStreak.trend)}\">" in DASHBOARD_HTML
+def test_dashboard_price_card_labels_market_state_and_box_range() -> None:
+    assert "market.market_state === \"box\"" in DASHBOARD_HTML
+    assert "${market.market_state_label || \"박스권\"}" in DASHBOARD_HTML
+    assert "${price(market.box_range_low)}~${price(market.box_range_high)}" in DASHBOARD_HTML
     assert "`${market.market || marketLabel} <span" not in DASHBOARD_HTML
 
 

@@ -63,6 +63,7 @@ class TradeDecisionService:
             features,
             recent_loss_streak=request.recent_loss_streak,
             safe_mode=request.safe_mode,
+            current_price=request.current_price,
         )
         sizing = self._sizing_engine.size_entry(
             request.portfolio,

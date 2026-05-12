@@ -2259,7 +2259,7 @@ def test_learning_recent_endpoint_returns_runtime_events(monkeypatch) -> None:
     assert empty_payload["status"] == "empty"
     assert empty_payload["market"] == "KRW-XRP"
     assert empty_payload["trade_coin"] == "XRP"
-    assert empty_payload["learning_log_dir"] == "logs/learning/scalping"
+    assert empty_payload["learning_log_dir"] == "storage/logs/learning/scalping"
     assert empty_payload["events"] == []
 
     execution_response = client.post(
@@ -2375,6 +2375,10 @@ def test_dashboard_market_endpoint_returns_market_summary(monkeypatch) -> None:
             "current_price": 830.0,
             "recorded_at": "2026-04-19T20:40:02+09:00",
             "recent_change_pct": 0.0061,
+            "market_state": "bull",
+            "market_state_label": "상승장",
+            "box_range_low": None,
+            "box_range_high": None,
             "history": [
                 {
                     "market": "KRW-XRP",

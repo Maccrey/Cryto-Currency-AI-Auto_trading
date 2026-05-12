@@ -286,6 +286,30 @@ SETTINGS_HTML = """
       </div>
       <div class="note">live에는 즉시 완화 반영하지 않고 replay와 demo 검증 후 승인 플로우를 거친다.</div>
     </div>
+    <div class="subsection">
+      <label>데이터 저장소</label>
+      <label for="storageDir">storage 디렉터리</label>
+      <input id="storageDir" autocomplete="off" placeholder="./storage">
+      <div id="dataPathStatus" class="note"></div>
+    </div>
+    <div class="subsection">
+      <label>자동 룰 업데이트</label>
+      <div class="checkbox-line">
+        <input id="autoRuleUpdateEnabled" type="checkbox">
+        <span>학습데이터 충족률 100%에서 replay 통과 시 자동 룰 재평가</span>
+      </div>
+      <div class="row">
+        <div>
+          <label for="autoRuleCompletionRate">학습데이터 충족률 기준</label>
+          <input id="autoRuleCompletionRate" type="number" min="0" max="1" step="0.01" placeholder="1.0">
+        </div>
+        <div>
+          <label for="autoRuleWinRateSkip">자동 변경 제외 승률</label>
+          <input id="autoRuleWinRateSkip" type="number" min="0" max="1" step="0.01" placeholder="0.8">
+        </div>
+      </div>
+      <div id="autoRuleStatus" class="note"></div>
+    </div>
     <label for="accessKey">업비트 액세스 키<span class="required-mark live-required">*</span></label>
     <input id="accessKey" autocomplete="off">
     <label for="secretKey">업비트 시크릿 키<span class="required-mark live-required">*</span></label>
@@ -570,6 +594,14 @@ async function loadSettings() {
     document.getElementById("noTradeAdaptiveEnabled").checked = values.NO_TRADE_ADAPTIVE_ENABLED !== "false";
     document.getElementById("noTradeRelaxAfterCycles").value = values.NO_TRADE_RELAX_AFTER_CYCLES || "100";
     document.getElementById("noTradeRelaxMinScore").value = values.NO_TRADE_RELAX_MIN_SCORE || "0.18";
+    document.getElementById("storageDir").value = values.STORAGE_DIR || "./storage";
+    document.getElementById("autoRuleUpdateEnabled").checked = values.AUTO_RULE_UPDATE_ENABLED === "true";
+    document.getElementById("autoRuleCompletionRate").value = values.AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE || "1.0";
+    document.getElementById("autoRuleWinRateSkip").value = values.AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD || "0.8";
+    const dataPath = data.data_path_status || {};
+    document.getElementById("dataPathStatus").textContent = `로그 ${dataPath.learning_log_dir || "-"} / 데이터셋 ${dataPath.learning_dataset_dir || "-"}`;
+    const autoRule = data.auto_rule_update || {};
+    document.getElementById("autoRuleStatus").textContent = `현재 ${autoRule.enabled ? "ON" : "OFF"} / 충족률 ${autoRule.learning_completion_rate_required || 1.0} / 승률 기준 ${autoRule.win_rate_skip_threshold || 0.8}`;
     setTelegramTokenHidden(values.TELEGRAM_BOT_TOKEN === "***");
     document.getElementById("telegramTokenStatus").textContent = values.TELEGRAM_BOT_TOKEN === "***"
       ? "저장된 봇 토큰이 있습니다. 변경하지 않으면 기존 토큰을 유지합니다."
@@ -763,6 +795,10 @@ async function saveSettings() {
     NO_TRADE_ADAPTIVE_ENABLED: document.getElementById("noTradeAdaptiveEnabled").checked ? "true" : "false",
     NO_TRADE_RELAX_AFTER_CYCLES: document.getElementById("noTradeRelaxAfterCycles").value || "100",
     NO_TRADE_RELAX_MIN_SCORE: document.getElementById("noTradeRelaxMinScore").value || "0.18",
+    STORAGE_DIR: document.getElementById("storageDir").value || "./storage",
+    AUTO_RULE_UPDATE_ENABLED: document.getElementById("autoRuleUpdateEnabled").checked ? "true" : "false",
+    AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE: document.getElementById("autoRuleCompletionRate").value || "1.0",
+    AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD: document.getElementById("autoRuleWinRateSkip").value || "0.8",
     UPBIT_ACCESS_KEY: document.getElementById("accessKey").value,
     UPBIT_SECRET_KEY: document.getElementById("secretKey").value,
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,

@@ -58,6 +58,42 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.etf_context_url == ""
     assert settings.no_trade_adaptive_enabled is True
     assert settings.no_trade_relax_after_cycles == 100
+    assert settings.storage_dir == Path("./storage")
+    assert settings.learning_log_dir == Path("storage/logs/learning")
+    assert settings.learning_dataset_dir == Path("storage/data/learning")
+    assert settings.restart_state_path == Path("storage/runtime/recovery/restart-state.json")
+    assert settings.auto_rule_update_enabled is False
+    assert settings.auto_rule_update_min_learning_completion_rate == 1.0
+    assert settings.auto_rule_update_win_rate_skip_threshold == 0.80
+
+
+def test_storage_dir_drives_persistent_data_paths(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    storage_dir = tmp_path / "persistent-storage"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "TRADING_PROFILE=scalping",
+                "TRADE_MARKET=KRW-XRP",
+                "TRADE_COIN=XRP",
+                "DEMO_INITIAL_CAPITAL=1000000",
+                f"STORAGE_DIR={storage_dir}",
+                "AUTO_RULE_UPDATE_ENABLED=true",
+                "AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE=1.0",
+                "AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD=0.8",
+            ],
+        ),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(env_file=env_file)
+
+    assert settings.storage_dir == storage_dir
+    assert settings.learning_log_dir == storage_dir / "logs" / "learning"
+    assert settings.learning_dataset_dir == storage_dir / "data" / "learning"
+    assert settings.restart_state_path == storage_dir / "runtime" / "recovery" / "restart-state.json"
+    assert settings.auto_rule_update_enabled is True
 
 
 def test_rule_change_apply_target_must_be_demo(monkeypatch: pytest.MonkeyPatch) -> None:
