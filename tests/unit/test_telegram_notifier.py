@@ -43,6 +43,28 @@ def test_telegram_notifier_sends_buy_fill_message() -> None:
     ]
 
 
+def test_telegram_notifier_includes_total_asset_value_when_provided() -> None:
+    gateway = StubTelegramGateway()
+    notifier = TelegramNotifier(gateway=gateway)
+
+    notifier.notify_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=820.0,
+            filled_quantity=120.5,
+            fee=41.11,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+        total_asset_value=999958.89,
+    )
+
+    assert "총 보유자산은 999,958.89원입니다." in gateway.messages[0]
+
+
 def test_telegram_notifier_sends_stop_loss_fill_message() -> None:
     gateway = StubTelegramGateway()
     notifier = TelegramNotifier(gateway=gateway)

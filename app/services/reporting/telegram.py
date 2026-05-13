@@ -43,7 +43,13 @@ class TelegramTradingReportService:
         self._gateway = gateway
         self._context = context
 
-    def send_current_report(self, *, reported_at: datetime) -> str:
+    def send_current_report(self, *, reported_at: datetime) -> str | None:
+        if self._context.market_price_store.get(self._context.market) is None:
+            logger.info(
+                "telegram_current_report_skipped_without_price",
+                extra={"market": self._context.market},
+            )
+            return None
         message = self.build_current_report(reported_at=reported_at)
         self._gateway.send_message(message)
         return message
@@ -246,13 +252,14 @@ class TelegramTradingReportScheduler:
             current_key = now.strftime("%Y-%m-%dT%H")
             if current_key not in self._sent_current_keys:
                 try:
-                    self._report_service.send_current_report(reported_at=now)
+                    message = self._report_service.send_current_report(reported_at=now)
                 except Exception:
                     logger.exception("telegram_current_report_failed")
                     sent.append("current_failed")
                 else:
-                    self._sent_current_keys.add(current_key)
-                    sent.append("current")
+                    if message is not None:
+                        self._sent_current_keys.add(current_key)
+                        sent.append("current")
 
         if now.hour == 6:
             daily_key = now.strftime("%Y-%m-%d")

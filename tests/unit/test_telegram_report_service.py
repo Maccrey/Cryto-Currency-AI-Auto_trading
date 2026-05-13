@@ -134,6 +134,18 @@ def test_telegram_report_service_sends_current_trading_report(tmp_path: Path) ->
     assert "거래 가능 상태는 정상" in message
 
 
+def test_telegram_report_service_skips_current_report_without_price(tmp_path: Path) -> None:
+    service, gateway = _build_report_service(tmp_path)
+    service._context.market_price_store._prices.clear()
+
+    message = service.send_current_report(
+        reported_at=datetime(2026, 4, 29, 7, 0, tzinfo=ZoneInfo("Asia/Seoul")),
+    )
+
+    assert message is None
+    assert gateway.messages == []
+
+
 def test_telegram_report_service_sends_daily_learning_report(tmp_path: Path) -> None:
     service, gateway = _build_report_service(tmp_path)
 
@@ -164,3 +176,18 @@ def test_telegram_report_scheduler_sends_without_duplicates(tmp_path: Path) -> N
     assert scheduler.tick(six_am.replace(hour=5)) == []
 
     assert len(gateway.messages) == 3
+
+
+def test_telegram_report_scheduler_retries_current_report_when_price_was_missing(tmp_path: Path) -> None:
+    service, gateway = _build_report_service(tmp_path)
+    scheduler = TelegramTradingReportScheduler(report_service=service)
+    seven_am = datetime(2026, 4, 29, 7, 0, tzinfo=ZoneInfo("Asia/Seoul"))
+    service._context.market_price_store._prices.clear()
+
+    assert scheduler.tick(seven_am) == []
+    assert gateway.messages == []
+
+    service._context.market_price_store.save(market="KRW-XRP", price=835.0)
+
+    assert scheduler.tick(seven_am) == ["current"]
+    assert len(gateway.messages) == 1

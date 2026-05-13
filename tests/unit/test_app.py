@@ -921,7 +921,7 @@ class TelegramNotifierStub:
         self.reason_codes = []
         self.entry_prices = []
 
-    def notify_fill(self, fill, *, reason_code=None, entry_price=None) -> None:
+    def notify_fill(self, fill, *, reason_code=None, entry_price=None, total_asset_value=None) -> None:
         self.fills.append(fill)
         self.reason_codes.append(reason_code)
         self.entry_prices.append(entry_price)

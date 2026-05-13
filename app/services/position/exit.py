@@ -8,6 +8,7 @@ from app.services.execution.demo import FillResult, OrderIntent
 from app.services.execution.ledger import ExecutionLedger
 from app.services.execution.rules import UpbitOrderRules
 from app.services.learning.service import LearningEvent, LearningService
+from app.services.portfolio.sync import PortfolioState
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.hard_stop import HardStopMonitor
@@ -66,6 +67,7 @@ class PositionExitService:
         learning_service: LearningService | None = None,
         telegram_notifier: TelegramNotifier | None = None,
         execution_ledger: ExecutionLedger | None = None,
+        initial_portfolio_state: PortfolioState | None = None,
         position_lifecycle_ledger: PositionLifecycleLedger | None = None,
         min_order_amount_krw: float = 5_000.0,
         order_rules: UpbitOrderRules | None = None,
@@ -79,6 +81,7 @@ class PositionExitService:
         self._learning_service = learning_service
         self._telegram_notifier = telegram_notifier
         self._execution_ledger = execution_ledger
+        self._initial_portfolio_state = initial_portfolio_state
         self._position_lifecycle_ledger = position_lifecycle_ledger
         self._order_rules = order_rules or UpbitOrderRules(
             min_order_amount_krw=min_order_amount_krw,
@@ -406,8 +409,21 @@ class PositionExitService:
                 reason_code=reason_code,
             )
         if self._telegram_notifier is not None and hasattr(execution, "filled_price"):
+            total_asset_value = self._total_asset_value_after_fill(
+                current_price=execution.filled_price,
+            )
             self._telegram_notifier.notify_fill(
                 execution,
                 reason_code=reason_code,
                 entry_price=position.entry_price,
+                total_asset_value=total_asset_value,
             )
+
+    def _total_asset_value_after_fill(self, *, current_price: float) -> float | None:
+        if self._execution_ledger is None or self._initial_portfolio_state is None:
+            return None
+        portfolio = self._execution_ledger.portfolio_state(
+            initial_cash=self._initial_portfolio_state.cash_balance,
+            asset_currency=self._initial_portfolio_state.asset_currency,
+        )
+        return round(portfolio.cash_balance + (portfolio.asset_balance * current_price), 2)

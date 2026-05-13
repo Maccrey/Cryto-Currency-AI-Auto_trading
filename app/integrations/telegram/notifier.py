@@ -18,6 +18,7 @@ class FillMessageTemplate:
         *,
         reason_code: str | None = None,
         entry_price: float | None = None,
+        total_asset_value: float | None = None,
     ) -> str:
         if fill.is_stop_loss:
             title = "손절 매도가 체결되었습니다."
@@ -33,6 +34,8 @@ class FillMessageTemplate:
             f"체결 금액은 약 {notional:,.0f}원이고 수수료는 {fill.fee:,.2f}원입니다.",
             f"거래 모드는 {'데모' if fill.mode == 'demo' else '실거래'}입니다.",
         ]
+        if total_asset_value is not None:
+            lines.append(f"총 보유자산은 {total_asset_value:,.2f}원입니다.")
         if fill.side == "sell" and entry_price is not None:
             gross_profit = (fill.filled_price - entry_price) * fill.filled_quantity
             net_profit = gross_profit - fill.fee
@@ -67,6 +70,7 @@ class TelegramNotifier:
         *,
         reason_code: str | None = None,
         entry_price: float | None = None,
+        total_asset_value: float | None = None,
     ) -> None:
         try:
             self._gateway.send_message(
@@ -74,6 +78,7 @@ class TelegramNotifier:
                     fill,
                     reason_code=reason_code,
                     entry_price=entry_price,
+                    total_asset_value=total_asset_value,
                 ),
             )
         except Exception:

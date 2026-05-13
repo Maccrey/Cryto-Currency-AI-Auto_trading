@@ -6,6 +6,7 @@ from app.integrations.telegram.notifier import TelegramNotifier
 from app.services.execution.demo import FillResult
 from app.services.execution.ledger import ExecutionLedger
 from app.services.learning.service import LearningEvent, LearningService
+from app.services.portfolio.sync import PortfolioState
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.risk.stop_loss import PositionSnapshot, StopLossInjector
@@ -28,6 +29,7 @@ class PostFillService:
         position_store: CurrentPositionStore | None = None,
         telegram_notifier: TelegramNotifier | None = None,
         execution_ledger: ExecutionLedger | None = None,
+        initial_portfolio_state: PortfolioState | None = None,
         position_lifecycle_ledger: PositionLifecycleLedger | None = None,
         learning_service: LearningService | None = None,
     ) -> None:
@@ -35,6 +37,7 @@ class PostFillService:
         self._position_store = position_store
         self._telegram_notifier = telegram_notifier
         self._execution_ledger = execution_ledger
+        self._initial_portfolio_state = initial_portfolio_state
         self._position_lifecycle_ledger = position_lifecycle_ledger
         self._learning_service = learning_service
 
@@ -99,11 +102,26 @@ class PostFillService:
         if self._execution_ledger is not None:
             self._execution_ledger.record_fill(execution)
         if self._telegram_notifier is not None:
-            self._telegram_notifier.notify_fill(execution)
+            total_asset_value = self._total_asset_value_after_fill(
+                current_price=execution.filled_price,
+            )
+            self._telegram_notifier.notify_fill(
+                execution,
+                total_asset_value=total_asset_value,
+            )
         return PostFillResult(
             execution_result=execution_result,
             position=position,
         )
+
+    def _total_asset_value_after_fill(self, *, current_price: float) -> float | None:
+        if self._execution_ledger is None or self._initial_portfolio_state is None:
+            return None
+        portfolio = self._execution_ledger.portfolio_state(
+            initial_cash=self._initial_portfolio_state.cash_balance,
+            asset_currency=self._initial_portfolio_state.asset_currency,
+        )
+        return round(portfolio.cash_balance + (portfolio.asset_balance * current_price), 2)
 
     @staticmethod
     def _merge_position(

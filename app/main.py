@@ -343,6 +343,7 @@ def create_app(
             learning_service=learning_service,
             telegram_notifier=trade_fill_notifier,
             execution_ledger=execution_ledger,
+            initial_portfolio_state=boot_portfolio_state,
             position_lifecycle_ledger=position_lifecycle_ledger,
             order_rules=order_rules,
         )
@@ -356,6 +357,7 @@ def create_app(
             position_store=position_store,
             telegram_notifier=trade_fill_notifier,
             execution_ledger=execution_ledger,
+            initial_portfolio_state=boot_portfolio_state,
             position_lifecycle_ledger=position_lifecycle_ledger,
             learning_service=learning_service,
         )

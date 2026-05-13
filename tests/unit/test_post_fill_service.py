@@ -21,9 +21,11 @@ class ForbiddenLiveOrderGateway:
 class TelegramNotifierStub:
     def __init__(self) -> None:
         self.fills = []
+        self.total_asset_values = []
 
-    def notify_fill(self, fill) -> None:
+    def notify_fill(self, fill, *, total_asset_value=None) -> None:
         self.fills.append(fill)
+        self.total_asset_values.append(total_asset_value)
 
 
 class LearningServiceStub:
