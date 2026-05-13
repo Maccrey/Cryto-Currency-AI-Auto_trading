@@ -137,3 +137,33 @@ def test_regime_engine_marks_box_market_with_price_range() -> None:
     assert snapshot.market_state_label == "박스권"
     assert snapshot.box_range_low == 798.4
     assert snapshot.box_range_high == 801.6
+
+
+def test_regime_engine_prefers_price_card_market_state_when_provided() -> None:
+    engine = RegimeEngine()
+    features = FeatureSnapshot(
+        ret_1s=0.003,
+        ret_5s=0.011,
+        ret_30s=0.024,
+        volume_multiple=2.1,
+        traded_value_multiple=2.0,
+        spread_bps=7.0,
+        orderbook_imbalance=0.24,
+        short_volatility=0.008,
+        regime_score=0.77,
+        liquidity_score=0.86,
+    )
+
+    snapshot = engine.evaluate(
+        features,
+        recent_loss_streak=0,
+        safe_mode=False,
+        current_price=820.0,
+        observed_market_state="bear",
+        observed_market_state_label="하락장",
+    )
+
+    assert snapshot.label == "risk_on"
+    assert snapshot.market_state == "bear"
+    assert snapshot.market_state_label == "하락장"
+    assert "PRICE_CARD_MARKET_STATE_BEAR" in snapshot.reason_codes

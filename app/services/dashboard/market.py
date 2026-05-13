@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 from app.services.market.store import MarketPriceSnapshot, MarketPriceStore
+from app.services.market.trend import MarketTrendClassifier
 
 
 @dataclass(frozen=True)
@@ -36,8 +37,14 @@ class DashboardChartFeed:
 class DashboardMarketSummaryFeed:
     """Build dashboard-friendly market summary payloads."""
 
-    def __init__(self, *, chart_feed: DashboardChartFeed | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        chart_feed: DashboardChartFeed | None = None,
+        trend_classifier: MarketTrendClassifier | None = None,
+    ) -> None:
         self._chart_feed = chart_feed or DashboardChartFeed()
+        self._trend_classifier = trend_classifier or MarketTrendClassifier()
 
     def build(
         self,
@@ -49,21 +56,14 @@ class DashboardMarketSummaryFeed:
         if snapshot is None:
             return None
 
-        recent_change_pct = 0.0
-        if len(history) >= 2 and history[0].price > 0:
-            recent_change_pct = round(
-                (snapshot.price - history[0].price) / history[0].price,
-                4,
-            )
-        state_label = self._derive_state_label(recent_change_pct)
-        state_message = self._derive_state_message(recent_change_pct)
-        severity = self._derive_severity(recent_change_pct)
-        market_state = self._derive_market_state(recent_change_pct=recent_change_pct, history=history)
-        box_range_low, box_range_high = self._derive_box_range(
-            market_state=market_state,
+        trend = self._trend_classifier.classify(
             current_price=snapshot.price,
             history=history,
         )
+        recent_change_pct = trend.recent_change_pct
+        state_label = self._derive_state_label(recent_change_pct)
+        state_message = self._derive_state_message(recent_change_pct)
+        severity = self._derive_severity(recent_change_pct)
 
         return DashboardMarket(
             market=snapshot.market,
@@ -77,10 +77,10 @@ class DashboardMarketSummaryFeed:
                 history=history,
                 market_price_store=market_price_store,
             ),
-            market_state=market_state,
-            market_state_label=self._market_state_label(market_state),
-            box_range_low=box_range_low,
-            box_range_high=box_range_high,
+            market_state=trend.market_state,
+            market_state_label=trend.market_state_label,
+            box_range_low=trend.box_range_low,
+            box_range_high=trend.box_range_high,
         )
 
     @staticmethod
@@ -108,34 +108,6 @@ class DashboardMarketSummaryFeed:
         if recent_change_pct < 0:
             return "warning"
         return "info"
-
-    @staticmethod
-    def _derive_market_state(*, recent_change_pct: float, history: list[MarketPriceSnapshot]) -> str:
-        if abs(recent_change_pct) <= 0.003:
-            return "box"
-        return "bull" if recent_change_pct > 0 else "bear"
-
-    @staticmethod
-    def _market_state_label(market_state: str) -> str:
-        return {
-            "bull": "상승장",
-            "bear": "하락장",
-            "box": "박스권",
-        }.get(market_state, "박스권")
-
-    @staticmethod
-    def _derive_box_range(
-        *,
-        market_state: str,
-        current_price: float,
-        history: list[MarketPriceSnapshot],
-    ) -> tuple[float | None, float | None]:
-        if market_state != "box":
-            return None, None
-        prices = [item.price for item in history if item.price > 0]
-        if not prices:
-            prices = [current_price]
-        return round(min(prices), 4), round(max(prices), 4)
 
 
 class DashboardMarketService(DashboardMarketSummaryFeed):

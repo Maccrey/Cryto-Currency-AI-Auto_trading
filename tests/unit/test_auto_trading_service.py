@@ -274,6 +274,16 @@ def test_auto_trading_service_allows_medium_scalping_entries(tmp_path: Path) -> 
     assert result["signal_level"] == "medium"
 
 
+def test_auto_trading_service_uses_price_card_market_state_in_decision(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [820.0, 818.0, 816.0, 814.0], min_history=4)
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["market_state"] == "bear"
+    assert result["market_state_label"] == "하락장"
+
+
 def test_auto_trading_service_relaxes_fee_edge_after_repeated_demo_no_trade(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [800.0, 800.0, 800.0, 800.0], min_history=4)
     service._consecutive_entry_blocks = 100

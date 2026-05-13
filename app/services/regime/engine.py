@@ -49,6 +49,10 @@ class RegimeEngine:
         recent_loss_streak: int,
         safe_mode: bool,
         current_price: float | None = None,
+        observed_market_state: str | None = None,
+        observed_market_state_label: str | None = None,
+        observed_box_range_low: float | None = None,
+        observed_box_range_high: float | None = None,
     ) -> RegimeSnapshot:
         if safe_mode:
             return RegimeSnapshot(
@@ -63,9 +67,18 @@ class RegimeEngine:
 
         score = self._scorer.score(features, recent_loss_streak=recent_loss_streak)
         label = self._label(score)
-        market_state = self._market_state(features)
-        box_low, box_high = self._box_range(features, current_price, market_state=market_state)
+        market_state = self._normalize_observed_market_state(observed_market_state) or self._market_state(features)
+        if observed_market_state is not None:
+            box_low, box_high = (
+                (observed_box_range_low, observed_box_range_high)
+                if market_state == "box"
+                else (None, None)
+            )
+        else:
+            box_low, box_high = self._box_range(features, current_price, market_state=market_state)
         reason_codes = self._reason_codes(features)
+        if observed_market_state is not None:
+            reason_codes.append(f"PRICE_CARD_MARKET_STATE_{market_state.upper()}")
         size_multiplier = self._size_multiplier(label, recent_loss_streak=recent_loss_streak)
         entry_allowed = label != "risk_off"
         return RegimeSnapshot(
@@ -75,7 +88,7 @@ class RegimeEngine:
             entry_allowed=entry_allowed,
             reason_codes=reason_codes,
             market_state=market_state,
-            market_state_label=self._market_state_label(market_state),
+            market_state_label=observed_market_state_label or self._market_state_label(market_state),
             box_range_low=box_low,
             box_range_high=box_high,
         )
@@ -125,6 +138,12 @@ class RegimeEngine:
         if features.ret_30s > 0.004 or features.orderbook_imbalance > 0.18:
             return "bull"
         return "box"
+
+    @staticmethod
+    def _normalize_observed_market_state(market_state: str | None) -> str | None:
+        if market_state in {"bull", "bear", "box"}:
+            return market_state
+        return None
 
     @staticmethod
     def _market_state_label(market_state: str) -> str:

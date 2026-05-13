@@ -24,6 +24,10 @@ class TradeDecisionRequest:
     recent_loss_streak: int
     relax_fee_edge: bool = False
     external_context_weight: float = 1.0
+    observed_market_state: str | None = None
+    observed_market_state_label: str | None = None
+    observed_box_range_low: float | None = None
+    observed_box_range_high: float | None = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,10 @@ class TradeDecisionService:
             recent_loss_streak=request.recent_loss_streak,
             safe_mode=request.safe_mode,
             current_price=request.current_price,
+            observed_market_state=request.observed_market_state,
+            observed_market_state_label=request.observed_market_state_label,
+            observed_box_range_low=request.observed_box_range_low,
+            observed_box_range_high=request.observed_box_range_high,
         )
         sizing = self._sizing_engine.size_entry(
             request.portfolio,

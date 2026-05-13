@@ -9,6 +9,7 @@ from typing import Any
 
 from app.services.learning.service import LearningEvent, LearningService
 from app.services.market.store import MarketPriceStore
+from app.services.market.trend import MarketTrendClassifier
 from app.services.market.upbit_ticker import UpbitTickerSnapshot
 from app.services.portfolio.sync import PortfolioState
 from app.services.position.store import CurrentPositionStore
@@ -76,6 +77,7 @@ class AutoTradingService:
         self._clock = clock or (lambda: datetime.now().astimezone())
         self._sleep = sleep or asyncio.sleep
         self._external_context_provider = external_context_provider
+        self._trend_classifier = MarketTrendClassifier()
         self._prices: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._position_opened_at: datetime | None = None
@@ -326,6 +328,10 @@ class AutoTradingService:
 
     def _build_decision_request(self, current_price: float, *, relax_fee_edge: bool = False) -> TradeDecisionRequest:
         external_context = self._external_context(record=False)
+        trend = self._trend_classifier.classify(
+            current_price=current_price,
+            history=self._market_price_store.list_history(self._market),
+        )
         return TradeDecisionRequest(
             prices=list(self._prices),
             traded_values=list(self._traded_values),
@@ -340,6 +346,10 @@ class AutoTradingService:
             recent_loss_streak=0,
             relax_fee_edge=relax_fee_edge,
             external_context_weight=self._external_context_weight(external_context),
+            observed_market_state=trend.market_state,
+            observed_market_state_label=trend.market_state_label,
+            observed_box_range_low=trend.box_range_low,
+            observed_box_range_high=trend.box_range_high,
         )
 
     def _portfolio_state(self) -> PortfolioState:
