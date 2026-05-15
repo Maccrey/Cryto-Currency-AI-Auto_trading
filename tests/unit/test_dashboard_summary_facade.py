@@ -1001,6 +1001,7 @@ def test_dashboard_summary_facade_includes_execution_ledger_stats() -> None:
     assert payload["stop_loss_count"] == 1
     assert payload["recent_stop_loss_reason"] == "STOP_LOSS_PRICE_HIT"
     assert payload["realized_pnl"] < 0.0
+    assert payload["profit_rate_series_24h"]
     assert payload["last_learning_event"] is None
     assert payload["learning_signal_count"] == 0
     assert payload["learning_fill_count"] == 0

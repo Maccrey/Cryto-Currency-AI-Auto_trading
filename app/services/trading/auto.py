@@ -61,6 +61,7 @@ class AutoTradingService:
         sleep: Callable[[float], Any] | None = None,
         external_context_provider: Any | None = None,
         demo_portfolio_state: PortfolioState | None = None,
+        auto_rule_update_service: Any | None = None,
     ) -> None:
         self._market = market
         self._trading_mode = trading_mode
@@ -77,6 +78,7 @@ class AutoTradingService:
         self._clock = clock or (lambda: datetime.now().astimezone())
         self._sleep = sleep or asyncio.sleep
         self._external_context_provider = external_context_provider
+        self._auto_rule_update_service = auto_rule_update_service
         self._trend_classifier = MarketTrendClassifier()
         self._prices: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
@@ -331,6 +333,7 @@ class AutoTradingService:
         trend = self._trend_classifier.classify(
             current_price=current_price,
             history=self._market_price_store.list_history(self._market),
+            learning_events=self._learning_service.recent_events(limit=200),
         )
         return TradeDecisionRequest(
             prices=list(self._prices),
@@ -479,6 +482,17 @@ class AutoTradingService:
                 payload=payload,
             ),
         )
+        if self._auto_rule_update_service is not None:
+            update_result = self._auto_rule_update_service.maybe_run()
+            if update_result.get("status") in {"completed", "needs_retry", "failed"}:
+                self._learning_service.record(
+                    LearningEvent(
+                        event_name="auto_rule_update",
+                        market=self._market,
+                        mode=self._trading_mode,
+                        payload=update_result,
+                    ),
+                )
         return payload
 
     def _external_context(self, *, record: bool = True) -> dict[str, object] | None:

@@ -56,16 +56,33 @@ class ModelTrainingReadinessService:
             for key, value in metrics.items()
             if value < required[key]
         }
+        completion_rate = self.completion_rate(metrics=metrics, required=required)
         return {
             "status": "ready" if not gaps else "not_ready",
             "log_path": str(self._log_path),
             "metrics": metrics,
             "required": required,
             "gaps": gaps,
+            "completion_rate": completion_rate,
+            "completion_percent": int(completion_rate * 100),
             "recommended_next_step": self._recommended_next_step(gaps),
             "planned_ml_extra": "ml",
             "planned_packages": ["tensorflow", "scikit-learn", "pandas", "pyarrow"],
         }
+
+    @staticmethod
+    def completion_rate(*, metrics: dict[str, int], required: dict[str, int]) -> float:
+        keys = ["total_events", "signal_events", "fill_events", "exit_events", "blocked_cycles"]
+        ratios: list[float] = []
+        for key in keys:
+            required_value = int(required.get(key, 0))
+            if required_value <= 0:
+                ratios.append(1.0)
+                continue
+            ratios.append(min(float(metrics.get(key, 0)) / required_value, 1.0))
+        if not ratios:
+            return 0.0
+        return round(sum(ratios) / len(ratios), 3)
 
     def _read_rows(self) -> list[dict[str, Any]]:
         if not self._log_path.exists():

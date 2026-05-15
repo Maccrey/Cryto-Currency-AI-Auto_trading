@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -10,6 +11,8 @@ from uuid import uuid4
 
 from app.services.replay.harness import ReplayHarness
 from app.services.replay.loader import ReplayFixtureLoader
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -44,12 +47,14 @@ class RuleReviewService:
         trading_mode: str,
         learning_log_dir: Path,
         config: RuleReviewConfig,
+        telegram_gateway: Any | None = None,
     ) -> None:
         self._market = market
         self._trade_coin = (trade_coin or market.split("-")[-1]).upper()
         self._trading_mode = trading_mode
         self._learning_log_dir = learning_log_dir
         self._config = config
+        self._telegram_gateway = telegram_gateway
         self._state_path = self._learning_log_dir / "rule-review-state.json"
         self._history_path = self._learning_log_dir / "rule-change-history.jsonl"
         state = self._load_state()
@@ -149,12 +154,12 @@ class RuleReviewService:
         )
         return {"proposal": proposal}
 
-    def auto_improve(self, *, fixture_path: Path) -> dict[str, object]:
+    def auto_improve(self, *, fixture_path: Path, force: bool = False) -> dict[str, object]:
         steps: list[dict[str, object]] = []
 
         review_response = self.review()
         review = review_response["review"]
-        auto_gate_reasons = self._auto_update_gate_reasons(review)
+        auto_gate_reasons = [] if force else self._auto_update_gate_reasons(review)
         steps.append(
             {
                 "name": "Codex CLI 룰 개선 하네스 시작",
@@ -225,6 +230,8 @@ class RuleReviewService:
         )
 
         final_summary = self._automation_summary(proposal)
+        if bool(proposal.get("demo_applied")):
+            self._notify_rule_improved(proposal=proposal, final_summary=final_summary)
         return {
             "status": "blocked" if auto_gate_reasons else ("completed" if demo_applied else "needs_retry"),
             "codex_cli": {
@@ -648,6 +655,31 @@ class RuleReviewService:
             "history_warnings": proposal.get("history_warnings", []),
             "replay_result": proposal.get("replay_result"),
         }
+
+    def _notify_rule_improved(
+        self,
+        *,
+        proposal: dict[str, Any],
+        final_summary: dict[str, object],
+    ) -> None:
+        if self._telegram_gateway is None:
+            return
+        try:
+            changed_parameters = final_summary.get("changed_parameters") or []
+            change_text = ", ".join(str(item) for item in changed_parameters) or "변경 항목 없음"
+            self._telegram_gateway.send_message(
+                "\n".join(
+                    [
+                        "자동 룰 개선이 적용되었습니다.",
+                        f"거래 시장은 {self._market}이고 적용 대상은 {proposal.get('apply_target', 'demo')}입니다.",
+                        f"변경 항목: {change_text}",
+                        f"변경 사유: {final_summary.get('change_reason', '-')}",
+                        "새 룰은 즉시 다음 자동매매 판단부터 반영됩니다.",
+                    ],
+                ),
+            )
+        except Exception:
+            logger.exception("telegram_rule_improvement_notification_failed")
 
     def _collect_metrics(self) -> dict[str, object]:
         trade_count = 0

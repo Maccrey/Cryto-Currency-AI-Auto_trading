@@ -28,6 +28,7 @@ class TradeDecisionRequest:
     observed_market_state_label: str | None = None
     observed_box_range_low: float | None = None
     observed_box_range_high: float | None = None
+    target_daily_return_pct: float = 0.005
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,7 @@ class TradeDecisionService:
         )
         signal = self._signal_engine.evaluate(features)
         signal = self._apply_external_context(signal, request.external_context_weight)
+        signal = self._apply_daily_target(signal, request.target_daily_return_pct)
         regime = self._regime_engine.evaluate(
             features,
             recent_loss_streak=request.recent_loss_streak,
@@ -102,6 +104,20 @@ class TradeDecisionService:
             reason_codes.append("EXTERNAL_CONTEXT_BULLISH_BOOST")
         if normalized_weight < 1.0 and "EXTERNAL_CONTEXT_RISK_OFF" not in reason_codes:
             reason_codes.append("EXTERNAL_CONTEXT_RISK_OFF")
+        return replace(
+            signal,
+            score=adjusted_score,
+            level=TradeDecisionService._score_to_level(adjusted_score),
+            reason_codes=reason_codes,
+        )
+
+    @staticmethod
+    def _apply_daily_target(signal: SignalDecision, target_daily_return_pct: float) -> SignalDecision:
+        target = max(min(float(target_daily_return_pct or 0.005), 0.02), 0.001)
+        adjusted_score = round(max(min(signal.score * min(1.08, 1.0 + max(target - 0.005, 0.0)), 1.0), 0.0), 2)
+        reason_codes = list(signal.reason_codes)
+        if "TARGET_DAILY_RETURN_0_5PCT" not in reason_codes:
+            reason_codes.append("TARGET_DAILY_RETURN_0_5PCT")
         return replace(
             signal,
             score=adjusted_score,

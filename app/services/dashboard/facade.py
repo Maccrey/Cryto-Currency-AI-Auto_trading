@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from app.services.execution.ledger import ExecutionLedger
@@ -278,6 +278,12 @@ class DashboardSummaryFacade:
                 "card_meta": card_meta,
             }
         payload["dashboard_meta"] = self._build_dashboard_meta(payload)
+        profit_rate_series_24h = self._build_profit_rate_series_24h(
+            boot_state=boot_state,
+            current_time=current_time,
+        )
+        if profit_rate_series_24h:
+            payload["profit_rate_series_24h"] = profit_rate_series_24h
         payload["dashboard_order"] = ["summary", "cards", "meta"]
         payload["dashboard_labels"] = {
             "summary": "Summary",
@@ -754,6 +760,80 @@ class DashboardSummaryFacade:
             "structure_object": payload.get("dashboard_structure_object"),
         }
         return payload
+
+    def _build_profit_rate_series_24h(
+        self,
+        *,
+        boot_state: BootState,
+        current_time: str,
+    ) -> list[dict[str, object]]:
+        if self._execution_ledger is None or boot_state.portfolio_state is None:
+            return []
+        try:
+            now = datetime.fromisoformat(current_time.replace("Z", "+00:00"))
+        except ValueError:
+            now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=24)
+        initial_cash = float(boot_state.portfolio_state.cash_balance)
+        if initial_cash <= 0:
+            return []
+        cash_balance = initial_cash
+        asset_balance = 0.0
+        points: list[dict[str, object]] = [
+            {
+                "recorded_at": cutoff.isoformat(),
+                "profit_rate": 0.0,
+            },
+        ]
+        records = self._execution_ledger.list_records()
+        for record in records:
+            fill = record.fill
+            if fill.status != "filled":
+                continue
+            gross_amount = fill.filled_price * fill.filled_quantity
+            if fill.side == "buy":
+                cash_balance -= gross_amount + fill.fee
+                asset_balance += fill.filled_quantity
+            else:
+                sell_quantity = min(asset_balance, fill.filled_quantity)
+                cash_balance += (fill.filled_price * sell_quantity) - fill.fee
+                asset_balance = max(round(asset_balance - sell_quantity, 8), 0.0)
+            recorded_at = self._parse_datetime(record.recorded_at)
+            if recorded_at is None or recorded_at < cutoff:
+                continue
+            equity = cash_balance + (asset_balance * fill.filled_price)
+            points.append(
+                {
+                    "recorded_at": recorded_at.isoformat(),
+                    "profit_rate": round((equity - initial_cash) / initial_cash, 6),
+                },
+            )
+        latest_price = None
+        if self._market_price_store is not None:
+            position = None if self._position_store is None else self._position_store.get()
+            if position is not None:
+                latest_price = self._market_price_store.get_price(position.market)
+        if latest_price is not None and asset_balance > 0:
+            equity = cash_balance + (asset_balance * latest_price)
+            points.append(
+                {
+                    "recorded_at": now.isoformat(),
+                    "profit_rate": round((equity - initial_cash) / initial_cash, 6),
+                },
+            )
+        return points[-96:]
+
+    @staticmethod
+    def _parse_datetime(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
 
     @staticmethod
     def _build_summary_object(payload: dict[str, object]) -> dict[str, object]:

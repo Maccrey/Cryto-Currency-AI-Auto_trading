@@ -40,6 +40,7 @@ from app.services.execution.live import UpbitLiveOrderGateway
 from app.services.execution.rules import UpbitOrderRules
 from app.services.config.env_file import EnvFileService
 from app.services.learning.service import LearningService
+from app.services.learning.model_readiness import ModelTrainingReadinessService
 from app.services.learning.reset import LearningDataResetService
 from app.services.market.store import MarketPriceStore
 from app.services.market.context import (
@@ -71,6 +72,7 @@ from app.services.reporting.telegram import (
     TradingReportContext,
 )
 from app.services.risk.stop_loss import StopLossInjector
+from app.services.rules.automation import AutoRuleUpdateService
 from app.services.rules.review import RuleReviewConfig, RuleReviewService
 from app.services.runtime.factory import build_runtime_services
 from app.services.signals.engine import SignalEngine
@@ -410,6 +412,12 @@ def create_app(
             auto_update_min_learning_completion_rate=settings.auto_rule_update_min_learning_completion_rate,
             auto_update_win_rate_skip_threshold=settings.auto_rule_update_win_rate_skip_threshold,
         ),
+        telegram_gateway=telegram_gateway,
+    )
+    auto_trading_service._auto_rule_update_service = AutoRuleUpdateService(
+        readiness_service=ModelTrainingReadinessService(log_dir=profile_learning_log_dir),
+        rule_review_service=rule_review_service,
+        fixture_path=Path("fixtures/replay_ticks.json"),
     )
 
     @app.on_event("shutdown")

@@ -62,7 +62,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.learning_log_dir == Path("storage/logs/learning")
     assert settings.learning_dataset_dir == Path("storage/data/learning")
     assert settings.restart_state_path == Path("storage/runtime/recovery/restart-state.json")
-    assert settings.auto_rule_update_enabled is False
+    assert settings.auto_rule_update_enabled is True
     assert settings.auto_rule_update_min_learning_completion_rate == 1.0
     assert settings.auto_rule_update_win_rate_skip_threshold == 0.80
 

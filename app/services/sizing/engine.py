@@ -187,17 +187,17 @@ class SizingEngine:
         if regime.market_state == "bull":
             return 1.08
         if regime.market_state == "bear":
-            return 0.65
+            return 0.55
         if regime.market_state == "box":
-            return 0.85
+            return 0.78
         return 1.0
 
     @staticmethod
     def _sell_market_state_multiplier(regime: RegimeSnapshot) -> float:
         if regime.market_state == "bull":
-            return 0.75
+            return 0.7
         if regime.market_state == "bear":
-            return 1.25
+            return 1.35
         if regime.market_state == "box":
-            return 1.05
+            return 1.1
         return 1.0

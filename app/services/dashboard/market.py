@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 
 from app.services.market.store import MarketPriceSnapshot, MarketPriceStore
 from app.services.market.trend import MarketTrendClassifier
+from app.services.learning.service import LearningService
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,9 @@ class DashboardMarket:
     market_state_label: str = "박스권"
     box_range_low: float | None = None
     box_range_high: float | None = None
+    learning_sample_count: int = 0
+    learning_confidence: float = 0.0
+    market_state_source: str = "price_history"
 
 
 class DashboardChartFeed:
@@ -42,9 +46,11 @@ class DashboardMarketSummaryFeed:
         *,
         chart_feed: DashboardChartFeed | None = None,
         trend_classifier: MarketTrendClassifier | None = None,
+        learning_service: LearningService | None = None,
     ) -> None:
         self._chart_feed = chart_feed or DashboardChartFeed()
         self._trend_classifier = trend_classifier or MarketTrendClassifier()
+        self._learning_service = learning_service
 
     def build(
         self,
@@ -59,6 +65,7 @@ class DashboardMarketSummaryFeed:
         trend = self._trend_classifier.classify(
             current_price=snapshot.price,
             history=history,
+            learning_events=[] if self._learning_service is None else self._learning_service.recent_events(limit=200),
         )
         recent_change_pct = trend.recent_change_pct
         state_label = self._derive_state_label(recent_change_pct)
@@ -81,11 +88,19 @@ class DashboardMarketSummaryFeed:
             market_state_label=trend.market_state_label,
             box_range_low=trend.box_range_low,
             box_range_high=trend.box_range_high,
+            learning_sample_count=trend.learning_sample_count,
+            learning_confidence=trend.learning_confidence,
+            market_state_source=trend.source,
         )
 
     @staticmethod
     def to_payload(market: DashboardMarket) -> dict[str, object]:
-        return asdict(market)
+        payload = asdict(market)
+        if not payload.get("learning_sample_count"):
+            payload.pop("learning_sample_count", None)
+            payload.pop("learning_confidence", None)
+            payload.pop("market_state_source", None)
+        return payload
 
     @staticmethod
     def _derive_state_label(recent_change_pct: float) -> str:

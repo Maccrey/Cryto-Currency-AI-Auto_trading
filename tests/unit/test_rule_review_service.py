@@ -88,6 +88,54 @@ def test_rule_proposal_allows_demo_no_trade_mitigation_with_small_trade_sample(t
     assert result["status"] == "demo_applied"
 
 
+def test_auto_improve_notifies_telegram_when_demo_rule_is_applied(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                (
+                    '{"event_name":"auto_trade_cycle","payload":'
+                    '{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL",'
+                    '"sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"}}'
+                ),
+                (
+                    '{"event_name":"auto_trade_cycle","payload":'
+                    '{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL",'
+                    '"sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"}}'
+                ),
+                (
+                    '{"event_name":"auto_trade_cycle","payload":'
+                    '{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL",'
+                    '"sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"}}'
+                ),
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    gateway = StubTelegramGateway()
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=100,
+            min_stoplosses=20,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+        telegram_gateway=gateway,
+    )
+
+    result = service.auto_improve(fixture_path=Path("fixtures/replay_ticks.json"), force=True)
+
+    assert result["status"] == "completed"
+    assert gateway.messages
+    assert "자동 룰 개선이 적용되었습니다." in gateway.messages[0]
+
+
 def test_auto_rule_update_skips_when_learning_incomplete_or_win_rate_high(tmp_path: Path) -> None:
     (tmp_path / "learning.jsonl").write_text(
         "\n".join(
@@ -697,3 +745,10 @@ def test_rule_change_rollback_updates_proposal_and_appends_history(tmp_path: Pat
     assert rows[-1]["approval_status"] == "rolled_back"
     assert rows[-1]["change_reason"] == "demo 손절률 악화로 되돌림"
     assert rows[-1]["rollback_detail"]["target"] == "demo"
+class StubTelegramGateway:
+    def __init__(self) -> None:
+        self.messages: list[str] = []
+
+    def send_message(self, message: str) -> None:
+        self.messages.append(message)
+

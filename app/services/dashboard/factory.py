@@ -57,7 +57,9 @@ def build_dashboard_services(
     dashboard_recovery_facade: DashboardRecoveryFacade | None = None,
 ) -> DashboardServices:
     summary_service = dashboard_summary_service or DashboardSummaryService()
-    market_service = dashboard_market_service or DashboardMarketService()
+    market_service = dashboard_market_service or DashboardMarketService(
+        learning_service=learning_service,
+    )
     executions_service = dashboard_executions_service or DashboardExecutionsService()
     positions_service = dashboard_positions_service or DashboardPositionsService()
     learning_dashboard_service = dashboard_learning_service or DashboardLearningService()

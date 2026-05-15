@@ -32,6 +32,7 @@ def test_model_training_readiness_reports_not_ready_when_result_labels_are_missi
     ).build()
 
     assert readiness["status"] == "not_ready"
+    assert readiness["completion_percent"] == 30
     assert readiness["gaps"] == {
         "total_events": 1,
         "fill_events": 1,
@@ -85,5 +86,7 @@ def test_model_training_readiness_reports_ready_when_thresholds_are_met(tmp_path
     ).build()
 
     assert readiness["status"] == "ready"
+    assert readiness["completion_rate"] == 1.0
+    assert readiness["completion_percent"] == 100
     assert readiness["gaps"] == {}
     assert "오프라인 학습 파이프라인" in readiness["recommended_next_step"]

@@ -28,7 +28,7 @@ class SettingsModel(BaseModel):
     rule_change_max_params_per_run: int = Field(default=3)
     rule_change_apply_target: str = Field(default="demo")
     rule_change_require_manual_approval: bool = Field(default=True)
-    auto_rule_update_enabled: bool = Field(default=False)
+    auto_rule_update_enabled: bool = Field(default=True)
     auto_rule_update_min_learning_completion_rate: float = Field(default=1.0)
     auto_rule_update_win_rate_skip_threshold: float = Field(default=0.80)
     external_context_enabled: bool = Field(default=True)
@@ -299,7 +299,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "rule_change_require_manual_approval": _parse_bool(
             _setting("RULE_CHANGE_REQUIRE_MANUAL_APPROVAL", "true", env_values),
         ),
-        "auto_rule_update_enabled": _parse_bool(_setting("AUTO_RULE_UPDATE_ENABLED", "false", env_values)),
+        "auto_rule_update_enabled": _parse_bool(_setting("AUTO_RULE_UPDATE_ENABLED", "true", env_values)),
         "auto_rule_update_min_learning_completion_rate": float(
             _setting("AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE", "1.0", env_values),
         ),

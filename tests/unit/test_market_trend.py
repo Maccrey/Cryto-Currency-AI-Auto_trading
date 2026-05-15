@@ -1,3 +1,4 @@
+from app.services.learning.service import LearningEvent
 from app.services.market.store import MarketPriceStore
 from app.services.market.trend import MarketTrendClassifier
 
@@ -43,3 +44,29 @@ def test_market_trend_classifier_marks_bull_and_bear() -> None:
     assert bull.market_state_label == "상승장"
     assert bear.market_state == "bear"
     assert bear.market_state_label == "하락장"
+
+
+def test_market_trend_classifier_uses_learning_data_when_price_is_box() -> None:
+    store = MarketPriceStore()
+    store.save(market="KRW-XRP", price=800.0)
+    store.save(market="KRW-XRP", price=801.0)
+    learning_events = [
+        LearningEvent(
+            event_name="auto_trade_cycle",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"market_state": "bull", "status": "filled"},
+        )
+        for _ in range(6)
+    ]
+
+    trend = MarketTrendClassifier().classify(
+        current_price=801.0,
+        history=store.list_history("KRW-XRP"),
+        learning_events=learning_events,
+    )
+
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
+    assert trend.learning_sample_count == 6
+    assert trend.source == "learning_data"

@@ -173,6 +173,9 @@ DASHBOARD_HTML = """
     .context-value.usd-price { font-size: 26px; line-height: 1.15; font-weight: 800; }
     .context-value.usd-price span { font-size: 13px; line-height: 1.3; font-weight: 800; }
     .context-value.usd-price .krw-price { display: inline-block; margin-top: 4px; font-size: 13px; line-height: 1.3; color: var(--text); }
+    .profit-chart { width: 100%; height: 180px; display: block; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+    .profit-chart polyline { fill: none; stroke: var(--primary); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .profit-chart .axis { stroke: var(--border); stroke-width: 1; }
     .legend { margin-top: 12px; }
     .legend-toggle { margin-top: 12px; }
     .legend-panel { display: none; }
@@ -266,6 +269,12 @@ DASHBOARD_HTML = """
       <div id="pnlMetric" class="metric">-</div>
       <div id="pnlSub" class="sub">-</div>
     </div>
+  </section>
+
+  <section class="card">
+    <h2>24시간 수익률</h2>
+    <svg id="profitRateChart" class="profit-chart" viewBox="0 0 720 180" role="img" aria-label="24시간 수익률 선그래프"></svg>
+    <div id="profitRateChartSub" class="sub">-</div>
   </section>
 
   <section class="card">
@@ -747,6 +756,35 @@ function deriveInvestmentValue(summary, market) {
   };
 }
 
+function renderProfitRateChart(points) {
+  const svg = document.getElementById("profitRateChart");
+  const sub = document.getElementById("profitRateChartSub");
+  const data = Array.isArray(points) ? points.filter((item) => Number.isFinite(Number(item.profit_rate))) : [];
+  if (!data.length) {
+    svg.innerHTML = '<line class="axis" x1="24" y1="90" x2="696" y2="90"></line>';
+    sub.textContent = "최근 24시간 수익률 데이터가 아직 없습니다.";
+    return;
+  }
+  const values = data.map((item) => Number(item.profit_rate));
+  const minValue = Math.min(...values, -0.001);
+  const maxValue = Math.max(...values, 0.001);
+  const span = Math.max(maxValue - minValue, 0.001);
+  const width = 672;
+  const height = 128;
+  const left = 24;
+  const top = 24;
+  const coords = data.map((item, index) => {
+    const x = left + (data.length <= 1 ? width : (index / (data.length - 1)) * width);
+    const y = top + height - ((Number(item.profit_rate) - minValue) / span) * height;
+    return `${number(x, 1)},${number(y, 1)}`;
+  }).join(" ");
+  const zeroY = top + height - ((0 - minValue) / span) * height;
+  svg.innerHTML = `<line class="axis" x1="24" y1="${number(zeroY, 1)}" x2="696" y2="${number(zeroY, 1)}"></line><polyline points="${coords}"></polyline>`;
+  const latest = values[values.length - 1];
+  const target = 0.005;
+  sub.textContent = `최근 값 ${percent(latest)} / 일 목표 ${percent(target)}`;
+}
+
 async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url} ${response.status}`);
@@ -1179,6 +1217,7 @@ function renderDashboard(data) {
   document.getElementById("winRateSub").textContent = winRate === null ? "완료된 거래 손익 기록이 쌓이면 표시됩니다." : "현재 기록 기준 수익 거래 비율입니다.";
   document.getElementById("pnlMetric").textContent = `${number(summary.realized_pnl, 2)} KRW`;
   document.getElementById("pnlSub").textContent = `미실현 손익 ${number(summary.unrealized_pnl, 2)} KRW, 매수 ${summary.buy_count || 0}건, 매도 ${summary.sell_count || 0}건`;
+  renderProfitRateChart(summary.profit_rate_series_24h || []);
   const aiState = deriveAiState({health, summary, market, executions});
   document.getElementById("aiState").innerHTML = aiBadge(aiState.ai[0], aiState.ai[1]);
   document.getElementById("autoTradingState").innerHTML = aiBadge(aiState.trading[0], aiState.trading[1]);

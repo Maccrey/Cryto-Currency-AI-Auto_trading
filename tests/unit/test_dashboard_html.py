@@ -6,6 +6,11 @@ def test_dashboard_price_card_labels_market_state_and_box_range() -> None:
     assert "market.market_state === \"box\"" in DASHBOARD_HTML
     assert "${market.market_state_label || \"박스권\"}" in DASHBOARD_HTML
     assert "${price(market.box_range_low)}~${price(market.box_range_high)}" in DASHBOARD_HTML
+
+
+def test_dashboard_includes_24h_profit_rate_chart() -> None:
+    assert 'id="profitRateChart"' in DASHBOARD_HTML
+    assert "renderProfitRateChart" in DASHBOARD_HTML
     assert "`${market.market || marketLabel} <span" not in DASHBOARD_HTML
 
 
