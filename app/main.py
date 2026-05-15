@@ -481,6 +481,7 @@ def create_app(
                 else auto_trading_service.started_at().isoformat()
             ),
             "uptime_sec": auto_trading_service.uptime_sec() if running else None,
+            "last_cycle": auto_trading_service.last_cycle(),
             "message": message,
         }
 

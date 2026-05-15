@@ -14,6 +14,18 @@ def test_dashboard_includes_24h_profit_rate_chart() -> None:
     assert "`${market.market || marketLabel} <span" not in DASHBOARD_HTML
 
 
+def test_dashboard_includes_exchange_simulation_and_demo_rule_variants() -> None:
+    assert "코인거래소 시뮬레이션" in DASHBOARD_HTML
+    assert "AI-A" in DASHBOARD_HTML
+    assert "AI-R" in DASHBOARD_HTML
+    assert "AI-X" in DASHBOARD_HTML
+    assert "데모 룰 A/B/C 내부 테스트" in DASHBOARD_HTML
+    assert 'id="ruleVariantBoard"' in DASHBOARD_HTML
+    assert "function renderExchangeSimulation" in DASHBOARD_HTML
+    assert "tradingStatus.last_cycle" in DASHBOARD_HTML
+    assert "variant.selected_key" in DASHBOARD_HTML
+
+
 def test_dashboard_price_card_renders_change_on_separate_small_line() -> None:
     assert 'id="priceChange" class="price-change-line"' in DASHBOARD_HTML
     assert ".price-change-line { font-size: 11px;" in DASHBOARD_HTML

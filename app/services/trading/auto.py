@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -17,6 +17,7 @@ from app.services.recovery.orchestrator import BootState
 from app.services.trading.decision import TradeDecisionRequest, TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
+from app.services.trading.variants import DemoRuleVariantSelector
 from app.services.position.exit import PositionExitService
 from app.services.risk.reentry import ReentryBlocker
 
@@ -94,6 +95,8 @@ class AutoTradingService:
         self._demo_avg_buy_price = 0.0 if portfolio is None else portfolio.avg_buy_price
         self._consecutive_entry_blocks = 0
         self._reentry_blocker = ReentryBlocker(block_seconds=config.reentry_block_seconds)
+        self._demo_rule_variant_selector = DemoRuleVariantSelector()
+        self._last_cycle: dict[str, object] | None = None
 
     def should_run(self) -> bool:
         if not self._config.enabled:
@@ -122,6 +125,9 @@ class AutoTradingService:
         if started_at is None:
             return None
         return max(int((self._clock() - started_at).total_seconds()), 0)
+
+    def last_cycle(self) -> dict[str, object] | None:
+        return dict(self._last_cycle) if self._last_cycle is not None else None
 
     def reset_demo_portfolio(self) -> dict[str, object]:
         if self._trading_mode != "demo":
@@ -230,6 +236,9 @@ class AutoTradingService:
 
         request = self._build_decision_request(snapshot.trade_price)
         decision = self._trade_decision_service.evaluate(request)
+        variant_payload = self._select_demo_rule_variant(decision=decision, current_price=snapshot.trade_price)
+        if variant_payload is not None:
+            decision = variant_payload["decision"]
         reentry_decision = self._reentry_blocker.check(
             market=self._market,
             now=int(self._clock().timestamp()),
@@ -254,8 +263,12 @@ class AutoTradingService:
             decision = self._trade_decision_service.evaluate(
                 self._build_decision_request(snapshot.trade_price, relax_fee_edge=True),
             )
+            variant_payload = self._select_demo_rule_variant(decision=decision, current_price=snapshot.trade_price)
+            if variant_payload is not None:
+                decision = variant_payload["decision"]
         if decision.signal.level == "weak" and not relaxed_signal:
             self._consecutive_entry_blocks += 1
+            rule_variant = self._variant_extra(variant_payload)
             return self._record_cycle(
                 status="blocked",
                 reason="AUTO_MIN_SIGNAL_LEVEL",
@@ -271,9 +284,11 @@ class AutoTradingService:
                 "market_state_label": decision.regime.market_state_label,
                 "box_range_low": decision.regime.box_range_low,
                 "box_range_high": decision.regime.box_range_high,
+                **rule_variant,
             },
         )
         if self._trading_mode == "demo" and not self._can_afford_demo_buy(decision.sizing.buy_amount):
+            rule_variant = self._variant_extra(variant_payload)
             return self._record_cycle(
                 status="blocked",
                 reason="DEMO_CASH_LIMIT",
@@ -287,6 +302,7 @@ class AutoTradingService:
                 "box_range_low": decision.regime.box_range_low,
                 "box_range_high": decision.regime.box_range_high,
                 "cash_balance": self._portfolio_state().cash_balance,
+                **rule_variant,
             },
         )
         execution_result = self._trade_execution_service.execute(decision)
@@ -316,6 +332,7 @@ class AutoTradingService:
                 "box_range_high": decision.regime.box_range_high,
                 "no_trade_relaxed": relaxed_signal,
                 "post_fill_position_opened": post_fill_result.position is not None,
+                **self._variant_extra(variant_payload),
             },
         )
 
@@ -412,6 +429,64 @@ class AutoTradingService:
         estimated_total_cost = buy_amount * (1 + self._config.trading_fee_rate)
         return estimated_total_cost <= self._demo_cash_balance + 1e-6
 
+    def _select_demo_rule_variant(self, *, decision, current_price: float) -> dict[str, object] | None:
+        if self._trading_mode != "demo":
+            return None
+        selection = self._demo_rule_variant_selector.select(
+            decision=decision,
+            recent_events=self._learning_service.recent_events(limit=120),
+        )
+        adjusted = decision
+        if decision.sizing.allowed:
+            variant = selection.selected
+            buy_amount = round(decision.sizing.buy_amount * variant.buy_multiplier, 1)
+            buy_ratio = round(decision.sizing.buy_ratio * variant.buy_multiplier, 3)
+            buy_quantity = round(buy_amount / current_price, 4) if current_price > 0 else 0.0
+            sell_ratio = round(decision.sizing.sell_ratio * variant.sell_multiplier, 3)
+            sell_quantity = round(decision.sizing.sell_quantity * variant.sell_multiplier, 8)
+            sell_amount = round(sell_quantity * current_price, 1) if current_price > 0 else 0.0
+            adjusted = replace(
+                decision,
+                sizing=replace(
+                    decision.sizing,
+                    buy_ratio=buy_ratio,
+                    buy_amount=buy_amount,
+                    buy_quantity=buy_quantity,
+                    sell_ratio=sell_ratio,
+                    sell_quantity=sell_quantity,
+                    sell_amount=sell_amount,
+                ),
+            )
+        return {
+            "decision": adjusted,
+            "selection": selection.to_payload(),
+        }
+
+    @staticmethod
+    def _variant_extra(variant_payload: dict[str, object] | None) -> dict[str, object]:
+        if variant_payload is None:
+            return {}
+        selection = variant_payload["selection"]
+        if not isinstance(selection, dict):
+            return {}
+        expected_return_hint = 0.0
+        scores = selection.get("scores")
+        if isinstance(scores, list):
+            for score in scores:
+                if not isinstance(score, dict):
+                    continue
+                variant = score.get("variant")
+                if isinstance(variant, dict) and variant.get("key") == selection.get("selected_key"):
+                    expected_return_hint = float(score.get("expected_return_hint", 0.0) or 0.0)
+                    break
+        return {
+            "rule_variant": selection,
+            "rule_variant_key": selection.get("selected_key"),
+            "rule_variant_label": selection.get("selected_label"),
+            "rule_variant_reason": selection.get("reason"),
+            "rule_variant_expected_return_hint": expected_return_hint,
+        }
+
     def _scale_in_allowed(self, *, position, current_price: float) -> bool:
         if not self._config.scale_in_enabled:
             return False
@@ -474,6 +549,7 @@ class AutoTradingService:
             payload["external_context"] = external_context
         if extra is not None:
             payload.update(extra)
+        self._last_cycle = dict(payload)
         self._learning_service.record(
             LearningEvent(
                 event_name="auto_trade_cycle",

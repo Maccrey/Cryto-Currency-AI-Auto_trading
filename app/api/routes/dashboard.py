@@ -173,6 +173,25 @@ DASHBOARD_HTML = """
     .context-value.usd-price { font-size: 26px; line-height: 1.15; font-weight: 800; }
     .context-value.usd-price span { font-size: 13px; line-height: 1.3; font-weight: 800; }
     .context-value.usd-price .krw-price { display: inline-block; margin-top: 4px; font-size: 13px; line-height: 1.3; color: var(--text); }
+    .exchange-sim { display: grid; grid-template-columns: 1fr 1.15fr; gap: 12px; align-items: stretch; }
+    .exchange-stage { min-height: 240px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 14px; display: grid; gap: 12px; }
+    .ticker-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .ticker-cell { min-height: 58px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+    .ticker-label { color: var(--muted); font-size: 11px; font-weight: 800; }
+    .ticker-value { margin-top: 4px; font-size: 15px; font-weight: 900; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .ai-crew { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .agent-card { min-height: 126px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .agent-avatar { width: 46px; height: 46px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--soft); color: var(--text); font-size: 13px; font-weight: 900; border: 1px solid var(--border); }
+    .agent-title { font-size: 13px; font-weight: 900; }
+    .agent-status { color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .variant-board { min-height: 240px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 14px; }
+    .variant-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .variant-card { min-height: 142px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px; }
+    .variant-card.active { border-color: #f97316; box-shadow: inset 0 0 0 2px rgba(249, 115, 22, 0.28); }
+    .variant-title { font-size: 14px; font-weight: 900; }
+    .variant-score { margin-top: 8px; font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; }
+    .variant-desc { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .variant-reason { margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.45; white-space: pre-line; }
     .profit-chart { width: 100%; height: 180px; display: block; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .profit-chart polyline { fill: none; stroke: var(--primary); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
     .profit-chart .axis { stroke: var(--border); stroke-width: 1; }
@@ -206,10 +225,11 @@ DASHBOARD_HTML = """
     .hidden { display: none !important; }
     @media (max-width: 900px) {
       .grid, .ai-grid, .rule-grid, .context-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .exchange-sim { grid-template-columns: 1fr; }
       .panel { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
-      .grid, .section-grid, .rule-grid, .context-grid { grid-template-columns: 1fr; }
+      .grid, .section-grid, .rule-grid, .context-grid, .ticker-strip, .ai-crew, .variant-grid { grid-template-columns: 1fr; }
       .wrap { padding-left: 14px; padding-right: 14px; }
     }
   </style>
@@ -275,6 +295,33 @@ DASHBOARD_HTML = """
     <h2>24시간 수익률</h2>
     <svg id="profitRateChart" class="profit-chart" viewBox="0 0 720 180" role="img" aria-label="24시간 수익률 선그래프"></svg>
     <div id="profitRateChartSub" class="sub">-</div>
+  </section>
+
+  <section class="card">
+    <h2>코인거래소 시뮬레이션</h2>
+    <div class="exchange-sim">
+      <div class="exchange-stage">
+        <div class="ticker-strip">
+          <div class="ticker-cell"><div class="ticker-label">현재가</div><div id="simTickerPrice" class="ticker-value">-</div></div>
+          <div class="ticker-cell"><div class="ticker-label">장세</div><div id="simTickerRegime" class="ticker-value">-</div></div>
+          <div class="ticker-cell"><div class="ticker-label">운용상태</div><div id="simTickerAction" class="ticker-value">-</div></div>
+        </div>
+        <div class="ai-crew">
+          <div class="agent-card"><div class="agent-avatar">AI-A</div><div class="agent-title">분석 AI</div><div id="agentAnalysis" class="agent-status">-</div></div>
+          <div class="agent-card"><div class="agent-avatar">AI-R</div><div class="agent-title">리스크 AI</div><div id="agentRisk" class="agent-status">-</div></div>
+          <div class="agent-card"><div class="agent-avatar">AI-X</div><div class="agent-title">실행 AI</div><div id="agentExecution" class="agent-status">-</div></div>
+        </div>
+      </div>
+      <div class="variant-board">
+        <h2>데모 룰 A/B/C 내부 테스트</h2>
+        <div id="ruleVariantBoard" class="variant-grid">
+          <div class="variant-card"><div class="variant-title">룰 A</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
+          <div class="variant-card"><div class="variant-title">룰 B</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
+          <div class="variant-card"><div class="variant-title">룰 C</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
+        </div>
+        <div id="ruleVariantReason" class="variant-reason">데모 모드에서 매매 판단이 실행되면 최근 학습 테스트 점수와 선택 이유가 표시됩니다.</div>
+      </div>
+    </div>
   </section>
 
   <section class="card">
@@ -610,6 +657,44 @@ function renderTradingRuntime(status) {
   }
   runtime.textContent = `트레이딩 운영시간 : ${formatTradingRuntime(status.uptime_sec)}`;
   runtime.classList.add("visible");
+}
+
+function renderExchangeSimulation({market, tradingStatus, winRate}) {
+  const lastCycle = tradingStatus && tradingStatus.last_cycle ? tradingStatus.last_cycle : {};
+  const variant = lastCycle.rule_variant || {};
+  const scores = Array.isArray(variant.scores) ? variant.scores : [];
+  const statusLabel = tradingStatus && tradingStatus.running ? "자동매매 실행 중" : "자동매매 대기";
+  const actionLabel = lastCycle.status ? `${lastCycle.status}${lastCycle.reason ? " / " + lastCycle.reason : ""}` : statusLabel;
+
+  document.getElementById("simTickerPrice").textContent = market.current_price === undefined ? "-" : price(market.current_price);
+  document.getElementById("simTickerRegime").textContent = market.market_state_label || "-";
+  document.getElementById("simTickerAction").textContent = actionLabel;
+  document.getElementById("agentAnalysis").textContent = lastCycle.signal_level
+    ? `신호 ${lastCycle.signal_level}, 점수 ${number(lastCycle.signal_score || 0, 3)}`
+    : "가격, 거래량, 장세 데이터를 수집 중입니다.";
+  document.getElementById("agentRisk").textContent = `장세 ${market.market_state_label || "-"}, 성공률 ${percent(winRate)}`;
+  document.getElementById("agentExecution").textContent = variant.selected_label
+    ? `${variant.selected_label} 적용, 주문금액 ${number(lastCycle.buy_amount || 0, 0)} KRW`
+    : "데모 룰 테스트 결과를 기다리는 중입니다.";
+
+  const fallback = [
+    {variant: {key: "A", label: "룰 A 안정형", description: "기본 신호를 그대로 사용"}, score: null, expected_return_hint: null},
+    {variant: {key: "B", label: "룰 B 추세형", description: "상승 추세에서 주문 크기 확대"}, score: null, expected_return_hint: null},
+    {variant: {key: "C", label: "룰 C 방어형", description: "하락장과 박스권에서 방어"}, score: null, expected_return_hint: null}
+  ];
+  const rows = scores.length ? scores : fallback;
+  document.getElementById("ruleVariantBoard").innerHTML = rows.map((item) => {
+    const rule = item.variant || {};
+    const active = rule.key && rule.key === variant.selected_key ? " active" : "";
+    const scoreText = item.score === null || item.score === undefined ? "-" : number(item.score, 3);
+    const hintText = item.expected_return_hint === null || item.expected_return_hint === undefined ? "기대수익 대기" : `기대수익 ${percent(item.expected_return_hint)}`;
+    return `<div class="variant-card${active}">
+      <div class="variant-title">${rule.label || "룰"}</div>
+      <div class="variant-score">${scoreText}</div>
+      <div class="variant-desc">${hintText}<br>${rule.description || ""}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("ruleVariantReason").textContent = variant.reason || "데모 모드에서 매매 판단이 실행되면 최근 학습 테스트 점수와 선택 이유가 표시됩니다.";
 }
 
 function aiBadge(label, className) {
@@ -1184,6 +1269,7 @@ function renderDashboard(data) {
 
   document.getElementById("statusLine").innerHTML = `${readyBadge} ${learningBadge}`;
   renderTradingRuntime(tradingStatus);
+  renderExchangeSimulation({market, tradingStatus, winRate});
   document.getElementById("modeMetric").textContent = String(summary.trading_mode || health.mode).toUpperCase();
   const profileLabel = summary.trading_profile_label || summary.trading_profile || "단타";
   const modeDescription = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";

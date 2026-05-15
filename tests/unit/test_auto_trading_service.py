@@ -193,6 +193,9 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert portfolio.cash_balance < 1_000_000.0
     assert portfolio.asset_balance > 0.0
     assert portfolio.avg_buy_price > 0.0
+    assert result["rule_variant_key"] in {"A", "B", "C"}
+    assert result["rule_variant"]["selected_label"].startswith("룰 ")
+    assert service.last_cycle()["rule_variant_key"] == result["rule_variant_key"]
 
 
 def test_auto_trading_service_can_scale_in_after_pullback_with_signal(tmp_path: Path) -> None:
@@ -262,6 +265,7 @@ def test_auto_trading_service_submits_live_buy_after_signal_when_live_enabled(tm
     assert gateway.order_calls[0]["market"] == "KRW-XRP"
     assert gateway.order_calls[0]["side"] == "buy"
     assert gateway.order_calls[0]["order_type"] == "market"
+    assert "rule_variant_key" not in result
 
 
 def test_auto_trading_service_allows_medium_scalping_entries(tmp_path: Path) -> None:
