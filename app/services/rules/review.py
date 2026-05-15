@@ -159,7 +159,13 @@ class RuleReviewService:
 
         review_response = self.review()
         review = review_response["review"]
-        auto_gate_reasons = [] if force else self._auto_update_gate_reasons(review)
+        auto_gate_reasons = self._auto_update_gate_reasons(review)
+        if force:
+            auto_gate_reasons = [
+                reason
+                for reason in auto_gate_reasons
+                if reason != "learning_completion_incomplete"
+            ]
         steps.append(
             {
                 "name": "Codex CLI 룰 개선 하네스 시작",

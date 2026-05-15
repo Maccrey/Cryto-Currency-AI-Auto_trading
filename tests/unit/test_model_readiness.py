@@ -43,6 +43,13 @@ def test_model_training_readiness_reports_not_ready_when_result_labels_are_missi
     assert "tensorflow" in readiness["planned_packages"]
 
 
+def test_model_training_readiness_default_fill_threshold_supports_faster_response(tmp_path: Path) -> None:
+    readiness = ModelTrainingReadinessService(log_dir=tmp_path).build()
+
+    assert readiness["required"]["fill_events"] == 60
+    assert readiness["required"]["exit_events"] == 20
+
+
 def test_model_training_readiness_reports_ready_when_thresholds_are_met(tmp_path: Path) -> None:
     learning_service = LearningService(log_dir=tmp_path)
     learning_service.record_many(
@@ -90,3 +97,36 @@ def test_model_training_readiness_reports_ready_when_thresholds_are_met(tmp_path
     assert readiness["completion_percent"] == 100
     assert readiness["gaps"] == {}
     assert "오프라인 학습 파이프라인" in readiness["recommended_next_step"]
+
+
+def test_model_training_readiness_resets_after_auto_rule_update_marker(tmp_path: Path) -> None:
+    learning_service = LearningService(log_dir=tmp_path)
+    learning_service.record_many(
+        [
+            LearningEvent(event_name="signal_generated", market="KRW-XRP", mode="demo", payload={"level": "strong"}),
+            LearningEvent(event_name="fill_result", market="KRW-XRP", mode="demo", payload={"side": "buy"}),
+            LearningEvent(
+                event_name="auto_rule_update",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"status": "completed", "reset_learning_completion": True},
+            ),
+            LearningEvent(event_name="signal_generated", market="KRW-XRP", mode="demo", payload={"level": "medium"}),
+        ],
+    )
+
+    readiness = ModelTrainingReadinessService(
+        log_dir=tmp_path,
+        thresholds=ModelTrainingThresholds(
+            min_total_events=2,
+            min_signal_events=1,
+            min_fill_events=1,
+            min_exit_events=1,
+            min_blocked_cycles=1,
+        ),
+    ).build()
+
+    assert readiness["completion_scope"] == "since_last_auto_rule_update"
+    assert readiness["metrics"]["total_events"] == 1
+    assert readiness["metrics"]["fill_events"] == 0
+    assert readiness["completion_percent"] == 30

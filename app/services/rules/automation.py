@@ -50,12 +50,24 @@ class AutoRuleUpdateService:
             return {"status": "failed", "reason": str(exc), "completion_rate": 1.0}
         finally:
             self._running = False
-        if result.get("status") in {"completed", "needs_retry"}:
+        proposal = result.get("proposal")
+        rejection_reasons = (
+            proposal.get("rejection_reasons", [])
+            if isinstance(proposal, dict)
+            else []
+        )
+        reset_learning_completion = self._should_reset_learning_completion(
+            status=str(result.get("status", "")),
+            rejection_reasons=[str(reason) for reason in rejection_reasons],
+        )
+        if reset_learning_completion:
             self._last_applied_readiness_key = readiness_key
         return {
             "status": result.get("status", "unknown"),
             "reason": None,
             "completion_rate": 1.0,
+            "reset_learning_completion": reset_learning_completion,
+            "rule_changed": bool(isinstance(proposal, dict) and proposal.get("demo_applied")),
             "result": result,
         }
 
@@ -65,3 +77,13 @@ class AutoRuleUpdateService:
         if not isinstance(metrics, dict):
             return "unknown"
         return "|".join(f"{key}={metrics.get(key, 0)}" for key in sorted(metrics))
+
+    @staticmethod
+    def _should_reset_learning_completion(
+        *,
+        status: str,
+        rejection_reasons: list[str],
+    ) -> bool:
+        if status == "completed":
+            return True
+        return "win_rate_above_auto_update_threshold" in rejection_reasons

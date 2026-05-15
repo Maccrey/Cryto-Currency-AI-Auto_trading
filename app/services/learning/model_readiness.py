@@ -9,11 +9,11 @@ from typing import Any
 
 @dataclass(frozen=True)
 class ModelTrainingThresholds:
-    min_total_events: int = 10_000
-    min_signal_events: int = 2_000
-    min_fill_events: int = 300
-    min_exit_events: int = 100
-    min_blocked_cycles: int = 300
+    min_total_events: int = 2_000
+    min_signal_events: int = 400
+    min_fill_events: int = 60
+    min_exit_events: int = 20
+    min_blocked_cycles: int = 80
 
 
 class ModelTrainingReadinessService:
@@ -29,7 +29,9 @@ class ModelTrainingReadinessService:
         self._thresholds = thresholds or ModelTrainingThresholds()
 
     def build(self) -> dict[str, object]:
-        rows = self._read_rows()
+        all_rows = self._read_rows()
+        reset_index = self._last_completion_reset_index(all_rows)
+        rows = all_rows[reset_index + 1 :] if reset_index is not None else all_rows
         counts = Counter(str(row.get("event_name")) for row in rows)
         auto_cycles = [row for row in rows if row.get("event_name") == "auto_trade_cycle"]
         blocked_cycles = [
@@ -65,6 +67,8 @@ class ModelTrainingReadinessService:
             "gaps": gaps,
             "completion_rate": completion_rate,
             "completion_percent": int(completion_rate * 100),
+            "completion_reset_at": None if reset_index is None else all_rows[reset_index].get("recorded_at"),
+            "completion_scope": "since_last_auto_rule_update" if reset_index is not None else "all_learning_logs",
             "recommended_next_step": self._recommended_next_step(gaps),
             "planned_ml_extra": "ml",
             "planned_packages": ["tensorflow", "scikit-learn", "pandas", "pyarrow"],
@@ -98,6 +102,19 @@ class ModelTrainingReadinessService:
             if isinstance(payload, dict):
                 rows.append(payload)
         return rows
+
+    @staticmethod
+    def _last_completion_reset_index(rows: list[dict[str, Any]]) -> int | None:
+        for index in range(len(rows) - 1, -1, -1):
+            row = rows[index]
+            if row.get("event_name") != "auto_rule_update":
+                continue
+            payload = row.get("payload") or {}
+            if not isinstance(payload, dict):
+                continue
+            if bool(payload.get("reset_learning_completion")):
+                return index
+        return None
 
     @staticmethod
     def _recommended_next_step(gaps: dict[str, int]) -> str:

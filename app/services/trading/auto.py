@@ -484,7 +484,7 @@ class AutoTradingService:
         )
         if self._auto_rule_update_service is not None:
             update_result = self._auto_rule_update_service.maybe_run()
-            if update_result.get("status") in {"completed", "needs_retry", "failed"}:
+            if update_result.get("status") in {"completed", "needs_retry", "failed", "blocked"}:
                 self._learning_service.record(
                     LearningEvent(
                         event_name="auto_rule_update",
