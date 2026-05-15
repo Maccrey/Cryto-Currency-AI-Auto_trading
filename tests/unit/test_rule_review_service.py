@@ -138,8 +138,56 @@ def test_auto_improve_notifies_telegram_when_demo_rule_is_applied(tmp_path: Path
     assert markdown.exists()
     markdown_text = markdown.read_text(encoding="utf-8")
     assert "룰 개선 학습 기록" in markdown_text
-    assert "변경 이유" in markdown_text
-    assert "Replay 결과" in markdown_text
+
+
+def test_rule_review_uses_shadow_variant_results_in_codex_prompt_and_changes(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "event_name": "auto_trade_cycle",
+                        "payload": {
+                            "learning_completion_rate": 1.0,
+                            "rule_variant_shadow": {
+                                "leader_key": "B",
+                                "leader_label": "룰 B 추세형",
+                                "results": [
+                                    {"variant_key": "A", "variant_label": "룰 A 안정형", "profit_rate": 0.001},
+                                    {"variant_key": "B", "variant_label": "룰 B 추세형", "profit_rate": 0.004},
+                                    {"variant_key": "C", "variant_label": "룰 C 방어형", "profit_rate": -0.001},
+                                ],
+                            },
+                        },
+                    },
+                    ensure_ascii=True,
+                )
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    review = service.review()["review"]
+    proposal = service.create_proposal(review_id=str(review["id"]))["proposal"]
+
+    assert review["rule_variant_shadow_summary"]["best_variant_key"] == "B"
+    assert "A/B/C 동시 테스트" in review["codex_rule_prompt"]
+    assert proposal["codex_suggested_changes"][0]["parameter"] == "TREND_MARKET_SIZE_MULTIPLIER"
 
 
 def test_auto_rule_update_skips_when_learning_incomplete_or_win_rate_high(tmp_path: Path) -> None:

@@ -81,6 +81,8 @@ class RuleReviewService:
             "learning_completion_rate": metrics["learning_completion_rate"],
             "win_rate": metrics["win_rate"],
             "external_context_summary": metrics["external_context_summary"],
+            "rule_variant_shadow_summary": metrics["rule_variant_shadow_summary"],
+            "codex_rule_prompt": self._build_codex_rule_prompt(metrics),
             "approval_required": self._config.require_manual_approval,
             "created_at": datetime.now(UTC).isoformat(),
         }
@@ -135,6 +137,11 @@ class RuleReviewService:
             "learning_completion_rate": review.get("learning_completion_rate", 0.0),
             "win_rate": review.get("win_rate", 0.0),
             "external_context_summary": review.get("external_context_summary", self._empty_external_context_summary()),
+            "rule_variant_shadow_summary": review.get(
+                "rule_variant_shadow_summary",
+                self._empty_rule_variant_shadow_summary(),
+            ),
+            "codex_rule_prompt": review.get("codex_rule_prompt", ""),
             "codex_suggested_changes": changes,
             "locked_parameters": self._changed_parameters(locked_changes),
             "history_warnings": history_warnings,
@@ -244,6 +251,7 @@ class RuleReviewService:
             "codex_cli": {
                 "mode": "local_harness",
                 "command": "codex rule-improve --from-learning-log --replay --apply-demo",
+                "prompt": review.get("codex_rule_prompt", ""),
             },
             "steps": steps,
             "review": review,
@@ -537,6 +545,10 @@ class RuleReviewService:
                 "external_context_summary",
                 self._empty_external_context_summary(),
             ),
+            "rule_variant_shadow_summary": proposal.get(
+                "rule_variant_shadow_summary",
+                self._empty_rule_variant_shadow_summary(),
+            ),
             "previous_rule_snapshot": self._previous_rule_snapshot(changes),
             "proposed_rule_snapshot": self._proposed_rule_snapshot(changes),
             "changed_parameters": self._changed_parameters(changes),
@@ -596,6 +608,7 @@ class RuleReviewService:
             f"- Replay 결과: {json.dumps(replay_result, ensure_ascii=False, sort_keys=True) if replay_result else '없음'}",
             f"- Demo 적용 결과: {json.dumps(demo_result, ensure_ascii=False, sort_keys=True)}",
             f"- 차단/경고: {', '.join(str(item) for item in history.get('blocked_reason_summary', [])) or '없음'}",
+            f"- A/B/C 동시 테스트: {json.dumps(history.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
             "",
         ]
         with self._learning_md_path.open("a", encoding="utf-8") as file:
@@ -733,6 +746,7 @@ class RuleReviewService:
         blocked_reasons: Counter[str] = Counter()
         sizing_blocked_reasons: Counter[str] = Counter()
         context_samples: list[dict[str, Any]] = []
+        rule_variant_shadow_samples: list[dict[str, Any]] = []
         completion_rates: list[float] = []
         closed_trade_pnls: list[float] = []
         log_path = self._learning_log_dir / "learning.jsonl"
@@ -768,6 +782,9 @@ class RuleReviewService:
                         blocked_reasons.update([str(payload.get("reason"))])
                     if payload.get("sizing_blocked_reason") is not None:
                         sizing_blocked_reasons.update([str(payload.get("sizing_blocked_reason"))])
+                    shadow = payload.get("rule_variant_shadow")
+                    if isinstance(shadow, dict):
+                        rule_variant_shadow_samples.append(shadow)
                 context = payload.get("external_context") if event_name == "auto_trade_cycle" else payload
                 if event_name in {"auto_trade_cycle", "external_market_context_snapshot"} and isinstance(context, dict):
                     context_samples.append(context)
@@ -794,6 +811,7 @@ class RuleReviewService:
             ],
             "no_trade_blocked_count": no_trade_blocked_count,
             "external_context_summary": self._external_context_summary(context_samples),
+            "rule_variant_shadow_summary": self._rule_variant_shadow_summary(rule_variant_shadow_samples),
             "learning_completion_rate": round(max(completion_rates, default=0.0), 3),
             "win_rate": self._win_rate(closed_trade_pnls),
         }
@@ -936,6 +954,57 @@ class RuleReviewService:
         }
 
     @staticmethod
+    def _empty_rule_variant_shadow_summary() -> dict[str, object]:
+        return {
+            "sample_count": 0,
+            "leader_counts": {},
+            "best_variant_key": None,
+            "best_variant_label": None,
+            "avg_profit_rate_by_variant": {},
+            "latest_results": [],
+        }
+
+    @staticmethod
+    def _rule_variant_shadow_summary(samples: list[dict[str, Any]]) -> dict[str, object]:
+        if not samples:
+            return RuleReviewService._empty_rule_variant_shadow_summary()
+        leader_counts: Counter[str] = Counter()
+        profit_rates: dict[str, list[float]] = {}
+        latest_results: list[dict[str, Any]] = []
+        labels: dict[str, str] = {}
+        for sample in samples:
+            leader_key = sample.get("leader_key")
+            if leader_key:
+                leader_counts.update([str(leader_key)])
+            results = sample.get("results")
+            if not isinstance(results, list):
+                continue
+            latest_results = [item for item in results if isinstance(item, dict)]
+            for item in latest_results:
+                key = str(item.get("variant_key") or "")
+                if not key:
+                    continue
+                labels[key] = str(item.get("variant_label") or key)
+                try:
+                    profit_rates.setdefault(key, []).append(float(item.get("profit_rate", 0.0)))
+                except (TypeError, ValueError):
+                    pass
+        avg_profit = {
+            key: round(sum(values) / len(values), 6)
+            for key, values in profit_rates.items()
+            if values
+        }
+        best_key = max(avg_profit, key=avg_profit.get) if avg_profit else None
+        return {
+            "sample_count": len(samples),
+            "leader_counts": dict(leader_counts),
+            "best_variant_key": best_key,
+            "best_variant_label": labels.get(best_key or "", best_key),
+            "avg_profit_rate_by_variant": avg_profit,
+            "latest_results": latest_results,
+        }
+
+    @staticmethod
     def _append_float(values: list[float], value: Any) -> None:
         try:
             values.append(float(value))
@@ -947,6 +1016,9 @@ class RuleReviewService:
 
     def _default_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
         context_changes = self._external_context_proposed_changes(review)
+        shadow_changes = self._rule_variant_shadow_proposed_changes(review)
+        if shadow_changes:
+            return (shadow_changes + context_changes)[: self._config.max_params_per_run]
         if self._is_no_trade_mitigation_candidate(review):
             changes = [
                 {
@@ -1038,6 +1110,68 @@ class RuleReviewService:
                 },
             ]
         return []
+
+    def _rule_variant_shadow_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
+        summary = review.get("rule_variant_shadow_summary")
+        if not isinstance(summary, dict) or int(summary.get("sample_count") or 0) <= 0:
+            return []
+        best_key = str(summary.get("best_variant_key") or "")
+        avg_profit = summary.get("avg_profit_rate_by_variant")
+        if not best_key or not isinstance(avg_profit, dict):
+            return []
+        if best_key == "B":
+            return [
+                {
+                    "file": "app/services/sizing/engine.py",
+                    "parameter": "TREND_MARKET_SIZE_MULTIPLIER",
+                    "current_value": "current_profile",
+                    "proposed_value": "increase_when_bull_signal_strong",
+                    "reason": (
+                        "A/B/C 동시 테스트에서 룰 B 추세형 평균 수익률이 우세해 "
+                        "상승장 강신호 구간의 진입 크기와 익절 보유 시간을 정교화합니다."
+                    ),
+                },
+            ]
+        if best_key == "C":
+            return [
+                {
+                    "file": "app/services/sizing/engine.py",
+                    "parameter": "DEFENSIVE_MARKET_SIZE_MULTIPLIER",
+                    "current_value": "current_profile",
+                    "proposed_value": "reduce_when_box_or_bear",
+                    "reason": (
+                        "A/B/C 동시 테스트에서 룰 C 방어형 평균 수익률이 우세해 "
+                        "박스권/하락장 진입 크기를 줄이고 매도 대응을 빠르게 합니다."
+                    ),
+                },
+            ]
+        if best_key == "A":
+            return [
+                {
+                    "file": "STRATEGY_SPEC.md",
+                    "parameter": "BASELINE_RULE_PREFERENCE",
+                    "current_value": "unknown",
+                    "proposed_value": "keep_baseline_and_reduce_extra_bias",
+                    "reason": "A/B/C 동시 테스트에서 안정형 룰 A가 우세해 과도한 추세/방어 편향을 줄이는 방향을 우선합니다.",
+                },
+            ]
+        return []
+
+    def _build_codex_rule_prompt(self, metrics: dict[str, object]) -> str:
+        return "\n".join(
+            [
+                "너는 이 자동매매 시스템의 매매룰 개선 에이전트다.",
+                "최근 학습 로그, 체결 결과, 차단 사유, 온체인/ETF 컨텍스트, A/B/C 동시 섀도 테스트 결과를 함께 사용한다.",
+                "목표는 하루 0.5% 수익을 무리하게 강제하는 것이 아니라, 손실 제한을 유지하면서 기대수익이 가장 높은 룰을 제안하는 것이다.",
+                "고정 손절 파라미터와 안전장치는 임의로 완화하지 않는다.",
+                f"거래 수: {metrics.get('trade_count', 0)}, 손절 수: {metrics.get('stop_loss_count', 0)}, 승률: {metrics.get('win_rate', 0.0)}",
+                f"차단 사유: {json.dumps(metrics.get('blocked_reason_summary', []), ensure_ascii=False, sort_keys=True)}",
+                f"사이징 차단: {json.dumps(metrics.get('sizing_blocked_reason_summary', []), ensure_ascii=False, sort_keys=True)}",
+                f"외부 컨텍스트: {json.dumps(metrics.get('external_context_summary', {}), ensure_ascii=False, sort_keys=True)}",
+                f"A/B/C 동시 테스트: {json.dumps(metrics.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
+                "제안은 최대 변경 수 제한을 지키고, 변경 이유/기대효과/리스크/replay 검증 기준을 함께 남긴다.",
+            ],
+        )
 
     @staticmethod
     def _float(value: Any, fallback: float) -> float:

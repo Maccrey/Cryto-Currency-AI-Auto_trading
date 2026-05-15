@@ -23,7 +23,8 @@ def test_dashboard_includes_exchange_simulation_and_demo_rule_variants() -> None
     assert 'id="ruleVariantBoard"' in DASHBOARD_HTML
     assert "function renderExchangeSimulation" in DASHBOARD_HTML
     assert "tradingStatus.last_cycle" in DASHBOARD_HTML
-    assert "variant.selected_key" in DASHBOARD_HTML
+    assert "shadow.leader_key" in DASHBOARD_HTML
+    assert "같은 실시간 데이터를 기준으로 A/B/C 가상 포트폴리오를 동시에 테스트" in DASHBOARD_HTML
 
 
 def test_dashboard_price_card_renders_change_on_separate_small_line() -> None:

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from app.services.learning.service import LearningEvent
+from app.services.portfolio.sync import PortfolioState
 from app.services.regime.engine import RegimeSnapshot
 from app.services.signals.engine import SignalDecision
 from app.services.signals.features import FeatureSnapshot
 from app.services.sizing.engine import SizingDecision
 from app.services.trading.decision import TradeDecisionResult
-from app.services.trading.variants import DemoRuleVariantSelector
+from app.services.trading.variants import DemoRuleVariantShadowTester
 
 
-def _decision(*, market_state: str, signal_level: str = "strong") -> TradeDecisionResult:
+def _decision(*, market_state: str, signal_level: str = "strong", buy_amount: float = 100_000) -> TradeDecisionResult:
     return TradeDecisionResult(
         features=FeatureSnapshot(
             ret_1s=0.01,
@@ -44,42 +44,45 @@ def _decision(*, market_state: str, signal_level: str = "strong") -> TradeDecisi
             allowed=True,
             order_side="buy",
             buy_ratio=0.2,
-            buy_amount=100_000,
+            buy_amount=buy_amount,
             buy_quantity=100,
+            sell_ratio=0.3,
         ),
     )
 
 
-def test_demo_rule_variant_selector_prefers_trend_rule_in_bull_market() -> None:
-    selector = DemoRuleVariantSelector()
+def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
+    tester = DemoRuleVariantShadowTester()
 
-    selection = selector.select(decision=_decision(market_state="bull"), recent_events=[])
-
-    assert selection.selected.key == "B"
-    assert selection.selected.buy_multiplier > 1.0
-
-
-def test_demo_rule_variant_selector_uses_recent_demo_learning_result() -> None:
-    selector = DemoRuleVariantSelector()
-    recent_events = [
-        LearningEvent(
-            event_name="rule_variant_result",
-            market="KRW-XRP",
-            mode="demo",
-            payload={
-                "status": "filled",
-                "rule_variant_key": "C",
-                "realized_pnl": 1200,
-                "rule_variant_expected_return_hint": 0.012,
-            },
-        )
-        for _ in range(8)
-    ]
-
-    selection = selector.select(
-        decision=_decision(market_state="box", signal_level="weak"),
-        recent_events=recent_events,
+    report = tester.evaluate(
+        decision=_decision(market_state="bull"),
+        current_price=1_000,
+        portfolio=PortfolioState(
+            cash_balance=1_000_000,
+            asset_currency="XRP",
+            asset_balance=0,
+            avg_buy_price=0,
+        ),
     )
 
-    assert selection.selected.key == "C"
-    assert "최근 데모 학습 결과 반영" in selection.reason
+    assert {item["variant_key"] for item in report["results"]} == {"A", "B", "C"}
+    assert report["leader_key"] in {"A", "B", "C"}
+    assert all(item["last_action"] == "buy" for item in report["results"])
+
+
+def test_demo_rule_variant_shadow_tester_compares_profit_rate_after_same_price_move() -> None:
+    tester = DemoRuleVariantShadowTester()
+    portfolio = PortfolioState(
+        cash_balance=1_000_000,
+        asset_currency="XRP",
+        asset_balance=0,
+        avg_buy_price=0,
+    )
+    tester.evaluate(decision=_decision(market_state="bull"), current_price=1_000, portfolio=portfolio)
+
+    report = tester.evaluate(decision=_decision(market_state="bull"), current_price=1_012, portfolio=portfolio)
+
+    results = {item["variant_key"]: item for item in report["results"]}
+    assert results["B"]["profit_rate"] > results["A"]["profit_rate"]
+    assert results["A"]["profit_rate"] > results["C"]["profit_rate"]
+    assert report["leader_key"] == "B"

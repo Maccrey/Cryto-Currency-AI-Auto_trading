@@ -35,6 +35,7 @@ class RecordingLiveOrderGateway:
     def __init__(self) -> None:
         self.precheck_calls: list[dict[str, object]] = []
         self.order_calls: list[dict[str, object]] = []
+        self.order_states: list[str] = ["wait"]
 
     def test_order(self, **kwargs) -> dict[str, object]:
         self.precheck_calls.append(kwargs)
@@ -43,6 +44,24 @@ class RecordingLiveOrderGateway:
     def place_order(self, **kwargs) -> dict[str, object]:
         self.order_calls.append(kwargs)
         return {"uuid": "live-buy-1", "state": "wait"}
+
+    def get_order(self, *, order_id: str) -> dict[str, object]:
+        state = self.order_states.pop(0) if self.order_states else "wait"
+        return {"uuid": order_id, "state": state, "market": "KRW-XRP", "side": "bid"}
+
+
+class PortfolioSyncStub:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def sync(self) -> PortfolioState:
+        self.calls += 1
+        return PortfolioState(
+            cash_balance=900_000.0,
+            asset_currency="XRP",
+            asset_balance=120.0,
+            avg_buy_price=825.0,
+        )
 
 
 class SequenceTickerProvider:
@@ -193,9 +212,9 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert portfolio.cash_balance < 1_000_000.0
     assert portfolio.asset_balance > 0.0
     assert portfolio.avg_buy_price > 0.0
-    assert result["rule_variant_key"] in {"A", "B", "C"}
-    assert result["rule_variant"]["selected_label"].startswith("룰 ")
-    assert service.last_cycle()["rule_variant_key"] == result["rule_variant_key"]
+    assert result["rule_variant_leader_key"] in {"A", "B", "C"}
+    assert {item["variant_key"] for item in result["rule_variant_shadow"]["results"]} == {"A", "B", "C"}
+    assert service.last_cycle()["rule_variant_leader_key"] == result["rule_variant_leader_key"]
 
 
 def test_auto_trading_service_can_scale_in_after_pullback_with_signal(tmp_path: Path) -> None:
@@ -265,7 +284,67 @@ def test_auto_trading_service_submits_live_buy_after_signal_when_live_enabled(tm
     assert gateway.order_calls[0]["market"] == "KRW-XRP"
     assert gateway.order_calls[0]["side"] == "buy"
     assert gateway.order_calls[0]["order_type"] == "market"
-    assert "rule_variant_key" not in result
+    assert "rule_variant_shadow" not in result
+
+
+def test_auto_trading_service_blocks_live_repeat_order_while_order_is_pending(tmp_path: Path) -> None:
+    gateway = RecordingLiveOrderGateway()
+    executor = LiveExecutor(
+        live_order_gateway=gateway,
+        trading_mode="live",
+        safe_mode=False,
+        hard_stop=False,
+    )
+    service = _build_service(
+        tmp_path,
+        [800.0, 806.0, 813.0, 824.0, 825.0],
+        min_history=4,
+        trading_mode="live",
+        executor=executor,
+        live_enabled=True,
+    )
+
+    for _ in range(4):
+        first = service.tick()
+    second = service.tick()
+
+    assert first["status"] == "wait"
+    assert second["status"] == "blocked"
+    assert second["reason"] == "LIVE_ORDER_PENDING"
+    assert second["pending_live_order_id"] == "live-buy-1"
+    assert len(gateway.order_calls) == 1
+
+
+def test_auto_trading_service_resumes_live_after_order_done_and_portfolio_sync(tmp_path: Path) -> None:
+    gateway = RecordingLiveOrderGateway()
+    gateway.order_states = ["done"]
+    executor = LiveExecutor(
+        live_order_gateway=gateway,
+        trading_mode="live",
+        safe_mode=False,
+        hard_stop=False,
+    )
+    sync = PortfolioSyncStub()
+    service = _build_service(
+        tmp_path,
+        [800.0, 806.0, 813.0, 824.0, 825.0],
+        min_history=4,
+        trading_mode="live",
+        executor=executor,
+        live_enabled=True,
+    )
+    service._live_portfolio_sync_service = sync
+
+    for _ in range(4):
+        first = service.tick()
+    second = service.tick()
+
+    assert first["status"] == "wait"
+    assert second["status"] == "blocked"
+    assert second["reason"] == "LIVE_ASSET_WITHOUT_ACTIVE_POSITION"
+    assert sync.calls == 1
+    assert service._portfolio_state().cash_balance == 900_000.0
+    assert len(gateway.order_calls) == 1
 
 
 def test_auto_trading_service_allows_medium_scalping_entries(tmp_path: Path) -> None:

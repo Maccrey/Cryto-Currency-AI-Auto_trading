@@ -51,6 +51,7 @@ from app.services.market.context import (
 )
 from app.services.market.upbit_ticker import UpbitTickerPriceProvider
 from app.services.notification.factory import build_notification_services
+from app.services.portfolio.sync import PortfolioSyncService
 from app.services.dashboard.overlay import StopLossOverlayService
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.exit import PositionExitService
@@ -283,16 +284,20 @@ def create_app(
             initial_cash=float(settings.demo_initial_capital),
             asset_currency=boot_portfolio_state.asset_currency,
         )
-    executor = ExecutionFactory(
-        live_order_gateway=UpbitLiveOrderGateway(
-            rest_client=UpbitRestClient(
-                base_url=settings.upbit_base_url,
-                auth_signer=UpbitAuthSigner(
-                    access_key=settings.upbit_access_key,
-                    secret_key=settings.upbit_secret_key,
-                ),
-            ),
+    live_rest_client = UpbitRestClient(
+        base_url=settings.upbit_base_url,
+        auth_signer=UpbitAuthSigner(
+            access_key=settings.upbit_access_key,
+            secret_key=settings.upbit_secret_key,
         ),
+    )
+    live_order_gateway = UpbitLiveOrderGateway(rest_client=live_rest_client)
+    live_portfolio_sync_service = PortfolioSyncService(
+        upbit_client=live_rest_client,
+        trade_coin=settings.trade_coin,
+    )
+    executor = ExecutionFactory(
+        live_order_gateway=live_order_gateway,
         learning_service=learning_service,
         fee_rate=float(settings.trading_fee_rate),
         order_rules=order_rules,
@@ -394,6 +399,7 @@ def create_app(
         ),
         external_context_provider=external_context_service,
         demo_portfolio_state=demo_portfolio_state,
+        live_portfolio_sync_service=live_portfolio_sync_service,
     )
     app.state.auto_trading_service = auto_trading_service
     rule_review_service = RuleReviewService(

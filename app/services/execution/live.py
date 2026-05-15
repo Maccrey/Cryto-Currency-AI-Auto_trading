@@ -58,6 +58,12 @@ class UpbitLiveOrderGateway:
             ),
         )
 
+    def get_order(self, *, order_id: str) -> dict[str, object]:
+        return self._rest_client.get(
+            "/v1/order",
+            params={"uuid": order_id},
+        )
+
     def _payload(
         self,
         *,
@@ -191,3 +197,24 @@ class LiveExecutor:
             status="blocked",
             blocked_reason=str(response.get("reason", "LIVE_PRECHECK_FAILED")),
         )
+
+    def order_status(self, order_id: str) -> dict[str, object]:
+        get_order = getattr(self._live_order_gateway, "get_order", None)
+        if get_order is None:
+            return {
+                "order_id": order_id,
+                "state": "unknown",
+                "blocked_reason": "LIVE_ORDER_STATUS_UNAVAILABLE",
+            }
+        response = get_order(order_id=order_id)
+        return {
+            "order_id": str(response.get("uuid", order_id)),
+            "state": str(response.get("state", "unknown")),
+            "market": response.get("market"),
+            "side": response.get("side"),
+            "price": response.get("price"),
+            "volume": response.get("volume"),
+            "remaining_volume": response.get("remaining_volume"),
+            "executed_volume": response.get("executed_volume"),
+            "paid_fee": response.get("paid_fee"),
+        }

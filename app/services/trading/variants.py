@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Iterable
 
-from app.services.learning.service import LearningEvent
+from app.services.portfolio.sync import PortfolioState
 from app.services.trading.decision import TradeDecisionResult
 
 
@@ -14,165 +14,228 @@ class DemoRuleVariant:
     description: str
     buy_multiplier: float
     sell_multiplier: float
+    take_profit_pct: float
+    stop_loss_pct: float
 
     def to_payload(self) -> dict[str, object]:
         return asdict(self)
 
 
-@dataclass(frozen=True)
-class DemoRuleVariantScore:
-    variant: DemoRuleVariant
-    score: float
-    expected_return_hint: float
-    reason: str
-
-    def to_payload(self) -> dict[str, object]:
-        return {
-            "variant": self.variant.to_payload(),
-            "score": round(self.score, 4),
-            "expected_return_hint": round(self.expected_return_hint, 4),
-            "reason": self.reason,
-        }
+@dataclass
+class ShadowPortfolio:
+    cash_balance: float
+    asset_balance: float
+    avg_buy_price: float
+    realized_pnl: float = 0.0
+    trade_count: int = 0
+    win_count: int = 0
+    last_action: str = "hold"
 
 
-@dataclass(frozen=True)
-class DemoRuleVariantSelection:
-    selected: DemoRuleVariant
-    scores: list[DemoRuleVariantScore]
-    reason: str
-
-    def to_payload(self) -> dict[str, object]:
-        return {
-            "selected_key": self.selected.key,
-            "selected_label": self.selected.label,
-            "reason": self.reason,
-            "scores": [score.to_payload() for score in self.scores],
-        }
-
-
-class DemoRuleVariantSelector:
-    """Select an A/B/C rule candidate for demo-only shadow learning."""
+class DemoRuleVariantShadowTester:
+    """Run A/B/C rule candidates on the same live tick stream without touching real orders."""
 
     DEFAULT_VARIANTS = (
         DemoRuleVariant(
             key="A",
             label="룰 A 안정형",
-            description="기본 신호를 그대로 쓰고 과열 구간에서 무리하지 않습니다.",
+            description="기본 신호와 기본 익절/손절 폭으로 추적합니다.",
             buy_multiplier=1.0,
             sell_multiplier=1.0,
+            take_profit_pct=0.006,
+            stop_loss_pct=0.004,
         ),
         DemoRuleVariant(
             key="B",
             label="룰 B 추세형",
-            description="상승장과 강한 신호에서 주문 크기를 조금 키웁니다.",
-            buy_multiplier=1.12,
-            sell_multiplier=0.88,
+            description="상승장과 강한 신호에서 진입을 키우고 익절 폭을 넓힙니다.",
+            buy_multiplier=1.18,
+            sell_multiplier=0.82,
+            take_profit_pct=0.009,
+            stop_loss_pct=0.005,
         ),
         DemoRuleVariant(
             key="C",
             label="룰 C 방어형",
-            description="하락장과 박스권에서 보수적으로 진입하고 매도 대응을 빠르게 합니다.",
-            buy_multiplier=0.78,
-            sell_multiplier=1.18,
+            description="하락장과 박스권에서 작게 진입하고 빠르게 줄입니다.",
+            buy_multiplier=0.72,
+            sell_multiplier=1.3,
+            take_profit_pct=0.004,
+            stop_loss_pct=0.003,
         ),
     )
 
-    def __init__(self, variants: Iterable[DemoRuleVariant] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        variants: Iterable[DemoRuleVariant] | None = None,
+        trading_fee_rate: float = 0.0005,
+    ) -> None:
         self._variants = tuple(variants or self.DEFAULT_VARIANTS)
+        self._trading_fee_rate = trading_fee_rate
+        self._portfolios: dict[str, ShadowPortfolio] = {}
+        self._initial_equity: float | None = None
 
-    def select(
+    def evaluate(
         self,
         *,
         decision: TradeDecisionResult,
-        recent_events: Iterable[LearningEvent],
-    ) -> DemoRuleVariantSelection:
-        scores = [
-            self._score_variant(variant, decision=decision, recent_events=recent_events)
+        current_price: float,
+        portfolio: PortfolioState,
+    ) -> dict[str, object]:
+        if current_price <= 0:
+            return self._empty_report()
+        self._ensure_started(portfolio=portfolio, current_price=current_price)
+        results = [
+            self._evaluate_variant(
+                variant=variant,
+                decision=decision,
+                current_price=current_price,
+            )
             for variant in self._variants
         ]
-        selected_score = max(scores, key=lambda item: (item.score, item.variant.key == "A"))
-        reason = (
-            f"{selected_score.variant.label} 선택: "
-            f"{selected_score.reason}, 기대수익 힌트 {selected_score.expected_return_hint:.2%}"
-        )
-        return DemoRuleVariantSelection(
-            selected=selected_score.variant,
-            scores=scores,
-            reason=reason,
-        )
-
-    def _score_variant(
-        self,
-        variant: DemoRuleVariant,
-        *,
-        decision: TradeDecisionResult,
-        recent_events: Iterable[LearningEvent],
-    ) -> DemoRuleVariantScore:
-        base = float(decision.signal.score)
-        market_bonus = self._market_bonus(variant.key, decision.regime.market_state)
-        signal_bonus = self._signal_bonus(variant.key, decision.signal.level)
-        history_bonus = self._history_bonus(variant.key, recent_events)
-        expected_return_hint = max(
-            (base * 0.006) + market_bonus + signal_bonus + history_bonus,
-            -0.02,
-        )
-        score = base + (market_bonus * 12) + (signal_bonus * 10) + (history_bonus * 8)
-        reason = self._reason_for(variant.key, decision.regime.market_state, decision.signal.level, history_bonus)
-        return DemoRuleVariantScore(
-            variant=variant,
-            score=score,
-            expected_return_hint=expected_return_hint,
-            reason=reason,
-        )
-
-    @staticmethod
-    def _market_bonus(variant_key: str, market_state: str) -> float:
-        bonuses = {
-            "A": {"box": 0.0016, "bull": 0.0005, "bear": 0.0008},
-            "B": {"box": -0.0004, "bull": 0.0025, "bear": -0.0018},
-            "C": {"box": 0.0011, "bull": -0.0002, "bear": 0.0022},
+        leader = max(results, key=lambda item: (float(item["profit_rate"]), item["variant_key"] == "A"))
+        return {
+            "leader_key": leader["variant_key"],
+            "leader_label": leader["variant_label"],
+            "leader_reason": self._leader_reason(leader),
+            "results": results,
         }
-        return bonuses.get(variant_key, {}).get(market_state, 0.0)
+
+    def _ensure_started(self, *, portfolio: PortfolioState, current_price: float) -> None:
+        if self._initial_equity is None:
+            self._initial_equity = max(
+                portfolio.cash_balance + (portfolio.asset_balance * current_price),
+                1.0,
+            )
+        for variant in self._variants:
+            self._portfolios.setdefault(
+                variant.key,
+                ShadowPortfolio(
+                    cash_balance=portfolio.cash_balance,
+                    asset_balance=portfolio.asset_balance,
+                    avg_buy_price=portfolio.avg_buy_price,
+                ),
+            )
+
+    def _evaluate_variant(
+        self,
+        *,
+        variant: DemoRuleVariant,
+        decision: TradeDecisionResult,
+        current_price: float,
+    ) -> dict[str, object]:
+        shadow = self._portfolios[variant.key]
+        action = "hold"
+        if shadow.asset_balance > 0:
+            action = self._maybe_shadow_sell(
+                shadow=shadow,
+                variant=variant,
+                decision=decision,
+                current_price=current_price,
+            )
+        elif decision.sizing.allowed and decision.signal.level != "weak":
+            action = self._maybe_shadow_buy(
+                shadow=shadow,
+                variant=variant,
+                decision=decision,
+                current_price=current_price,
+            )
+        shadow.last_action = action
+        equity = shadow.cash_balance + (shadow.asset_balance * current_price)
+        profit_rate = 0.0 if self._initial_equity is None else (equity - self._initial_equity) / self._initial_equity
+        win_rate = None if shadow.trade_count <= 0 else shadow.win_count / shadow.trade_count
+        return {
+            "variant_key": variant.key,
+            "variant_label": variant.label,
+            "description": variant.description,
+            "profit_rate": round(profit_rate, 6),
+            "equity": round(equity, 2),
+            "cash_balance": round(shadow.cash_balance, 2),
+            "asset_balance": round(shadow.asset_balance, 8),
+            "avg_buy_price": round(shadow.avg_buy_price, 8),
+            "realized_pnl": round(shadow.realized_pnl, 2),
+            "trade_count": shadow.trade_count,
+            "win_rate": None if win_rate is None else round(win_rate, 4),
+            "last_action": action,
+            "buy_multiplier": variant.buy_multiplier,
+            "sell_multiplier": variant.sell_multiplier,
+            "take_profit_pct": variant.take_profit_pct,
+            "stop_loss_pct": variant.stop_loss_pct,
+        }
+
+    def _maybe_shadow_buy(
+        self,
+        *,
+        shadow: ShadowPortfolio,
+        variant: DemoRuleVariant,
+        decision: TradeDecisionResult,
+        current_price: float,
+    ) -> str:
+        buy_amount = min(
+            max(decision.sizing.buy_amount * variant.buy_multiplier, 0.0),
+            shadow.cash_balance / (1 + self._trading_fee_rate),
+        )
+        if buy_amount <= 0:
+            return "hold"
+        quantity = round(buy_amount / current_price, 8)
+        fee = buy_amount * self._trading_fee_rate
+        total_cost = (shadow.avg_buy_price * shadow.asset_balance) + buy_amount + fee
+        shadow.asset_balance = round(shadow.asset_balance + quantity, 8)
+        shadow.cash_balance = round(shadow.cash_balance - buy_amount - fee, 2)
+        shadow.avg_buy_price = 0.0 if shadow.asset_balance <= 0 else total_cost / shadow.asset_balance
+        return "buy"
+
+    def _maybe_shadow_sell(
+        self,
+        *,
+        shadow: ShadowPortfolio,
+        variant: DemoRuleVariant,
+        decision: TradeDecisionResult,
+        current_price: float,
+    ) -> str:
+        if shadow.avg_buy_price <= 0:
+            return "hold"
+        profit_pct = (current_price - shadow.avg_buy_price) / shadow.avg_buy_price
+        should_exit = (
+            profit_pct >= variant.take_profit_pct
+            or profit_pct <= -variant.stop_loss_pct
+            or decision.regime.market_state == "bear"
+        )
+        if not should_exit:
+            return "hold"
+        base_sell_ratio = decision.sizing.sell_ratio if decision.sizing.sell_ratio > 0 else 0.35
+        sell_ratio = min(max(base_sell_ratio * variant.sell_multiplier, 0.1), 1.0)
+        quantity = round(shadow.asset_balance * sell_ratio, 8)
+        if quantity <= 0:
+            return "hold"
+        proceeds = quantity * current_price
+        fee = proceeds * self._trading_fee_rate
+        cost_basis = shadow.avg_buy_price * quantity
+        pnl = proceeds - fee - cost_basis
+        shadow.cash_balance = round(shadow.cash_balance + proceeds - fee, 2)
+        shadow.asset_balance = round(max(shadow.asset_balance - quantity, 0.0), 8)
+        if shadow.asset_balance <= 0:
+            shadow.asset_balance = 0.0
+            shadow.avg_buy_price = 0.0
+        shadow.realized_pnl = round(shadow.realized_pnl + pnl, 2)
+        shadow.trade_count += 1
+        if pnl > 0:
+            shadow.win_count += 1
+        return "sell"
 
     @staticmethod
-    def _signal_bonus(variant_key: str, signal_level: str) -> float:
-        if variant_key == "B" and signal_level in {"strong", "very_strong"}:
-            return 0.0015
-        if variant_key == "C" and signal_level == "weak":
-            return 0.0008
-        if variant_key == "A" and signal_level == "medium":
-            return 0.0006
-        return 0.0
+    def _leader_reason(leader: dict[str, object]) -> str:
+        return (
+            f"{leader['variant_label']}이 같은 시세 흐름에서 현재 수익률 "
+            f"{float(leader['profit_rate']):.2%}로 가장 높습니다."
+        )
 
     @staticmethod
-    def _history_bonus(variant_key: str, recent_events: Iterable[LearningEvent]) -> float:
-        bonus = 0.0
-        for event in recent_events:
-            if event.event_name not in {"auto_trade_cycle", "rule_variant_result", "position_exit_completed"}:
-                continue
-            payload = event.payload
-            if payload.get("rule_variant_key") != variant_key:
-                continue
-            pnl = payload.get("realized_pnl", payload.get("pnl"))
-            if isinstance(pnl, (int, float)):
-                bonus += max(min(float(pnl) / 100_000, 0.006), -0.006)
-            if payload.get("status") == "filled":
-                bonus += 0.0004
-            if payload.get("reason") in {"DEMO_CASH_LIMIT", "AUTO_MIN_SIGNAL_LEVEL"}:
-                bonus -= 0.0002
-            profit_hint = payload.get("rule_variant_expected_return_hint")
-            if isinstance(profit_hint, (int, float)):
-                bonus += max(min(float(profit_hint), 0.01), -0.01) * 0.08
-        return max(min(bonus, 0.004), -0.004)
-
-    @staticmethod
-    def _reason_for(variant_key: str, market_state: str, signal_level: str, history_bonus: float) -> str:
-        market_labels = {"bull": "상승장", "bear": "하락장", "box": "박스권"}
-        if variant_key == "B":
-            core = "추세 추종 점수가 높음"
-        elif variant_key == "C":
-            core = "방어적 대응 점수가 높음"
-        else:
-            core = "기본 안정 점수가 높음"
-        history = "최근 데모 학습 결과 반영" if abs(history_bonus) > 0.0001 else "최근 데모 표본 부족"
-        return f"{market_labels.get(market_state, market_state)} / {signal_level} 신호 / {core} / {history}"
+    def _empty_report() -> dict[str, object]:
+        return {
+            "leader_key": None,
+            "leader_label": None,
+            "leader_reason": "현재가가 없어 A/B/C 동시 테스트를 실행하지 못했습니다.",
+            "results": [],
+        }

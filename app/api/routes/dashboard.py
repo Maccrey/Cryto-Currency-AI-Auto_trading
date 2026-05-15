@@ -661,8 +661,8 @@ function renderTradingRuntime(status) {
 
 function renderExchangeSimulation({market, tradingStatus, winRate}) {
   const lastCycle = tradingStatus && tradingStatus.last_cycle ? tradingStatus.last_cycle : {};
-  const variant = lastCycle.rule_variant || {};
-  const scores = Array.isArray(variant.scores) ? variant.scores : [];
+  const shadow = lastCycle.rule_variant_shadow || {};
+  const results = Array.isArray(shadow.results) ? shadow.results : [];
   const statusLabel = tradingStatus && tradingStatus.running ? "자동매매 실행 중" : "자동매매 대기";
   const actionLabel = lastCycle.status ? `${lastCycle.status}${lastCycle.reason ? " / " + lastCycle.reason : ""}` : statusLabel;
 
@@ -673,28 +673,27 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
     ? `신호 ${lastCycle.signal_level}, 점수 ${number(lastCycle.signal_score || 0, 3)}`
     : "가격, 거래량, 장세 데이터를 수집 중입니다.";
   document.getElementById("agentRisk").textContent = `장세 ${market.market_state_label || "-"}, 성공률 ${percent(winRate)}`;
-  document.getElementById("agentExecution").textContent = variant.selected_label
-    ? `${variant.selected_label} 적용, 주문금액 ${number(lastCycle.buy_amount || 0, 0)} KRW`
-    : "데모 룰 테스트 결과를 기다리는 중입니다.";
+  document.getElementById("agentExecution").textContent = shadow.leader_label
+    ? `${shadow.leader_label} 수익률 우세, 실제 주문 룰은 변경하지 않음`
+    : "A/B/C 동시 테스트 결과를 기다리는 중입니다.";
 
   const fallback = [
-    {variant: {key: "A", label: "룰 A 안정형", description: "기본 신호를 그대로 사용"}, score: null, expected_return_hint: null},
-    {variant: {key: "B", label: "룰 B 추세형", description: "상승 추세에서 주문 크기 확대"}, score: null, expected_return_hint: null},
-    {variant: {key: "C", label: "룰 C 방어형", description: "하락장과 박스권에서 방어"}, score: null, expected_return_hint: null}
+    {variant_key: "A", variant_label: "룰 A 안정형", description: "기본 신호를 그대로 사용", profit_rate: null, last_action: "대기"},
+    {variant_key: "B", variant_label: "룰 B 추세형", description: "상승 추세에서 주문 크기 확대", profit_rate: null, last_action: "대기"},
+    {variant_key: "C", variant_label: "룰 C 방어형", description: "하락장과 박스권에서 방어", profit_rate: null, last_action: "대기"}
   ];
-  const rows = scores.length ? scores : fallback;
+  const rows = results.length ? results : fallback;
   document.getElementById("ruleVariantBoard").innerHTML = rows.map((item) => {
-    const rule = item.variant || {};
-    const active = rule.key && rule.key === variant.selected_key ? " active" : "";
-    const scoreText = item.score === null || item.score === undefined ? "-" : number(item.score, 3);
-    const hintText = item.expected_return_hint === null || item.expected_return_hint === undefined ? "기대수익 대기" : `기대수익 ${percent(item.expected_return_hint)}`;
+    const active = item.variant_key && item.variant_key === shadow.leader_key ? " active" : "";
+    const scoreText = item.profit_rate === null || item.profit_rate === undefined ? "-" : percent(item.profit_rate);
+    const actionText = item.last_action ? `최근 ${item.last_action}` : "대기";
     return `<div class="variant-card${active}">
-      <div class="variant-title">${rule.label || "룰"}</div>
+      <div class="variant-title">${item.variant_label || "룰"}</div>
       <div class="variant-score">${scoreText}</div>
-      <div class="variant-desc">${hintText}<br>${rule.description || ""}</div>
+      <div class="variant-desc">${actionText}<br>실현손익 ${number(item.realized_pnl || 0, 0)} KRW<br>${item.description || ""}</div>
     </div>`;
   }).join("");
-  document.getElementById("ruleVariantReason").textContent = variant.reason || "데모 모드에서 매매 판단이 실행되면 최근 학습 테스트 점수와 선택 이유가 표시됩니다.";
+  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "데모 모드에서 같은 실시간 데이터를 기준으로 A/B/C 가상 포트폴리오를 동시에 테스트합니다.";
 }
 
 function aiBadge(label, className) {

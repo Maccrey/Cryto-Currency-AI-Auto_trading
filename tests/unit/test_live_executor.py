@@ -59,6 +59,18 @@ class StubLiveOrderGateway:
             "state": "wait",
         }
 
+    def get_order(self, *, order_id: str) -> dict[str, object]:
+        return {
+            "uuid": order_id,
+            "market": "KRW-XRP",
+            "side": "bid",
+            "state": "done",
+            "volume": "120.5",
+            "remaining_volume": "0",
+            "executed_volume": "120.5",
+            "paid_fee": "49.4",
+        }
+
 
 class StubLearningService:
     def __init__(self) -> None:
@@ -150,6 +162,10 @@ def test_upbit_live_order_gateway_calls_test_and_order_endpoints() -> None:
                 return {"ok": True}
             return {"uuid": "live-order-1", "state": "wait"}
 
+        def get(self, path, *, params):
+            self.calls.append((path, params))
+            return {"uuid": params["uuid"], "state": "done"}
+
     rest_client = RestClientStub()
     gateway = UpbitLiveOrderGateway(rest_client=rest_client)
 
@@ -167,9 +183,11 @@ def test_upbit_live_order_gateway_calls_test_and_order_endpoints() -> None:
         quantity=10.0,
         order_type="market",
     )
+    status = gateway.get_order(order_id="live-order-1")
 
     assert precheck == {"ok": True}
     assert order == {"uuid": "live-order-1", "state": "wait"}
+    assert status == {"uuid": "live-order-1", "state": "done"}
     assert rest_client.calls == [
         (
             "/v1/orders/test",
@@ -190,7 +208,27 @@ def test_upbit_live_order_gateway_calls_test_and_order_endpoints() -> None:
                 "ord_type": "market",
             },
         ),
+        (
+            "/v1/order",
+            {"uuid": "live-order-1"},
+        ),
     ]
+
+
+def test_live_executor_reads_order_status_from_gateway() -> None:
+    gateway = StubLiveOrderGateway()
+    executor = LiveExecutor(
+        live_order_gateway=gateway,
+        trading_mode="live",
+        safe_mode=False,
+        hard_stop=False,
+    )
+
+    status = executor.order_status("live-order-1")
+
+    assert status["order_id"] == "live-order-1"
+    assert status["state"] == "done"
+    assert status["executed_volume"] == "120.5"
 
 
 def test_upbit_live_order_gateway_maps_market_buy_to_price_order() -> None:

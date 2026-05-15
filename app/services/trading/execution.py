@@ -76,6 +76,16 @@ class TradeExecutionService:
             blocked_reason=blocked_reason,
         )
 
+    def order_status(self, order_id: str) -> dict[str, object]:
+        order_status = getattr(self._executor, "order_status", None)
+        if order_status is None:
+            return {
+                "order_id": order_id,
+                "state": "unknown",
+                "blocked_reason": "ORDER_STATUS_UNAVAILABLE",
+            }
+        return order_status(order_id)
+
     @staticmethod
     def to_payload(result: TradeExecutionResult) -> dict[str, object]:
         execution_payload = None
