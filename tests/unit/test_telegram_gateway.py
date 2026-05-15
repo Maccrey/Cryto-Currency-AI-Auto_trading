@@ -61,3 +61,23 @@ def test_telegram_http_gateway_normalizes_group_chat_identity() -> None:
 
     payload = json.loads(calls[0].data.decode("utf-8"))
     assert payload["chat_id"] == "-1003988291151"
+
+
+def test_telegram_http_gateway_prefixes_server_name() -> None:
+    calls = []
+
+    def urlopen(req, timeout, context):
+        calls.append(req)
+        return StubResponse()
+
+    gateway = TelegramHttpGateway(
+        bot_token="token",
+        chat_id="chat",
+        server_name="서울-데모-1",
+        urlopen=urlopen,
+    )
+
+    gateway.send_message("hello")
+
+    payload = json.loads(calls[0].data.decode("utf-8"))
+    assert payload["text"] == "[서울-데모-1]\nhello"

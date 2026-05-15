@@ -52,6 +52,11 @@ def test_dashboard_includes_rule_review_pipeline_panel() -> None:
     assert "renderRuleHistory" in DASHBOARD_HTML
 
 
+def test_settings_includes_server_name_field() -> None:
+    assert 'id="serverName"' in SETTINGS_HTML
+    assert "SERVER_NAME" in SETTINGS_HTML
+
+
 def test_dashboard_includes_external_market_context_panel() -> None:
     assert "온체인/ETF 상황" in DASHBOARD_HTML
     assert 'fetchJson("/dashboard/external-context")' in DASHBOARD_HTML

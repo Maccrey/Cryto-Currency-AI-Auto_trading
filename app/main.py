@@ -147,6 +147,7 @@ def create_app(
         telegram_gateway = TelegramHttpGateway(
             bot_token=settings.telegram_bot_token,
             chat_id=settings.telegram_chat_id,
+            server_name=settings.server_name,
         )
         if trade_fill_notifier is None:
             trade_fill_notifier = TelegramNotifier(gateway=telegram_gateway)

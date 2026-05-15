@@ -57,6 +57,7 @@ class RuleReviewService:
         self._telegram_gateway = telegram_gateway
         self._state_path = self._learning_log_dir / "rule-review-state.json"
         self._history_path = self._learning_log_dir / "rule-change-history.jsonl"
+        self._learning_md_path = self._learning_log_dir / "rule-improvement-learning.md"
         state = self._load_state()
         self._reviews: dict[str, dict[str, Any]] = state["reviews"]
         self._proposals: dict[str, dict[str, Any]] = state["proposals"]
@@ -561,6 +562,44 @@ class RuleReviewService:
             history["review_created_at"] = review.get("created_at")
         with self._history_path.open("a", encoding="utf-8") as file:
             file.write(json.dumps(history, ensure_ascii=True, sort_keys=True) + "\n")
+        self._append_learning_markdown(history)
+
+    def _append_learning_markdown(self, history: dict[str, Any]) -> None:
+        self._learning_log_dir.mkdir(parents=True, exist_ok=True)
+        if not self._learning_md_path.exists():
+            self._learning_md_path.write_text(
+                "\n".join(
+                    [
+                        "# 룰 개선 학습 기록",
+                        "",
+                        "자동 룰 개선 과정의 이유, 검증 결과, 적용 결과를 다음 개선에 참고하기 위해 누적한다.",
+                        "",
+                    ],
+                ),
+                encoding="utf-8",
+            )
+        changed_parameters = history.get("changed_parameters") or []
+        replay_result = history.get("replay_result") or {}
+        demo_result = history.get("demo_result") or {}
+        lines = [
+            f"## {history.get('created_at', '-')}",
+            "",
+            f"- 이벤트: {history.get('event_type', '-')}",
+            f"- 제안 ID: {history.get('proposal_id', '-')}",
+            f"- 시장/코인: {history.get('market', '-')} / {history.get('trade_coin', '-')}",
+            f"- 적용 대상: {history.get('applied_target', '-')}",
+            f"- 승인 상태: {history.get('approval_status', '-')}",
+            f"- 변경 항목: {', '.join(str(item) for item in changed_parameters) if changed_parameters else '없음'}",
+            f"- 변경 이유: {history.get('change_reason', '-')}",
+            f"- 기대 효과: {history.get('expected_effect', '-')}",
+            f"- 알려진 리스크: {history.get('known_risks', '-')}",
+            f"- Replay 결과: {json.dumps(replay_result, ensure_ascii=False, sort_keys=True) if replay_result else '없음'}",
+            f"- Demo 적용 결과: {json.dumps(demo_result, ensure_ascii=False, sort_keys=True)}",
+            f"- 차단/경고: {', '.join(str(item) for item in history.get('blocked_reason_summary', [])) or '없음'}",
+            "",
+        ]
+        with self._learning_md_path.open("a", encoding="utf-8") as file:
+            file.write("\n".join(lines))
 
     def _read_history(self) -> list[dict[str, Any]]:
         if not self._history_path.exists():

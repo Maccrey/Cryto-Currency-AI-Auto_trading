@@ -134,6 +134,12 @@ def test_auto_improve_notifies_telegram_when_demo_rule_is_applied(tmp_path: Path
     assert result["status"] == "completed"
     assert gateway.messages
     assert "자동 룰 개선이 적용되었습니다." in gateway.messages[0]
+    markdown = tmp_path / "rule-improvement-learning.md"
+    assert markdown.exists()
+    markdown_text = markdown.read_text(encoding="utf-8")
+    assert "룰 개선 학습 기록" in markdown_text
+    assert "변경 이유" in markdown_text
+    assert "Replay 결과" in markdown_text
 
 
 def test_auto_rule_update_skips_when_learning_incomplete_or_win_rate_high(tmp_path: Path) -> None:
@@ -751,4 +757,3 @@ class StubTelegramGateway:
 
     def send_message(self, message: str) -> None:
         self.messages.append(message)
-

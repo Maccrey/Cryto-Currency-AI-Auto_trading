@@ -198,6 +198,9 @@ SETTINGS_HTML = """
   <section>
     <h1>설정</h1>
     <div class="note">demo 모드는 API 키 없이 학습/검증용으로 실행할 수 있다. live 모드는 저장 시 업비트 API 키가 필요하다.</div>
+    <label for="serverName">서버 이름</label>
+    <input id="serverName" autocomplete="off" placeholder="예: 서울-데모-1">
+    <div class="note">텔레그램 알림 앞에 표시되어 어떤 서버에서 보낸 메시지인지 구분한다.</div>
     <label>거래 모드<span class="required-mark">*</span></label>
     <div id="modeSwitch" class="switch">
       <button type="button" data-mode="demo">DEMO</button>
@@ -579,6 +582,7 @@ async function loadSettings() {
     ];
     setMode(data.mode || values.TRADING_MODE || "demo");
     renderProfiles(data.profile || values.TRADING_PROFILE || "scalping");
+    document.getElementById("serverName").value = values.SERVER_NAME || values.APP_NAME || "upbit-auto-trader";
     document.getElementById("tradeMarket").value = values.TRADE_MARKET || "KRW-XRP";
     document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
     document.getElementById("demoInitialCapital").value = values.DEMO_INITIAL_CAPITAL || "1000000";
@@ -789,6 +793,7 @@ async function saveSettings() {
   syncTradeMarketFromCoin();
   const payload = {
     TRADING_MODE: mode,
+    SERVER_NAME: document.getElementById("serverName").value || "upbit-auto-trader",
     TRADING_PROFILE: document.getElementById("tradingProfile").value || "scalping",
     LEARNING_ENABLED: "true",
     TRADE_MARKET: document.getElementById("tradeMarket").value || "KRW-XRP",

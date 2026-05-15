@@ -18,6 +18,7 @@ class SettingsModel(BaseModel):
 
     app_env: str = Field(default="production")
     app_name: str = Field(default="upbit-auto-trader")
+    server_name: str = Field(default="upbit-auto-trader")
     app_timezone: str = Field(default="Asia/Seoul")
     trading_mode: str = Field(default="demo")
     learning_enabled: bool = Field(default=True)
@@ -183,6 +184,7 @@ class SettingsModel(BaseModel):
 class AppSettings:
     app_env: str
     app_name: str
+    server_name: str
     app_timezone: str
     trading_mode: str
     learning_enabled: bool
@@ -287,6 +289,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
     payload = {
         "app_env": _setting("APP_ENV", "production", env_values),
         "app_name": _setting("APP_NAME", "upbit-auto-trader", env_values),
+        "server_name": _setting("SERVER_NAME", _setting("APP_NAME", "upbit-auto-trader", env_values), env_values),
         "app_timezone": _setting("APP_TIMEZONE", "Asia/Seoul", env_values),
         "trading_mode": _setting("TRADING_MODE", "demo", env_values),
         "learning_enabled": _parse_bool(_setting("LEARNING_ENABLED", "true", env_values)),

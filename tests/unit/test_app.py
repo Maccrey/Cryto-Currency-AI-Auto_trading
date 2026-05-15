@@ -2916,9 +2916,10 @@ def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch
     class StubTelegramGateway:
         instances: list["StubTelegramGateway"] = []
 
-        def __init__(self, *, bot_token: str, chat_id: str) -> None:
+        def __init__(self, *, bot_token: str, chat_id: str, server_name: str = "") -> None:
             self.bot_token = bot_token
             self.chat_id = chat_id
+            self.server_name = server_name
             self.messages: list[str] = []
             self.instances.append(self)
 
@@ -2967,7 +2968,7 @@ def test_create_app_respects_restart_notify_disabled(monkeypatch, tmp_path) -> N
     class StubTelegramGateway:
         instances: list["StubTelegramGateway"] = []
 
-        def __init__(self, *, bot_token: str, chat_id: str) -> None:
+        def __init__(self, *, bot_token: str, chat_id: str, server_name: str = "") -> None:
             self.messages: list[str] = []
             self.instances.append(self)
 

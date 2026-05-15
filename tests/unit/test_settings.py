@@ -31,6 +31,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = load_settings()
 
     assert settings.trading_mode == "live"
+    assert settings.server_name == "upbit-auto-trader"
     assert settings.learning_enabled is True
     assert settings.dashboard_port == 9090
     assert settings.trading_profile == "scalping"
