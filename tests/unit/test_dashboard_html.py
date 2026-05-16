@@ -147,6 +147,8 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert "formatBlockedReason" in DASHBOARD_HTML
     assert "formatCycleStatus" in DASHBOARD_HTML
     assert 'blocked: "매매 차단"' in DASHBOARD_HTML
+    assert 'position_checked: "포지션 점검"' in DASHBOARD_HTML
+    assert 'waiting: "대기 중"' in DASHBOARD_HTML
     assert 'filled: "체결 완료"' in DASHBOARD_HTML
     assert '${formatCycleStatus(lastCycle.status)}${lastCycle.reason ? " / " + formatBlockedReason(lastCycle.reason) : ""}' in DASHBOARD_HTML
     assert "white-space: pre-line" in DASHBOARD_HTML
@@ -160,8 +162,17 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert 'MONITOR: "추가 관찰"' in DASHBOARD_HTML
     assert 'RELAX_ENTRY_RULES_FOR_DEMO: "데모 진입 규칙 완화 검토"' in DASHBOARD_HTML
     assert 'MARKET_HISTORY_WARMING_UP: "시세 이력 준비 중"' in DASHBOARD_HTML
+    assert 'POSITION_HELD: "포지션 보유 중"' in DASHBOARD_HTML
+    assert 'POSITION_EXIT_TRIGGERED: "포지션 청산 실행"' in DASHBOARD_HTML
+    assert 'LIVE_ORDER_PENDING: "실거래 주문 처리 대기"' in DASHBOARD_HTML
+    assert 'DEMO_ASSET_WITHOUT_ACTIVE_POSITION: "데모 보유자산과 포지션 불일치"' in DASHBOARD_HTML
+    assert 'LIVE_ASSET_WITHOUT_ACTIVE_POSITION: "실거래 보유자산과 포지션 불일치"' in DASHBOARD_HTML
+    assert 'REENTRY_BLOCK_AFTER_SELL: "매도 후 재진입 대기"' in DASHBOARD_HTML
     assert 'AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달"' in DASHBOARD_HTML
     assert 'FEE_ADJUSTED_EDGE_LIMIT: "수수료 반영 기대수익 부족"' in DASHBOARD_HTML
+    assert 'MIN_ORDER_AMOUNT: "최소 주문 금액 미달"' in DASHBOARD_HTML
+    assert 'STOP_LOSS_PRICE_HIT: "손절가 도달"' in DASHBOARD_HTML
+    assert 'TAKE_PROFIT_TARGET_HIT: "익절 목표 도달"' in DASHBOARD_HTML
     assert "표본 ${number(summary.sample_count || 0)}건" in DASHBOARD_HTML
     assert "온체인 ${onchain}" in DASHBOARD_HTML
     assert "ETF ${etf}" in DASHBOARD_HTML
