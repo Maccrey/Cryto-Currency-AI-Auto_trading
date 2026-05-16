@@ -610,7 +610,7 @@ async function loadSettings() {
     ];
     setMode(data.mode || values.TRADING_MODE || "demo");
     renderProfiles(data.profile || values.TRADING_PROFILE || "scalping");
-    document.getElementById("serverName").value = values.SERVER_NAME || values.APP_NAME || "upbit-auto-trader";
+    document.getElementById("serverName").value = values.SERVER_NAME || "";
     document.getElementById("tradeMarket").value = values.TRADE_MARKET || "KRW-XRP";
     document.getElementById("tradeCoin").value = values.TRADE_COIN || "XRP";
     document.getElementById("demoInitialCapital").value = values.DEMO_INITIAL_CAPITAL || "1000000";
@@ -823,7 +823,7 @@ async function saveSettings() {
   syncTradeMarketFromCoin();
   const payload = {
     TRADING_MODE: mode,
-    SERVER_NAME: document.getElementById("serverName").value || "upbit-auto-trader",
+    SERVER_NAME: document.getElementById("serverName").value,
     TRADING_PROFILE: document.getElementById("tradingProfile").value || "scalping",
     LEARNING_ENABLED: "true",
     TRADE_MARKET: document.getElementById("tradeMarket").value || "KRW-XRP",

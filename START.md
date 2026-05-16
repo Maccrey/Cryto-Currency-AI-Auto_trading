@@ -13,10 +13,10 @@
 ---
 
 ## 2. 사전 요구사항
-- Python 3.12 이상
-- `uv` 또는 `pip`
-- 업비트 API 키는 `live` 모드에서만 필수
-- 텔레그램 봇 토큰과 채팅 ID는 알림을 사용할 때 필요
+- macOS에서는 `./start.sh`가 Python 3.12 이상이 없을 때 Homebrew와 Python 설치를 자동으로 시도한다.
+- Linux에서는 `apt-get`, `dnf`, `yum` 중 사용 가능한 패키지 관리자로 Python 설치를 자동으로 시도한다.
+- 업비트 API 키는 `live` 모드에서만 필수다.
+- 텔레그램 봇 토큰과 채팅 ID는 알림을 사용할 때 필요하다.
 
 현재 프로젝트는 FastAPI와 Uvicorn 기반으로 실행된다.
 
@@ -47,6 +47,10 @@ pip install -e .
 ```
 
 동작:
+- `.env`가 없으면 `.env.example`을 복사해 만든다.
+- `SERVER_NAME`이 없거나 예시값이면 현재 컴퓨터 이름을 기본 서버 이름으로 저장한다.
+- Python 3.12 이상이 없으면 설치를 시도한다.
+- `.venv` 가상환경을 만들고 필요한 Python 패키지를 설치한다.
 - 서버가 꺼져 있으면 macOS `launchd` KeepAlive로 등록해 `0.0.0.0:8080`으로 시작한다.
 - 서버가 이미 실행 중이면 중복 실행하지 않는다.
 - 크롬에서 `http://127.0.0.1:8080/settings` 설정창을 연다.
@@ -127,7 +131,10 @@ UPBIT_SECRET_KEY=발급받은_시크릿키
 ```bash
 TELEGRAM_BOT_TOKEN=텔레그램_봇_토큰
 TELEGRAM_CHAT_ID=텔레그램_채팅_ID
+SERVER_NAME=서울-데모-1
 ```
+
+텔레그램 메시지는 항상 첫 줄에 `[SERVER_NAME]` 형식으로 서버 이름을 붙인다. 설정 화면에서 서버 이름을 저장하면 이후 알림부터 최신 `.env`의 `SERVER_NAME`을 다시 읽어 사용하므로, 같은 텔레그램 방에 여러 서버를 연결해도 어떤 서버의 알림인지 구분할 수 있다.
 
 전체 환경 변수 스펙은 `ENV_SPEC.md`를 따른다.
 

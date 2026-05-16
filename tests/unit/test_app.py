@@ -1230,10 +1230,18 @@ def test_trading_start_endpoint_reports_telegram_notification(monkeypatch, tmp_p
     class StubTelegramGateway:
         instances: list["StubTelegramGateway"] = []
 
-        def __init__(self, *, bot_token: str, chat_id: str, server_name: str = "") -> None:
+        def __init__(
+            self,
+            *,
+            bot_token: str,
+            chat_id: str,
+            server_name: str = "",
+            server_name_provider=None,
+        ) -> None:
             self.bot_token = bot_token
             self.chat_id = chat_id
             self.server_name = server_name
+            self.server_name_provider = server_name_provider
             self.messages: list[str] = []
             self.instances.append(self)
 
@@ -3078,10 +3086,18 @@ def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch
     class StubTelegramGateway:
         instances: list["StubTelegramGateway"] = []
 
-        def __init__(self, *, bot_token: str, chat_id: str, server_name: str = "") -> None:
+        def __init__(
+            self,
+            *,
+            bot_token: str,
+            chat_id: str,
+            server_name: str = "",
+            server_name_provider=None,
+        ) -> None:
             self.bot_token = bot_token
             self.chat_id = chat_id
             self.server_name = server_name
+            self.server_name_provider = server_name_provider
             self.messages: list[str] = []
             self.instances.append(self)
 
@@ -3130,7 +3146,15 @@ def test_create_app_respects_restart_notify_disabled(monkeypatch, tmp_path) -> N
     class StubTelegramGateway:
         instances: list["StubTelegramGateway"] = []
 
-        def __init__(self, *, bot_token: str, chat_id: str, server_name: str = "") -> None:
+        def __init__(
+            self,
+            *,
+            bot_token: str,
+            chat_id: str,
+            server_name: str = "",
+            server_name_provider=None,
+        ) -> None:
+            self.server_name_provider = server_name_provider
             self.messages: list[str] = []
             self.instances.append(self)
 

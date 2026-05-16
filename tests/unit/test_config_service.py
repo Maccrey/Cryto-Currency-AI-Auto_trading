@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from app.services.config.env_file import EnvFileService
 
 
@@ -24,6 +26,28 @@ def test_env_file_service_saves_settings_and_masks_secret_values(tmp_path: Path)
     assert current["values"]["TRADING_MODE"] == "live"
     assert current["values"]["UPBIT_ACCESS_KEY"] == "***"
     assert current["missing_for_live"] == []
+
+
+def test_env_file_service_uses_machine_name_when_server_name_is_blank(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("app.services.config.env_file.socket.gethostname", lambda: "seoul-demo.local")
+    env_path = tmp_path / ".env"
+    service = EnvFileService(env_path)
+
+    current = service.current()
+    result = service.save(
+        {
+            "TRADING_MODE": "demo",
+            "LEARNING_ENABLED": "true",
+            "SERVER_NAME": "",
+        },
+    )
+
+    assert current["values"]["SERVER_NAME"] == "seoul-demo"
+    assert result["saved"] is True
+    assert "SERVER_NAME=seoul-demo" in env_path.read_text(encoding="utf-8")
 
 
 def test_env_file_service_reports_missing_keys_when_switching_to_live(tmp_path: Path) -> None:

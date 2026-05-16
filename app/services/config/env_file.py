@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 from pathlib import Path
 
 from app.core.trading_profile import TRADING_PROFILES, get_trading_profile
@@ -19,6 +20,8 @@ class EnvFileService:
 
     def current(self) -> dict[str, object]:
         values = self._read()
+        display_values = dict(values)
+        display_values.setdefault("SERVER_NAME", self._default_server_name())
         mode = values.get("TRADING_MODE", "demo")
         profile = values.get("TRADING_PROFILE", "scalping")
         missing_for_live = self._missing_for_live(values) if mode == "live" else []
@@ -29,7 +32,7 @@ class EnvFileService:
             "mode": mode,
             "profile": profile,
             "profiles": self._profile_payload(),
-            "values": self._masked(values),
+            "values": self._masked(display_values),
             "missing_for_live": missing_for_live,
             "start_readiness": start_readiness,
             "env_path": str(self._env_path),
@@ -71,6 +74,8 @@ class EnvFileService:
     def save(self, updates: dict[str, object]) -> dict[str, object]:
         values = self._read()
         normalized = {key: str(value).strip() for key, value in updates.items() if value is not None}
+        if not normalized.get("SERVER_NAME"):
+            normalized["SERVER_NAME"] = values.get("SERVER_NAME", "").strip() or self._default_server_name()
         for key in SECRET_KEYS:
             if key in normalized and self._is_secret_placeholder(normalized[key]) and values.get(key):
                 normalized[key] = values[key]
@@ -237,6 +242,13 @@ class EnvFileService:
         if normalized.startswith("telegram:user:"):
             return normalized.removeprefix("telegram:user:").strip()
         return normalized
+
+    @staticmethod
+    def _default_server_name() -> str:
+        hostname = socket.gethostname().strip()
+        if hostname:
+            return hostname.split(".", 1)[0]
+        return "local-trading-server"
 
     @staticmethod
     def _profile_defaults(profile_spec) -> dict[str, str]:

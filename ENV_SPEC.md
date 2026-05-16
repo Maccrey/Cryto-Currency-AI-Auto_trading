@@ -19,6 +19,7 @@
 ```bash
 APP_ENV=production
 APP_NAME=upbit-auto-trader
+SERVER_NAME=서울-데모-1
 APP_TIMEZONE=Asia/Seoul
 ENV_FILE_PATH=.env
 
@@ -132,6 +133,7 @@ DASHBOARD_PORT=8080
 |---|---|---:|---|---|
 | APP_ENV | str | Y | production | 실행 환경 |
 | APP_NAME | str | Y | upbit-auto-trader | 애플리케이션 이름 |
+| SERVER_NAME | str | Y | 서울-데모-1 | 텔레그램 알림 첫 줄에 `[SERVER_NAME]` 형식으로 표시되는 서버 구분 이름 |
 | APP_TIMEZONE | str | Y | Asia/Seoul | 기본 시간대 |
 | ENV_FILE_PATH | str | N | .env | GUI 설정 화면이 읽고 쓰는 환경 파일 경로 |
 | TRADING_MODE | str | Y | demo | 실행 모드, demo/live만 허용 |
@@ -402,6 +404,7 @@ PROMOTION_REQUIRE_MANUAL_APPROVAL=true
 ```bash
 APP_ENV=production
 APP_NAME=upbit-auto-trader
+SERVER_NAME=서울-데모-1
 APP_TIMEZONE=Asia/Seoul
 
 TRADING_MODE=demo

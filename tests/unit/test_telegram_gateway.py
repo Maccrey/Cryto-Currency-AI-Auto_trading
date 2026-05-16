@@ -101,3 +101,52 @@ def test_telegram_http_gateway_wraps_server_name_with_brackets() -> None:
 
     payload = json.loads(calls[0].data.decode("utf-8"))
     assert payload["text"] == "[서울-실거래서버]\n매수정보"
+
+
+def test_telegram_http_gateway_uses_latest_server_name_provider() -> None:
+    calls = []
+    server_names = ["서울-데모-1", "부산-실거래-2"]
+
+    def urlopen(req, timeout, context):
+        calls.append(req)
+        return StubResponse()
+
+    gateway = TelegramHttpGateway(
+        bot_token="token",
+        chat_id="chat",
+        server_name="초기이름",
+        server_name_provider=lambda: server_names.pop(0),
+        urlopen=urlopen,
+    )
+
+    gateway.send_message("첫 메시지")
+    gateway.send_message("두 번째 메시지")
+
+    first = json.loads(calls[0].data.decode("utf-8"))
+    second = json.loads(calls[1].data.decode("utf-8"))
+    assert first["text"] == "[서울-데모-1]\n첫 메시지"
+    assert second["text"] == "[부산-실거래-2]\n두 번째 메시지"
+
+
+def test_telegram_http_gateway_falls_back_when_server_name_provider_fails() -> None:
+    calls = []
+
+    def urlopen(req, timeout, context):
+        calls.append(req)
+        return StubResponse()
+
+    def failing_provider() -> str:
+        raise RuntimeError("settings unavailable")
+
+    gateway = TelegramHttpGateway(
+        bot_token="token",
+        chat_id="chat",
+        server_name="저장된이름",
+        server_name_provider=failing_provider,
+        urlopen=urlopen,
+    )
+
+    gateway.send_message("알림")
+
+    payload = json.loads(calls[0].data.decode("utf-8"))
+    assert payload["text"] == "[저장된이름]\n알림"
