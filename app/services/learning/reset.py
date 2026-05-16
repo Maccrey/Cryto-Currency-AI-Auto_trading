@@ -52,3 +52,15 @@ class LearningDataResetService:
             archive_path=str(archive_path),
             message="learning data archived and reset",
         )
+
+    def delete(self) -> LearningDataResetResult:
+        self._log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = self._log_dir / "learning.jsonl"
+        deleted = log_path.exists() and log_path.stat().st_size > 0
+        log_path.write_text("", encoding="utf-8")
+        return LearningDataResetResult(
+            reset=True,
+            log_path=str(log_path),
+            archive_path=None,
+            message="learning data permanently deleted" if deleted else "learning data already empty",
+        )

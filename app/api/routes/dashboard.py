@@ -664,7 +664,9 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
   const shadow = lastCycle.rule_variant_shadow || {};
   const results = Array.isArray(shadow.results) ? shadow.results : [];
   const statusLabel = tradingStatus && tradingStatus.running ? "자동매매 실행 중" : "자동매매 대기";
-  const actionLabel = lastCycle.status ? `${lastCycle.status}${lastCycle.reason ? " / " + lastCycle.reason : ""}` : statusLabel;
+  const actionLabel = lastCycle.status
+    ? `${formatCycleStatus(lastCycle.status)}${lastCycle.reason ? " / " + formatBlockedReason(lastCycle.reason) : ""}`
+    : statusLabel;
 
   document.getElementById("simTickerPrice").textContent = market.current_price === undefined ? "-" : price(market.current_price);
   document.getElementById("simTickerRegime").textContent = market.market_state_label || "-";
@@ -722,6 +724,21 @@ function setLinesWithTitle(elementId, lines) {
     element.appendChild(item);
   });
   element.title = lines.join(" ");
+}
+
+function formatCycleStatus(value) {
+  const labels = {
+    filled: "체결 완료",
+    blocked: "매매 차단",
+    skipped: "건너뜀",
+    stopped: "중지됨",
+    started: "시작됨",
+    running: "실행 중",
+    not_ready: "준비 안 됨",
+    error: "오류",
+    hold: "대기"
+  };
+  return labels[value] || value || "-";
 }
 
 function deriveAiState({health, summary, market, executions}) {

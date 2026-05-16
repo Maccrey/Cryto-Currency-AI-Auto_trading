@@ -145,6 +145,10 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert "formatDiagnosisState" in DASHBOARD_HTML
     assert "formatMitigationAction" in DASHBOARD_HTML
     assert "formatBlockedReason" in DASHBOARD_HTML
+    assert "formatCycleStatus" in DASHBOARD_HTML
+    assert 'blocked: "매매 차단"' in DASHBOARD_HTML
+    assert 'filled: "체결 완료"' in DASHBOARD_HTML
+    assert '${formatCycleStatus(lastCycle.status)}${lastCycle.reason ? " / " + formatBlockedReason(lastCycle.reason) : ""}' in DASHBOARD_HTML
     assert "white-space: pre-line" in DASHBOARD_HTML
     assert ".context-value.compact { font-size: 13px;" in DASHBOARD_HTML
     assert 'TRADES_FOUND: "체결 이벤트 확인"' in DASHBOARD_HTML

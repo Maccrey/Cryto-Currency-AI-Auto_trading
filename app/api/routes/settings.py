@@ -19,6 +19,7 @@ def build_settings_router(
     stop_trading_service: Callable[[], Awaitable[dict[str, object]] | dict[str, object]] | None = None,
     trading_status_service: Callable[[], dict[str, object]] | None = None,
     reset_demo_trading_data_service: Callable[[], dict[str, object]] | None = None,
+    purge_runtime_data_service: Callable[[], dict[str, object]] | None = None,
     telegram_test_service: Callable[[], dict[str, object]] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/settings")
@@ -127,6 +128,16 @@ def build_settings_router(
                 "message": "demo trading data reset service is not configured",
             }
         return reset_demo_trading_data_service()
+
+    @router.post("/data/purge")
+    def purge_runtime_data() -> dict[str, object]:
+        if purge_runtime_data_service is None:
+            return {
+                "status": "not_configured",
+                "reset": False,
+                "message": "data purge service is not configured",
+            }
+        return purge_runtime_data_service()
 
     @router.post("/telegram/test")
     def send_telegram_test() -> dict[str, object]:
@@ -324,10 +335,13 @@ SETTINGS_HTML = """
       </div>
       <div id="autoRuleStatus" class="note"></div>
     </div>
-    <label for="accessKey">업비트 액세스 키<span class="required-mark live-required">*</span></label>
-    <input id="accessKey" autocomplete="off">
-    <label for="secretKey">업비트 시크릿 키<span class="required-mark live-required">*</span></label>
-    <input id="secretKey" type="password" autocomplete="off">
+    <div id="upbitCredentialSection" class="subsection">
+      <label for="accessKey">업비트 액세스 키<span class="required-mark live-required">*</span></label>
+      <input id="accessKey" autocomplete="off" placeholder="저장된 키가 있으면 ********로 표시">
+      <label for="secretKey">업비트 시크릿 키<span class="required-mark live-required">*</span></label>
+      <input id="secretKey" type="password" autocomplete="off" placeholder="저장된 키가 있으면 ********로 표시">
+      <div class="note">LIVE 모드에서만 필요하다. DEMO 모드에서는 입력 폼을 숨기고 저장된 키를 변경하지 않는다.</div>
+    </div>
     <div class="subsection">
       <label for="telegramToken">텔레그램 봇 토큰</label>
       <div class="secret-input">
@@ -400,6 +414,7 @@ SETTINGS_HTML = """
       <div class="actions">
         <button id="resetLearningButton" class="danger-button" type="button" onclick="resetLearningData()">현재 성향 학습데이터 리셋</button>
         <button id="resetDemoTradingButton" class="danger-button" type="button" onclick="resetDemoTradingData()">데모트레이딩데이터 리셋</button>
+        <button id="purgeRuntimeDataButton" class="danger-button" type="button" onclick="purgeRuntimeData()">완전 데이터 삭제</button>
       </div>
     </div>
   </section>
@@ -510,6 +525,7 @@ function setMode(next) {
   document.querySelectorAll("#modeSwitch button").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === mode);
   });
+  document.getElementById("upbitCredentialSection").style.display = mode === "live" ? "block" : "none";
   document.querySelectorAll(".live-required").forEach((mark) => {
     mark.style.display = mode === "live" ? "inline" : "none";
   });
@@ -618,6 +634,8 @@ async function loadSettings() {
     document.getElementById("dataPathStatus").textContent = `로그 ${dataPath.learning_log_dir || "-"} / 데이터셋 ${dataPath.learning_dataset_dir || "-"}`;
     const autoRule = data.auto_rule_update || {};
     document.getElementById("autoRuleStatus").textContent = `현재 ${autoRule.enabled ? "ON" : "OFF"} / 충족률 ${autoRule.learning_completion_rate_required || 1.0} / 승률 기준 ${autoRule.win_rate_skip_threshold || 0.8}`;
+    document.getElementById("accessKey").value = values.UPBIT_ACCESS_KEY || "";
+    document.getElementById("secretKey").value = values.UPBIT_SECRET_KEY || "";
     setTelegramTokenHidden(values.TELEGRAM_BOT_TOKEN === "***");
     document.getElementById("telegramTokenStatus").textContent = values.TELEGRAM_BOT_TOKEN === "***"
       ? "저장된 봇 토큰이 있습니다. 변경하지 않으면 기존 토큰을 유지합니다."
@@ -831,14 +849,16 @@ async function saveSettings() {
     AUTO_RULE_UPDATE_ENABLED: document.getElementById("autoRuleUpdateEnabled").checked ? "true" : "false",
     AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE: document.getElementById("autoRuleCompletionRate").value || "1.0",
     AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD: document.getElementById("autoRuleWinRateSkip").value || "0.8",
-    UPBIT_ACCESS_KEY: document.getElementById("accessKey").value,
-    UPBIT_SECRET_KEY: document.getElementById("secretKey").value,
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,
     TELEGRAM_CHAT_ID: document.getElementById("telegramChat").value,
     TELEGRAM_USER_ID: document.getElementById("telegramUserId").value,
     TELEGRAM_USERNAME: document.getElementById("telegramUsername").value,
     TELEGRAM_ALLOW_FROM: document.getElementById("telegramAllowFrom").value
   };
+  if (mode === "live") {
+    payload.UPBIT_ACCESS_KEY = document.getElementById("accessKey").value;
+    payload.UPBIT_SECRET_KEY = document.getElementById("secretKey").value;
+  }
   try {
     const response = await fetch("/settings", {
       method: "POST",
@@ -961,6 +981,29 @@ async function resetDemoTradingData() {
     showNextSteps(true);
   } catch (error) {
     showStatus("데모 트레이딩 데이터 리셋 요청에 실패했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
+  } finally {
+    button.disabled = false;
+  }
+}
+async function purgeRuntimeData() {
+  const button = document.getElementById("purgeRuntimeDataButton");
+  const profile = document.getElementById("tradingProfile").selectedOptions[0]?.textContent || "현재 성향";
+  if (!confirm(`${profile} 학습 로그와 데모 매매 데이터를 보관 없이 완전히 삭제하고 초기화할까요?`)) return;
+  button.disabled = true;
+  showStatus("데이터를 보관 없이 완전 삭제하는 중...", "pending");
+  try {
+    const response = await fetch("/settings/data/purge", {method: "POST"});
+    const result = await response.json();
+    showStatus(
+      result.reset
+        ? `완전 삭제 완료. 새 학습 로그: ${result.learning_log_path}${result.deleted_paths?.length ? `, 삭제/초기화: ${result.deleted_paths.join(", ")}` : ""}`
+        : result.message,
+      result.reset ? "" : "warning"
+    );
+    showNextSteps(true);
+    await refreshTradingStatus(latestStartReadiness);
+  } catch (error) {
+    showStatus("완전 데이터 삭제 요청에 실패했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
   } finally {
     button.disabled = false;
   }

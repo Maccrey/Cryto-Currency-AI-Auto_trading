@@ -431,13 +431,51 @@ def create_app(
     async def stop_auto_trading_service() -> None:
         await auto_trading_service.stop()
 
+    def _send_telegram_lifecycle_message(lines: list[str]) -> dict[str, object]:
+        if telegram_gateway is None:
+            return {
+                "status": "not_configured",
+                "sent": False,
+                "message": "텔레그램 알림은 봇 토큰과 채팅 ID가 설정된 상태로 앱 서버를 재시작해야 전송됩니다.",
+            }
+        try:
+            telegram_gateway.send_message("\n".join(lines))
+        except Exception as exc:
+            logger.exception("telegram_trading_lifecycle_notification_failed")
+            return {
+                "status": "failed",
+                "sent": False,
+                "message": f"텔레그램 알림 전송 실패: {exc}",
+            }
+        return {
+            "status": "sent",
+            "sent": True,
+            "message": "텔레그램 알림을 전송했습니다.",
+        }
+
+    def _build_trading_response_message(base_message: str, notification: dict[str, object]) -> str:
+        if notification.get("status") == "failed":
+            return f"{base_message} {notification.get('message')}"
+        if notification.get("status") == "not_configured":
+            return f"{base_message} {notification.get('message')}"
+        return base_message
+
     def start_trading_service() -> dict[str, object]:
         if auto_trading_service.is_running():
+            telegram_notification = _send_telegram_lifecycle_message(
+                [
+                    "트레이딩 서버가 이미 실행 중입니다.",
+                    f"거래 시장은 {settings.trade_market}이고 거래 모드는 {settings.trading_mode}입니다.",
+                    f"대시보드는 브라우저에서 {browser_urls['dashboard_url']} 주소로 열 수 있습니다.",
+                ],
+            )
+            message = _build_trading_response_message("트레이딩 서버가 이미 실행 중입니다.", telegram_notification)
             return {
                 "status": "already_running",
                 "started": True,
                 "running": True,
-                "message": "트레이딩 서버가 이미 실행 중입니다.",
+                "telegram_notification": telegram_notification,
+                "message": message,
             }
         if not auto_trading_service.should_run():
             return {
@@ -447,25 +485,21 @@ def create_app(
                 "message": "트레이딩 서버를 시작할 수 없습니다. 안전 모드, HARD_STOP, live 실행 허용 설정을 확인하세요.",
             }
         auto_trading_service.start()
-        if telegram_gateway is not None:
-            try:
-                telegram_gateway.send_message(
-                    "\n".join(
-                        [
-                            "트레이딩 서버가 시작되었습니다.",
-                            f"거래 시장은 {settings.trade_market}이고 거래 모드는 {settings.trading_mode}입니다.",
-                            f"대시보드는 브라우저에서 {browser_urls['dashboard_url']} 주소로 열 수 있습니다.",
-                            f"설정 화면은 브라우저에서 {browser_urls['settings_url']} 주소로 열 수 있습니다.",
-                        ],
-                    ),
-                )
-            except Exception:
-                pass
+        telegram_notification = _send_telegram_lifecycle_message(
+            [
+                "트레이딩 서버가 시작되었습니다.",
+                f"거래 시장은 {settings.trade_market}이고 거래 모드는 {settings.trading_mode}입니다.",
+                f"대시보드는 브라우저에서 {browser_urls['dashboard_url']} 주소로 열 수 있습니다.",
+                f"설정 화면은 브라우저에서 {browser_urls['settings_url']} 주소로 열 수 있습니다.",
+            ],
+        )
+        message = _build_trading_response_message("트레이딩 서버가 시작되었습니다.", telegram_notification)
         return {
             "status": "started",
             "started": True,
             "running": True,
-            "message": "트레이딩 서버가 시작되었습니다.",
+            "telegram_notification": telegram_notification,
+            "message": message,
         }
 
     def trading_status_service() -> dict[str, object]:
@@ -500,24 +534,20 @@ def create_app(
                 "message": "트레이딩 서버가 이미 중지되어 있습니다.",
             }
         await auto_trading_service.stop()
-        if telegram_gateway is not None:
-            try:
-                telegram_gateway.send_message(
-                    "\n".join(
-                        [
-                            "트레이딩 서버가 중지되었습니다.",
-                            f"거래 시장은 {settings.trade_market}이고 거래 모드는 {settings.trading_mode}입니다.",
-                            "설정 화면은 계속 열려 있으며 시작 버튼으로 다시 실행할 수 있습니다.",
-                        ],
-                    ),
-                )
-            except Exception:
-                pass
+        telegram_notification = _send_telegram_lifecycle_message(
+            [
+                "트레이딩 서버가 중지되었습니다.",
+                f"거래 시장은 {settings.trade_market}이고 거래 모드는 {settings.trading_mode}입니다.",
+                "설정 화면은 계속 열려 있으며 시작 버튼으로 다시 실행할 수 있습니다.",
+            ],
+        )
+        message = _build_trading_response_message("트레이딩 서버가 중지되었습니다.", telegram_notification)
         return {
             "status": "stopped",
             "stopped": True,
             "running": False,
-            "message": "트레이딩 서버가 중지되었습니다.",
+            "telegram_notification": telegram_notification,
+            "message": message,
         }
 
     def reset_demo_trading_data_service() -> dict[str, object]:
@@ -536,6 +566,34 @@ def create_app(
             "reset": bool(demo_result.get("reset")),
             "message": "데모 트레이딩 데이터가 리셋되었습니다.",
             **demo_result,
+        }
+
+    learning_data_reset_service = LearningDataResetService(log_dir=profile_learning_log_dir)
+
+    def purge_runtime_data_service() -> dict[str, object]:
+        deleted_paths: list[str] = []
+        learning_result = learning_data_reset_service.delete()
+        if learning_service is not None:
+            learning_service.clear_recent_events()
+        execution_ledger.clear()
+        position_lifecycle_ledger.clear()
+        position_store.clear()
+        demo_result = auto_trading_service.reset_demo_portfolio()
+        for path in [
+            runtime_state_dir / "execution-ledger.json",
+            runtime_state_dir / "current-position.json",
+        ]:
+            if path.exists():
+                path.unlink()
+                deleted_paths.append(str(path))
+        return {
+            "status": "reset",
+            "reset": True,
+            "message": "학습 로그와 데모 매매 데이터가 보관 없이 완전 삭제되었습니다.",
+            "learning_log_path": learning_result.log_path,
+            "archive_path": None,
+            "deleted_paths": deleted_paths,
+            "demo_trading": demo_result,
         }
 
     def telegram_test_service() -> dict[str, object]:
@@ -609,12 +667,13 @@ def create_app(
     app.include_router(
         build_settings_router(
             env_file_service=EnvFileService(settings.env_file_path),
-            learning_data_reset_service=LearningDataResetService(log_dir=profile_learning_log_dir),
+            learning_data_reset_service=learning_data_reset_service,
             learning_service=learning_service,
             start_trading_service=start_trading_service,
             stop_trading_service=stop_trading_service,
             trading_status_service=trading_status_service,
             reset_demo_trading_data_service=reset_demo_trading_data_service,
+            purge_runtime_data_service=purge_runtime_data_service,
             telegram_test_service=telegram_test_service,
         ),
     )

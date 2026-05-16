@@ -1113,9 +1113,13 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     page = client.get("/settings")
     assert page.status_code == 200
     assert "modeSwitch" in page.text
+    assert 'id="upbitCredentialSection"' in page.text
+    assert 'mode === "live" ? "block" : "none"' in page.text
+    assert 'if (mode === "live")' in page.text
     assert "tradingProfile" in page.text
     assert "demoInitialCapital" in page.text
     assert "resetLearningData" in page.text
+    assert "purgeRuntimeData" in page.text
     assert "telegramTokenStatus" in page.text
     assert "telegramTokenToggle" in page.text
     assert "/settings/secret/telegram-bot-token" in page.text
@@ -1208,6 +1212,69 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     )
     assert preserved.json()["saved"] is True
     assert "TELEGRAM_BOT_TOKEN=telegram-token" in env_file.read_text(encoding="utf-8")
+
+
+def test_trading_start_endpoint_reports_telegram_notification(monkeypatch, tmp_path) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = None
+                reconcile_result = None
+
+            return BootState()
+
+    class StubTelegramGateway:
+        instances: list["StubTelegramGateway"] = []
+
+        def __init__(self, *, bot_token: str, chat_id: str, server_name: str = "") -> None:
+            self.bot_token = bot_token
+            self.chat_id = chat_id
+            self.server_name = server_name
+            self.messages: list[str] = []
+            self.instances.append(self)
+
+        def send_message(self, message: str) -> None:
+            self.messages.append(message)
+
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("TRADE_MARKET", "KRW-XRP")
+    monkeypatch.setenv("TRADE_COIN", "XRP")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "telegram:group:-1003988291151")
+    monkeypatch.setenv("SERVER_NAME", "MAC_AIR-XRP")
+    monkeypatch.setenv("RESTART_NOTIFY", "false")
+    monkeypatch.setenv("STORAGE_DIR", str(tmp_path / "storage"))
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "TRADING_PROFILE=scalping",
+                "LEARNING_ENABLED=true",
+                "TRADE_MARKET=KRW-XRP",
+                "TRADE_COIN=XRP",
+                "DEMO_INITIAL_CAPITAL=1000000",
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ENV_FILE_PATH", str(env_file))
+    monkeypatch.setattr("app.main.TelegramHttpGateway", StubTelegramGateway)
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    started = client.post("/settings/trading/start").json()
+
+    assert started["status"] == "started"
+    assert started["telegram_notification"]["status"] == "sent"
+    assert len(StubTelegramGateway.instances) == 1
+    assert "트레이딩 서버가 시작되었습니다." in StubTelegramGateway.instances[0].messages[0]
 
 
 def test_settings_learning_reset_archives_current_profile_log(
@@ -1387,6 +1454,7 @@ def test_settings_demo_trading_reset_clears_runtime_trade_data(
     page = client.get("/settings")
     assert "resetDemoTradingData" in page.text
     assert "데모트레이딩데이터 리셋" in page.text
+    assert "완전 데이터 삭제" in page.text
 
     response = client.post("/settings/demo-trading/reset")
 
@@ -1403,6 +1471,100 @@ def test_settings_demo_trading_reset_clears_runtime_trade_data(
     assert summary["cash_balance"] == 1_000_000.0
     assert summary["coin_balance"] == 0.0
     assert summary["buy_count"] == 0
+
+
+def test_settings_data_purge_deletes_learning_and_demo_data_without_archive(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = PortfolioState(
+                    cash_balance=1_000_000.0,
+                    asset_currency="XRP",
+                    asset_balance=0.0,
+                    avg_buy_price=0.0,
+                )
+                reconcile_result = None
+
+            return BootState()
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "LEARNING_ENABLED=true",
+                "TRADING_PROFILE=scalping",
+                "DEMO_INITIAL_CAPITAL=1000000",
+                f"LEARNING_LOG_DIR={tmp_path / 'learning'}",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    log_dir = tmp_path / "learning" / "scalping"
+    log_dir.mkdir(parents=True)
+    (log_dir / "learning.jsonl").write_text('{"event_name":"signal_generated"}\n', encoding="utf-8")
+    monkeypatch.setenv("ENV_FILE_PATH", str(env_file))
+    monkeypatch.delenv("TRADING_MODE", raising=False)
+    monkeypatch.delenv("LEARNING_LOG_DIR", raising=False)
+
+    execution_ledger = ExecutionLedger()
+    execution_ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=800.0,
+            filled_quantity=100.0,
+            fee=40.0,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    position = PositionSnapshot(
+        market="KRW-XRP",
+        signal_level="medium",
+        entry_price=800.0,
+        quantity=100.0,
+        stop_loss_price=776.0,
+        stop_loss_pct=0.030,
+        validation_window_sec=180,
+        min_expected_return_pct=0.004,
+        stop_loss_reason=None,
+    )
+    position_store = CurrentPositionStore()
+    position_store.save(position)
+    position_lifecycle_ledger = PositionLifecycleLedger()
+    position_lifecycle_ledger.record(event_type="opened", position=position)
+
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            execution_ledger=execution_ledger,
+            position_store=position_store,
+            position_lifecycle_ledger=position_lifecycle_ledger,
+        ),
+    )
+
+    response = client.post("/settings/data/purge")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["reset"] is True
+    assert payload["archive_path"] is None
+    assert payload["learning_log_path"] == str(log_dir / "learning.jsonl")
+    assert (log_dir / "learning.jsonl").read_text(encoding="utf-8") == ""
+    assert not (tmp_path / "learning" / "reset_archive").exists()
+    assert execution_ledger.list_records() == []
+    assert position_lifecycle_ledger.list_records() == []
+    assert position_store.get() is None
 
 
 def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:

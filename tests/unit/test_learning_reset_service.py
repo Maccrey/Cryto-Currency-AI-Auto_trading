@@ -35,3 +35,21 @@ def test_learning_data_reset_service_creates_empty_log_when_missing(tmp_path: Pa
     assert result.reset is True
     assert result.archive_path is None
     assert (log_dir / "learning.jsonl").exists()
+
+
+def test_learning_data_reset_service_deletes_without_archive(tmp_path: Path) -> None:
+    log_dir = tmp_path / "learning" / "scalping"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "learning.jsonl"
+    log_path.write_text('{"event_name":"signal_generated"}\n', encoding="utf-8")
+    service = LearningDataResetService(
+        log_dir=log_dir,
+        timestamp_provider=lambda: datetime(2026, 5, 1, 7, 30, 0),
+    )
+
+    result = service.delete()
+
+    assert result.reset is True
+    assert result.archive_path is None
+    assert log_path.read_text(encoding="utf-8") == ""
+    assert not (tmp_path / "learning" / "reset_archive").exists()
