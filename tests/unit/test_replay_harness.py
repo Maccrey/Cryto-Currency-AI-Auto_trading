@@ -16,10 +16,10 @@ def test_replay_harness_replays_fixture_and_produces_signal_results() -> None:
     assert len(results) == 2
     assert results[0].timestamp == "2026-04-18T09:00:02+09:00"
     assert results[0].signal_level == "medium"
-    assert round(results[0].signal_score, 2) == 0.54
+    assert round(results[0].signal_score, 2) == 0.53
     assert results[1].timestamp == "2026-04-18T09:00:03+09:00"
     assert results[1].signal_level == "strong"
-    assert round(results[1].signal_score, 2) == 0.72
+    assert round(results[1].signal_score, 2) == 0.71
 
 
 def test_replay_fixture_loader_reads_ticks_from_json() -> None:

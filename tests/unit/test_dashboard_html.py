@@ -68,6 +68,9 @@ def test_dashboard_includes_rule_review_pipeline_panel() -> None:
 def test_settings_includes_server_name_field() -> None:
     assert 'id="serverName"' in SETTINGS_HTML
     assert "SERVER_NAME" in SETTINGS_HTML
+    assert "텔레그램 테스트 메시지 전송" in SETTINGS_HTML
+    assert "sendTelegramTest" in SETTINGS_HTML
+    assert "/settings/telegram/test" in SETTINGS_HTML
 
 
 def test_dashboard_includes_external_market_context_panel() -> None:

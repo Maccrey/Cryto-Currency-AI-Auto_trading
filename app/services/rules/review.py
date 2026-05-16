@@ -82,6 +82,7 @@ class RuleReviewService:
             "win_rate": metrics["win_rate"],
             "external_context_summary": metrics["external_context_summary"],
             "rule_variant_shadow_summary": metrics["rule_variant_shadow_summary"],
+            "technical_indicator_summary": metrics["technical_indicator_summary"],
             "codex_rule_prompt": self._build_codex_rule_prompt(metrics),
             "approval_required": self._config.require_manual_approval,
             "created_at": datetime.now(UTC).isoformat(),
@@ -140,6 +141,10 @@ class RuleReviewService:
             "rule_variant_shadow_summary": review.get(
                 "rule_variant_shadow_summary",
                 self._empty_rule_variant_shadow_summary(),
+            ),
+            "technical_indicator_summary": review.get(
+                "technical_indicator_summary",
+                self._empty_technical_indicator_summary(),
             ),
             "codex_rule_prompt": review.get("codex_rule_prompt", ""),
             "codex_suggested_changes": changes,
@@ -549,6 +554,10 @@ class RuleReviewService:
                 "rule_variant_shadow_summary",
                 self._empty_rule_variant_shadow_summary(),
             ),
+            "technical_indicator_summary": proposal.get(
+                "technical_indicator_summary",
+                self._empty_technical_indicator_summary(),
+            ),
             "previous_rule_snapshot": self._previous_rule_snapshot(changes),
             "proposed_rule_snapshot": self._proposed_rule_snapshot(changes),
             "changed_parameters": self._changed_parameters(changes),
@@ -609,6 +618,7 @@ class RuleReviewService:
             f"- Demo 적용 결과: {json.dumps(demo_result, ensure_ascii=False, sort_keys=True)}",
             f"- 차단/경고: {', '.join(str(item) for item in history.get('blocked_reason_summary', [])) or '없음'}",
             f"- A/B/C 동시 테스트: {json.dumps(history.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
+            f"- 전문 보조지표 요약: {json.dumps(history.get('technical_indicator_summary', {}), ensure_ascii=False, sort_keys=True)}",
             "",
         ]
         with self._learning_md_path.open("a", encoding="utf-8") as file:
@@ -747,6 +757,7 @@ class RuleReviewService:
         sizing_blocked_reasons: Counter[str] = Counter()
         context_samples: list[dict[str, Any]] = []
         rule_variant_shadow_samples: list[dict[str, Any]] = []
+        technical_indicator_samples: list[dict[str, Any]] = []
         completion_rates: list[float] = []
         closed_trade_pnls: list[float] = []
         log_path = self._learning_log_dir / "learning.jsonl"
@@ -785,6 +796,9 @@ class RuleReviewService:
                     shadow = payload.get("rule_variant_shadow")
                     if isinstance(shadow, dict):
                         rule_variant_shadow_samples.append(shadow)
+                technical_indicators = payload.get("technical_indicators")
+                if event_name == "signal_generated" and isinstance(technical_indicators, dict):
+                    technical_indicator_samples.append(technical_indicators)
                 context = payload.get("external_context") if event_name == "auto_trade_cycle" else payload
                 if event_name in {"auto_trade_cycle", "external_market_context_snapshot"} and isinstance(context, dict):
                     context_samples.append(context)
@@ -812,6 +826,7 @@ class RuleReviewService:
             "no_trade_blocked_count": no_trade_blocked_count,
             "external_context_summary": self._external_context_summary(context_samples),
             "rule_variant_shadow_summary": self._rule_variant_shadow_summary(rule_variant_shadow_samples),
+            "technical_indicator_summary": self._technical_indicator_summary(technical_indicator_samples),
             "learning_completion_rate": round(max(completion_rates, default=0.0), 3),
             "win_rate": self._win_rate(closed_trade_pnls),
         }
@@ -965,6 +980,63 @@ class RuleReviewService:
         }
 
     @staticmethod
+    def _empty_technical_indicator_summary() -> dict[str, object]:
+        return {
+            "sample_count": 0,
+            "avg_rsi_14": 50.0,
+            "avg_macd_histogram": 0.0,
+            "avg_bollinger_position": 0.5,
+            "avg_ma_trend": 0.0,
+            "avg_stochastic_k": 50.0,
+            "overbought_count": 0,
+            "oversold_count": 0,
+            "bullish_momentum_count": 0,
+            "bearish_momentum_count": 0,
+        }
+
+    @staticmethod
+    def _technical_indicator_summary(samples: list[dict[str, Any]]) -> dict[str, object]:
+        if not samples:
+            return RuleReviewService._empty_technical_indicator_summary()
+        rsi_values = RuleReviewService._float_values(samples, "rsi_14")
+        macd_values = RuleReviewService._float_values(samples, "macd_histogram")
+        bollinger_values = RuleReviewService._float_values(samples, "bollinger_position")
+        ma_values = RuleReviewService._float_values(samples, "ma_trend")
+        stochastic_values = RuleReviewService._float_values(samples, "stochastic_k")
+        return {
+            "sample_count": len(samples),
+            "avg_rsi_14": RuleReviewService._average(rsi_values, 50.0),
+            "avg_macd_histogram": RuleReviewService._average(macd_values, 0.0),
+            "avg_bollinger_position": RuleReviewService._average(bollinger_values, 0.5),
+            "avg_ma_trend": RuleReviewService._average(ma_values, 0.0),
+            "avg_stochastic_k": RuleReviewService._average(stochastic_values, 50.0),
+            "overbought_count": sum(
+                1
+                for sample in samples
+                if RuleReviewService._float(sample.get("rsi_14"), 50.0) >= 70.0
+                and RuleReviewService._float(sample.get("bollinger_position"), 0.5) >= 0.85
+            ),
+            "oversold_count": sum(
+                1
+                for sample in samples
+                if RuleReviewService._float(sample.get("rsi_14"), 50.0) <= 35.0
+                and RuleReviewService._float(sample.get("stochastic_k"), 50.0) <= 30.0
+            ),
+            "bullish_momentum_count": sum(
+                1
+                for sample in samples
+                if RuleReviewService._float(sample.get("macd_histogram"), 0.0) > 0.0
+                and RuleReviewService._float(sample.get("ma_trend"), 0.0) > 0.0
+            ),
+            "bearish_momentum_count": sum(
+                1
+                for sample in samples
+                if RuleReviewService._float(sample.get("macd_histogram"), 0.0) < 0.0
+                and RuleReviewService._float(sample.get("ma_trend"), 0.0) < 0.0
+            ),
+        }
+
+    @staticmethod
     def _rule_variant_shadow_summary(samples: list[dict[str, Any]]) -> dict[str, object]:
         if not samples:
             return RuleReviewService._empty_rule_variant_shadow_summary()
@@ -1011,14 +1083,29 @@ class RuleReviewService:
         except (TypeError, ValueError):
             pass
 
+    @staticmethod
+    def _float_values(samples: list[dict[str, Any]], key: str) -> list[float]:
+        values: list[float] = []
+        for sample in samples:
+            RuleReviewService._append_float(values, sample.get(key))
+        return values
+
+    @staticmethod
+    def _average(values: list[float], fallback: float) -> float:
+        if not values:
+            return fallback
+        return round(sum(values) / len(values), 6)
+
     def _is_no_trade_mitigation_candidate(self, review: dict[str, Any]) -> bool:
         return self._trading_mode == "demo" and int(review.get("no_trade_blocked_count") or 0) >= 3
 
     def _default_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
         context_changes = self._external_context_proposed_changes(review)
         shadow_changes = self._rule_variant_shadow_proposed_changes(review)
-        if shadow_changes:
-            return (shadow_changes + context_changes)[: self._config.max_params_per_run]
+        technical_changes = self._technical_indicator_proposed_changes(review)
+        preferred_changes = shadow_changes + technical_changes + context_changes
+        if preferred_changes:
+            return preferred_changes[: self._config.max_params_per_run]
         if self._is_no_trade_mitigation_candidate(review):
             changes = [
                 {
@@ -1039,9 +1126,7 @@ class RuleReviewService:
                     "reason": "demo no-trade 완화 시 수수료 보정 엣지 차단을 재평가해 0원 주문 차단을 해소합니다.",
                 },
             ]
-            return (context_changes + changes)[: self._config.max_params_per_run]
-        if context_changes:
-            return context_changes[: self._config.max_params_per_run]
+            return (technical_changes + context_changes + changes)[: self._config.max_params_per_run]
         return [
             {
                 "file": "STRATEGY_SPEC.md",
@@ -1111,6 +1196,70 @@ class RuleReviewService:
             ]
         return []
 
+    def _technical_indicator_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
+        summary = review.get("technical_indicator_summary")
+        if not isinstance(summary, dict) or int(summary.get("sample_count") or 0) <= 0:
+            return []
+        sample_count = int(summary.get("sample_count") or 0)
+        bullish_count = int(summary.get("bullish_momentum_count") or 0)
+        bearish_count = int(summary.get("bearish_momentum_count") or 0)
+        overbought_count = int(summary.get("overbought_count") or 0)
+        oversold_count = int(summary.get("oversold_count") or 0)
+        avg_rsi = self._float(summary.get("avg_rsi_14"), 50.0)
+        avg_bollinger = self._float(summary.get("avg_bollinger_position"), 0.5)
+        avg_stochastic = self._float(summary.get("avg_stochastic_k"), 50.0)
+        changes: list[dict[str, object]] = []
+        if bullish_count >= max(2, sample_count // 3) and avg_rsi < 72.0:
+            changes.append(
+                {
+                    "file": "app/services/signals/engine.py",
+                    "parameter": "TECHNICAL_TREND_CONFIRMATION",
+                    "current_value": "partial",
+                    "proposed_value": "increase_macd_ma_confirmation_weight",
+                    "reason": (
+                        "전문 보조지표 학습 샘플에서 MACD 히스토그램과 이동평균 기울기 동반 상승이 반복됩니다. "
+                        "과매수 전까지 추세 확인 신호의 진입 신뢰도를 높입니다."
+                    ),
+                },
+            )
+        if overbought_count >= max(2, sample_count // 4) or avg_bollinger >= 0.82:
+            changes.append(
+                {
+                    "file": "app/services/signals/engine.py",
+                    "parameter": "TECHNICAL_OVERBOUGHT_RISK_FILTER",
+                    "current_value": "rsi_and_bollinger_guard",
+                    "proposed_value": "tighten_entry_when_rsi_bollinger_extended",
+                    "reason": (
+                        f"평균 RSI {round(avg_rsi, 2)}, 볼린저 위치 {round(avg_bollinger, 3)}로 상단 과열 구간이 감지됩니다. "
+                        "추격 매수보다 눌림목 대기를 우선하도록 필터를 강화합니다."
+                    ),
+                },
+            )
+        if oversold_count >= max(2, sample_count // 4) and bearish_count < bullish_count:
+            changes.append(
+                {
+                    "file": "app/services/signals/engine.py",
+                    "parameter": "TECHNICAL_PULLBACK_ENTRY",
+                    "current_value": "limited",
+                    "proposed_value": "use_rsi_stochastic_recovery_window",
+                    "reason": (
+                        f"평균 스토캐스틱 {round(avg_stochastic, 2)}와 RSI 회복 구간이 반복되어 "
+                        "하락 추세가 강하지 않을 때 과매도 회복 진입을 더 정교하게 반영합니다."
+                    ),
+                },
+            )
+        if bearish_count >= max(2, sample_count // 3) and bullish_count < bearish_count:
+            changes.append(
+                {
+                    "file": "app/services/sizing/engine.py",
+                    "parameter": "TECHNICAL_BEARISH_SIZE_REDUCTION",
+                    "current_value": "regime_only",
+                    "proposed_value": "reduce_size_when_macd_ma_bearish",
+                    "reason": "MACD/이동평균 동반 약세 샘플이 우세해 하락 모멘텀에서는 진입 크기를 낮추고 매도 대응을 빠르게 합니다.",
+                },
+            )
+        return changes
+
     def _rule_variant_shadow_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
         summary = review.get("rule_variant_shadow_summary")
         if not isinstance(summary, dict) or int(summary.get("sample_count") or 0) <= 0:
@@ -1161,12 +1310,13 @@ class RuleReviewService:
         return "\n".join(
             [
                 "너는 이 자동매매 시스템의 매매룰 개선 에이전트다.",
-                "최근 학습 로그, 체결 결과, 차단 사유, 온체인/ETF 컨텍스트, A/B/C 동시 섀도 테스트 결과를 함께 사용한다.",
+                "최근 학습 로그, 체결 결과, 차단 사유, 전문 보조지표, 온체인/ETF 컨텍스트, A/B/C 동시 섀도 테스트 결과를 함께 사용한다.",
                 "목표는 하루 0.5% 수익을 무리하게 강제하는 것이 아니라, 손실 제한을 유지하면서 기대수익이 가장 높은 룰을 제안하는 것이다.",
                 "고정 손절 파라미터와 안전장치는 임의로 완화하지 않는다.",
                 f"거래 수: {metrics.get('trade_count', 0)}, 손절 수: {metrics.get('stop_loss_count', 0)}, 승률: {metrics.get('win_rate', 0.0)}",
                 f"차단 사유: {json.dumps(metrics.get('blocked_reason_summary', []), ensure_ascii=False, sort_keys=True)}",
                 f"사이징 차단: {json.dumps(metrics.get('sizing_blocked_reason_summary', []), ensure_ascii=False, sort_keys=True)}",
+                f"전문 보조지표: {json.dumps(metrics.get('technical_indicator_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 f"외부 컨텍스트: {json.dumps(metrics.get('external_context_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 f"A/B/C 동시 테스트: {json.dumps(metrics.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 "제안은 최대 변경 수 제한을 지키고, 변경 이유/기대효과/리스크/replay 검증 기준을 함께 남긴다.",

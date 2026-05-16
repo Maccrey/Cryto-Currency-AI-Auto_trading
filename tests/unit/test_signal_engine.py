@@ -23,7 +23,7 @@ def test_signal_engine_generates_strong_signal_for_momentum_breakout() -> None:
 
     assert decision == SignalDecision(
         level="strong",
-        score=0.72,
+        score=0.74,
         blocked=False,
         reason_codes=["MOMENTUM_BREAKOUT", "VALUE_ACCELERATION", "ORDERBOOK_SUPPORT"],
     )

@@ -25,3 +25,8 @@ def test_feature_calculator_computes_market_features() -> None:
     assert round(snapshot.short_volatility, 4) == 0.0062
     assert snapshot.regime_score == 0.55
     assert snapshot.liquidity_score == 0.82
+    assert 0.0 <= snapshot.rsi_14 <= 100.0
+    assert snapshot.macd_histogram >= 0.0
+    assert 0.0 <= snapshot.bollinger_position <= 1.0
+    assert snapshot.ma_trend >= 0.0
+    assert 0.0 <= snapshot.stochastic_k <= 100.0

@@ -19,6 +19,7 @@ def build_settings_router(
     stop_trading_service: Callable[[], Awaitable[dict[str, object]] | dict[str, object]] | None = None,
     trading_status_service: Callable[[], dict[str, object]] | None = None,
     reset_demo_trading_data_service: Callable[[], dict[str, object]] | None = None,
+    telegram_test_service: Callable[[], dict[str, object]] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/settings")
 
@@ -126,6 +127,16 @@ def build_settings_router(
                 "message": "demo trading data reset service is not configured",
             }
         return reset_demo_trading_data_service()
+
+    @router.post("/telegram/test")
+    def send_telegram_test() -> dict[str, object]:
+        if telegram_test_service is None:
+            return {
+                "status": "not_configured",
+                "sent": False,
+                "message": "telegram test service is not configured",
+            }
+        return telegram_test_service()
 
     return router
 
@@ -345,6 +356,7 @@ SETTINGS_HTML = """
       <label for="telegramAllowFrom">텔레그램 허용 사용자</label>
       <input id="telegramAllowFrom" autocomplete="off" placeholder="467359360">
       <div class="note">Identity의 AllowFrom 값을 기록해 둔다. 현재는 발신 알림 대상이 아니라 운영자 식별/향후 수신 명령 제한용 설정이다.</div>
+      <button class="secondary" type="button" onclick="sendTelegramTest()">텔레그램 테스트 메시지 전송</button>
     </div>
     <div class="actions">
       <button id="saveButton" class="primary" type="button" onclick="saveSettings()">저장</button>
@@ -849,6 +861,16 @@ async function saveSettings() {
     showStartPanel(false);
   } finally {
     saveButton.disabled = false;
+  }
+}
+async function sendTelegramTest() {
+  showStatus("텔레그램 테스트 메시지를 전송하는 중...", "pending");
+  try {
+    const response = await fetch("/settings/telegram/test", {method: "POST"});
+    const result = await response.json();
+    showStatus(result.message || (result.sent ? "텔레그램 테스트 메시지를 전송했습니다." : "텔레그램 테스트 메시지를 전송하지 못했습니다."), result.sent ? "" : "warning");
+  } catch (error) {
+    showStatus("텔레그램 테스트 메시지 전송 요청에 실패했습니다.", "warning");
   }
 }
 async function toggleTradingServer() {

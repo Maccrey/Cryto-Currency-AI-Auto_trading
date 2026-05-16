@@ -48,7 +48,8 @@ class TelegramHttpGateway:
     def _format_message(self, message: str) -> str:
         if not self._server_name:
             return message
-        return f"[{self._server_name}]\n{message}"
+        server_label = self._server_name if self._server_name.endswith("서버") else f"{self._server_name}서버"
+        return f"{server_label}\n{message}"
 
     @staticmethod
     def _normalize_chat_id(chat_id: str) -> str:

@@ -190,6 +190,84 @@ def test_rule_review_uses_shadow_variant_results_in_codex_prompt_and_changes(tmp
     assert proposal["codex_suggested_changes"][0]["parameter"] == "TREND_MARKET_SIZE_MULTIPLIER"
 
 
+def test_rule_review_uses_technical_indicators_in_codex_prompt_and_changes(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "event_name": "signal_generated",
+                        "payload": {
+                            "technical_indicators": {
+                                "rsi_14": 63.0,
+                                "macd_histogram": 0.004,
+                                "bollinger_position": 0.62,
+                                "ma_trend": 0.012,
+                                "stochastic_k": 58.0,
+                            },
+                        },
+                    },
+                    ensure_ascii=True,
+                ),
+                json.dumps(
+                    {
+                        "event_name": "signal_generated",
+                        "payload": {
+                            "technical_indicators": {
+                                "rsi_14": 66.0,
+                                "macd_histogram": 0.003,
+                                "bollinger_position": 0.68,
+                                "ma_trend": 0.011,
+                                "stochastic_k": 61.0,
+                            },
+                        },
+                    },
+                    ensure_ascii=True,
+                ),
+                json.dumps(
+                    {
+                        "event_name": "signal_generated",
+                        "payload": {
+                            "technical_indicators": {
+                                "rsi_14": 69.0,
+                                "macd_histogram": 0.002,
+                                "bollinger_position": 0.71,
+                                "ma_trend": 0.009,
+                                "stochastic_k": 65.0,
+                            },
+                        },
+                    },
+                    ensure_ascii=True,
+                ),
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    review = service.review()["review"]
+    proposal = service.create_proposal(review_id=str(review["id"]))["proposal"]
+
+    assert review["technical_indicator_summary"]["bullish_momentum_count"] == 3
+    assert "전문 보조지표" in review["codex_rule_prompt"]
+    assert proposal["technical_indicator_summary"]["sample_count"] == 3
+    assert proposal["codex_suggested_changes"][0]["parameter"] == "TECHNICAL_TREND_CONFIRMATION"
+
+
 def test_auto_rule_update_skips_when_learning_incomplete_or_win_rate_high(tmp_path: Path) -> None:
     (tmp_path / "learning.jsonl").write_text(
         "\n".join(

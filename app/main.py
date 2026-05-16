@@ -538,6 +538,35 @@ def create_app(
             **demo_result,
         }
 
+    def telegram_test_service() -> dict[str, object]:
+        if telegram_gateway is None:
+            return {
+                "status": "not_configured",
+                "sent": False,
+                "message": "텔레그램 봇 토큰과 채팅 ID가 설정되어 있지 않습니다. 저장 후 서버를 재시작하세요.",
+            }
+        try:
+            telegram_gateway.send_message(
+                "\n".join(
+                    [
+                        "텔레그램 테스트 메시지입니다.",
+                        f"거래 시장: {settings.trade_market}",
+                        f"거래 모드: {settings.trading_mode}",
+                    ],
+                ),
+            )
+        except Exception as exc:
+            return {
+                "status": "failed",
+                "sent": False,
+                "message": f"텔레그램 테스트 메시지 전송 실패: {exc}",
+            }
+        return {
+            "status": "sent",
+            "sent": True,
+            "message": "텔레그램 테스트 메시지를 전송했습니다.",
+        }
+
     if telegram_gateway is not None:
         report_service = TelegramTradingReportService(
             gateway=telegram_gateway,
@@ -586,6 +615,7 @@ def create_app(
             stop_trading_service=stop_trading_service,
             trading_status_service=trading_status_service,
             reset_demo_trading_data_service=reset_demo_trading_data_service,
+            telegram_test_service=telegram_test_service,
         ),
     )
     app.include_router(

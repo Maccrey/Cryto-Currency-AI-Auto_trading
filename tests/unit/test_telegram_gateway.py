@@ -80,4 +80,24 @@ def test_telegram_http_gateway_prefixes_server_name() -> None:
     gateway.send_message("hello")
 
     payload = json.loads(calls[0].data.decode("utf-8"))
-    assert payload["text"] == "[서울-데모-1]\nhello"
+    assert payload["text"] == "서울-데모-1서버\nhello"
+
+
+def test_telegram_http_gateway_keeps_server_suffix_once() -> None:
+    calls = []
+
+    def urlopen(req, timeout, context):
+        calls.append(req)
+        return StubResponse()
+
+    gateway = TelegramHttpGateway(
+        bot_token="token",
+        chat_id="chat",
+        server_name="서울-실거래서버",
+        urlopen=urlopen,
+    )
+
+    gateway.send_message("매수정보")
+
+    payload = json.loads(calls[0].data.decode("utf-8"))
+    assert payload["text"] == "서울-실거래서버\n매수정보"
