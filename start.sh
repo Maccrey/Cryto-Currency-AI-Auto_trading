@@ -113,8 +113,11 @@ ensure_venv() {
   if [[ ! -x .venv/bin/python ]]; then
     "${PYTHON_BIN}" -m venv .venv
   fi
+  if ! .venv/bin/python -m pip --version >/dev/null 2>&1; then
+    .venv/bin/python -m ensurepip --upgrade >/dev/null
+  fi
   .venv/bin/python -m pip install --upgrade pip >/dev/null
-  if ! .venv/bin/python -c 'import fastapi, uvicorn' >/dev/null 2>&1; then
+  if ! .venv/bin/python -c 'import fastapi, jwt, uvicorn' >/dev/null 2>&1; then
     .venv/bin/python -m pip install -e .
   fi
 }
@@ -171,7 +174,7 @@ install_launch_agent() {
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>cd "${ROOT_DIR}" &amp;&amp; env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" STORAGE_DIR="${STORAGE_DIR}" TRADING_HOST="${TRADING_HOST}" TRADING_PORT="${TRADING_PORT}" .venv/bin/python -m uvicorn app.main:app --host "${TRADING_HOST}" --port "${TRADING_PORT}"</string>
+    <string>cd "${ROOT_DIR}" &amp;&amp; while lsof -nP -iTCP:"${TRADING_PORT}" -sTCP:LISTEN &gt;/dev/null 2&gt;&amp;1; do echo "Port ${TRADING_PORT} is already in use. Waiting before starting trading server..."; sleep 60; done; exec env TRADING_MODE="${TRADING_MODE:-demo}" LEARNING_ENABLED="${LEARNING_ENABLED:-true}" STORAGE_DIR="${STORAGE_DIR}" TRADING_HOST="${TRADING_HOST}" TRADING_PORT="${TRADING_PORT}" .venv/bin/python -m uvicorn app.main:app --host "${TRADING_HOST}" --port "${TRADING_PORT}"</string>
   </array>
   <key>WorkingDirectory</key>
   <string>${ROOT_DIR}</string>
@@ -179,6 +182,8 @@ install_launch_agent() {
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
   <key>StandardOutPath</key>
   <string>${LOG_FILE}</string>
   <key>StandardErrorPath</key>

@@ -7,6 +7,7 @@ dependencies = [
   "fastapi>=0.116.0,<1.0.0",
   "certifi>=2025.0.0",
   "httpx>=0.28.0,<1.0.0",
+  "PyJWT>=2.10.0,<3.0.0",
   "pydantic>=2.11.0,<3.0.0",
   "structlog>=25.0.0,<26.0.0",
   "uvicorn>=0.35.0,<1.0.0",
@@ -23,6 +24,9 @@ ml = [
 [project.scripts]
 upbit-train-model = "app.cli.train_model:main"
 upbit-link-rule-commit = "app.cli.link_rule_commit:main"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
