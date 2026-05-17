@@ -145,14 +145,18 @@ def create_app(
 
     telegram_gateway = None
     if settings.telegram_bot_token and settings.telegram_chat_id:
+        current_server_name = lambda: load_settings(env_file=settings.env_file_path).server_name
         telegram_gateway = TelegramHttpGateway(
             bot_token=settings.telegram_bot_token,
             chat_id=settings.telegram_chat_id,
             server_name=settings.server_name,
-            server_name_provider=lambda: load_settings(env_file=settings.env_file_path).server_name,
+            server_name_provider=current_server_name,
         )
         if trade_fill_notifier is None:
-            trade_fill_notifier = TelegramNotifier(gateway=telegram_gateway)
+            trade_fill_notifier = TelegramNotifier(
+                gateway=telegram_gateway,
+                server_name_provider=current_server_name,
+            )
         if restart_notifier is None and settings.restart_notify:
             restart_notifier = RestartNotifier(gateway=telegram_gateway)
         if hard_stop_notifier is None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Any
+from typing import Any, Callable
 
 from app.services.execution.demo import FillResult
 
@@ -60,9 +60,11 @@ class TelegramNotifier:
         *,
         gateway: Any,
         fill_message_template: FillMessageTemplate | None = None,
+        server_name_provider: Callable[[], str] | None = None,
     ) -> None:
         self._gateway = gateway
         self._fill_message_template = fill_message_template or FillMessageTemplate()
+        self._server_name_provider = server_name_provider
 
     def notify_fill(
         self,
@@ -74,11 +76,13 @@ class TelegramNotifier:
     ) -> None:
         try:
             self._gateway.send_message(
-                self._fill_message_template.build(
-                    fill,
-                    reason_code=reason_code,
-                    entry_price=entry_price,
-                    total_asset_value=total_asset_value,
+                self._format_message(
+                    self._fill_message_template.build(
+                        fill,
+                        reason_code=reason_code,
+                        entry_price=entry_price,
+                        total_asset_value=total_asset_value,
+                    ),
                 ),
             )
         except Exception:
@@ -91,3 +95,19 @@ class TelegramNotifier:
                     "is_stop_loss": fill.is_stop_loss,
                 },
             )
+
+    def _format_message(self, message: str) -> str:
+        server_name = self._current_server_name()
+        if not server_name:
+            return message
+        if message.startswith(f"[{server_name}]\n"):
+            return message
+        return f"[{server_name}]\n{message}"
+
+    def _current_server_name(self) -> str:
+        if self._server_name_provider is None:
+            return ""
+        try:
+            return self._server_name_provider().strip()
+        except Exception:
+            return ""

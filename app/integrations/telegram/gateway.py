@@ -51,6 +51,8 @@ class TelegramHttpGateway:
         server_name = self._current_server_name()
         if not server_name:
             return message
+        if message.startswith(f"[{server_name}]\n"):
+            return message
         return f"[{server_name}]\n{message}"
 
     def _current_server_name(self) -> str:

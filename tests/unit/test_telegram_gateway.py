@@ -150,3 +150,23 @@ def test_telegram_http_gateway_falls_back_when_server_name_provider_fails() -> N
 
     payload = json.loads(calls[0].data.decode("utf-8"))
     assert payload["text"] == "[저장된이름]\n알림"
+
+
+def test_telegram_http_gateway_does_not_duplicate_existing_server_name_prefix() -> None:
+    calls = []
+
+    def urlopen(req, timeout, context):
+        calls.append(req)
+        return StubResponse()
+
+    gateway = TelegramHttpGateway(
+        bot_token="token",
+        chat_id="chat",
+        server_name="서울-데모-1",
+        urlopen=urlopen,
+    )
+
+    gateway.send_message("[서울-데모-1]\n매수가 체결되었습니다.")
+
+    payload = json.loads(calls[0].data.decode("utf-8"))
+    assert payload["text"] == "[서울-데모-1]\n매수가 체결되었습니다."
