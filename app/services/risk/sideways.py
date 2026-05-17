@@ -51,6 +51,12 @@ class SidewaysMarketRiskGuard:
             return SidewaysRiskDecision(allowed=True, reason_code=None, **base)
 
         if position_entry_price is not None and position_entry_price > 0:
+            if signal_level == "weak":
+                return SidewaysRiskDecision(
+                    allowed=False,
+                    reason_code="SIDEWAYS_WEAK_SCALE_IN_BLOCK",
+                    **base,
+                )
             min_scale_in_price = round(position_entry_price * (1 - self._config.scale_in_min_discount_pct), 4)
             if current_price > min_scale_in_price:
                 return SidewaysRiskDecision(

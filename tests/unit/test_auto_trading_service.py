@@ -403,7 +403,7 @@ def test_auto_trading_service_blocks_scale_in_at_same_price_in_sideways_market(t
 
     assert first_entry["status"] == "filled"
     assert result["status"] == "blocked"
-    assert result["reason"] == "SIDEWAYS_SCALE_IN_PRICE_UNCHANGED"
+    assert result["reason"] == "SIDEWAYS_WEAK_SCALE_IN_BLOCK"
     assert result["entry_type"] == "scale_in"
     assert result["sideways_is_sideways"] is True
 

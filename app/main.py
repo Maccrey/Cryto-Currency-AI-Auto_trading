@@ -493,13 +493,13 @@ def create_app(
         auto_trading_service.start()
         telegram_notification = _send_telegram_lifecycle_message(
             [
-                "트레이딩 서버가 시작되었습니다.",
+                "자동매매 루프가 시작되었습니다.",
                 f"거래 시장은 {settings.trade_market}이고 거래 모드는 {settings.trading_mode}입니다.",
                 f"대시보드는 브라우저에서 {browser_urls['dashboard_url']} 주소로 열 수 있습니다.",
                 f"설정 화면은 브라우저에서 {browser_urls['settings_url']} 주소로 열 수 있습니다.",
             ],
         )
-        message = _build_trading_response_message("트레이딩 서버가 시작되었습니다.", telegram_notification)
+        message = _build_trading_response_message("자동매매 루프가 시작되었습니다.", telegram_notification)
         return {
             "status": "started",
             "started": True,
@@ -512,11 +512,11 @@ def create_app(
         running = auto_trading_service.is_running()
         startable = auto_trading_service.should_run()
         if running:
-            message = "트레이딩 서버가 실행 중입니다."
+            message = "자동매매 루프가 실행 중입니다."
         elif startable:
-            message = "트레이딩 서버를 시작할 수 있습니다."
+            message = "자동매매 루프를 시작할 수 있습니다."
         else:
-            message = "트레이딩 서버를 시작할 수 없습니다. 안전 모드, HARD_STOP, live 실행 허용 설정을 확인하세요."
+            message = "자동매매 루프를 시작할 수 없습니다. 안전 모드, HARD_STOP, live 실행 허용 설정을 확인하세요."
         return {
             "status": "running" if running else "stopped",
             "running": running,
@@ -537,17 +537,17 @@ def create_app(
                 "status": "already_stopped",
                 "stopped": True,
                 "running": False,
-                "message": "트레이딩 서버가 이미 중지되어 있습니다.",
+                "message": "자동매매 루프가 이미 중지되어 있습니다.",
             }
         await auto_trading_service.stop()
         telegram_notification = _send_telegram_lifecycle_message(
             [
-                "트레이딩 서버가 중지되었습니다.",
+                "자동매매 루프가 중지되었습니다.",
                 f"거래 시장은 {settings.trade_market}이고 거래 모드는 {settings.trading_mode}입니다.",
                 "설정 화면은 계속 열려 있으며 시작 버튼으로 다시 실행할 수 있습니다.",
             ],
         )
-        message = _build_trading_response_message("트레이딩 서버가 중지되었습니다.", telegram_notification)
+        message = _build_trading_response_message("자동매매 루프가 중지되었습니다.", telegram_notification)
         return {
             "status": "stopped",
             "stopped": True,

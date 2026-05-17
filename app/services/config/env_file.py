@@ -22,6 +22,8 @@ class EnvFileService:
         values = self._read()
         display_values = dict(values)
         display_values.setdefault("SERVER_NAME", self._default_server_name())
+        for key, value in self._sideways_risk_defaults().items():
+            display_values.setdefault(key, value)
         mode = values.get("TRADING_MODE", "demo")
         profile = values.get("TRADING_PROFILE", "scalping")
         missing_for_live = self._missing_for_live(values) if mode == "live" else []
@@ -262,6 +264,16 @@ class EnvFileService:
             "STOP_LOSS_MEDIUM": str(profile_spec.fixed_stop_loss_pct),
             "STOP_LOSS_STRONG": str(profile_spec.fixed_stop_loss_pct),
             "STOP_LOSS_VERY_STRONG": str(profile_spec.fixed_stop_loss_pct),
+        }
+
+    @staticmethod
+    def _sideways_risk_defaults() -> dict[str, str]:
+        return {
+            "SIDEWAYS_RISK_GUARD_ENABLED": "true",
+            "SIDEWAYS_PRICE_RANGE_PCT": "0.002",
+            "SIDEWAYS_TRADED_VALUE_RANGE_PCT": "0.003",
+            "SIDEWAYS_MAX_AVG_ABS_RETURN_PCT": "0.001",
+            "SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT": "0.003",
         }
 
     @staticmethod

@@ -28,6 +28,18 @@ def test_env_file_service_saves_settings_and_masks_secret_values(tmp_path: Path)
     assert current["missing_for_live"] == []
 
 
+def test_env_file_service_exposes_sideways_risk_defaults(tmp_path: Path) -> None:
+    service = EnvFileService(tmp_path / ".env")
+
+    current = service.current()
+
+    assert current["values"]["SIDEWAYS_RISK_GUARD_ENABLED"] == "true"
+    assert current["values"]["SIDEWAYS_PRICE_RANGE_PCT"] == "0.002"
+    assert current["values"]["SIDEWAYS_TRADED_VALUE_RANGE_PCT"] == "0.003"
+    assert current["values"]["SIDEWAYS_MAX_AVG_ABS_RETURN_PCT"] == "0.001"
+    assert current["values"]["SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT"] == "0.003"
+
+
 def test_env_file_service_uses_machine_name_when_server_name_is_blank(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

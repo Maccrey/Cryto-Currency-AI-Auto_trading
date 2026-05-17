@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.risk.sideways import SidewaysMarketRiskGuard
+from app.services.risk.sideways import SidewaysMarketRiskGuard, SidewaysRiskConfig
 
 
 def test_sideways_guard_blocks_relaxed_weak_entry_when_price_and_value_are_flat() -> None:
@@ -50,3 +50,24 @@ def test_sideways_guard_allows_scale_in_after_meaningful_discount() -> None:
 
     assert decision.allowed is True
     assert decision.reason_code is None
+
+
+def test_sideways_guard_blocks_weak_scale_in_even_after_discount() -> None:
+    guard = SidewaysMarketRiskGuard(
+        SidewaysRiskConfig(
+            price_range_pct=0.005,
+            max_avg_abs_return_pct=0.002,
+        ),
+    )
+
+    decision = guard.check(
+        prices=[800.0, 799.8, 799.7, 797.0],
+        traded_values=[1000.0, 1000.2, 1000.3, 1000.5],
+        current_price=797.0,
+        signal_level="weak",
+        relaxed_signal=False,
+        position_entry_price=800.0,
+    )
+
+    assert decision.allowed is False
+    assert decision.reason_code == "SIDEWAYS_WEAK_SCALE_IN_BLOCK"

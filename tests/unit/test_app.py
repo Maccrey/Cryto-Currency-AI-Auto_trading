@@ -1130,7 +1130,7 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert "toggleTradingServer" in page.text
     assert "/settings/trading/status" in page.text
     assert "/settings/trading/stop" in page.text
-    assert "트레이딩 서버 중지" in page.text
+    assert "자동매매 루프 중지" in page.text
     assert "required-mark" in page.text
 
     status = client.get("/settings/trading/status")
@@ -1282,7 +1282,7 @@ def test_trading_start_endpoint_reports_telegram_notification(monkeypatch, tmp_p
     assert started["status"] == "started"
     assert started["telegram_notification"]["status"] == "sent"
     assert len(StubTelegramGateway.instances) == 1
-    assert "트레이딩 서버가 시작되었습니다." in StubTelegramGateway.instances[0].messages[0]
+    assert "자동매매 루프가 시작되었습니다." in StubTelegramGateway.instances[0].messages[0]
 
 
 def test_settings_learning_reset_archives_current_profile_log(

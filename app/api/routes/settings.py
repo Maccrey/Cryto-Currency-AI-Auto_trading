@@ -312,6 +312,34 @@ SETTINGS_HTML = """
       <div class="note">live에는 즉시 완화 반영하지 않고 replay와 demo 검증 후 승인 플로우를 거친다.</div>
     </div>
     <div class="subsection">
+      <label>횡보장 리스크 가드</label>
+      <div class="checkbox-line">
+        <input id="sidewaysRiskGuardEnabled" type="checkbox">
+        <span>가격과 거래대금이 정체된 구간에서 약신호 매수와 평단 근처 추가매수 차단</span>
+      </div>
+      <div class="row">
+        <div>
+          <label for="sidewaysPriceRangePct">가격 범위 상한</label>
+          <input id="sidewaysPriceRangePct" type="number" min="0" max="0.05" step="0.0001" placeholder="0.002">
+        </div>
+        <div>
+          <label for="sidewaysTradedValueRangePct">거래대금 범위 상한</label>
+          <input id="sidewaysTradedValueRangePct" type="number" min="0" max="0.05" step="0.0001" placeholder="0.003">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="sidewaysMaxAvgAbsReturnPct">평균 절대 변화율 상한</label>
+          <input id="sidewaysMaxAvgAbsReturnPct" type="number" min="0" max="0.05" step="0.0001" placeholder="0.001">
+        </div>
+        <div>
+          <label for="sidewaysScaleInMinDiscountPct">추가매수 최소 할인율</label>
+          <input id="sidewaysScaleInMinDiscountPct" type="number" min="0" max="0.1" step="0.0001" placeholder="0.003">
+        </div>
+      </div>
+      <div class="note">횡보장에서는 약신호 추가매수를 항상 막고, medium 이상 신호도 기존 진입가보다 충분히 낮을 때만 추가매수를 허용한다.</div>
+    </div>
+    <div class="subsection">
       <label>데이터 저장소</label>
       <label for="storageDir">storage 디렉터리</label>
       <input id="storageDir" autocomplete="off" placeholder="./storage">
@@ -400,7 +428,7 @@ SETTINGS_HTML = """
     <div id="startPanel" class="start-panel">
       <div id="startMessage" class="note"></div>
       <div class="actions">
-        <button id="startTradingButton" class="primary" type="button" onclick="toggleTradingServer()">트레이딩 서버 시작</button>
+        <button id="startTradingButton" class="primary" type="button" onclick="toggleTradingServer()">자동매매 루프 시작</button>
       </div>
     </div>
     <div id="nextSteps" class="next-steps">
@@ -503,14 +531,14 @@ function showStartPanel(visible, readiness = null, tradingStatus = null) {
   const running = Boolean(latestTradingStatus && latestTradingStatus.running);
   panel.classList.toggle("blocked", visible && !ready);
   button.style.display = ready ? "inline-flex" : "none";
-  button.textContent = running ? "트레이딩 서버 중지" : "트레이딩 서버 시작";
+  button.textContent = running ? "자동매매 루프 중지" : "자동매매 루프 시작";
   button.className = running ? "danger-button" : "primary";
   message.textContent = !visible
     ? ""
     : running
-      ? "트레이딩 서버가 실행 중입니다. 중지 버튼을 누르면 자동매매 루프만 멈추고 설정 화면은 유지됩니다."
+      ? "자동매매 루프가 실행 중입니다. 중지 버튼을 누르면 매매 판단만 멈추고 설정 화면과 서버 프로세스는 유지됩니다."
       : ready
-        ? "필수 설정이 저장되었습니다. 트레이딩 서버를 시작할 수 있습니다."
+        ? "필수 설정이 저장되었습니다. 자동매매 루프를 시작할 수 있습니다."
         : `아직 시작할 수 없습니다. ${formatReadinessProblems(readiness)}`;
 }
 function formatReadinessProblems(readiness) {
@@ -626,6 +654,11 @@ async function loadSettings() {
     document.getElementById("noTradeAdaptiveEnabled").checked = values.NO_TRADE_ADAPTIVE_ENABLED !== "false";
     document.getElementById("noTradeRelaxAfterCycles").value = values.NO_TRADE_RELAX_AFTER_CYCLES || "100";
     document.getElementById("noTradeRelaxMinScore").value = values.NO_TRADE_RELAX_MIN_SCORE || "0.18";
+    document.getElementById("sidewaysRiskGuardEnabled").checked = values.SIDEWAYS_RISK_GUARD_ENABLED !== "false";
+    document.getElementById("sidewaysPriceRangePct").value = values.SIDEWAYS_PRICE_RANGE_PCT || "0.002";
+    document.getElementById("sidewaysTradedValueRangePct").value = values.SIDEWAYS_TRADED_VALUE_RANGE_PCT || "0.003";
+    document.getElementById("sidewaysMaxAvgAbsReturnPct").value = values.SIDEWAYS_MAX_AVG_ABS_RETURN_PCT || "0.001";
+    document.getElementById("sidewaysScaleInMinDiscountPct").value = values.SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT || "0.003";
     document.getElementById("storageDir").value = values.STORAGE_DIR || "./storage";
     document.getElementById("autoRuleUpdateEnabled").checked = values.AUTO_RULE_UPDATE_ENABLED === "true";
     document.getElementById("autoRuleCompletionRate").value = values.AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE || "1.0";
@@ -845,6 +878,11 @@ async function saveSettings() {
     NO_TRADE_ADAPTIVE_ENABLED: document.getElementById("noTradeAdaptiveEnabled").checked ? "true" : "false",
     NO_TRADE_RELAX_AFTER_CYCLES: document.getElementById("noTradeRelaxAfterCycles").value || "100",
     NO_TRADE_RELAX_MIN_SCORE: document.getElementById("noTradeRelaxMinScore").value || "0.18",
+    SIDEWAYS_RISK_GUARD_ENABLED: document.getElementById("sidewaysRiskGuardEnabled").checked ? "true" : "false",
+    SIDEWAYS_PRICE_RANGE_PCT: document.getElementById("sidewaysPriceRangePct").value || "0.002",
+    SIDEWAYS_TRADED_VALUE_RANGE_PCT: document.getElementById("sidewaysTradedValueRangePct").value || "0.003",
+    SIDEWAYS_MAX_AVG_ABS_RETURN_PCT: document.getElementById("sidewaysMaxAvgAbsReturnPct").value || "0.001",
+    SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT: document.getElementById("sidewaysScaleInMinDiscountPct").value || "0.003",
     STORAGE_DIR: document.getElementById("storageDir").value || "./storage",
     AUTO_RULE_UPDATE_ENABLED: document.getElementById("autoRuleUpdateEnabled").checked ? "true" : "false",
     AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE: document.getElementById("autoRuleCompletionRate").value || "1.0",
@@ -903,41 +941,42 @@ async function toggleTradingServer() {
 async function startTradingServer() {
   const button = document.getElementById("startTradingButton");
   button.disabled = true;
-  showStatus("트레이딩 서버를 시작하는 중...", "pending");
+  showStatus("자동매매 루프를 시작하는 중...", "pending");
   try {
     const response = await fetch("/settings/trading/start", {method: "POST"});
     const result = await response.json();
     if (result.started) {
-      showStatus(result.message || "트레이딩 서버가 시작되었습니다.");
+      showStatus(result.message || "자동매매 루프가 시작되었습니다.");
       showNextSteps(true);
       await refreshTradingStatus(result.start_readiness || latestStartReadiness);
       return;
     }
-    showStatus(result.message || "트레이딩 서버를 시작하지 못했습니다.", "warning");
+    showStatus(result.message || "자동매매 루프를 시작하지 못했습니다.", "warning");
     showStartPanel(true, result.start_readiness || latestStartReadiness);
   } catch (error) {
-    showStatus("트레이딩 서버 시작 요청에 실패했습니다.", "warning");
+    showStatus("자동매매 루프 시작 요청에 실패했습니다.", "warning");
   } finally {
     button.disabled = false;
   }
 }
 async function stopTradingServer() {
+  if (!confirm("자동매매 루프를 중지할까요? 서버 화면은 유지되지만 매수/매도 판단은 멈춥니다.")) return;
   const button = document.getElementById("startTradingButton");
   button.disabled = true;
-  showStatus("트레이딩 서버를 중지하는 중...", "pending");
+  showStatus("자동매매 루프를 중지하는 중...", "pending");
   try {
     const response = await fetch("/settings/trading/stop", {method: "POST"});
     const result = await response.json();
     if (result.stopped || result.status === "already_stopped") {
-      showStatus(result.message || "트레이딩 서버가 중지되었습니다.");
+      showStatus(result.message || "자동매매 루프가 중지되었습니다.");
       showNextSteps(true);
       await refreshTradingStatus(latestStartReadiness);
       return;
     }
-    showStatus(result.message || "트레이딩 서버를 중지하지 못했습니다.", "warning");
+    showStatus(result.message || "자동매매 루프를 중지하지 못했습니다.", "warning");
     await refreshTradingStatus(latestStartReadiness);
   } catch (error) {
-    showStatus("트레이딩 서버 중지 요청에 실패했습니다.", "warning");
+    showStatus("자동매매 루프 중지 요청에 실패했습니다.", "warning");
   } finally {
     button.disabled = false;
   }
@@ -989,6 +1028,11 @@ async function purgeRuntimeData() {
   const button = document.getElementById("purgeRuntimeDataButton");
   const profile = document.getElementById("tradingProfile").selectedOptions[0]?.textContent || "현재 성향";
   if (!confirm(`${profile} 학습 로그와 데모 매매 데이터를 보관 없이 완전히 삭제하고 초기화할까요?`)) return;
+  const phrase = prompt("완전 삭제를 진행하려면 아래에 '완전삭제'를 입력하세요.");
+  if (phrase !== "완전삭제") {
+    showStatus("완전 삭제가 취소되었습니다.", "warning");
+    return;
+  }
   button.disabled = true;
   showStatus("데이터를 보관 없이 완전 삭제하는 중...", "pending");
   try {
