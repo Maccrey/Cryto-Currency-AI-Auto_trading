@@ -306,6 +306,13 @@ XRP-KRW
 
 손절 파라미터(`STOP_LOSS_*`, `stop_loss_pct`, `stop_loss_price`, `fixed_stop_loss_pct`)는 룰 개선 제안에서 잠금 처리한다. 손절 관련 문제가 발견되더라도 손절률 자체가 아니라 진입 조건, 사이징, 재진입 차단, 기대 검증 기준만 개선 대상으로 삼는다.
 
+### 횡보장 리스크 가드
+자동매매 루프는 주문 실행 직전에 가격 범위, 거래대금 범위, 평균 절대 가격 변화율을 함께 확인해 가격과 거래량이 모두 정체된 횡보장을 감지한다.
+
+- `NO_TRADE_RELAX_AFTER_CYCLES` 이후 약한 신호가 완화되더라도 횡보장에서는 신규 매수를 차단한다.
+- 포지션 보유 중 횡보장으로 판단되면 기존 진입가 대비 `SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT` 이상 할인된 가격이 아니면 추가매수를 차단한다.
+- 차단 사유는 `SIDEWAYS_WEAK_RELAXED_ENTRY_BLOCK`, `SIDEWAYS_SCALE_IN_PRICE_UNCHANGED`로 남기고, 횡보 판단 지표를 학습 로그와 마지막 자동매매 사이클에 기록한다.
+
 ---
 
 ## 10. 학습 로그 정책

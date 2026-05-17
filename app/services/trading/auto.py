@@ -20,6 +20,7 @@ from app.services.trading.post_fill import PostFillService
 from app.services.trading.variants import DemoRuleVariantShadowTester
 from app.services.position.exit import PositionExitService
 from app.services.risk.reentry import ReentryBlocker
+from app.services.risk.sideways import SidewaysMarketRiskGuard, SidewaysRiskConfig
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,11 @@ class AutoTradingConfig:
     scale_in_enabled: bool = True
     scale_in_max_price_premium_pct: float = 0.0
     reentry_block_seconds: int = 180
+    sideways_risk_guard_enabled: bool = True
+    sideways_price_range_pct: float = 0.002
+    sideways_traded_value_range_pct: float = 0.003
+    sideways_max_avg_abs_return_pct: float = 0.001
+    sideways_scale_in_min_discount_pct: float = 0.003
 
 
 class AutoTradingService:
@@ -97,6 +103,15 @@ class AutoTradingService:
         self._demo_avg_buy_price = 0.0 if portfolio is None else portfolio.avg_buy_price
         self._consecutive_entry_blocks = 0
         self._reentry_blocker = ReentryBlocker(block_seconds=config.reentry_block_seconds)
+        self._sideways_risk_guard = SidewaysMarketRiskGuard(
+            SidewaysRiskConfig(
+                enabled=config.sideways_risk_guard_enabled,
+                price_range_pct=config.sideways_price_range_pct,
+                traded_value_range_pct=config.sideways_traded_value_range_pct,
+                max_avg_abs_return_pct=config.sideways_max_avg_abs_return_pct,
+                scale_in_min_discount_pct=config.sideways_scale_in_min_discount_pct,
+            ),
+        )
         self._demo_rule_variant_shadow_tester = DemoRuleVariantShadowTester(
             trading_fee_rate=config.trading_fee_rate,
         )
@@ -281,6 +296,42 @@ class AutoTradingService:
                 },
             )
         relaxed_signal = self._should_relax_weak_signal(decision)
+        sideways_decision = self._sideways_risk_guard.check(
+            prices=list(self._prices),
+            traded_values=list(self._traded_values),
+            current_price=snapshot.trade_price,
+            signal_level=decision.signal.level,
+            relaxed_signal=relaxed_signal,
+            position_entry_price=None if position is None else position.entry_price,
+        )
+        if not sideways_decision.allowed:
+            rule_variant = self._variant_extra(variant_payload)
+            self._consecutive_entry_blocks += 1
+            return self._record_cycle(
+                status="blocked",
+                reason=sideways_decision.reason_code,
+                extra={
+                    "entry_type": "scale_in" if position is not None else "initial",
+                    "signal_level": decision.signal.level,
+                    "signal_score": decision.signal.score,
+                    "signal_blocked": decision.signal.blocked,
+                    "signal_reason_codes": decision.signal.reason_codes,
+                    "sizing_allowed": decision.sizing.allowed,
+                    "sizing_blocked_reason": decision.sizing.blocked_reason,
+                    "buy_amount": 0.0,
+                    "market_state": decision.regime.market_state,
+                    "market_state_label": decision.regime.market_state_label,
+                    "box_range_low": decision.regime.box_range_low,
+                    "box_range_high": decision.regime.box_range_high,
+                    "sideways_is_sideways": sideways_decision.is_sideways,
+                    "sideways_price_range_pct": sideways_decision.price_range_pct,
+                    "sideways_traded_value_range_pct": sideways_decision.traded_value_range_pct,
+                    "sideways_avg_abs_return_pct": sideways_decision.avg_abs_return_pct,
+                    "sideways_min_scale_in_price": sideways_decision.min_scale_in_price,
+                    "no_trade_relaxed": relaxed_signal,
+                    **rule_variant,
+                },
+            )
         if relaxed_signal and decision.sizing.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT":
             decision = self._trade_decision_service.evaluate(
                 self._build_decision_request(snapshot.trade_price, relax_fee_edge=True),

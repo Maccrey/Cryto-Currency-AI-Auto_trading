@@ -81,6 +81,11 @@ class SettingsModel(BaseModel):
     max_spread_bps: int = Field(default=15)
     cooldown_seconds: int = Field(default=60)
     reentry_block_seconds: int = Field(default=180)
+    sideways_risk_guard_enabled: bool = Field(default=True)
+    sideways_price_range_pct: float = Field(default=0.002)
+    sideways_traded_value_range_pct: float = Field(default=0.003)
+    sideways_max_avg_abs_return_pct: float = Field(default=0.001)
+    sideways_scale_in_min_discount_pct: float = Field(default=0.003)
     safe_mode_on_restart: bool = Field(default=True)
     restart_notify: bool = Field(default=True)
     restart_hard_stop_threshold: int = Field(default=3)
@@ -247,6 +252,11 @@ class AppSettings:
     max_spread_bps: int
     cooldown_seconds: int
     reentry_block_seconds: int
+    sideways_risk_guard_enabled: bool
+    sideways_price_range_pct: float
+    sideways_traded_value_range_pct: float
+    sideways_max_avg_abs_return_pct: float
+    sideways_scale_in_min_discount_pct: float
     storage_dir: Path
     safe_mode_on_restart: bool
     restart_notify: bool
@@ -373,6 +383,15 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "max_spread_bps": int(_setting("MAX_SPREAD_BPS", "15", env_values)),
         "cooldown_seconds": int(_setting("COOLDOWN_SECONDS", "60", env_values)),
         "reentry_block_seconds": int(_setting("REENTRY_BLOCK_SECONDS", "180", env_values)),
+        "sideways_risk_guard_enabled": _parse_bool(_setting("SIDEWAYS_RISK_GUARD_ENABLED", "true", env_values)),
+        "sideways_price_range_pct": float(_setting("SIDEWAYS_PRICE_RANGE_PCT", "0.002", env_values)),
+        "sideways_traded_value_range_pct": float(_setting("SIDEWAYS_TRADED_VALUE_RANGE_PCT", "0.003", env_values)),
+        "sideways_max_avg_abs_return_pct": float(
+            _setting("SIDEWAYS_MAX_AVG_ABS_RETURN_PCT", "0.001", env_values),
+        ),
+        "sideways_scale_in_min_discount_pct": float(
+            _setting("SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT", "0.003", env_values),
+        ),
         "safe_mode_on_restart": _parse_bool(_setting("SAFE_MODE_ON_RESTART", "true", env_values)),
         "restart_notify": _parse_bool(_setting("RESTART_NOTIFY", "true", env_values)),
         "restart_hard_stop_threshold": int(_setting("RESTART_HARD_STOP_THRESHOLD", "3", env_values)),

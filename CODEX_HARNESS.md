@@ -445,6 +445,7 @@ telegram-notifier
 - 손절률은 투자성향별 고정값이다. 단타/단기 -3%, 중기 -5%, 장기 -10%를 사용한다.
 - `STOP_LOSS_*`, `stop_loss_pct`, `stop_loss_price`, `fixed_stop_loss_pct`는 Codex 룰 변경 금지 파라미터다.
 - `RULE_REVIEW_MIN_STOPLOSSES`를 충족하더라도 손절 파라미터 변경안을 생성하지 않는다. 손절 관련 개선은 진입 조건, 사이징, 재진입 차단, 기대 검증 기준으로만 제안한다.
+- 횡보장 리스크 개선은 가격 범위, 거래대금 범위, 평균 절대 가격 변화율 기준으로 적용한다. 약신호 완화 매수와 기존 진입가 근처 추가매수는 각각 `SIDEWAYS_WEAK_RELAXED_ENTRY_BLOCK`, `SIDEWAYS_SCALE_IN_PRICE_UNCHANGED`로 차단하며, 손절률은 변경하지 않는다.
 - 한 번에 변경 가능한 파라미터 수는 `RULE_CHANGE_MAX_PARAMS_PER_RUN` 이하로 제한한다.
 - review/proposal 상태는 코인/투자성향별 학습 로그 디렉터리의 `rule-review-state.json`에 저장해 재기동 후에도 이어서 검토한다.
 - 승인·거절·demo 적용·live 반영 등 의사결정 이력은 같은 디렉터리의 `rule-change-history.jsonl`에 append-only로 저장한다.

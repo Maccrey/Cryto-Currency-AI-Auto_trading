@@ -367,7 +367,7 @@ def test_auto_trading_service_uses_price_card_market_state_in_decision(tmp_path:
     assert result["market_state_label"] == "하락장"
 
 
-def test_auto_trading_service_relaxes_fee_edge_after_repeated_demo_no_trade(tmp_path: Path) -> None:
+def test_auto_trading_service_blocks_relaxed_weak_entry_in_sideways_market(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [800.0, 800.0, 800.0, 800.0], min_history=4)
     service._consecutive_entry_blocks = 100
     service._config = AutoTradingConfig(
@@ -383,10 +383,29 @@ def test_auto_trading_service_relaxes_fee_edge_after_repeated_demo_no_trade(tmp_
     for _ in range(4):
         result = service.tick()
 
-    assert result["status"] == "filled"
+    assert result["status"] == "blocked"
+    assert result["reason"] == "SIDEWAYS_WEAK_RELAXED_ENTRY_BLOCK"
     assert result["signal_level"] == "weak"
-    assert result["sizing_allowed"] is True
     assert result["no_trade_relaxed"] is True
+    assert result["sideways_is_sideways"] is True
+    assert result["buy_amount"] == 0.0
+
+
+def test_auto_trading_service_blocks_scale_in_at_same_price_in_sideways_market(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0, 806.0, 813.0, 824.0, 823.0, 823.0, 823.0, 823.0], min_history=4)
+
+    for _ in range(4):
+        first_entry = service.tick()
+    service._prices.clear()
+    service._traded_values.clear()
+    for _ in range(4):
+        result = service.tick()
+
+    assert first_entry["status"] == "filled"
+    assert result["status"] == "blocked"
+    assert result["reason"] == "SIDEWAYS_SCALE_IN_PRICE_UNCHANGED"
+    assert result["entry_type"] == "scale_in"
+    assert result["sideways_is_sideways"] is True
 
 
 def test_auto_trading_service_does_not_run_live_without_explicit_live_flag(tmp_path: Path) -> None:

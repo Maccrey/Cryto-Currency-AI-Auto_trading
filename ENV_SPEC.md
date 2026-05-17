@@ -90,6 +90,11 @@ MAX_SLIPPAGE_BPS=20
 MAX_SPREAD_BPS=15
 COOLDOWN_SECONDS=60
 REENTRY_BLOCK_SECONDS=180
+SIDEWAYS_RISK_GUARD_ENABLED=true
+SIDEWAYS_PRICE_RANGE_PCT=0.002
+SIDEWAYS_TRADED_VALUE_RANGE_PCT=0.003
+SIDEWAYS_MAX_AVG_ABS_RETURN_PCT=0.001
+SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT=0.003
 
 STORAGE_DIR=./storage
 SAFE_MODE_ON_RESTART=true
@@ -191,6 +196,11 @@ DASHBOARD_PORT=8080
 | MAX_SPREAD_BPS | int | Y | 15 | 허용 spread 상한 |
 | COOLDOWN_SECONDS | int | Y | 60 | 신호 cooldown |
 | REENTRY_BLOCK_SECONDS | int | Y | 180 | 손절 후 재진입 차단 |
+| SIDEWAYS_RISK_GUARD_ENABLED | bool | Y | true | 가격/거래대금 횡보 구간의 약신호 완화 매수와 평단 근처 추가매수 차단 |
+| SIDEWAYS_PRICE_RANGE_PCT | float | Y | 0.002 | 횡보장 판단에 사용하는 최근 가격 범위 상한 |
+| SIDEWAYS_TRADED_VALUE_RANGE_PCT | float | Y | 0.003 | 횡보장 판단에 사용하는 최근 거래대금 범위 상한 |
+| SIDEWAYS_MAX_AVG_ABS_RETURN_PCT | float | Y | 0.001 | 횡보장 판단에 사용하는 평균 절대 가격 변화율 상한 |
+| SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT | float | Y | 0.003 | 횡보장 추가매수를 허용하기 위한 기존 진입가 대비 최소 할인율 |
 | STORAGE_DIR | str | Y | ./storage | 코드와 분리해 보존하는 데이터 루트 |
 | SAFE_MODE_ON_RESTART | bool | Y | true | 재기동 후 SAFE_MODE 여부 |
 | RESTART_NOTIFY | bool | Y | true | 재기동 텔레그램 알림 여부 |
