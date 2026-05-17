@@ -40,9 +40,9 @@ def test_sizing_engine_computes_buy_amount_for_strong_signal() -> None:
     assert decision == SizingDecision(
         allowed=True,
         order_side="buy",
-        buy_ratio=0.385,
-        buy_amount=154000.0,
-        buy_quantity=192.5,
+        buy_ratio=0.462,
+        buy_amount=184800.0,
+        buy_quantity=231.0,
         sell_ratio=0.0,
         sell_amount=0.0,
         sell_quantity=0.0,
@@ -199,8 +199,8 @@ def test_sizing_engine_allows_medium_scalping_entry_with_relaxed_edge_buffer() -
     )
 
     assert decision.allowed is True
-    assert decision.buy_amount == 28800.0
-    assert decision.buy_quantity == 36.0
+    assert decision.buy_amount == 34200.0
+    assert decision.buy_quantity == 42.75
     assert decision.stop_loss_price == 776.0
 
 
@@ -270,8 +270,8 @@ def test_sizing_engine_can_relax_fee_edge_for_demo_no_trade_recovery() -> None:
     )
 
     assert decision.allowed is True
-    assert decision.buy_amount == 12800.0
-    assert decision.buy_quantity == 16.0
+    assert decision.buy_amount == 20000.0
+    assert decision.buy_quantity == 25.0
 
 
 def test_sizing_engine_blocks_buy_below_upbit_minimum_order_amount() -> None:
@@ -350,6 +350,16 @@ def test_buy_and_sell_sizing_policies_are_separate() -> None:
     assert sell_policy.ratio_for("strong") == 0.45
 
 
+def test_sizing_policies_scale_from_chart_strength_score() -> None:
+    buy_policy = BuySizingPolicy()
+    sell_policy = SellSizingPolicy()
+    weak_chart = SignalDecision(level="weak", score=0.2, blocked=False, reason_codes=[])
+    strong_chart = SignalDecision(level="strong", score=0.75, blocked=False, reason_codes=[])
+
+    assert buy_policy.dynamic_ratio_for(strong_chart) > buy_policy.dynamic_ratio_for(weak_chart)
+    assert sell_policy.dynamic_ratio_for(strong_chart) < sell_policy.dynamic_ratio_for(weak_chart)
+
+
 def test_sizing_engine_includes_sell_size_and_stop_loss_price() -> None:
     engine = SizingEngine(min_cash_reserve=100000, max_spread_bps=15, max_slippage_bps=20)
     portfolio = PortfolioState(
@@ -374,9 +384,9 @@ def test_sizing_engine_includes_sell_size_and_stop_loss_price() -> None:
         slippage_bps=12.0,
     )
 
-    assert decision.sell_ratio == 0.45
-    assert decision.sell_quantity == 90.0
-    assert decision.sell_amount == 72000.0
+    assert decision.sell_ratio == 0.232
+    assert decision.sell_quantity == 46.4
+    assert decision.sell_amount == 37120.0
     assert decision.stop_loss_price == 776.0
 
 

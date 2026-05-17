@@ -298,15 +298,22 @@ class PositionExitService:
         momentum_score: float,
         orderbook_imbalance: float,
     ) -> float:
+        continuation_score = PositionExitService._chart_continuation_score(
+            momentum_score=momentum_score,
+            orderbook_imbalance=orderbook_imbalance,
+        )
+        inverse_chart_exit_ratio = round(0.25 + ((1.0 - continuation_score) * 0.75), 3)
         if reason_code == "TAKE_PROFIT_TARGET_HIT":
-            if momentum_score > 0.65 and orderbook_imbalance > 0:
-                return min(requested_exit_ratio, 0.5)
-            if momentum_score < 0.1 or orderbook_imbalance < -0.15:
-                return 1.0
-            return requested_exit_ratio
+            return min(max(inverse_chart_exit_ratio, 0.25), requested_exit_ratio)
         if momentum_score < -0.3 or orderbook_imbalance < -0.3:
             return 1.0
-        return max(min(requested_exit_ratio, 1.0), 0.25)
+        return max(min(requested_exit_ratio, 1.0), inverse_chart_exit_ratio, 0.25)
+
+    @staticmethod
+    def _chart_continuation_score(*, momentum_score: float, orderbook_imbalance: float) -> float:
+        normalized_momentum = (max(min(momentum_score, 1.0), -1.0) + 1.0) / 2.0
+        normalized_imbalance = max(min(orderbook_imbalance + 0.5, 1.0), 0.0)
+        return max(min((normalized_momentum * 0.7) + (normalized_imbalance * 0.3), 1.0), 0.0)
 
     def _record_exit_blocked(
         self,

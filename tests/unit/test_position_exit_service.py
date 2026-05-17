@@ -164,12 +164,12 @@ def test_position_exit_service_updates_position_after_partial_post_entry_exit() 
     assert result["trigger"] == {
         "type": "post_entry",
         "reason_code": "STOP_LOSS_MOMENTUM_REVERSAL",
-        "exit_ratio": 0.5,
+        "exit_ratio": 0.55,
     }
-    assert result["execution"]["filled_quantity"] == 50.0
-    assert result["position"]["quantity"] == 50.0
+    assert result["execution"]["filled_quantity"] == 55.0
+    assert result["position"]["quantity"] == 45.0
     assert store.get() is not None
-    assert store.get().quantity == 50.0
+    assert store.get().quantity == 45.0
     records = lifecycle_ledger.list_records()
     assert len(records) == 1
     assert records[0].event_type == "reduced"
@@ -245,7 +245,7 @@ def test_position_exit_service_blocks_sell_below_upbit_minimum_order_amount() ->
     assert learning_service.events[0].event_name == "position_exit_blocked"
 
 
-def test_position_exit_service_executes_regular_sell_when_profit_target_is_hit() -> None:
+def test_position_exit_service_uses_inverse_chart_strength_for_take_profit_sell_ratio() -> None:
     store = CurrentPositionStore()
     learning_service = LearningServiceStub()
     store.save(
@@ -281,12 +281,42 @@ def test_position_exit_service_executes_regular_sell_when_profit_target_is_hit()
     assert result["trigger"] == {
         "type": "take_profit",
         "reason_code": "TAKE_PROFIT_TARGET_HIT",
-        "exit_ratio": 1.0,
+        "exit_ratio": 0.445,
     }
     assert result["execution"]["side"] == "sell"
     assert result["execution"]["is_stop_loss"] is False
-    assert result["position"] is None
+    assert result["execution"]["filled_quantity"] == 44.5
+    assert result["position"]["quantity"] == 55.5
     assert learning_service.events[0].payload["trigger_type"] == "take_profit"
+
+
+def test_position_exit_service_sells_more_when_take_profit_chart_strength_is_weak() -> None:
+    store = CurrentPositionStore()
+    store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="medium",
+            entry_price=820.0,
+            quantity=100.0,
+            stop_loss_price=810.16,
+            stop_loss_pct=0.012,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    service = _build_service(store)
+
+    result = service.evaluate_and_execute(
+        current_price=824.0,
+        elapsed_sec=60,
+        momentum_score=-0.5,
+        orderbook_imbalance=-0.4,
+    )
+
+    assert result["trigger"]["exit_ratio"] == 0.846
+    assert result["execution"]["filled_quantity"] == 84.6
+    assert result["position"]["quantity"] == 15.4
 
 
 def test_regular_and_stop_loss_sell_executors_set_stop_loss_flag() -> None:

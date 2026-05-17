@@ -35,6 +35,13 @@ class BuySizingPolicy:
     def ratio_for(self, signal_level: str) -> float:
         return self.RATIOS[signal_level]
 
+    def dynamic_ratio_for(self, signal: SignalDecision) -> float:
+        return _interpolated_ratio(
+            score=signal.score,
+            ratios=self.RATIOS,
+            inverse=False,
+        )
+
 
 class SellSizingPolicy:
     """Strength-to-sell-ratio policy for exit sizing."""
@@ -48,6 +55,13 @@ class SellSizingPolicy:
 
     def ratio_for(self, signal_level: str) -> float:
         return self.RATIOS[signal_level]
+
+    def dynamic_ratio_for(self, signal: SignalDecision) -> float:
+        return _interpolated_ratio(
+            score=signal.score,
+            ratios=self.RATIOS,
+            inverse=True,
+        )
 
 
 class SizingEngine:
@@ -115,7 +129,7 @@ class SizingEngine:
         if investable_cash <= 0:
             return self._blocked("MIN_CASH_RESERVE")
 
-        base_buy_ratio = self._buy_policy.ratio_for(signal.level)
+        base_buy_ratio = self._buy_policy.dynamic_ratio_for(signal)
         final_buy_ratio = round(base_buy_ratio * regime.size_multiplier * self._buy_market_state_multiplier(regime), 3)
         buy_amount = round(investable_cash * final_buy_ratio, 1)
         max_fee_adjusted_buy_amount = round(investable_cash / (1 + self._trading_fee_rate), 1)
@@ -134,7 +148,7 @@ class SizingEngine:
             return self._blocked("MIN_ORDER_AMOUNT")
         buy_quantity = round(buy_amount / current_price, 4)
         sell_ratio = (
-            round(self._sell_policy.ratio_for(signal.level) * self._sell_market_state_multiplier(regime), 3)
+            round(self._sell_policy.dynamic_ratio_for(signal) * self._sell_market_state_multiplier(regime), 3)
             if portfolio.asset_balance > 0
             else 0.0
         )
@@ -201,3 +215,29 @@ class SizingEngine:
         if regime.market_state == "box":
             return 1.1
         return 1.0
+
+
+def _interpolated_ratio(
+    *,
+    score: float,
+    ratios: dict[str, float],
+    inverse: bool,
+) -> float:
+    normalized_score = max(min(float(score or 0.0), 1.0), 0.0)
+    if inverse:
+        normalized_score = 1.0 - normalized_score
+    anchors = (
+        (0.0, ratios["weak"]),
+        (0.4, ratios["medium"]),
+        (0.65, ratios["strong"]),
+        (0.85, ratios["very_strong"]),
+        (1.0, ratios["very_strong"]),
+    )
+    for (left_score, left_ratio), (right_score, right_ratio) in zip(anchors[:-1], anchors[1:]):
+        if normalized_score <= right_score:
+            span = right_score - left_score
+            if span <= 0:
+                return round(right_ratio, 4)
+            progress = (normalized_score - left_score) / span
+            return round(left_ratio + ((right_ratio - left_ratio) * progress), 4)
+    return round(ratios["very_strong"], 4)
