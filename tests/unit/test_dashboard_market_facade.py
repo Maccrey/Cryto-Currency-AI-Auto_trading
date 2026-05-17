@@ -122,6 +122,40 @@ def test_dashboard_market_facade_includes_ticker_volume_when_provider_supports_s
     assert payload["summary"]["signed_change_rate"] == 0.0123
     assert payload["summary"]["acc_trade_volume_24h"] == 123456.789
     assert payload["summary"]["acc_trade_price_24h"] == 255000000.0
+    assert payload["summary"]["market_state"] == "bull"
+    assert payload["summary"]["market_state_label"] == "상승장"
+
+
+def test_dashboard_market_facade_does_not_duplicate_unchanged_provider_price() -> None:
+    timestamps = iter(
+        [
+            "2026-04-19T20:35:00+09:00",
+            "2026-04-19T20:35:01+09:00",
+        ],
+    )
+    store = MarketPriceStore(
+        timestamp_provider=lambda: next(timestamps),
+    )
+    store.save(market="KRW-XRP", price=846.0)
+    provider = CurrentTickerProviderStub(
+        UpbitTickerSnapshot(
+            trade_price=846.0,
+            signed_change_rate=-0.011,
+        ),
+    )
+    facade = DashboardMarketFacade(
+        market="KRW-XRP",
+        market_price_store=store,
+        dashboard_market_service=DashboardMarketService(),
+        current_price_provider=provider,
+    )
+
+    payload = facade.build_current_response()
+
+    assert [item["price"] for item in payload["summary"]["history"]] == [846.0]
+    assert payload["summary"]["recorded_at"] == "2026-04-19T20:35:00+09:00"
+    assert payload["summary"]["market_state"] == "bear"
+    assert payload["summary"]["market_state_label"] == "하락장"
 
 
 def test_dashboard_market_facade_returns_current_price_change_and_history() -> None:

@@ -34,6 +34,7 @@ class DashboardMarketFacade:
             snapshot=snapshot,
             history=history,
             market_price_store=self._market_price_store,
+            reference_change_pct=self._latest_ticker_meta.get("signed_change_rate"),
         )
         if market is None:
             return {
@@ -59,6 +60,8 @@ class DashboardMarketFacade:
         except Exception:
             return snapshot
         if price is None:
+            return snapshot
+        if snapshot is not None and snapshot.price == price:
             return snapshot
         return self._market_price_store.save(market=self._market, price=price)
 

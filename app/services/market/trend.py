@@ -28,6 +28,7 @@ class MarketTrendClassifier:
         current_price: float,
         history: list[MarketPriceSnapshot],
         learning_events: list[LearningEvent] | None = None,
+        reference_change_pct: float | None = None,
     ) -> MarketTrendSnapshot:
         recent_change_pct = 0.0
         if len(history) >= 2 and history[0].price > 0:
@@ -35,7 +36,12 @@ class MarketTrendClassifier:
                 (current_price - history[0].price) / history[0].price,
                 4,
             )
-        price_market_state = self._market_state(recent_change_pct=recent_change_pct)
+        state_change_pct = (
+            recent_change_pct
+            if reference_change_pct is None
+            else round(reference_change_pct, 4)
+        )
+        price_market_state = self._market_state(recent_change_pct=state_change_pct)
         learned_state, learned_confidence, sample_count = self._learned_market_state(
             learning_events or [],
         )
@@ -50,7 +56,7 @@ class MarketTrendClassifier:
             history=history,
         )
         return MarketTrendSnapshot(
-            recent_change_pct=recent_change_pct,
+            recent_change_pct=state_change_pct,
             market_state=market_state,
             market_state_label=self._market_state_label(market_state),
             box_range_low=box_range_low,
@@ -62,7 +68,7 @@ class MarketTrendClassifier:
 
     @staticmethod
     def _market_state(*, recent_change_pct: float) -> str:
-        if abs(recent_change_pct) <= 0.003:
+        if abs(recent_change_pct) <= 0.002:
             return "box"
         return "bull" if recent_change_pct > 0 else "bear"
 
@@ -86,7 +92,17 @@ class MarketTrendClassifier:
         prices = [item.price for item in history if item.price > 0]
         if not prices:
             prices = [current_price]
-        return round(min(prices), 4), round(max(prices), 4)
+        low = min(prices)
+        high = max(prices)
+        if current_price > 0:
+            min_width = current_price * 0.002
+            actual_width = high - low
+            if actual_width < min_width:
+                midpoint = (low + high) / 2
+                half_width = min_width / 2
+                low = midpoint - half_width
+                high = midpoint + half_width
+        return round(low, 4), round(high, 4)
 
     @staticmethod
     def _learned_market_state(events: list[LearningEvent]) -> tuple[str | None, float, int]:

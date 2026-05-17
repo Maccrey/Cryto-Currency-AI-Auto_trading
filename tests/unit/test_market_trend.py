@@ -6,19 +6,52 @@ from app.services.market.trend import MarketTrendClassifier
 def test_market_trend_classifier_marks_box_range_from_price_history() -> None:
     store = MarketPriceStore()
     store.save(market="KRW-XRP", price=800.0)
+    store.save(market="KRW-XRP", price=800.5)
     store.save(market="KRW-XRP", price=801.0)
-    store.save(market="KRW-XRP", price=802.0)
 
     trend = MarketTrendClassifier().classify(
-        current_price=802.0,
+        current_price=801.0,
         history=store.list_history("KRW-XRP"),
     )
 
-    assert trend.recent_change_pct == 0.0025
+    assert trend.recent_change_pct == 0.0013
     assert trend.market_state == "box"
     assert trend.market_state_label == "박스권"
-    assert trend.box_range_low == 800.0
-    assert trend.box_range_high == 802.0
+    assert trend.box_range_low == 799.699
+    assert trend.box_range_high == 801.301
+
+
+def test_market_trend_classifier_expands_too_narrow_box_range() -> None:
+    store = MarketPriceStore()
+    store.save(market="KRW-XRP", price=2108.0)
+    store.save(market="KRW-XRP", price=2110.0)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=2110.0,
+        history=store.list_history("KRW-XRP"),
+    )
+
+    assert trend.market_state == "box"
+    assert trend.box_range_low == 2106.89
+    assert trend.box_range_high == 2111.11
+
+
+def test_market_trend_classifier_uses_reference_change_for_state() -> None:
+    store = MarketPriceStore()
+    store.save(market="KRW-XRP", price=2108.0)
+    store.save(market="KRW-XRP", price=2110.0)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=2110.0,
+        history=store.list_history("KRW-XRP"),
+        reference_change_pct=0.012,
+    )
+
+    assert trend.recent_change_pct == 0.012
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
+    assert trend.box_range_low is None
+    assert trend.box_range_high is None
 
 
 def test_market_trend_classifier_marks_bull_and_bear() -> None:

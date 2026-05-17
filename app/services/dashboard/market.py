@@ -58,6 +58,7 @@ class DashboardMarketSummaryFeed:
         snapshot: MarketPriceSnapshot | None,
         history: list[MarketPriceSnapshot],
         market_price_store: MarketPriceStore,
+        reference_change_pct: float | None = None,
     ) -> DashboardMarket | None:
         if snapshot is None:
             return None
@@ -66,6 +67,7 @@ class DashboardMarketSummaryFeed:
             current_price=snapshot.price,
             history=history,
             learning_events=[] if self._learning_service is None else self._learning_service.recent_events(limit=200),
+            reference_change_pct=reference_change_pct,
         )
         recent_change_pct = trend.recent_change_pct
         state_label = self._derive_state_label(recent_change_pct)
