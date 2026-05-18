@@ -211,6 +211,32 @@ def test_dashboard_market_facade_returns_current_price_change_and_history() -> N
     }
 
 
+def test_dashboard_market_facade_samples_large_chart_history() -> None:
+    timestamps = iter(
+        [
+            "2026-04-19T20:30:00+09:00",
+            "2026-04-19T20:30:01+09:00",
+            "2026-04-19T20:30:02+09:00",
+            "2026-04-19T20:30:03+09:00",
+            "2026-04-19T20:30:04+09:00",
+        ],
+    )
+    store = MarketPriceStore(
+        timestamp_provider=lambda: next(timestamps),
+    )
+    for price_value in [820.0, 821.0, 822.0, 823.0, 824.0]:
+        store.save(market="KRW-XRP", price=price_value)
+    facade = DashboardMarketFacade(
+        market="KRW-XRP",
+        market_price_store=store,
+        dashboard_market_service=DashboardMarketService(),
+    )
+
+    history = facade._sample_history(store.list_history("KRW-XRP"), limit=3)
+
+    assert [snapshot.price for snapshot in history] == [820.0, 822.0, 824.0]
+
+
 def test_dashboard_market_service_splits_summary_and_chart_feeds() -> None:
     timestamps = iter(
         [

@@ -967,7 +967,7 @@ function renderProfitRateChart(points, executions = [], market = {}) {
     height
   });
   const profitLine = coords ? `<polyline points="${coords}"></polyline>` : "";
-  svg.innerHTML = `<line class="axis" x1="24" y1="${number(zeroY, 1)}" x2="696" y2="${number(zeroY, 1)}"></line>${marketPriceLine}${profitLine}${markers}`;
+  svg.innerHTML = `<line class="axis" x1="24" y1="${number(zeroY, 1)}" x2="696" y2="${number(zeroY, 1)}"></line>${profitLine}${marketPriceLine}${markers}`;
   const latest = data.length ? values[values.length - 1] : null;
   const target = 0.005;
   const priceSummary = marketPriceSummary(market, startTime, endTime);
@@ -1003,13 +1003,14 @@ function buildMarketPriceLine({market, startTime, endTime, timeSpan, left, top, 
   const points = marketPricePoints(market, startTime, endTime);
   if (!points.length) return "";
   points.sort((leftItem, rightItem) => leftItem.timestamp - rightItem.timestamp);
+  const displayDomain = marketPriceDisplayDomain(points, startTime, endTime, timeSpan);
   const prices = points.map((item) => item.price);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
   const flatPrice = maxPrice === minPrice;
   const priceSpan = Math.max(maxPrice - minPrice, Math.max(maxPrice * 0.001, 1));
   const coords = points.map((item) => {
-    const x = left + ((item.timestamp - startTime) / timeSpan) * width;
+    const x = left + ((item.timestamp - displayDomain.startTime) / displayDomain.timeSpan) * width;
     const y = flatPrice ? top + (height / 2) : top + height - ((item.price - minPrice) / priceSpan) * height;
     return `${number(x, 1)},${number(y, 1)}`;
   }).join(" ");
@@ -1018,6 +1019,17 @@ function buildMarketPriceLine({market, startTime, endTime, timeSpan, left, top, 
     return `<circle class="market-price-point" cx="${number(left + width, 1)}" cy="${number(top + height / 2, 1)}" r="4"><title>업비트 현재가 ${price(maxPrice)}</title></circle>${labels}`;
   }
   return `<polyline class="market-price-line" points="${coords}"><title>업비트 실제 가격 흐름 ${price(minPrice)} ~ ${price(maxPrice)}</title></polyline>${labels}`;
+}
+
+function marketPriceDisplayDomain(points, startTime, endTime, timeSpan) {
+  if (points.length < 2) return {startTime, endTime, timeSpan};
+  const firstTime = points[0].timestamp;
+  const lastTime = points[points.length - 1].timestamp;
+  const observedSpan = Math.max(lastTime - firstTime, 1);
+  if (observedSpan < timeSpan * 0.5) {
+    return {startTime: firstTime, endTime: lastTime, timeSpan: observedSpan};
+  }
+  return {startTime, endTime, timeSpan};
 }
 
 function marketPricePoints(market, startTime, endTime) {

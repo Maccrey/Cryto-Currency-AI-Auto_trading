@@ -29,7 +29,7 @@ class DashboardMarketFacade:
 
     def build_current_response(self, *, history_limit: int = 20) -> dict[str, object]:
         snapshot = self._fetch_or_get_snapshot()
-        history = self._market_price_store.list_history(self._market, limit=history_limit)
+        history = self._chart_history(history_limit=history_limit)
         market = self._dashboard_market_service.build(
             snapshot=snapshot,
             history=history,
@@ -50,6 +50,29 @@ class DashboardMarketFacade:
                 **self._latest_ticker_meta,
             },
         }
+
+    def _chart_history(self, *, history_limit: int) -> list:
+        history = self._market_price_store.list_history(self._market)
+        if history_limit >= len(history):
+            return history
+        if history_limit < 288:
+            return history[-history_limit:]
+        return self._sample_history(history, limit=history_limit)
+
+    @staticmethod
+    def _sample_history(history: list, *, limit: int) -> list:
+        if limit <= 1:
+            return history[-limit:]
+        last_index = len(history) - 1
+        selected = []
+        previous_index = -1
+        for step in range(limit):
+            index = round((step / (limit - 1)) * last_index)
+            if index == previous_index:
+                continue
+            selected.append(history[index])
+            previous_index = index
+        return selected
 
     def _fetch_or_get_snapshot(self):
         snapshot = self._market_price_store.get(self._market)

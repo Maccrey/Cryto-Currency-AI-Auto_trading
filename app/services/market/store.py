@@ -19,7 +19,7 @@ class MarketPriceStore:
     def __init__(
         self,
         *,
-        history_limit: int = 100,
+        history_limit: int = 28800,
         timestamp_provider: Callable[[], str] | None = None,
     ) -> None:
         self._history_limit = history_limit
