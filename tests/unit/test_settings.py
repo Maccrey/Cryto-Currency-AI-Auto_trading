@@ -59,6 +59,12 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.etf_context_url == ""
     assert settings.no_trade_adaptive_enabled is True
     assert settings.no_trade_relax_after_cycles == 100
+    assert settings.market_shock_guard_enabled is True
+    assert settings.market_crash_change_pct == -0.015
+    assert settings.market_surge_change_pct == 0.020
+    assert settings.market_recovery_change_pct == 0.003
+    assert settings.market_recovery_confirmation_ticks == 3
+    assert settings.market_shock_alert_cooldown_sec == 300
     assert settings.storage_dir == Path("./storage")
     assert settings.learning_log_dir == Path("storage/logs/learning")
     assert settings.learning_dataset_dir == Path("storage/data/learning")
@@ -247,6 +253,17 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "max_spread_bps",
         "cooldown_seconds",
         "reentry_block_seconds",
+        "sideways_risk_guard_enabled",
+        "sideways_price_range_pct",
+        "sideways_traded_value_range_pct",
+        "sideways_max_avg_abs_return_pct",
+        "sideways_scale_in_min_discount_pct",
+        "market_shock_guard_enabled",
+        "market_crash_change_pct",
+        "market_surge_change_pct",
+        "market_recovery_change_pct",
+        "market_recovery_confirmation_ticks",
+        "market_shock_alert_cooldown_sec",
         "safe_mode_on_restart",
         "restart_notify",
         "restart_hard_stop_threshold",

@@ -86,6 +86,12 @@ class SettingsModel(BaseModel):
     sideways_traded_value_range_pct: float = Field(default=0.003)
     sideways_max_avg_abs_return_pct: float = Field(default=0.001)
     sideways_scale_in_min_discount_pct: float = Field(default=0.003)
+    market_shock_guard_enabled: bool = Field(default=True)
+    market_crash_change_pct: float = Field(default=-0.015)
+    market_surge_change_pct: float = Field(default=0.020)
+    market_recovery_change_pct: float = Field(default=0.003)
+    market_recovery_confirmation_ticks: int = Field(default=3)
+    market_shock_alert_cooldown_sec: int = Field(default=300)
     safe_mode_on_restart: bool = Field(default=True)
     restart_notify: bool = Field(default=True)
     restart_hard_stop_threshold: int = Field(default=3)
@@ -257,6 +263,12 @@ class AppSettings:
     sideways_traded_value_range_pct: float
     sideways_max_avg_abs_return_pct: float
     sideways_scale_in_min_discount_pct: float
+    market_shock_guard_enabled: bool
+    market_crash_change_pct: float
+    market_surge_change_pct: float
+    market_recovery_change_pct: float
+    market_recovery_confirmation_ticks: int
+    market_shock_alert_cooldown_sec: int
     storage_dir: Path
     safe_mode_on_restart: bool
     restart_notify: bool
@@ -392,6 +404,12 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "sideways_scale_in_min_discount_pct": float(
             _setting("SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT", "0.003", env_values),
         ),
+        "market_shock_guard_enabled": _parse_bool(_setting("MARKET_SHOCK_GUARD_ENABLED", "true", env_values)),
+        "market_crash_change_pct": float(_setting("MARKET_CRASH_CHANGE_PCT", "-0.015", env_values)),
+        "market_surge_change_pct": float(_setting("MARKET_SURGE_CHANGE_PCT", "0.020", env_values)),
+        "market_recovery_change_pct": float(_setting("MARKET_RECOVERY_CHANGE_PCT", "0.003", env_values)),
+        "market_recovery_confirmation_ticks": int(_setting("MARKET_RECOVERY_CONFIRMATION_TICKS", "3", env_values)),
+        "market_shock_alert_cooldown_sec": int(_setting("MARKET_SHOCK_ALERT_COOLDOWN_SEC", "300", env_values)),
         "safe_mode_on_restart": _parse_bool(_setting("SAFE_MODE_ON_RESTART", "true", env_values)),
         "restart_notify": _parse_bool(_setting("RESTART_NOTIFY", "true", env_values)),
         "restart_hard_stop_threshold": int(_setting("RESTART_HARD_STOP_THRESHOLD", "3", env_values)),

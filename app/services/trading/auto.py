@@ -19,6 +19,7 @@ from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
 from app.services.trading.variants import DemoRuleVariantShadowTester
 from app.services.position.exit import PositionExitService
+from app.services.risk.market_shock import MarketShockConfig, MarketShockRiskGuard
 from app.services.risk.reentry import ReentryBlocker
 from app.services.risk.sideways import SidewaysMarketRiskGuard, SidewaysRiskConfig
 
@@ -44,6 +45,12 @@ class AutoTradingConfig:
     sideways_traded_value_range_pct: float = 0.003
     sideways_max_avg_abs_return_pct: float = 0.001
     sideways_scale_in_min_discount_pct: float = 0.003
+    market_shock_guard_enabled: bool = True
+    market_crash_change_pct: float = -0.015
+    market_surge_change_pct: float = 0.020
+    market_recovery_change_pct: float = 0.003
+    market_recovery_confirmation_ticks: int = 3
+    market_shock_alert_cooldown_sec: int = 300
 
 
 class AutoTradingService:
@@ -70,6 +77,7 @@ class AutoTradingService:
         demo_portfolio_state: PortfolioState | None = None,
         auto_rule_update_service: Any | None = None,
         live_portfolio_sync_service: Any | None = None,
+        telegram_notifier: Any | None = None,
     ) -> None:
         self._market = market
         self._trading_mode = trading_mode
@@ -88,6 +96,7 @@ class AutoTradingService:
         self._external_context_provider = external_context_provider
         self._auto_rule_update_service = auto_rule_update_service
         self._live_portfolio_sync_service = live_portfolio_sync_service
+        self._telegram_notifier = telegram_notifier
         self._trend_classifier = MarketTrendClassifier()
         self._prices: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
@@ -112,11 +121,21 @@ class AutoTradingService:
                 scale_in_min_discount_pct=config.sideways_scale_in_min_discount_pct,
             ),
         )
+        self._market_shock_guard = MarketShockRiskGuard(
+            MarketShockConfig(
+                enabled=config.market_shock_guard_enabled,
+                crash_change_pct=config.market_crash_change_pct,
+                surge_change_pct=config.market_surge_change_pct,
+                recovery_change_pct=config.market_recovery_change_pct,
+                recovery_confirmation_ticks=config.market_recovery_confirmation_ticks,
+            ),
+        )
         self._demo_rule_variant_shadow_tester = DemoRuleVariantShadowTester(
             trading_fee_rate=config.trading_fee_rate,
         )
         self._last_cycle: dict[str, object] | None = None
         self._pending_live_order_id: str | None = None
+        self._last_market_shock_alert_at: dict[str, int] = {}
 
     def should_run(self) -> bool:
         if not self._config.enabled:
@@ -201,6 +220,14 @@ class AutoTradingService:
         self._market_price_store.save(market=self._market, price=snapshot.trade_price)
         self._prices.append(snapshot.trade_price)
         self._traded_values.append(self._traded_value(snapshot))
+        shock_decision = None
+        if len(self._prices) >= self._config.min_history:
+            shock_decision = self._market_shock_guard.check(prices=list(self._prices))
+            self._notify_market_shock_if_needed(
+                shock_type=shock_decision.alert_type,
+                recent_change_pct=shock_decision.recent_change_pct,
+                current_price=snapshot.trade_price,
+            )
 
         position = self._position_store.get()
         if position is not None:
@@ -271,6 +298,23 @@ class AutoTradingService:
                 status="waiting",
                 reason="MARKET_HISTORY_WARMING_UP",
                 extra={"history_count": len(self._prices), "required_history": self._config.min_history},
+            )
+
+        if shock_decision is None:
+            shock_decision = self._market_shock_guard.check(prices=list(self._prices))
+        if not shock_decision.allowed:
+            self._consecutive_entry_blocks += 1
+            return self._record_cycle(
+                status="blocked",
+                reason=shock_decision.reason_code,
+                extra={
+                    "buy_amount": 0.0,
+                    "market_shock_state": shock_decision.shock_state,
+                    "market_shock_recent_change_pct": shock_decision.recent_change_pct,
+                    "market_shock_last_return_pct": shock_decision.last_return_pct,
+                    "market_shock_recovery_count": shock_decision.recovery_count,
+                    "market_shock_required_recovery_count": self._config.market_recovery_confirmation_ticks,
+                },
             )
 
         request = self._build_decision_request(snapshot.trade_price)
@@ -500,6 +544,31 @@ class AutoTradingService:
             return
         if getattr(execution, "accepted", False):
             self._pending_live_order_id = getattr(execution, "order_id", None) or "unknown"
+
+    def _notify_market_shock_if_needed(
+        self,
+        *,
+        shock_type: str | None,
+        recent_change_pct: float,
+        current_price: float,
+    ) -> None:
+        if shock_type is None or self._telegram_notifier is None:
+            return
+        now = int(self._clock().timestamp())
+        last_alert_at = self._last_market_shock_alert_at.get(shock_type)
+        if last_alert_at is not None and now - last_alert_at < self._config.market_shock_alert_cooldown_sec:
+            return
+        notify_market_shock = getattr(self._telegram_notifier, "notify_market_shock", None)
+        if notify_market_shock is None:
+            return
+        notify_market_shock(
+            market=self._market,
+            shock_type=shock_type,
+            recent_change_pct=recent_change_pct,
+            current_price=current_price,
+            mode=self._trading_mode,
+        )
+        self._last_market_shock_alert_at[shock_type] = now
 
     def _resolve_pending_live_order(self) -> dict[str, object]:
         order_id = self._pending_live_order_id

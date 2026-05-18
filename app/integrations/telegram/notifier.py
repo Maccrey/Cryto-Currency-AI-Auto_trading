@@ -96,6 +96,41 @@ class TelegramNotifier:
                 },
             )
 
+    def notify_market_shock(
+        self,
+        *,
+        market: str,
+        shock_type: str,
+        recent_change_pct: float,
+        current_price: float,
+        mode: str,
+    ) -> None:
+        label = "급락" if shock_type == "crash" else "급등"
+        action = (
+            "급락이 진정되고 상승세가 확인될 때까지 신규 매수는 관망합니다."
+            if shock_type == "crash"
+            else "급등 변동성이 감지되어 추격 매수 리스크를 점검합니다."
+        )
+        message = "\n".join(
+            [
+                f"{label} 변동성이 감지되었습니다.",
+                f"{market} 현재가는 {current_price:,.2f}원이고 최근 변화율은 {recent_change_pct * 100:,.2f}%입니다.",
+                f"거래 모드는 {'데모' if mode == 'demo' else '실거래'}입니다.",
+                action,
+            ],
+        )
+        try:
+            self._gateway.send_message(self._format_message(message))
+        except Exception:
+            logger.exception(
+                "telegram_market_shock_notification_failed",
+                extra={
+                    "market": market,
+                    "shock_type": shock_type,
+                    "mode": mode,
+                },
+            )
+
     def _format_message(self, message: str) -> str:
         server_name = self._current_server_name()
         if not server_name:

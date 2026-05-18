@@ -201,6 +201,12 @@ DASHBOARD_PORT=8080
 | SIDEWAYS_TRADED_VALUE_RANGE_PCT | float | Y | 0.003 | 횡보장 판단에 사용하는 최근 거래대금 범위 상한 |
 | SIDEWAYS_MAX_AVG_ABS_RETURN_PCT | float | Y | 0.001 | 횡보장 판단에 사용하는 평균 절대 가격 변화율 상한 |
 | SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT | float | Y | 0.003 | 횡보장 추가매수를 허용하기 위한 기존 진입가 대비 최소 할인율 |
+| MARKET_SHOCK_GUARD_ENABLED | bool | Y | true | 급락 구간 신규 매수/추가매수 관망 가드와 급락/급등 텔레그램 알림 활성화 |
+| MARKET_CRASH_CHANGE_PCT | float | Y | -0.015 | 최근 판단 창 기준 급락 감지 변화율 |
+| MARKET_SURGE_CHANGE_PCT | float | Y | 0.020 | 최근 판단 창 기준 급등 감지 변화율 |
+| MARKET_RECOVERY_CHANGE_PCT | float | Y | 0.003 | 급락 후 매수 재개에 필요한 회복 변화율 |
+| MARKET_RECOVERY_CONFIRMATION_TICKS | int | Y | 3 | 급락 후 매수 재개 전 확인할 연속 회복 tick 수 |
+| MARKET_SHOCK_ALERT_COOLDOWN_SEC | int | Y | 300 | 급락/급등 텔레그램 알림 중복 방지 시간 |
 | STORAGE_DIR | str | Y | ./storage | 코드와 분리해 보존하는 데이터 루트 |
 | SAFE_MODE_ON_RESTART | bool | Y | true | 재기동 후 SAFE_MODE 여부 |
 | RESTART_NOTIFY | bool | Y | true | 재기동 텔레그램 알림 여부 |

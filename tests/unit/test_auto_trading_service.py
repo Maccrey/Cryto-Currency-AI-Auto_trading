@@ -64,6 +64,14 @@ class PortfolioSyncStub:
         )
 
 
+class TelegramNotifierStub:
+    def __init__(self) -> None:
+        self.market_shocks: list[dict[str, object]] = []
+
+    def notify_market_shock(self, **kwargs) -> None:
+        self.market_shocks.append(kwargs)
+
+
 class SequenceTickerProvider:
     def __init__(self, prices: list[float]) -> None:
         self._prices = list(prices)
@@ -84,6 +92,7 @@ def _build_service(
     trading_mode: str = "demo",
     executor=None,
     live_enabled: bool = False,
+    telegram_notifier=None,
 ) -> AutoTradingService:
     learning_service = LearningService(log_dir=tmp_path)
     position_store = CurrentPositionStore()
@@ -162,6 +171,7 @@ def _build_service(
             interval_sec=1,
             min_history=min_history,
         ),
+        telegram_notifier=telegram_notifier,
     )
 
 
@@ -406,6 +416,41 @@ def test_auto_trading_service_blocks_scale_in_at_same_price_in_sideways_market(t
     assert result["reason"] == "SIDEWAYS_WEAK_SCALE_IN_BLOCK"
     assert result["entry_type"] == "scale_in"
     assert result["sideways_is_sideways"] is True
+
+
+def test_auto_trading_service_blocks_buy_during_crash_and_sends_alert(tmp_path: Path) -> None:
+    notifier = TelegramNotifierStub()
+    service = _build_service(
+        tmp_path,
+        [1000.0, 990.0, 980.0, 979.0],
+        min_history=4,
+        telegram_notifier=notifier,
+    )
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["status"] == "blocked"
+    assert result["reason"] == "MARKET_CRASH_OBSERVE_ONLY"
+    assert result["buy_amount"] == 0.0
+    assert result["market_shock_state"] == "crash_observe_only"
+    assert notifier.market_shocks[0]["shock_type"] == "crash"
+
+
+def test_auto_trading_service_alerts_surge_without_blocking_buy(tmp_path: Path) -> None:
+    notifier = TelegramNotifierStub()
+    service = _build_service(
+        tmp_path,
+        [800.0, 806.0, 813.0, 824.0],
+        min_history=4,
+        telegram_notifier=notifier,
+    )
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["status"] == "filled"
+    assert notifier.market_shocks[0]["shock_type"] == "surge"
 
 
 def test_auto_trading_service_does_not_run_live_without_explicit_live_flag(tmp_path: Path) -> None:

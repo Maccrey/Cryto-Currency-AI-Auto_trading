@@ -164,3 +164,23 @@ def test_telegram_notifier_does_not_block_trading_when_gateway_fails() -> None:
             is_stop_loss=False,
         ),
     )
+
+
+def test_telegram_notifier_sends_market_shock_message_with_server_name() -> None:
+    gateway = StubTelegramGateway()
+    notifier = TelegramNotifier(
+        gateway=gateway,
+        server_name_provider=lambda: "서울-데모-1",
+    )
+
+    notifier.notify_market_shock(
+        market="KRW-XRP",
+        shock_type="crash",
+        recent_change_pct=-0.018,
+        current_price=785.0,
+        mode="demo",
+    )
+
+    assert gateway.messages[0].startswith("[서울-데모-1]\n급락 변동성이 감지되었습니다.")
+    assert "최근 변화율은 -1.80%" in gateway.messages[0]
+    assert "신규 매수는 관망합니다." in gateway.messages[0]

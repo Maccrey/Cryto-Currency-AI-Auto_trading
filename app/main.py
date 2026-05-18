@@ -406,10 +406,17 @@ def create_app(
             sideways_traded_value_range_pct=settings.sideways_traded_value_range_pct,
             sideways_max_avg_abs_return_pct=settings.sideways_max_avg_abs_return_pct,
             sideways_scale_in_min_discount_pct=settings.sideways_scale_in_min_discount_pct,
+            market_shock_guard_enabled=settings.market_shock_guard_enabled,
+            market_crash_change_pct=settings.market_crash_change_pct,
+            market_surge_change_pct=settings.market_surge_change_pct,
+            market_recovery_change_pct=settings.market_recovery_change_pct,
+            market_recovery_confirmation_ticks=settings.market_recovery_confirmation_ticks,
+            market_shock_alert_cooldown_sec=settings.market_shock_alert_cooldown_sec,
         ),
         external_context_provider=external_context_service,
         demo_portfolio_state=demo_portfolio_state,
         live_portfolio_sync_service=live_portfolio_sync_service,
+        telegram_notifier=trade_fill_notifier,
     )
     app.state.auto_trading_service = auto_trading_service
     rule_review_service = RuleReviewService(
