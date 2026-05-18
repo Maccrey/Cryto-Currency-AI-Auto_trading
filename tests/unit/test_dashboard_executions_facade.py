@@ -46,6 +46,8 @@ def test_dashboard_executions_facade_returns_recent_execution_history() -> None:
             is_stop_loss=True,
         ),
         reason_code="STOP_LOSS_PRICE_HIT",
+        signal_level="strong",
+        signal_score=0.72,
     )
     facade = DashboardExecutionsFacade(
         execution_ledger=ledger,
@@ -71,6 +73,8 @@ def test_dashboard_executions_facade_returns_recent_execution_history() -> None:
             "is_virtual": True,
             "is_stop_loss": True,
             "reason_code": "STOP_LOSS_PRICE_HIT",
+            "signal_level": "strong",
+            "signal_score": 0.72,
             "recorded_at": payload["history"][0]["recorded_at"],
         },
     ]

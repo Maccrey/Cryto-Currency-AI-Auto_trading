@@ -194,7 +194,14 @@ DASHBOARD_HTML = """
     .variant-reason { margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.45; white-space: pre-line; }
     .profit-chart { width: 100%; height: 180px; display: block; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .profit-chart polyline { fill: none; stroke: var(--primary); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .profit-chart .market-price-line { stroke: #f97316; stroke-width: 2; stroke-dasharray: 5 4; opacity: 0.8; }
+    .profit-chart .market-price-point { fill: #f97316; stroke: var(--surface); stroke-width: 2; }
+    .profit-chart .price-axis-label { fill: #f97316; font-size: 11px; font-weight: 800; text-anchor: end; }
     .profit-chart .axis { stroke: var(--border); stroke-width: 1; }
+    .profit-chart .trade-marker { stroke: var(--surface); stroke-width: 2; cursor: help; }
+    .profit-chart .trade-marker.buy { fill: #b42318; }
+    .profit-chart .trade-marker.sell { fill: #145ea8; }
+    .profit-chart .trade-marker.stop-loss { fill: #7f1d1d; }
     .legend { margin-top: 12px; }
     .legend-toggle { margin-top: 12px; }
     .legend-panel { display: none; }
@@ -912,16 +919,13 @@ function deriveInvestmentValue(summary, market) {
   };
 }
 
-function renderProfitRateChart(points) {
+function renderProfitRateChart(points, executions = [], market = {}) {
   const svg = document.getElementById("profitRateChart");
   const sub = document.getElementById("profitRateChartSub");
-  const data = Array.isArray(points) ? points.filter((item) => Number.isFinite(Number(item.profit_rate))) : [];
-  if (!data.length) {
-    svg.innerHTML = '<line class="axis" x1="24" y1="90" x2="696" y2="90"></line>';
-    sub.textContent = "최근 24시간 수익률 데이터가 아직 없습니다.";
-    return;
-  }
-  const values = data.map((item) => Number(item.profit_rate));
+  const data = Array.isArray(points)
+    ? points.filter((item) => Number.isFinite(Number(item.profit_rate)) && item.recorded_at)
+    : [];
+  const values = data.length ? data.map((item) => Number(item.profit_rate)) : [0];
   const minValue = Math.min(...values, -0.001);
   const maxValue = Math.max(...values, 0.001);
   const span = Math.max(maxValue - minValue, 0.001);
@@ -929,16 +933,189 @@ function renderProfitRateChart(points) {
   const height = 128;
   const left = 24;
   const top = 24;
+  const {startTime, endTime, timeSpan} = profitChartDomain(data, executions, market);
   const coords = data.map((item, index) => {
-    const x = left + (data.length <= 1 ? width : (index / (data.length - 1)) * width);
+    const timestamp = new Date(item.recorded_at).getTime();
+    const x = Number.isFinite(timestamp)
+      ? left + ((timestamp - startTime) / timeSpan) * width
+      : left + (data.length <= 1 ? width : (index / (data.length - 1)) * width);
     const y = top + height - ((Number(item.profit_rate) - minValue) / span) * height;
     return `${number(x, 1)},${number(y, 1)}`;
   }).join(" ");
   const zeroY = top + height - ((0 - minValue) / span) * height;
-  svg.innerHTML = `<line class="axis" x1="24" y1="${number(zeroY, 1)}" x2="696" y2="${number(zeroY, 1)}"></line><polyline points="${coords}"></polyline>`;
-  const latest = values[values.length - 1];
+  const marketPriceLine = buildMarketPriceLine({
+    market,
+    startTime,
+    endTime,
+    timeSpan,
+    left,
+    top,
+    width,
+    height
+  });
+  const markers = buildProfitTradeMarkers({
+    executions,
+    data,
+    startTime,
+    endTime,
+    timeSpan,
+    minValue,
+    span,
+    left,
+    top,
+    width,
+    height
+  });
+  const profitLine = coords ? `<polyline points="${coords}"></polyline>` : "";
+  svg.innerHTML = `<line class="axis" x1="24" y1="${number(zeroY, 1)}" x2="696" y2="${number(zeroY, 1)}"></line>${marketPriceLine}${profitLine}${markers}`;
+  const latest = data.length ? values[values.length - 1] : null;
   const target = 0.005;
-  sub.textContent = `최근 값 ${percent(latest)} / 일 목표 ${percent(target)}`;
+  const priceSummary = marketPriceSummary(market, startTime, endTime);
+  sub.textContent = data.length
+    ? `최근 수익률 ${percent(latest)} / 일 목표 ${percent(target)}${priceSummary ? ` / 가격 ${priceSummary}` : ""}`
+    : `최근 24시간 수익률 데이터가 아직 없습니다.${priceSummary ? ` / 가격 ${priceSummary}` : ""}`;
+}
+
+function profitChartDomain(data, executions, market) {
+  const times = [];
+  data.forEach((item) => {
+    const timestamp = new Date(item.recorded_at).getTime();
+    if (Number.isFinite(timestamp)) times.push(timestamp);
+  });
+  const history = Array.isArray(market.history) ? market.history : [];
+  history.forEach((item) => {
+    const timestamp = new Date(item.recorded_at).getTime();
+    if (Number.isFinite(timestamp)) times.push(timestamp);
+  });
+  const currentTimestamp = new Date(market.recorded_at).getTime();
+  if (Number.isFinite(currentTimestamp)) times.push(currentTimestamp);
+  const filled = Array.isArray(executions) ? executions : [];
+  filled.forEach((item) => {
+    const timestamp = new Date(item.recorded_at).getTime();
+    if (Number.isFinite(timestamp)) times.push(timestamp);
+  });
+  const endTime = Math.max(...times, Date.now());
+  const timeSpan = 24 * 60 * 60 * 1000;
+  return {startTime: endTime - timeSpan, endTime, timeSpan};
+}
+
+function buildMarketPriceLine({market, startTime, endTime, timeSpan, left, top, width, height}) {
+  const points = marketPricePoints(market, startTime, endTime);
+  if (!points.length) return "";
+  points.sort((leftItem, rightItem) => leftItem.timestamp - rightItem.timestamp);
+  const prices = points.map((item) => item.price);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const flatPrice = maxPrice === minPrice;
+  const priceSpan = Math.max(maxPrice - minPrice, Math.max(maxPrice * 0.001, 1));
+  const coords = points.map((item) => {
+    const x = left + ((item.timestamp - startTime) / timeSpan) * width;
+    const y = flatPrice ? top + (height / 2) : top + height - ((item.price - minPrice) / priceSpan) * height;
+    return `${number(x, 1)},${number(y, 1)}`;
+  }).join(" ");
+  const labels = `<text class="price-axis-label" x="${left + width}" y="${top + 12}">${number(maxPrice, 0)}</text><text class="price-axis-label" x="${left + width}" y="${top + height - 4}">${number(minPrice, 0)}</text>`;
+  if (points.length < 2) {
+    return `<circle class="market-price-point" cx="${number(left + width, 1)}" cy="${number(top + height / 2, 1)}" r="4"><title>업비트 현재가 ${price(maxPrice)}</title></circle>${labels}`;
+  }
+  return `<polyline class="market-price-line" points="${coords}"><title>업비트 실제 가격 흐름 ${price(minPrice)} ~ ${price(maxPrice)}</title></polyline>${labels}`;
+}
+
+function marketPricePoints(market, startTime, endTime) {
+  const history = Array.isArray(market.history) ? market.history : [];
+  const points = history
+    .map((item) => ({
+      recorded_at: item.recorded_at,
+      timestamp: new Date(item.recorded_at).getTime(),
+      price: Number(item.price)
+    }))
+    .filter((item) => Number.isFinite(item.timestamp) && Number.isFinite(item.price) && item.price > 0 && item.timestamp >= startTime && item.timestamp <= endTime);
+  const currentTimestamp = new Date(market.recorded_at).getTime();
+  const currentPrice = Number(market.current_price);
+  if (Number.isFinite(currentTimestamp) && Number.isFinite(currentPrice) && currentPrice > 0 && currentTimestamp >= startTime && currentTimestamp <= endTime) {
+    const last = points[points.length - 1];
+    if (!last || last.timestamp !== currentTimestamp || last.price !== currentPrice) {
+      points.push({recorded_at: market.recorded_at, timestamp: currentTimestamp, price: currentPrice});
+    }
+  }
+  return points;
+}
+
+function marketPriceSummary(market, startTime, endTime) {
+  const prices = marketPricePoints(market, startTime, endTime).map((item) => item.price);
+  if (!prices.length) return "";
+  return `${price(Math.min(...prices))}~${price(Math.max(...prices))}`;
+}
+
+function buildProfitTradeMarkers({executions, data, startTime, endTime, timeSpan, minValue, span, left, top, width, height}) {
+  const history = Array.isArray(executions) ? executions : [];
+  const filled = history.filter((item) => item.status === "filled" && item.recorded_at && ["buy", "sell"].includes(item.side));
+  return filled.map((execution) => {
+    const timestamp = new Date(execution.recorded_at).getTime();
+    if (!Number.isFinite(timestamp) || timestamp < startTime || timestamp > endTime) return "";
+    const nearest = nearestProfitPoint(data, timestamp);
+    const profitRate = nearest ? Number(nearest.profit_rate) : 0;
+    const x = left + ((timestamp - startTime) / timeSpan) * width;
+    const y = top + height - ((profitRate - minValue) / span) * height;
+    const markerClass = execution.is_stop_loss ? "stop-loss" : execution.side;
+    const radius = execution.side === "buy" ? 5.5 : 5;
+    const title = escapeHtml(profitMarkerTitle(execution, profitRate));
+    return `<circle class="trade-marker ${markerClass}" cx="${number(x, 1)}" cy="${number(y, 1)}" r="${radius}"><title>${title}</title></circle>`;
+  }).join("");
+}
+
+function nearestProfitPoint(data, timestamp) {
+  let nearest = null;
+  let nearestDistance = Infinity;
+  data.forEach((item) => {
+    const pointTime = new Date(item.recorded_at).getTime();
+    if (!Number.isFinite(pointTime)) return;
+    const distance = Math.abs(pointTime - timestamp);
+    if (distance < nearestDistance) {
+      nearest = item;
+      nearestDistance = distance;
+    }
+  });
+  return nearest;
+}
+
+function profitMarkerTitle(execution, profitRate) {
+  const side = execution.side === "buy" ? "매수" : execution.is_stop_loss ? "손절 매도" : "매도";
+  const reason = execution.reason_code ? formatBlockedReason(execution.reason_code) : defaultExecutionReason(execution);
+  const strength = execution.signal_level
+    ? `${formatSignalLevel(execution.signal_level)}${execution.signal_score !== null && execution.signal_score !== undefined ? ` / 점수 ${number(execution.signal_score, 3)}` : ""}`
+    : "강도 데이터 없음";
+  return [
+    `${side} ${formatDateTime(execution.recorded_at)}`,
+    `이유: ${reason}`,
+    `강도: ${strength}`,
+    `체결가: ${price(execution.filled_price)}`,
+    `수량: ${number(execution.filled_quantity, 8)}`,
+    `당시 수익률: ${percent(profitRate)}`
+  ].join("\\n");
+}
+
+function defaultExecutionReason(execution) {
+  if (execution.side === "buy") return "진입 신호 충족";
+  if (execution.is_stop_loss) return "손절 조건 충족";
+  return "청산 조건 충족";
+}
+
+function formatSignalLevel(value) {
+  const labels = {
+    weak: "약함",
+    medium: "보통",
+    strong: "강함",
+    very_strong: "매우 강함"
+  };
+  return labels[value] || value || "-";
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 async function fetchJson(url) {
@@ -1119,7 +1296,7 @@ async function refreshDashboard() {
     const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, tradingStatus] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/dashboard/summary"),
-      fetchJson("/dashboard/market"),
+      fetchJson("/dashboard/market?history_limit=288"),
       fetchJson("/dashboard/learning"),
       fetchJson("/dashboard/learning/health"),
       fetchJson("/learning/model-readiness"),
@@ -1408,7 +1585,7 @@ function renderDashboard(data) {
   document.getElementById("winRateSub").textContent = winRate === null ? "완료된 거래 손익 기록이 쌓이면 표시됩니다." : "현재 기록 기준 수익 거래 비율입니다.";
   document.getElementById("pnlMetric").textContent = `${number(summary.realized_pnl, 2)} KRW`;
   document.getElementById("pnlSub").textContent = `미실현 손익 ${number(summary.unrealized_pnl, 2)} KRW, 매수 ${summary.buy_count || 0}건, 매도 ${summary.sell_count || 0}건`;
-  renderProfitRateChart(summary.profit_rate_series_24h || []);
+  renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market);
   const aiState = deriveAiState({health, summary, market, executions});
   document.getElementById("aiState").innerHTML = aiBadge(aiState.ai[0], aiState.ai[1]);
   document.getElementById("autoTradingState").innerHTML = aiBadge(aiState.trading[0], aiState.trading[1]);

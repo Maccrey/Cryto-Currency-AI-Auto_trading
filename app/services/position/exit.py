@@ -402,7 +402,11 @@ class PositionExitService:
                 ),
             )
         if self._execution_ledger is not None and isinstance(execution, FillResult):
-            self._execution_ledger.record_fill(execution, reason_code=reason_code)
+            self._execution_ledger.record_fill(
+                execution,
+                reason_code=reason_code,
+                signal_level=position.signal_level,
+            )
         if self._position_lifecycle_ledger is not None:
             if max(remaining_quantity, 0.0) <= 0:
                 lifecycle_position = position

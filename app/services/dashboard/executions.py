@@ -21,6 +21,8 @@ class DashboardExecutionEntry:
     is_virtual: bool
     is_stop_loss: bool
     reason_code: str | None
+    signal_level: str | None
+    signal_score: float | None
     recorded_at: str | None
 
 
@@ -47,6 +49,8 @@ class DashboardExecutionsService:
                 is_virtual=record.fill.is_virtual,
                 is_stop_loss=record.fill.is_stop_loss,
                 reason_code=record.reason_code,
+                signal_level=record.signal_level,
+                signal_score=record.signal_score,
                 recorded_at=record.recorded_at,
             )
             for record in records

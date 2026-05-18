@@ -100,7 +100,11 @@ class PostFillService:
                 ),
             )
         if self._execution_ledger is not None:
-            self._execution_ledger.record_fill(execution)
+            self._execution_ledger.record_fill(
+                execution,
+                signal_level=execution_result.decision.signal.level,
+                signal_score=execution_result.decision.signal.score,
+            )
         if self._telegram_notifier is not None:
             total_asset_value = self._total_asset_value_after_fill(
                 current_price=execution.filled_price,

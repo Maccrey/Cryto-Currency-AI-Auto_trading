@@ -14,6 +14,8 @@ class ExecutionLedgerRecord:
     fill: FillResult
     reason_code: str | None
     recorded_at: str | None
+    signal_level: str | None = None
+    signal_score: float | None = None
 
 
 @dataclass(frozen=True)
@@ -39,12 +41,16 @@ class ExecutionLedger:
         *,
         reason_code: str | None = None,
         recorded_at: str | None = None,
+        signal_level: str | None = None,
+        signal_score: float | None = None,
     ) -> None:
         self._records.append(
             ExecutionLedgerRecord(
                 fill=fill,
                 reason_code=reason_code,
                 recorded_at=recorded_at or datetime.now().astimezone().isoformat(timespec="seconds"),
+                signal_level=signal_level,
+                signal_score=signal_score,
             ),
         )
         self._persist()
@@ -172,6 +178,8 @@ class ExecutionLedger:
                         ),
                         reason_code=None if item.get("reason_code") is None else str(item.get("reason_code")),
                         recorded_at=None if item.get("recorded_at") is None else str(item.get("recorded_at")),
+                        signal_level=None if item.get("signal_level") is None else str(item.get("signal_level")),
+                        signal_score=None if item.get("signal_score") is None else float(item.get("signal_score")),
                     ),
                 )
             except (TypeError, ValueError):
@@ -188,6 +196,8 @@ class ExecutionLedger:
                     "fill": asdict(record.fill),
                     "reason_code": record.reason_code,
                     "recorded_at": record.recorded_at,
+                    "signal_level": record.signal_level,
+                    "signal_score": record.signal_score,
                 }
                 for record in self._records
             ],

@@ -11,6 +11,20 @@ def test_dashboard_price_card_labels_market_state_and_box_range() -> None:
 def test_dashboard_includes_24h_profit_rate_chart() -> None:
     assert 'id="profitRateChart"' in DASHBOARD_HTML
     assert "renderProfitRateChart" in DASHBOARD_HTML
+    assert "buildProfitTradeMarkers" in DASHBOARD_HTML
+    assert "buildMarketPriceLine" in DASHBOARD_HTML
+    assert "profitChartDomain" in DASHBOARD_HTML
+    assert "marketPricePoints" in DASHBOARD_HTML
+    assert "marketPriceSummary" in DASHBOARD_HTML
+    assert "profitMarkerTitle" in DASHBOARD_HTML
+    assert "formatSignalLevel" in DASHBOARD_HTML
+    assert ".profit-chart .market-price-line" in DASHBOARD_HTML
+    assert ".profit-chart .market-price-point" in DASHBOARD_HTML
+    assert ".profit-chart .price-axis-label" in DASHBOARD_HTML
+    assert "최근 24시간 수익률 데이터가 아직 없습니다.${priceSummary ? ` / 가격 ${priceSummary}` : \"\"}" in DASHBOARD_HTML
+    assert 'class="trade-marker ${markerClass}"' in DASHBOARD_HTML
+    assert 'fetchJson("/dashboard/market?history_limit=288")' in DASHBOARD_HTML
+    assert 'renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market);' in DASHBOARD_HTML
     assert "`${market.market || marketLabel} <span" not in DASHBOARD_HTML
 
 
