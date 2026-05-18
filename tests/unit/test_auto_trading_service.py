@@ -227,6 +227,18 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert service.last_cycle()["rule_variant_leader_key"] == result["rule_variant_leader_key"]
 
 
+def test_auto_trading_service_blocks_weak_bear_market_state_entry(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0, 799.0, 798.0, 797.0], min_history=4)
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["status"] == "blocked"
+    assert result["reason"] == "MARKET_STATE_BEAR_ENTRY_BLOCK"
+    assert result["market_state"] == "bear"
+    assert result["market_state_entry_allowed"] is False
+
+
 def test_auto_trading_service_can_scale_in_after_pullback_with_signal(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [800.0, 806.0, 813.0, 824.0, 818.0, 823.0], min_history=4)
 

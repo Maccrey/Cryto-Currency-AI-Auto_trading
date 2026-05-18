@@ -25,6 +25,11 @@ def test_dashboard_includes_exchange_simulation_and_demo_rule_variants() -> None
     assert "tradingStatus.last_cycle" in DASHBOARD_HTML
     assert "shadow.leader_key" in DASHBOARD_HTML
     assert "같은 실시간 데이터를 기준으로 A/B/C 가상 포트폴리오를 동시에 테스트" in DASHBOARD_HTML
+    assert "formatKoreanLabel" in DASHBOARD_HTML
+    assert "formatTradeAction(item.last_action)" in DASHBOARD_HTML
+    assert 'AUTO_TRADING_DISABLED_OR_NOT_READY: "자동매매 비활성 또는 준비 안 됨"' in DASHBOARD_HTML
+    assert 'return formatKoreanLabel(value, labels, "상태 확인 필요");' in DASHBOARD_HTML
+    assert 'return formatKoreanLabel(value, labels, "기타 차단 사유");' in DASHBOARD_HTML
 
 
 def test_dashboard_price_card_renders_change_on_separate_small_line() -> None:
@@ -168,6 +173,7 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert 'DEMO_ASSET_WITHOUT_ACTIVE_POSITION: "데모 보유자산과 포지션 불일치"' in DASHBOARD_HTML
     assert 'LIVE_ASSET_WITHOUT_ACTIVE_POSITION: "실거래 보유자산과 포지션 불일치"' in DASHBOARD_HTML
     assert 'REENTRY_BLOCK_AFTER_SELL: "매도 후 재진입 대기"' in DASHBOARD_HTML
+    assert 'MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 약한 진입 차단"' in DASHBOARD_HTML
     assert 'AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달"' in DASHBOARD_HTML
     assert 'FEE_ADJUSTED_EDGE_LIMIT: "수수료 반영 기대수익 부족"' in DASHBOARD_HTML
     assert 'MIN_ORDER_AMOUNT: "최소 주문 금액 미달"' in DASHBOARD_HTML

@@ -1,5 +1,17 @@
 # 업데이트 기록
 
+## 2026-05-18
+
+- 현재까지 누적된 `storage/logs/learning/scalping/learning.jsonl` 매매 로그를 분석했다. 자동매매 사이클 27,283건 중 체결 사이클은 40건이었고, 장세별 체결은 하락장 23건, 박스권 15건, 상승장 2건이었다.
+- A/B/C 데모 룰 섀도우 결과에서는 방어형 `룰 C`가 최근 구간에서 손실을 가장 작게 유지하는 흐름이 확인됐다.
+- 현재가 카드의 상승장/박스권/하락장 판정을 자동매매 진입 가드에 반영했다.
+- 하락장에서는 약한/중간 신호 진입을 `MARKET_STATE_BEAR_ENTRY_BLOCK`으로 차단하고, 강한 신호 이상만 예외적으로 허용한다.
+- 하락장 또는 박스권에서 상승장으로 바뀐 뒤 2틱 이상 확인되면 `market_state_transition_boost`를 켜서 제한적으로 약한 신호 완화 경로를 허용한다. 단, 기존 횡보장 가드, 수수료 엣지, 재진입 제한, 쇼크 가드는 그대로 통과해야 체결된다.
+- 장세 진입 판단 결과를 `auto_trade_cycle` payload에 `previous_market_state`, `market_state_transition`, `market_state_confirmation_count`, `market_state_transition_boost`로 기록하도록 했다.
+- 코인거래소 시뮬레이션 컨테이너의 운용상태, 차단 사유, A/B/C 최근 액션이 내부 코드값 대신 한국어로 표시되도록 라벨 매핑을 확장했다.
+- 런타임 로그, 학습 로그, 매매 원장, reset archive, 로컬 데이터셋이 Git에 올라가지 않도록 `.gitignore`에 `logs/`, `storage/`, `data/`, `*.log`를 명시했다.
+- 장세 진입 가드와 자동매매 연동 테스트를 추가했고, 전체 단위 테스트 `pytest` 기준 `407 passed`를 확인했다.
+
 ## 2026-05-17
 
 - 매수/매도 수량 산정을 고정 신호 레벨 비율 중심에서 차트 강도 점수 기반 동적 비율 계산으로 변경했다.

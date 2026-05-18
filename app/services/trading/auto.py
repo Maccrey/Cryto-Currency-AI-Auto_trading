@@ -16,6 +16,7 @@ from app.services.position.store import CurrentPositionStore
 from app.services.recovery.orchestrator import BootState
 from app.services.trading.decision import TradeDecisionRequest, TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
+from app.services.trading.market_state import MarketStateEntryGuard
 from app.services.trading.post_fill import PostFillService
 from app.services.trading.variants import DemoRuleVariantShadowTester
 from app.services.position.exit import PositionExitService
@@ -51,6 +52,9 @@ class AutoTradingConfig:
     market_recovery_change_pct: float = 0.003
     market_recovery_confirmation_ticks: int = 3
     market_shock_alert_cooldown_sec: int = 300
+    market_state_entry_guard_enabled: bool = True
+    market_state_transition_confirmation_ticks: int = 2
+    market_state_bear_entry_min_score: float = 0.65
 
 
 class AutoTradingService:
@@ -129,6 +133,11 @@ class AutoTradingService:
                 recovery_change_pct=config.market_recovery_change_pct,
                 recovery_confirmation_ticks=config.market_recovery_confirmation_ticks,
             ),
+        )
+        self._market_state_entry_guard = MarketStateEntryGuard(
+            enabled=config.market_state_entry_guard_enabled,
+            confirmation_ticks=config.market_state_transition_confirmation_ticks,
+            bear_entry_min_score=config.market_state_bear_entry_min_score,
         )
         self._demo_rule_variant_shadow_tester = DemoRuleVariantShadowTester(
             trading_fee_rate=config.trading_fee_rate,
@@ -320,6 +329,35 @@ class AutoTradingService:
         request = self._build_decision_request(snapshot.trade_price)
         decision = self._trade_decision_service.evaluate(request)
         variant_payload = self._run_demo_rule_variant_shadow(decision=decision, current_price=snapshot.trade_price)
+        market_state_entry = self._market_state_entry_guard.evaluate(
+            market_state=decision.regime.market_state,
+            signal_level=decision.signal.level,
+            signal_score=decision.signal.score,
+        )
+        market_state_extra = self._market_state_extra(market_state_entry)
+        if not market_state_entry.allowed:
+            rule_variant = self._variant_extra(variant_payload)
+            self._consecutive_entry_blocks += 1
+            return self._record_cycle(
+                status="blocked",
+                reason=market_state_entry.reason_code,
+                extra={
+                    "entry_type": "scale_in" if position is not None else "initial",
+                    "signal_level": decision.signal.level,
+                    "signal_score": decision.signal.score,
+                    "signal_blocked": decision.signal.blocked,
+                    "signal_reason_codes": decision.signal.reason_codes,
+                    "sizing_allowed": decision.sizing.allowed,
+                    "sizing_blocked_reason": decision.sizing.blocked_reason,
+                    "buy_amount": 0.0,
+                    "market_state": decision.regime.market_state,
+                    "market_state_label": decision.regime.market_state_label,
+                    "box_range_low": decision.regime.box_range_low,
+                    "box_range_high": decision.regime.box_range_high,
+                    **market_state_extra,
+                    **rule_variant,
+                },
+            )
         reentry_decision = self._reentry_blocker.check(
             market=self._market,
             now=int(self._clock().timestamp()),
@@ -337,9 +375,10 @@ class AutoTradingService:
                     "market_state_label": decision.regime.market_state_label,
                     "box_range_low": decision.regime.box_range_low,
                     "box_range_high": decision.regime.box_range_high,
+                    **market_state_extra,
                 },
             )
-        relaxed_signal = self._should_relax_weak_signal(decision)
+        relaxed_signal = market_state_entry.transition_boost or self._should_relax_weak_signal(decision)
         sideways_decision = self._sideways_risk_guard.check(
             prices=list(self._prices),
             traded_values=list(self._traded_values),
@@ -367,6 +406,7 @@ class AutoTradingService:
                     "market_state_label": decision.regime.market_state_label,
                     "box_range_low": decision.regime.box_range_low,
                     "box_range_high": decision.regime.box_range_high,
+                    **market_state_extra,
                     "sideways_is_sideways": sideways_decision.is_sideways,
                     "sideways_price_range_pct": sideways_decision.price_range_pct,
                     "sideways_traded_value_range_pct": sideways_decision.traded_value_range_pct,
@@ -399,6 +439,7 @@ class AutoTradingService:
                 "market_state_label": decision.regime.market_state_label,
                 "box_range_low": decision.regime.box_range_low,
                 "box_range_high": decision.regime.box_range_high,
+                **market_state_extra,
                 **rule_variant,
             },
         )
@@ -416,6 +457,7 @@ class AutoTradingService:
                 "market_state_label": decision.regime.market_state_label,
                 "box_range_low": decision.regime.box_range_low,
                 "box_range_high": decision.regime.box_range_high,
+                **market_state_extra,
                 "cash_balance": self._portfolio_state().cash_balance,
                 **rule_variant,
             },
@@ -446,6 +488,7 @@ class AutoTradingService:
                 "market_state_label": decision.regime.market_state_label,
                 "box_range_low": decision.regime.box_range_low,
                 "box_range_high": decision.regime.box_range_high,
+                **market_state_extra,
                 "no_trade_relaxed": relaxed_signal,
                 "post_fill_position_opened": post_fill_result.position is not None,
                 **self._variant_extra(variant_payload),
@@ -638,6 +681,17 @@ class AutoTradingService:
             "rule_variant_leader_key": variant_payload.get("leader_key"),
             "rule_variant_leader_label": variant_payload.get("leader_label"),
             "rule_variant_leader_reason": variant_payload.get("leader_reason"),
+        }
+
+    @staticmethod
+    def _market_state_extra(decision) -> dict[str, object]:
+        return {
+            "market_state_entry_allowed": decision.allowed,
+            "market_state_entry_reason": decision.reason_code,
+            "market_state_transition_boost": decision.transition_boost,
+            "previous_market_state": decision.previous_market_state,
+            "market_state_transition": decision.transition,
+            "market_state_confirmation_count": decision.current_state_count,
         }
 
     def _scale_in_allowed(self, *, position, current_price: float) -> bool:

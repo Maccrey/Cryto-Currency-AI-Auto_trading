@@ -2,7 +2,12 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Runtime logs, learning logs, simulated trade ledgers, and local datasets.
 logs/
 storage/
+data/
+*.log
+
 .env
 # Unit and integration tests are source files and must stay trackable.

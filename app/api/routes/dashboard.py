@@ -688,7 +688,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
   document.getElementById("ruleVariantBoard").innerHTML = rows.map((item) => {
     const active = item.variant_key && item.variant_key === shadow.leader_key ? " active" : "";
     const scoreText = item.profit_rate === null || item.profit_rate === undefined ? "-" : percent(item.profit_rate);
-    const actionText = item.last_action ? `최근 ${item.last_action}` : "대기";
+    const actionText = item.last_action ? `최근 ${formatTradeAction(item.last_action)}` : "대기";
     return `<div class="variant-card${active}">
       <div class="variant-title">${item.variant_label || "룰"}</div>
       <div class="variant-score">${scoreText}</div>
@@ -730,6 +730,7 @@ function formatCycleStatus(value) {
   const labels = {
     filled: "체결 완료",
     blocked: "매매 차단",
+    disabled: "비활성",
     waiting: "대기 중",
     position_checked: "포지션 점검",
     skipped: "건너뜀",
@@ -743,10 +744,56 @@ function formatCycleStatus(value) {
     failed: "실패",
     unknown: "상태 미확인",
     not_ready: "준비 안 됨",
+    not_configured: "설정 안 됨",
+    not_implemented: "미구현",
+    demo_skipped: "데모 생략",
+    recovered: "복구 완료",
+    reconciled: "주문 동기화 완료",
+    passed: "검증 통과",
+    applied: "적용 완료",
+    approved: "승인 완료",
+    rejected: "반려됨",
+    pending: "대기 중",
+    proposed: "제안됨",
+    reviewed: "검토 완료",
+    demo_applied: "데모 적용 완료",
+    live_approved: "실거래 승인 완료",
+    needs_retry: "재시도 필요",
+    rolled_back: "롤백 완료",
+    linked: "연결 완료",
+    trained: "학습 완료",
+    refused: "거부됨",
     error: "오류",
     hold: "대기"
   };
-  return labels[value] || value || "-";
+  return formatKoreanLabel(value, labels, "상태 확인 필요");
+}
+
+function formatTradeAction(value) {
+  const labels = {
+    buy: "매수",
+    sell: "매도",
+    hold: "대기",
+    wait: "대기",
+    waiting: "대기 중",
+    blocked: "차단",
+    skipped: "건너뜀",
+    filled: "체결",
+    position_checked: "포지션 점검",
+    stop_loss: "손절",
+    take_profit: "익절"
+  };
+  return formatKoreanLabel(value, labels, "상태 확인 필요");
+}
+
+function formatKoreanLabel(value, labels, fallback = "확인 필요") {
+  if (value === null || value === undefined || value === "") return "-";
+  const key = String(value).trim();
+  const normalized = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[-\\s]+/g, "_")
+    .toLowerCase();
+  return labels[key] || labels[normalized] || fallback;
 }
 
 function deriveAiState({health, summary, market, executions}) {
@@ -1249,6 +1296,7 @@ function formatMitigationAction(value) {
 
 function formatBlockedReason(value) {
   const labels = {
+    AUTO_TRADING_DISABLED_OR_NOT_READY: "자동매매 비활성 또는 준비 안 됨",
     MARKET_HISTORY_WARMING_UP: "시세 이력 준비 중",
     PRICE_PROVIDER_ERROR: "현재가 조회 오류",
     PRICE_SNAPSHOT_UNAVAILABLE: "현재가 데이터 없음",
@@ -1263,6 +1311,7 @@ function formatBlockedReason(value) {
     LIVE_ASSET_WITHOUT_ACTIVE_POSITION: "실거래 보유자산과 포지션 불일치",
     REENTRY_BLOCK_AFTER_SELL: "매도 후 재진입 대기",
     REENTRY_BLOCK_ACTIVE: "재진입 제한 중",
+    MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 약한 진입 차단",
     AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달",
     DEMO_CASH_LIMIT: "데모 현금 부족",
     SIGNAL_BLOCKED: "신호 차단",
@@ -1285,7 +1334,7 @@ function formatBlockedReason(value) {
     EXTERNAL_CONTEXT_RISK_OFF: "외부 컨텍스트 위험 회피",
     TARGET_DAILY_RETURN_0_5PCT: "일 목표 수익률 기준 반영"
   };
-  return labels[value] || value || "-";
+  return formatKoreanLabel(value, labels, "기타 차단 사유");
 }
 
 function renderNoTradeDiagnostics(diagnostics) {
