@@ -22,6 +22,8 @@ def test_dashboard_includes_24h_profit_rate_chart() -> None:
     assert ".profit-chart .market-price-line" in DASHBOARD_HTML
     assert ".profit-chart .market-price-point" in DASHBOARD_HTML
     assert ".profit-chart .price-axis-label" in DASHBOARD_HTML
+    assert ".profit-chart .price-axis-label { fill: #facc15;" in DASHBOARD_HTML
+    assert ".profit-chart .trade-marker.stop-loss { fill: #facc15; }" in DASHBOARD_HTML
     assert "최근 24시간 수익률 데이터가 아직 없습니다.${priceSummary ? ` / 가격 ${priceSummary}` : \"\"}" in DASHBOARD_HTML
     assert "${profitLine}${marketPriceLine}${markers}" in DASHBOARD_HTML
     assert "observedSpan < timeSpan * 0.5" in DASHBOARD_HTML
@@ -61,6 +63,9 @@ def test_dashboard_price_card_renders_change_on_separate_small_line() -> None:
 def test_dashboard_flips_changing_numeric_metrics() -> None:
     assert ".flip-slot" in DASHBOARD_HTML
     assert ".flip-unit" in DASHBOARD_HTML
+    assert "flex-wrap: wrap" in DASHBOARD_HTML
+    assert "white-space: nowrap" in DASHBOARD_HTML
+    assert "function flipTextTokens(text)" in DASHBOARD_HTML
     assert "flex: 0 0 auto" in DASHBOARD_HTML
     assert ".flip-card-old" in DASHBOARD_HTML
     assert ".flip-card-new" in DASHBOARD_HTML

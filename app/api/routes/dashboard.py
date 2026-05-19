@@ -123,9 +123,9 @@ DASHBOARD_HTML = """
     .metric-card { min-height: 156px; display: flex; flex-direction: column; }
     .card h2 { margin: 0 0 10px; font-size: 15px; }
     .metric { min-height: 34px; font-size: 28px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-    .flip-number { display: inline-flex; align-items: baseline; gap: 1px; max-width: 100%; min-width: 0; white-space: nowrap; perspective: 900px; font-variant-numeric: tabular-nums; }
+    .flip-number { display: inline-flex; align-items: baseline; gap: 1px; row-gap: 3px; max-width: 100%; min-width: 0; white-space: normal; flex-wrap: wrap; perspective: 900px; font-variant-numeric: tabular-nums; }
     .flip-char { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: 0.34em; height: 1.04em; line-height: 1em; }
-    .flip-unit { min-width: 0.42em; height: auto; padding-left: 1px; font-size: 0.58em; line-height: 1; opacity: 0.82; }
+    .flip-unit { min-width: 0; height: auto; padding-left: 1px; font-size: 0.58em; line-height: 1; opacity: 0.82; white-space: nowrap; }
     .flip-slot { position: relative; display: inline-block; flex: 0 0 auto; min-width: 0.62em; height: 1.04em; line-height: 1em; overflow: hidden; perspective: 900px; border-radius: 4px; vertical-align: baseline; background: linear-gradient(#f8fafc 0 49%, #e7eef4 50% 100%); box-shadow: inset 0 0 0 1px rgba(82, 97, 109, 0.22); }
     body.dark .flip-slot { background: linear-gradient(#2a3540 0 49%, #202a33 50% 100%); box-shadow: inset 0 0 0 1px rgba(169, 183, 194, 0.22); }
     .flip-slot::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(82, 97, 109, 0.26); transform: translateY(-50%); z-index: 3; }
@@ -144,9 +144,9 @@ DASHBOARD_HTML = """
       100% { transform: translateY(0) rotateX(0deg); opacity: 1; }
     }
     .sub { margin-top: 6px; min-height: 36px; color: var(--muted); font-size: 13px; line-height: 1.35; }
-    .price-stack { min-height: 104px; display: grid; grid-template-rows: 20px 30px 18px minmax(26px, auto); align-content: start; row-gap: 4px; }
+    .price-stack { min-height: 104px; display: grid; grid-template-rows: 20px minmax(30px, auto) 18px minmax(26px, auto); align-content: start; row-gap: 4px; }
     .price-market { color: var(--muted); font-size: 14px; font-weight: 800; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .price-line { font-size: 24px; font-weight: 800; line-height: 30px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .price-line { min-height: 30px; font-size: 24px; font-weight: 800; line-height: 30px; font-variant-numeric: tabular-nums; white-space: normal; overflow: visible; }
     .price-change-line { font-size: 11px; font-weight: 800; line-height: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .price-trend-line { min-height: 26px; font-size: 13px; line-height: 1.35; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
     .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: var(--soft); color: var(--text); font-size: 12px; font-weight: 800; }
@@ -216,12 +216,12 @@ DASHBOARD_HTML = """
     .profit-chart polyline { fill: none; stroke: var(--primary); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
     .profit-chart .market-price-line { stroke: #f97316; stroke-width: 2; stroke-dasharray: 5 4; opacity: 0.8; }
     .profit-chart .market-price-point { fill: #f97316; stroke: var(--surface); stroke-width: 2; }
-    .profit-chart .price-axis-label { fill: #f97316; font-size: 11px; font-weight: 800; text-anchor: end; }
+    .profit-chart .price-axis-label { fill: #facc15; font-size: 11px; font-weight: 800; text-anchor: end; }
     .profit-chart .axis { stroke: var(--border); stroke-width: 1; }
     .profit-chart .trade-marker { stroke: var(--surface); stroke-width: 2; cursor: help; }
     .profit-chart .trade-marker.buy { fill: #b42318; }
     .profit-chart .trade-marker.sell { fill: #145ea8; }
-    .profit-chart .trade-marker.stop-loss { fill: #7f1d1d; }
+    .profit-chart .trade-marker.stop-loss { fill: #facc15; }
     .legend { margin-top: 12px; }
     .legend-toggle { margin-top: 12px; }
     .legend-panel { display: none; }
@@ -771,8 +771,8 @@ function seedFlipText(text) {
 
 function renderStaticFlipText(element, text) {
   element.replaceChildren();
-  Array.from(text).forEach((char) => {
-    element.appendChild(/\\d/.test(char) ? staticFlipDigit(char) : staticFlipChar(char));
+  flipTextTokens(text).forEach((token) => {
+    element.appendChild(/^\\d$/.test(token) ? staticFlipDigit(token) : staticFlipChar(token));
   });
 }
 
@@ -782,16 +782,45 @@ function renderFlipText(element, previous, next) {
   const oldText = previous.padStart(length, " ");
   const nextText = next.padStart(length, " ");
   let flipped = false;
-  Array.from(nextText).forEach((char, index) => {
+  for (let index = 0; index < nextText.length; index += 1) {
+    const char = nextText[index] || " ";
+    if (/[A-Za-z]/.test(char)) {
+      let token = char;
+      while (index + 1 < nextText.length && /[A-Za-z]/.test(nextText[index + 1])) {
+        token += nextText[index + 1];
+        index += 1;
+      }
+      element.appendChild(staticFlipChar(token));
+      continue;
+    }
     const oldChar = oldText[index] || " ";
     if (char !== oldChar && /\\d/.test(char)) {
       flipped = true;
       element.appendChild(flipDigit(oldChar, char));
-      return;
+      continue;
     }
     element.appendChild(/\\d/.test(char) ? staticFlipDigit(char) : staticFlipChar(char));
-  });
+  }
   if (!flipped) renderStaticFlipText(element, next);
+}
+
+function flipTextTokens(text) {
+  const tokens = [];
+  const chars = Array.from(text);
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index];
+    if (/[A-Za-z]/.test(char)) {
+      let token = char;
+      while (index + 1 < chars.length && /[A-Za-z]/.test(chars[index + 1])) {
+        token += chars[index + 1];
+        index += 1;
+      }
+      tokens.push(token);
+      continue;
+    }
+    tokens.push(char);
+  }
+  return tokens;
 }
 
 function fitFlipTextToContainer(element) {
