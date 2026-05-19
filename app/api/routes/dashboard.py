@@ -708,7 +708,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
 
   const fallback = [
     {variant_key: "A", variant_label: "룰 A 안정형", description: "기본 신호를 그대로 사용", profit_rate: null, last_action: "대기"},
-    {variant_key: "B", variant_label: "룰 B 추세형", description: "상승 추세에서 주문 크기 확대", profit_rate: null, last_action: "대기"},
+    {variant_key: "B", variant_label: "룰 B 추세형", description: "상승 추세에서만 주문 크기 확대", profit_rate: null, last_action: "대기"},
     {variant_key: "C", variant_label: "룰 C 방어형", description: "하락장과 박스권에서 방어", profit_rate: null, last_action: "대기"}
   ];
   const rows = results.length ? results : fallback;

@@ -70,6 +70,27 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
     assert all(item["last_action"] == "buy" for item in report["results"])
 
 
+def test_demo_rule_variant_trend_rule_buys_only_in_bull_market() -> None:
+    for market_state in ("bear", "box"):
+        tester = DemoRuleVariantShadowTester()
+
+        report = tester.evaluate(
+            decision=_decision(market_state=market_state),
+            current_price=1_000,
+            portfolio=PortfolioState(
+                cash_balance=1_000_000,
+                asset_currency="XRP",
+                asset_balance=0,
+                avg_buy_price=0,
+            ),
+        )
+
+        results = {item["variant_key"]: item for item in report["results"]}
+        assert results["B"]["last_action"] == "hold"
+        assert results["B"]["asset_balance"] == 0
+        assert results["B"]["cash_balance"] == 1_000_000
+
+
 def test_demo_rule_variant_shadow_tester_compares_profit_rate_after_same_price_move() -> None:
     tester = DemoRuleVariantShadowTester()
     portfolio = PortfolioState(

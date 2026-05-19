@@ -48,7 +48,7 @@ class DemoRuleVariantShadowTester:
         DemoRuleVariant(
             key="B",
             label="룰 B 추세형",
-            description="상승장과 강한 신호에서 진입을 키우고 익절 폭을 넓힙니다.",
+            description="상승장에서만 진입을 키우고 익절 폭을 넓힙니다.",
             buy_multiplier=1.18,
             sell_multiplier=0.82,
             take_profit_pct=0.009,
@@ -172,6 +172,8 @@ class DemoRuleVariantShadowTester:
         decision: TradeDecisionResult,
         current_price: float,
     ) -> str:
+        if variant.key == "B" and decision.regime.market_state != "bull":
+            return "hold"
         buy_amount = min(
             max(decision.sizing.buy_amount * variant.buy_multiplier, 0.0),
             shadow.cash_balance / (1 + self._trading_fee_rate),
