@@ -123,6 +123,26 @@ DASHBOARD_HTML = """
     .metric-card { min-height: 156px; display: flex; flex-direction: column; }
     .card h2 { margin: 0 0 10px; font-size: 15px; }
     .metric { min-height: 34px; font-size: 28px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+    .flip-number { display: inline-flex; align-items: baseline; gap: 1px; max-width: 100%; min-width: 0; white-space: nowrap; perspective: 900px; font-variant-numeric: tabular-nums; }
+    .flip-char { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: 0.34em; height: 1.04em; line-height: 1em; }
+    .flip-unit { min-width: 0.42em; height: auto; padding-left: 1px; font-size: 0.58em; line-height: 1; opacity: 0.82; }
+    .flip-slot { position: relative; display: inline-block; flex: 0 0 auto; min-width: 0.62em; height: 1.04em; line-height: 1em; overflow: hidden; perspective: 900px; border-radius: 4px; vertical-align: baseline; background: linear-gradient(#f8fafc 0 49%, #e7eef4 50% 100%); box-shadow: inset 0 0 0 1px rgba(82, 97, 109, 0.22); }
+    body.dark .flip-slot { background: linear-gradient(#2a3540 0 49%, #202a33 50% 100%); box-shadow: inset 0 0 0 1px rgba(169, 183, 194, 0.22); }
+    .flip-slot::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(82, 97, 109, 0.26); transform: translateY(-50%); z-index: 3; }
+    body.dark .flip-slot::after { background: rgba(169, 183, 194, 0.24); }
+    .flip-card-old, .flip-card-new, .flip-card-static { position: absolute; inset: 0; display: inline-flex; align-items: center; justify-content: center; backface-visibility: hidden; transform-origin: 50% 50%; will-change: transform; }
+    .flip-card-old { animation: flip-clock-old 760ms cubic-bezier(.2, .75, .25, 1) forwards; }
+    .flip-card-new { transform: translateY(-55%) rotateX(-90deg); animation: flip-clock-new 760ms cubic-bezier(.2, .75, .25, 1) forwards; }
+    @keyframes flip-clock-old {
+      0% { transform: translateY(0) rotateX(0deg); opacity: 1; }
+      48% { transform: translateY(54%) rotateX(88deg); opacity: 0.72; }
+      100% { transform: translateY(62%) rotateX(90deg); opacity: 0; }
+    }
+    @keyframes flip-clock-new {
+      0% { transform: translateY(-62%) rotateX(-90deg); opacity: 0; }
+      48% { transform: translateY(-54%) rotateX(-88deg); opacity: 0.78; }
+      100% { transform: translateY(0) rotateX(0deg); opacity: 1; }
+    }
     .sub { margin-top: 6px; min-height: 36px; color: var(--muted); font-size: 13px; line-height: 1.35; }
     .price-stack { min-height: 104px; display: grid; grid-template-rows: 20px 30px 18px minmax(26px, auto); align-content: start; row-gap: 4px; }
     .price-market { color: var(--muted); font-size: 14px; font-weight: 800; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -476,7 +496,7 @@ let cachedRuleHistoryResponse = {history: []};
 let cachedExternalContextResponse = {context: {}};
 let cachedDiagnosticsResponse = {diagnostics: {}};
 const DASHBOARD_REFRESH_INTERVAL_MS = 3000;
-const DASHBOARD_SLOW_REFRESH_INTERVAL_MS = 30000;
+const DASHBOARD_SLOW_REFRESH_INTERVAL_MS = 10000;
 const AUTO_RULE_READY_KEY = "cryptoDashboardAutoRuleImproveReady";
 let autoRuleImproveInFlight = false;
 
@@ -719,6 +739,101 @@ function setHtmlWithTitle(elementId, html, title) {
   const element = document.getElementById(elementId);
   element.innerHTML = html;
   element.title = title;
+}
+
+function setFlipTextWithTitle(elementId, text, title = text) {
+  const element = document.getElementById(elementId);
+  const previous = element.dataset.flipText;
+  const changed = previous !== text;
+  element.dataset.flipText = text;
+  element.title = title;
+  element.classList.add("flip-number");
+  if (!changed) {
+    fitFlipTextToContainer(element);
+    return;
+  }
+  if (text === "-" || text === "데이터 없음") {
+    renderStaticFlipText(element, text);
+    fitFlipTextToContainer(element);
+    return;
+  }
+  renderFlipText(element, previous === undefined ? seedFlipText(text) : previous, text);
+  fitFlipTextToContainer(element);
+  window.setTimeout(() => {
+    renderStaticFlipText(element, text);
+    fitFlipTextToContainer(element);
+  }, 780);
+}
+
+function seedFlipText(text) {
+  return Array.from(text).map((char) => /\\d/.test(char) ? "0" : char).join("");
+}
+
+function renderStaticFlipText(element, text) {
+  element.replaceChildren();
+  Array.from(text).forEach((char) => {
+    element.appendChild(/\\d/.test(char) ? staticFlipDigit(char) : staticFlipChar(char));
+  });
+}
+
+function renderFlipText(element, previous, next) {
+  element.replaceChildren();
+  const length = Math.max(previous.length, next.length);
+  const oldText = previous.padStart(length, " ");
+  const nextText = next.padStart(length, " ");
+  let flipped = false;
+  Array.from(nextText).forEach((char, index) => {
+    const oldChar = oldText[index] || " ";
+    if (char !== oldChar && /\\d/.test(char)) {
+      flipped = true;
+      element.appendChild(flipDigit(oldChar, char));
+      return;
+    }
+    element.appendChild(/\\d/.test(char) ? staticFlipDigit(char) : staticFlipChar(char));
+  });
+  if (!flipped) renderStaticFlipText(element, next);
+}
+
+function fitFlipTextToContainer(element) {
+  element.style.fontSize = "";
+  const parent = element.parentElement;
+  if (!parent) return;
+  const availableWidth = Math.max(parent.clientWidth - 2, 1);
+  const contentWidth = element.scrollWidth;
+  if (contentWidth <= availableWidth) return;
+  const currentFontSize = Number.parseFloat(window.getComputedStyle(element).fontSize) || 28;
+  const nextFontSize = Math.max(Math.floor(currentFontSize * (availableWidth / contentWidth) * 0.96), 14);
+  element.style.fontSize = `${nextFontSize}px`;
+}
+
+function flipDigit(oldChar, newChar) {
+  const slot = document.createElement("span");
+  slot.className = "flip-slot";
+  const oldValue = document.createElement("span");
+  oldValue.className = "flip-card-old";
+  oldValue.textContent = /\\d/.test(oldChar) ? oldChar : newChar;
+  const newValue = document.createElement("span");
+  newValue.className = "flip-card-new";
+  newValue.textContent = newChar;
+  slot.append(oldValue, newValue);
+  return slot;
+}
+
+function staticFlipDigit(char) {
+  const slot = document.createElement("span");
+  slot.className = "flip-slot";
+  const value = document.createElement("span");
+  value.className = "flip-card-static";
+  value.textContent = char;
+  slot.appendChild(value);
+  return slot;
+}
+
+function staticFlipChar(char) {
+  const item = document.createElement("span");
+  item.className = /[A-Za-z]/.test(char) ? "flip-char flip-unit" : "flip-char";
+  item.textContent = char === " " ? "\u00a0" : char;
+  return item;
 }
 
 function setLinesWithTitle(elementId, lines) {
@@ -1409,12 +1524,10 @@ function formatEtfFlowLine(etf) {
 function formatEtfFlowLines(etf) {
   const inflow = Number(etf.inflow_usd || 0);
   const outflow = Number(etf.outflow_usd || 0);
-  if (inflow > 0 || outflow > 0) {
-    return [
-      formatEtfMetricLine("순유입", inflow, "USD", etf.inflow_usd_change, 0),
-      formatEtfMetricLine("순유출", outflow, "USD", etf.outflow_usd_change, 0)
-    ];
-  }
+  const lines = [];
+  if (inflow > 0) lines.push(formatEtfMetricLine("순유입", inflow, "USD", etf.inflow_usd_change, 0));
+  if (outflow > 0) lines.push(formatEtfMetricLine("순유출", outflow, "USD", etf.outflow_usd_change, 0));
+  if (lines.length) return lines;
   return [formatEtfFlowLine(etf)];
 }
 
@@ -1578,7 +1691,7 @@ function renderDashboard(data) {
     : "";
   const trendText = market.current_price === undefined ? "거래량 데이터가 아직 없습니다." : `${market.market_state_label || "박스권"}${rangeText}`;
   setTextWithTitle("priceMarket", marketLabel);
-  setTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));
+  setFlipTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));
   setHtmlWithTitle("priceChange", `<span class="${changeClass(upbitChangeRate)}">${changeText}</span>`, priceText);
   setHtmlWithTitle(
     "priceSub",
@@ -1588,14 +1701,14 @@ function renderDashboard(data) {
     trendText
   );
   const investment = deriveInvestmentValue(summary, market);
-  setTextWithTitle("capitalMetric", `${number(investment.total, 0)} KRW`);
+  setFlipTextWithTitle("capitalMetric", `${number(investment.total, 0)} KRW`);
   setLinesWithTitle("capitalSub", investment.lines);
   document.getElementById("learningProgressMetric").textContent = `${progress}%`;
   document.getElementById("learningProgressBar").style.width = `${progress}%`;
   setLinesWithTitle("learningProgressSub", readinessProgress.lines);
   document.getElementById("winRateMetric").textContent = percent(winRate);
   document.getElementById("winRateSub").textContent = winRate === null ? "완료된 거래 손익 기록이 쌓이면 표시됩니다." : "현재 기록 기준 수익 거래 비율입니다.";
-  document.getElementById("pnlMetric").textContent = `${number(summary.realized_pnl, 2)} KRW`;
+  setFlipTextWithTitle("pnlMetric", `${number(summary.realized_pnl, 2)} KRW`);
   document.getElementById("pnlSub").textContent = `미실현 손익 ${number(summary.unrealized_pnl, 2)} KRW, 매수 ${summary.buy_count || 0}건, 매도 ${summary.sell_count || 0}건`;
   renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market);
   const aiState = deriveAiState({health, summary, market, executions});

@@ -52,10 +52,31 @@ def test_dashboard_includes_exchange_simulation_and_demo_rule_variants() -> None
 def test_dashboard_price_card_renders_change_on_separate_small_line() -> None:
     assert 'id="priceChange" class="price-change-line"' in DASHBOARD_HTML
     assert ".price-change-line { font-size: 11px;" in DASHBOARD_HTML
-    assert 'setTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));' in DASHBOARD_HTML
+    assert 'setFlipTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));' in DASHBOARD_HTML
     assert "const upbitChangeRate = market.signed_change_rate ?? market.recent_change_pct;" in DASHBOARD_HTML
     assert 'setHtmlWithTitle("priceChange", `<span class="${changeClass(upbitChangeRate)}">${changeText}</span>`, priceText);' in DASHBOARD_HTML
     assert '`${price(market.current_price)} <span' not in DASHBOARD_HTML
+
+
+def test_dashboard_flips_changing_numeric_metrics() -> None:
+    assert ".flip-slot" in DASHBOARD_HTML
+    assert ".flip-unit" in DASHBOARD_HTML
+    assert "flex: 0 0 auto" in DASHBOARD_HTML
+    assert ".flip-card-old" in DASHBOARD_HTML
+    assert ".flip-card-new" in DASHBOARD_HTML
+    assert "@keyframes flip-clock-old" in DASHBOARD_HTML
+    assert "@keyframes flip-clock-new" in DASHBOARD_HTML
+    assert "function setFlipTextWithTitle(elementId, text, title = text)" in DASHBOARD_HTML
+    assert "function renderFlipText(element, previous, next)" in DASHBOARD_HTML
+    assert "function fitFlipTextToContainer(element)" in DASHBOARD_HTML
+    assert "element.scrollWidth" in DASHBOARD_HTML
+    assert "Math.max(Math.floor(currentFontSize * (availableWidth / contentWidth) * 0.96), 14)" in DASHBOARD_HTML
+    assert "function flipDigit(oldChar, newChar)" in DASHBOARD_HTML
+    assert '/[A-Za-z]/.test(char) ? "flip-char flip-unit" : "flip-char"' in DASHBOARD_HTML
+    assert 'if (char !== oldChar && /\\d/.test(char))' in DASHBOARD_HTML
+    assert 'setFlipTextWithTitle("priceMetric"' in DASHBOARD_HTML
+    assert 'setFlipTextWithTitle("capitalMetric"' in DASHBOARD_HTML
+    assert 'setFlipTextWithTitle("pnlMetric"' in DASHBOARD_HTML
 
 
 def test_dashboard_includes_rule_review_pipeline_panel() -> None:
@@ -130,8 +151,10 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert "`순유입 ${number(etf.inflow_usd || 0, 0)} USD`" not in DASHBOARD_HTML
     assert "`순유출 ${number(etf.outflow_usd || 0, 0)} USD`" not in DASHBOARD_HTML
     assert "function formatEtfFlowLines(etf)" in DASHBOARD_HTML
-    assert 'formatEtfMetricLine("순유입", inflow, "USD", etf.inflow_usd_change, 0)' in DASHBOARD_HTML
-    assert 'formatEtfMetricLine("순유출", outflow, "USD", etf.outflow_usd_change, 0)' in DASHBOARD_HTML
+    assert "const lines = [];" in DASHBOARD_HTML
+    assert 'if (inflow > 0) lines.push(formatEtfMetricLine("순유입", inflow, "USD", etf.inflow_usd_change, 0));' in DASHBOARD_HTML
+    assert 'if (outflow > 0) lines.push(formatEtfMetricLine("순유출", outflow, "USD", etf.outflow_usd_change, 0));' in DASHBOARD_HTML
+    assert "if (lines.length) return lines;" in DASHBOARD_HTML
     assert 'formatEtfMetricLine("보유수량 변화", holdingChange, `${tradeCoin}`, holdingChange, 0)' in DASHBOARD_HTML
     assert 'formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0, false)' in DASHBOARD_HTML
     assert 'formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0, false)' in DASHBOARD_HTML
@@ -223,7 +246,7 @@ def test_dashboard_refresh_throttles_overlapping_requests() -> None:
     assert "let dashboardRefreshInFlight = false;" in DASHBOARD_HTML
     assert "let dashboardSlowRefreshInFlight = false;" in DASHBOARD_HTML
     assert "const DASHBOARD_REFRESH_INTERVAL_MS = 3000;" in DASHBOARD_HTML
-    assert "const DASHBOARD_SLOW_REFRESH_INTERVAL_MS = 30000;" in DASHBOARD_HTML
+    assert "const DASHBOARD_SLOW_REFRESH_INTERVAL_MS = 10000;" in DASHBOARD_HTML
     assert "if (dashboardRefreshInFlight) return;" in DASHBOARD_HTML
     assert "dashboardRefreshInFlight = false;" in DASHBOARD_HTML
     assert "function refreshSlowDashboardData" in DASHBOARD_HTML

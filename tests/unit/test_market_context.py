@@ -366,7 +366,7 @@ def test_public_web_context_provider_parses_coinglass_camel_flow_keys() -> None:
                 json={
                     "code": "0",
                     "data": [
-                        {"date": "2026-05-01", "inFlowUsd": 0, "outFlowUsd": 4_200_000},
+                        {"date": "2026-05-01", "change": 0, "inFlowUsd": 0, "outFlowUsd": 4_200_000},
                     ],
                 },
             )

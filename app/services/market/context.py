@@ -495,6 +495,9 @@ class PublicWebExternalMarketContextProvider:
 
     @staticmethod
     def _coinglass_flow_metrics(item: dict[str, Any]) -> dict[str, float] | None:
+        explicit_metrics = PublicWebExternalMarketContextProvider._coinglass_explicit_flow_metrics(item)
+        if explicit_metrics is not None:
+            return explicit_metrics
         for key in (
             "changeUsd",
             "change_usd",
@@ -516,6 +519,10 @@ class PublicWebExternalMarketContextProvider:
                     "inflow_usd": max(value, 0.0),
                     "outflow_usd": abs(min(value, 0.0)),
                 }
+        return None
+
+    @staticmethod
+    def _coinglass_explicit_flow_metrics(item: dict[str, Any]) -> dict[str, float] | None:
         inflow = PublicWebExternalMarketContextProvider._first_optional_float(
             item,
             "inflow",

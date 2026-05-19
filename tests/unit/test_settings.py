@@ -52,7 +52,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.stop_loss_strong == 0.030
     assert settings.stop_loss_very_strong == 0.030
     assert settings.external_context_enabled is True
-    assert settings.external_context_cache_ttl_sec == 300
+    assert settings.external_context_cache_ttl_sec == 30
     assert settings.onchain_context_source == "manual"
     assert settings.onchain_context_url == ""
     assert settings.etf_context_source == "manual"

@@ -33,7 +33,7 @@ class SettingsModel(BaseModel):
     auto_rule_update_min_learning_completion_rate: float = Field(default=1.0)
     auto_rule_update_win_rate_skip_threshold: float = Field(default=0.80)
     external_context_enabled: bool = Field(default=True)
-    external_context_cache_ttl_sec: int = Field(default=300)
+    external_context_cache_ttl_sec: int = Field(default=30)
     onchain_context_source: str = Field(default="manual")
     onchain_context_url: str = Field(default="")
     onchain_state: str = Field(default="neutral")
@@ -332,7 +332,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
             _setting("AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD", "0.80", env_values),
         ),
         "external_context_enabled": _parse_bool(_setting("EXTERNAL_CONTEXT_ENABLED", "true", env_values)),
-        "external_context_cache_ttl_sec": int(_setting("EXTERNAL_CONTEXT_CACHE_TTL_SEC", "300", env_values)),
+        "external_context_cache_ttl_sec": int(_setting("EXTERNAL_CONTEXT_CACHE_TTL_SEC", "30", env_values)),
         "onchain_context_source": _setting("ONCHAIN_CONTEXT_SOURCE", "manual", env_values),
         "onchain_context_url": _setting("ONCHAIN_CONTEXT_URL", "", env_values),
         "onchain_state": _setting("ONCHAIN_STATE", "neutral", env_values),
