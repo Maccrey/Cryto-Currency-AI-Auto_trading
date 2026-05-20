@@ -76,6 +76,7 @@ from app.services.risk.stop_loss import StopLossInjector
 from app.services.rules.automation import AutoRuleUpdateService
 from app.services.rules.review import RuleReviewConfig, RuleReviewService
 from app.services.runtime.factory import build_runtime_services
+from app.services.runtime.uptime import TradingUptimeStore
 from app.services.signals.engine import SignalEngine
 from app.services.signals.features import MarketFeatureCalculator
 from app.services.regime.engine import RegimeEngine
@@ -359,6 +360,7 @@ def create_app(
             initial_portfolio_state=boot_portfolio_state,
             position_lifecycle_ledger=position_lifecycle_ledger,
             order_rules=order_rules,
+            trading_fee_rate=float(settings.trading_fee_rate),
         )
     if post_fill_service is None:
         post_fill_service = PostFillService(
@@ -417,6 +419,7 @@ def create_app(
         demo_portfolio_state=demo_portfolio_state,
         live_portfolio_sync_service=live_portfolio_sync_service,
         telegram_notifier=trade_fill_notifier,
+        uptime_store=TradingUptimeStore(path=runtime_state_dir / "trading-uptime.json"),
     )
     app.state.auto_trading_service = auto_trading_service
     rule_review_service = RuleReviewService(
@@ -599,6 +602,7 @@ def create_app(
         for path in [
             runtime_state_dir / "execution-ledger.json",
             runtime_state_dir / "current-position.json",
+            runtime_state_dir / "trading-uptime.json",
         ]:
             if path.exists():
                 path.unlink()

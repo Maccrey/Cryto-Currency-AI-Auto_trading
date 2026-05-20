@@ -263,6 +263,41 @@ def test_auto_trading_service_can_scale_in_after_pullback_with_signal(tmp_path: 
     assert scaled_position.quantity > first_position.quantity
 
 
+def test_auto_trading_service_buys_box_range_low_when_range_is_profitable(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [1000.0, 1040.0, 1001.0, 1001.0], min_history=4)
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["status"] == "filled"
+    assert result["market_state"] == "box"
+    assert result["signal_level"] == "weak"
+    assert result["box_range_buy_opportunity"] is True
+    assert result["box_range_width_pct"] >= result["box_range_required_pct"]
+    assert result["buy_amount"] > 0.0
+
+
+def test_auto_trading_service_blocks_scale_in_in_bear_market_state(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [900.0, 906.0, 913.0, 924.0, 899.0, 898.0, 897.0, 897.0], min_history=4)
+
+    for _ in range(4):
+        first_entry = service.tick()
+    first_portfolio = service._portfolio_state()
+    service._prices.clear()
+    service._traded_values.clear()
+    for _ in range(4):
+        result = service.tick()
+    held_portfolio = service._portfolio_state()
+
+    assert first_entry["status"] == "filled"
+    assert result["status"] == "blocked"
+    assert result["reason"] == "MARKET_STATE_BEAR_SCALE_IN_BLOCK"
+    assert result["entry_type"] == "scale_in"
+    assert result["market_state"] == "bear"
+    assert result["buy_amount"] == 0.0
+    assert held_portfolio.asset_balance == first_portfolio.asset_balance
+
+
 def test_auto_trading_service_holds_position_without_scale_in_when_price_is_above_entry(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [800.0, 806.0, 813.0, 824.0, 826.0], min_history=4)
 

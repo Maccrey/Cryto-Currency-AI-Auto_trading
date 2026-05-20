@@ -71,6 +71,9 @@ class PositionExitService:
         position_lifecycle_ledger: PositionLifecycleLedger | None = None,
         min_order_amount_krw: float = 5_000.0,
         order_rules: UpbitOrderRules | None = None,
+        trading_fee_rate: float = 0.0005,
+        box_range_min_net_profit_pct: float = 0.003,
+        box_range_edge_zone_ratio: float = 0.25,
     ) -> None:
         self._position_store = position_store
         self._hard_stop_monitor = hard_stop_monitor
@@ -86,6 +89,9 @@ class PositionExitService:
         self._order_rules = order_rules or UpbitOrderRules(
             min_order_amount_krw=min_order_amount_krw,
         )
+        self._trading_fee_rate = max(float(trading_fee_rate), 0.0)
+        self._box_range_min_net_profit_pct = max(float(box_range_min_net_profit_pct), self._trading_fee_rate * 2)
+        self._box_range_edge_zone_ratio = min(max(float(box_range_edge_zone_ratio), 0.05), 0.5)
 
     def evaluate_and_execute(
         self,
@@ -94,6 +100,9 @@ class PositionExitService:
         elapsed_sec: int,
         momentum_score: float,
         orderbook_imbalance: float,
+        market_state: str | None = None,
+        box_range_low: float | None = None,
+        box_range_high: float | None = None,
     ) -> dict[str, object]:
         position = self._position_store.get()
         if position is None:
@@ -159,6 +168,72 @@ class PositionExitService:
                     "type": "hard_stop",
                     "reason_code": hard_stop.reason_code,
                     "exit_ratio": 1.0,
+                },
+                "execution": None if execution is None else asdict(execution),
+            }
+
+        box_range_exit = self._box_range_exit(
+            position=position,
+            current_price=current_price,
+            market_state=market_state,
+            box_range_low=box_range_low,
+            box_range_high=box_range_high,
+        )
+        if box_range_exit["triggered"]:
+            resolved_exit = self._resolve_exit_quantity(
+                position=position,
+                current_price=current_price,
+                requested_exit_ratio=1.0,
+            )
+            if resolved_exit["blocked_reason"] is not None:
+                self._record_exit_blocked(
+                    position=position,
+                    reason_code="BOX_RANGE_HIGH_TAKE_PROFIT",
+                    blocked_reason=resolved_exit["blocked_reason"],
+                    current_price=current_price,
+                    elapsed_sec=elapsed_sec,
+                    momentum_score=momentum_score,
+                    orderbook_imbalance=orderbook_imbalance,
+                )
+                return {
+                    "status": "blocked",
+                    "position": self._position_store.to_payload(position),
+                    "trigger": {
+                        "type": "box_range_take_profit",
+                        "reason_code": "BOX_RANGE_HIGH_TAKE_PROFIT",
+                        "exit_ratio": 0.0,
+                        "blocked_reason": resolved_exit["blocked_reason"],
+                    },
+                    "execution": None,
+                }
+            exit_quantity = resolved_exit["quantity"]
+            execution = RegularSellExecutor(executor=self._executor).execute(
+                market=position.market,
+                price=current_price,
+                quantity=exit_quantity,
+            )
+            self._position_store.clear()
+            self._record_exit_event(
+                position=position,
+                trigger_type="box_range_take_profit",
+                reason_code="BOX_RANGE_HIGH_TAKE_PROFIT",
+                exit_ratio=1.0,
+                current_price=current_price,
+                elapsed_sec=elapsed_sec,
+                momentum_score=momentum_score,
+                orderbook_imbalance=orderbook_imbalance,
+                execution=execution,
+                remaining_quantity=0.0,
+            )
+            return {
+                "status": "ok",
+                "position": None,
+                "trigger": {
+                    "type": "box_range_take_profit",
+                    "reason_code": "BOX_RANGE_HIGH_TAKE_PROFIT",
+                    "exit_ratio": 1.0,
+                    "box_range_low": box_range_exit["box_range_low"],
+                    "box_range_high": box_range_exit["box_range_high"],
                 },
                 "execution": None if execution is None else asdict(execution),
             }
@@ -288,6 +363,35 @@ class PositionExitService:
             "quantity": requested_quantity,
             "exit_ratio": requested_exit_ratio,
             "blocked_reason": None,
+        }
+
+    def _box_range_exit(
+        self,
+        *,
+        position,
+        current_price: float,
+        market_state: str | None,
+        box_range_low: float | None,
+        box_range_high: float | None,
+    ) -> dict[str, object]:
+        if market_state != "box" or box_range_low is None or box_range_high is None:
+            return {"triggered": False}
+        if current_price <= 0 or box_range_low <= 0 or box_range_high <= box_range_low:
+            return {"triggered": False}
+        box_width = box_range_high - box_range_low
+        box_width_pct = box_width / box_range_low
+        min_required_pct = (self._trading_fee_rate * 2) + self._box_range_min_net_profit_pct
+        if box_width_pct < min_required_pct:
+            return {"triggered": False}
+        high_zone_start = box_range_high - (box_width * self._box_range_edge_zone_ratio)
+        min_exit_price = position.entry_price * (1 + min_required_pct)
+        if current_price < high_zone_start or current_price < min_exit_price:
+            return {"triggered": False}
+        return {
+            "triggered": True,
+            "box_range_low": box_range_low,
+            "box_range_high": box_range_high,
+            "box_width_pct": round(box_width_pct, 6),
         }
 
     @staticmethod

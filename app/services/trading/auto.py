@@ -23,6 +23,7 @@ from app.services.position.exit import PositionExitService
 from app.services.risk.market_shock import MarketShockConfig, MarketShockRiskGuard
 from app.services.risk.reentry import ReentryBlocker
 from app.services.risk.sideways import SidewaysMarketRiskGuard, SidewaysRiskConfig
+from app.services.runtime.uptime import TradingUptimeStore
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,7 @@ class AutoTradingService:
         auto_rule_update_service: Any | None = None,
         live_portfolio_sync_service: Any | None = None,
         telegram_notifier: Any | None = None,
+        uptime_store: TradingUptimeStore | None = None,
     ) -> None:
         self._market = market
         self._trading_mode = trading_mode
@@ -101,6 +103,7 @@ class AutoTradingService:
         self._auto_rule_update_service = auto_rule_update_service
         self._live_portfolio_sync_service = live_portfolio_sync_service
         self._telegram_notifier = telegram_notifier
+        self._uptime_store = uptime_store
         self._trend_classifier = MarketTrendClassifier()
         self._prices: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
@@ -159,7 +162,7 @@ class AutoTradingService:
             return
         if self._task is not None and not self._task.done():
             return
-        self._started_at = self._clock()
+        self._started_at = self._clock() if self._uptime_store is None else self._uptime_store.start()
         self._task = asyncio.create_task(self._run())
 
     def is_running(self) -> bool:
@@ -172,6 +175,8 @@ class AutoTradingService:
         started_at = self.started_at()
         if started_at is None:
             return None
+        if self._uptime_store is not None:
+            return self._uptime_store.uptime_sec(fallback_started_at=started_at)
         return max(int((self._clock() - started_at).total_seconds()), 0)
 
     def last_cycle(self) -> dict[str, object] | None:
@@ -189,6 +194,10 @@ class AutoTradingService:
         self._demo_asset_balance = 0.0 if portfolio is None else portfolio.asset_balance
         self._demo_avg_buy_price = 0.0 if portfolio is None else portfolio.avg_buy_price
         self._position_opened_at = None
+        if self._uptime_store is not None:
+            self._uptime_store.reset()
+            if self.is_running():
+                self._started_at = self._uptime_store.start()
         return {
             "reset": True,
             "cash_balance": round(self._demo_cash_balance, 2),
@@ -205,6 +214,8 @@ class AutoTradingService:
         except asyncio.CancelledError:
             pass
         finally:
+            if self._uptime_store is not None and self._started_at is not None:
+                self._uptime_store.stop()
             self._task = None
             self._started_at = None
 
@@ -239,12 +250,16 @@ class AutoTradingService:
             )
 
         position = self._position_store.get()
+        position_market_trend = self._classify_current_market_state(snapshot.trade_price) if position is not None else None
         if position is not None:
             result = self._position_exit_service.evaluate_and_execute(
                 current_price=snapshot.trade_price,
                 elapsed_sec=self._elapsed_sec(),
                 momentum_score=self._momentum_score(),
                 orderbook_imbalance=self._orderbook_imbalance(),
+                market_state=None if position_market_trend is None else position_market_trend.market_state,
+                box_range_low=None if position_market_trend is None else position_market_trend.box_range_low,
+                box_range_high=None if position_market_trend is None else position_market_trend.box_range_high,
             )
             if result.get("position") is None:
                 self._position_opened_at = None
@@ -329,10 +344,24 @@ class AutoTradingService:
         request = self._build_decision_request(snapshot.trade_price)
         decision = self._trade_decision_service.evaluate(request)
         variant_payload = self._run_demo_rule_variant_shadow(decision=decision, current_price=snapshot.trade_price)
-        market_state_entry = self._market_state_entry_guard.evaluate(
+        box_range_opportunity = self._box_range_buy_opportunity(
             market_state=decision.regime.market_state,
+            box_range_low=decision.regime.box_range_low,
+            box_range_high=decision.regime.box_range_high,
+            current_price=snapshot.trade_price,
+            position_exists=position is not None,
+        )
+        entry_type = "scale_in" if position is not None else "initial"
+        entry_market_state = decision.regime.market_state
+        entry_market_state_label = decision.regime.market_state_label
+        if entry_type == "scale_in" and self._recent_price_market_state() == "bear":
+            entry_market_state = "bear"
+            entry_market_state_label = "하락장"
+        market_state_entry = self._market_state_entry_guard.evaluate(
+            market_state=entry_market_state,
             signal_level=decision.signal.level,
             signal_score=decision.signal.score,
+            entry_type=entry_type,
         )
         market_state_extra = self._market_state_extra(market_state_entry)
         if not market_state_entry.allowed:
@@ -342,7 +371,7 @@ class AutoTradingService:
                 status="blocked",
                 reason=market_state_entry.reason_code,
                 extra={
-                    "entry_type": "scale_in" if position is not None else "initial",
+                    "entry_type": entry_type,
                     "signal_level": decision.signal.level,
                     "signal_score": decision.signal.score,
                     "signal_blocked": decision.signal.blocked,
@@ -350,8 +379,8 @@ class AutoTradingService:
                     "sizing_allowed": decision.sizing.allowed,
                     "sizing_blocked_reason": decision.sizing.blocked_reason,
                     "buy_amount": 0.0,
-                    "market_state": decision.regime.market_state,
-                    "market_state_label": decision.regime.market_state_label,
+                    "market_state": entry_market_state,
+                    "market_state_label": entry_market_state_label,
                     "box_range_low": decision.regime.box_range_low,
                     "box_range_high": decision.regime.box_range_high,
                     **market_state_extra,
@@ -378,7 +407,11 @@ class AutoTradingService:
                     **market_state_extra,
                 },
             )
-        relaxed_signal = market_state_entry.transition_boost or self._should_relax_weak_signal(decision)
+        relaxed_signal = (
+            market_state_entry.transition_boost
+            or self._should_relax_weak_signal(decision)
+            or bool(box_range_opportunity["allowed"])
+        )
         sideways_decision = self._sideways_risk_guard.check(
             prices=list(self._prices),
             traded_values=list(self._traded_values),
@@ -421,6 +454,13 @@ class AutoTradingService:
                 self._build_decision_request(snapshot.trade_price, relax_fee_edge=True),
             )
             variant_payload = self._run_demo_rule_variant_shadow(decision=decision, current_price=snapshot.trade_price)
+            box_range_opportunity = self._box_range_buy_opportunity(
+                market_state=decision.regime.market_state,
+                box_range_low=decision.regime.box_range_low,
+                box_range_high=decision.regime.box_range_high,
+                current_price=snapshot.trade_price,
+                position_exists=position is not None,
+            )
         if decision.signal.level == "weak" and not relaxed_signal:
             self._consecutive_entry_blocks += 1
             rule_variant = self._variant_extra(variant_payload)
@@ -490,6 +530,7 @@ class AutoTradingService:
                 "box_range_high": decision.regime.box_range_high,
                 **market_state_extra,
                 "no_trade_relaxed": relaxed_signal,
+                **self._box_range_extra(box_range_opportunity),
                 "post_fill_position_opened": post_fill_result.position is not None,
                 **self._variant_extra(variant_payload),
             },
@@ -506,11 +547,7 @@ class AutoTradingService:
 
     def _build_decision_request(self, current_price: float, *, relax_fee_edge: bool = False) -> TradeDecisionRequest:
         external_context = self._external_context(record=False)
-        trend = self._trend_classifier.classify(
-            current_price=current_price,
-            history=self._market_price_store.list_history(self._market),
-            learning_events=self._learning_service.recent_events(limit=200),
-        )
+        trend = self._classify_current_market_state(current_price)
         return TradeDecisionRequest(
             prices=list(self._prices),
             traded_values=list(self._traded_values),
@@ -529,6 +566,13 @@ class AutoTradingService:
             observed_market_state_label=trend.market_state_label,
             observed_box_range_low=trend.box_range_low,
             observed_box_range_high=trend.box_range_high,
+        )
+
+    def _classify_current_market_state(self, current_price: float):
+        return self._trend_classifier.classify(
+            current_price=current_price,
+            history=self._market_price_store.list_history(self._market),
+            learning_events=self._learning_service.recent_events(limit=200),
         )
 
     def _portfolio_state(self) -> PortfolioState:
@@ -692,6 +736,55 @@ class AutoTradingService:
             "previous_market_state": decision.previous_market_state,
             "market_state_transition": decision.transition,
             "market_state_confirmation_count": decision.current_state_count,
+        }
+
+    def _recent_price_market_state(self) -> str | None:
+        history = self._market_price_store.list_history(self._market)
+        prices = [item.price for item in history if item.price > 0]
+        if len(prices) < 2 or prices[0] <= 0:
+            return None
+        recent_change_pct = (prices[-1] - prices[0]) / prices[0]
+        if abs(recent_change_pct) <= 0.002:
+            return "box"
+        return "bull" if recent_change_pct > 0 else "bear"
+
+    def _box_range_buy_opportunity(
+        self,
+        *,
+        market_state: str,
+        box_range_low: float | None,
+        box_range_high: float | None,
+        current_price: float,
+        position_exists: bool,
+    ) -> dict[str, object]:
+        if position_exists or market_state != "box" or box_range_low is None or box_range_high is None:
+            return {"allowed": False}
+        if current_price <= 0 or box_range_low <= 0 or box_range_high <= box_range_low:
+            return {"allowed": False}
+        box_width = box_range_high - box_range_low
+        box_width_pct = box_width / box_range_low
+        min_required_pct = (self._config.trading_fee_rate * 2) + 0.003
+        if box_width_pct < min_required_pct:
+            return {
+                "allowed": False,
+                "box_range_width_pct": round(box_width_pct, 6),
+                "box_range_required_pct": round(min_required_pct, 6),
+            }
+        buy_zone_high = box_range_low + (box_width * 0.25)
+        return {
+            "allowed": current_price <= buy_zone_high,
+            "box_range_width_pct": round(box_width_pct, 6),
+            "box_range_required_pct": round(min_required_pct, 6),
+            "box_range_buy_zone_high": round(buy_zone_high, 4),
+        }
+
+    @staticmethod
+    def _box_range_extra(opportunity: dict[str, object]) -> dict[str, object]:
+        return {
+            "box_range_buy_opportunity": bool(opportunity.get("allowed")),
+            "box_range_width_pct": opportunity.get("box_range_width_pct"),
+            "box_range_required_pct": opportunity.get("box_range_required_pct"),
+            "box_range_buy_zone_high": opportunity.get("box_range_buy_zone_high"),
         }
 
     def _scale_in_allowed(self, *, position, current_price: float) -> bool:

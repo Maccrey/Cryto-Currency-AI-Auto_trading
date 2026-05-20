@@ -219,11 +219,13 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert 'LIVE_ASSET_WITHOUT_ACTIVE_POSITION: "실거래 보유자산과 포지션 불일치"' in DASHBOARD_HTML
     assert 'REENTRY_BLOCK_AFTER_SELL: "매도 후 재진입 대기"' in DASHBOARD_HTML
     assert 'MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 약한 진입 차단"' in DASHBOARD_HTML
+    assert 'MARKET_STATE_BEAR_SCALE_IN_BLOCK: "하락장 추가매수 차단"' in DASHBOARD_HTML
     assert 'AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달"' in DASHBOARD_HTML
     assert 'FEE_ADJUSTED_EDGE_LIMIT: "수수료 반영 기대수익 부족"' in DASHBOARD_HTML
     assert 'MIN_ORDER_AMOUNT: "최소 주문 금액 미달"' in DASHBOARD_HTML
     assert 'STOP_LOSS_PRICE_HIT: "손절가 도달"' in DASHBOARD_HTML
     assert 'TAKE_PROFIT_TARGET_HIT: "익절 목표 도달"' in DASHBOARD_HTML
+    assert 'BOX_RANGE_HIGH_TAKE_PROFIT: "박스권 고점 익절"' in DASHBOARD_HTML
     assert "표본 ${number(summary.sample_count || 0)}건" in DASHBOARD_HTML
     assert "온체인 ${onchain}" in DASHBOARD_HTML
     assert "ETF ${etf}" in DASHBOARD_HTML

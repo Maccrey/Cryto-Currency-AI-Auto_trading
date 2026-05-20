@@ -319,6 +319,56 @@ def test_position_exit_service_sells_more_when_take_profit_chart_strength_is_wea
     assert result["position"]["quantity"] == 15.4
 
 
+def test_position_exit_service_sells_at_profitable_box_range_high() -> None:
+    store = CurrentPositionStore()
+    learning_service = LearningServiceStub()
+    store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="weak",
+            entry_price=1001.0,
+            quantity=100.0,
+            stop_loss_price=970.97,
+            stop_loss_pct=0.030,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    service = PositionExitService(
+        position_store=store,
+        hard_stop_monitor=HardStopMonitor(),
+        post_entry_validator=PostEntryValidator(),
+        executor=DemoExecutor(live_order_gateway=ForbiddenLiveOrderGateway()),
+        trading_mode="demo",
+        learning_service=learning_service,
+    )
+
+    result = service.evaluate_and_execute(
+        current_price=1032.0,
+        elapsed_sec=60,
+        momentum_score=0.1,
+        orderbook_imbalance=0.1,
+        market_state="box",
+        box_range_low=1000.0,
+        box_range_high=1040.0,
+    )
+
+    assert result["status"] == "ok"
+    assert result["trigger"] == {
+        "type": "box_range_take_profit",
+        "reason_code": "BOX_RANGE_HIGH_TAKE_PROFIT",
+        "exit_ratio": 1.0,
+        "box_range_low": 1000.0,
+        "box_range_high": 1040.0,
+    }
+    assert result["execution"]["side"] == "sell"
+    assert result["execution"]["is_stop_loss"] is False
+    assert result["execution"]["filled_quantity"] == 100.0
+    assert store.get() is None
+    assert learning_service.events[0].payload["trigger_type"] == "box_range_take_profit"
+
+
 def test_regular_and_stop_loss_sell_executors_set_stop_loss_flag() -> None:
     class RecordingExecutor:
         def __init__(self) -> None:

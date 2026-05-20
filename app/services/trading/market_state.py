@@ -37,6 +37,7 @@ class MarketStateEntryGuard:
         market_state: str,
         signal_level: str,
         signal_score: float,
+        entry_type: str = "initial",
     ) -> MarketStateEntryDecision:
         current_state = market_state if market_state in {"bull", "box", "bear"} else "box"
         previous_state = self._previous_distinct_state(current_state)
@@ -53,6 +54,16 @@ class MarketStateEntryGuard:
             return MarketStateEntryDecision(
                 allowed=True,
                 reason_code=None,
+                transition_boost=False,
+                previous_market_state=previous_state,
+                current_market_state=current_state,
+                current_state_count=current_count,
+                transition=transition,
+            )
+        if entry_type == "scale_in" and current_state == "bear":
+            return MarketStateEntryDecision(
+                allowed=False,
+                reason_code="MARKET_STATE_BEAR_SCALE_IN_BLOCK",
                 transition_boost=False,
                 previous_market_state=previous_state,
                 current_market_state=current_state,

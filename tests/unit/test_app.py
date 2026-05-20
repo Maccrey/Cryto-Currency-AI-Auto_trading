@@ -1449,6 +1449,9 @@ def test_settings_demo_trading_reset_clears_runtime_trade_data(
     position_store.save(position)
     position_lifecycle_ledger = PositionLifecycleLedger()
     position_lifecycle_ledger.record(event_type="opened", position=position)
+    uptime_path = tmp_path / "learning" / "scalping" / "runtime-state" / "trading-uptime.json"
+    uptime_path.parent.mkdir(parents=True)
+    uptime_path.write_text('{"accumulated_sec": 3600, "running_since": null}', encoding="utf-8")
 
     client = TestClient(
         create_app(
@@ -1474,6 +1477,7 @@ def test_settings_demo_trading_reset_clears_runtime_trade_data(
     assert execution_ledger.list_records() == []
     assert position_lifecycle_ledger.list_records() == []
     assert position_store.get() is None
+    assert not uptime_path.exists()
 
     summary = client.get("/dashboard/summary").json()
     assert summary["cash_balance"] == 1_000_000.0
@@ -1551,6 +1555,9 @@ def test_settings_data_purge_deletes_learning_and_demo_data_without_archive(
     position_store.save(position)
     position_lifecycle_ledger = PositionLifecycleLedger()
     position_lifecycle_ledger.record(event_type="opened", position=position)
+    uptime_path = tmp_path / "learning" / "scalping" / "runtime-state" / "trading-uptime.json"
+    uptime_path.parent.mkdir(parents=True)
+    uptime_path.write_text('{"accumulated_sec": 3600, "running_since": null}', encoding="utf-8")
 
     client = TestClient(
         create_app(
@@ -1573,6 +1580,7 @@ def test_settings_data_purge_deletes_learning_and_demo_data_without_archive(
     assert execution_ledger.list_records() == []
     assert position_lifecycle_ledger.list_records() == []
     assert position_store.get() is None
+    assert not uptime_path.exists()
 
 
 def test_summary_endpoint_returns_dashboard_panel_payload(monkeypatch) -> None:
