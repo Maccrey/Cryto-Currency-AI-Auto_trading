@@ -271,18 +271,19 @@ def test_position_exit_service_uses_inverse_chart_strength_for_take_profit_sell_
     )
 
     result = service.evaluate_and_execute(
-        current_price=824.0,
+        current_price=826.0,
         elapsed_sec=60,
         momentum_score=0.6,
         orderbook_imbalance=0.1,
+        market_state="bull",
     )
 
     assert result["status"] == "ok"
-    assert result["trigger"] == {
-        "type": "take_profit",
-        "reason_code": "TAKE_PROFIT_TARGET_HIT",
-        "exit_ratio": 0.445,
-    }
+    assert result["trigger"]["type"] == "take_profit"
+    assert result["trigger"]["reason_code"] == "TAKE_PROFIT_TARGET_HIT"
+    assert result["trigger"]["exit_ratio"] == 0.445
+    assert result["trigger"]["take_profit_target_pct"] == 0.005965
+    assert result["trigger"]["estimated_net_return_pct"] == 0.006317
     assert result["execution"]["side"] == "sell"
     assert result["execution"]["is_stop_loss"] is False
     assert result["execution"]["filled_quantity"] == 44.5
@@ -308,15 +309,78 @@ def test_position_exit_service_sells_more_when_take_profit_chart_strength_is_wea
     service = _build_service(store)
 
     result = service.evaluate_and_execute(
-        current_price=824.0,
+        current_price=823.0,
         elapsed_sec=60,
         momentum_score=-0.5,
         orderbook_imbalance=-0.4,
+        market_state="bear",
     )
 
     assert result["trigger"]["exit_ratio"] == 0.846
     assert result["execution"]["filled_quantity"] == 84.6
     assert result["position"]["quantity"] == 15.4
+
+
+def test_position_exit_service_waits_for_higher_take_profit_when_market_strength_is_high() -> None:
+    store = CurrentPositionStore()
+    store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="medium",
+            entry_price=820.0,
+            quantity=100.0,
+            stop_loss_price=810.16,
+            stop_loss_pct=0.012,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    service = _build_service(store)
+
+    result = service.evaluate_and_execute(
+        current_price=824.0,
+        elapsed_sec=60,
+        momentum_score=0.6,
+        orderbook_imbalance=0.1,
+        market_state="bull",
+    )
+
+    assert result["status"] == "ok"
+    assert result["trigger"] is None
+    assert result["execution"] is None
+    assert store.get() is not None
+
+
+def test_position_exit_service_blocks_take_profit_until_fees_are_covered() -> None:
+    store = CurrentPositionStore()
+    store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="medium",
+            entry_price=820.0,
+            quantity=100.0,
+            stop_loss_price=810.16,
+            stop_loss_pct=0.012,
+            validation_window_sec=180,
+            min_expected_return_pct=0.001,
+            stop_loss_reason=None,
+        ),
+    )
+    service = _build_service(store)
+
+    result = service.evaluate_and_execute(
+        current_price=821.7,
+        elapsed_sec=60,
+        momentum_score=-0.5,
+        orderbook_imbalance=-0.4,
+        market_state="bear",
+    )
+
+    assert result["status"] == "ok"
+    assert result["trigger"] is None
+    assert result["execution"] is None
+    assert store.get() is not None
 
 
 def test_position_exit_service_sells_at_profitable_box_range_high() -> None:

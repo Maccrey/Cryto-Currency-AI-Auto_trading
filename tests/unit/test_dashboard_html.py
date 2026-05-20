@@ -345,6 +345,7 @@ def test_settings_includes_external_context_and_no_trade_controls() -> None:
     assert "ONCHAIN_CONTEXT_URL" in SETTINGS_HTML
     assert "ONCHAIN_STATE" in SETTINGS_HTML
     assert "ETF_CONTEXT_URL" in SETTINGS_HTML
+    assert 'ETF_CONTEXT_SOURCE: document.getElementById("etfContextUrl").value ? "http" : "web"' in SETTINGS_HTML
     assert "웹 공개 데이터 소스" in SETTINGS_HTML
     assert "Blockchain.com" in SETTINGS_HTML
     assert "XRPSCAN" in SETTINGS_HTML

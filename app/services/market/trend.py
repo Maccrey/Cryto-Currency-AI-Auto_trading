@@ -22,6 +22,11 @@ class MarketTrendSnapshot:
 class MarketTrendClassifier:
     """Classify the price-card trend state from recent market price history."""
 
+    BOX_THRESHOLD_PCT = 0.001
+    MIN_BOX_WIDTH_PCT = 0.001
+    LEARNING_BOX_OVERRIDE_CONFIDENCE = 0.65
+    LEARNING_TREND_OVERRIDE_CONFIDENCE = 0.82
+
     def classify(
         self,
         *,
@@ -68,7 +73,7 @@ class MarketTrendClassifier:
 
     @staticmethod
     def _market_state(*, recent_change_pct: float) -> str:
-        if abs(recent_change_pct) <= 0.002:
+        if abs(recent_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT:
             return "box"
         return "bull" if recent_change_pct > 0 else "bear"
 
@@ -95,7 +100,7 @@ class MarketTrendClassifier:
         low = min(prices)
         high = max(prices)
         if current_price > 0:
-            min_width = current_price * 0.002
+            min_width = current_price * MarketTrendClassifier.MIN_BOX_WIDTH_PCT
             actual_width = high - low
             if actual_width < min_width:
                 midpoint = (low + high) / 2
@@ -138,10 +143,10 @@ class MarketTrendClassifier:
     ) -> str:
         if learned_market_state is None:
             return price_market_state
-        if price_market_state == "box" and learned_confidence >= 0.52:
+        if price_market_state == "box" and learned_confidence >= MarketTrendClassifier.LEARNING_BOX_OVERRIDE_CONFIDENCE:
             return learned_market_state
         if learned_market_state == price_market_state:
             return price_market_state
-        if learned_confidence >= 0.72:
+        if learned_confidence >= MarketTrendClassifier.LEARNING_TREND_OVERRIDE_CONFIDENCE:
             return learned_market_state
         return price_market_state

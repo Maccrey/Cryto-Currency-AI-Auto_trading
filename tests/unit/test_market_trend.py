@@ -3,7 +3,25 @@ from app.services.market.store import MarketPriceStore
 from app.services.market.trend import MarketTrendClassifier
 
 
-def test_market_trend_classifier_marks_box_range_from_price_history() -> None:
+def test_market_trend_classifier_marks_small_moves_as_box_range() -> None:
+    store = MarketPriceStore()
+    store.save(market="KRW-XRP", price=800.0)
+    store.save(market="KRW-XRP", price=800.3)
+    store.save(market="KRW-XRP", price=800.6)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=800.6,
+        history=store.list_history("KRW-XRP"),
+    )
+
+    assert trend.recent_change_pct == 0.0008
+    assert trend.market_state == "box"
+    assert trend.market_state_label == "박스권"
+    assert trend.box_range_low == 799.8997
+    assert trend.box_range_high == 800.7003
+
+
+def test_market_trend_classifier_reacts_to_modest_price_move() -> None:
     store = MarketPriceStore()
     store.save(market="KRW-XRP", price=800.0)
     store.save(market="KRW-XRP", price=800.5)
@@ -15,10 +33,10 @@ def test_market_trend_classifier_marks_box_range_from_price_history() -> None:
     )
 
     assert trend.recent_change_pct == 0.0013
-    assert trend.market_state == "box"
-    assert trend.market_state_label == "박스권"
-    assert trend.box_range_low == 799.699
-    assert trend.box_range_high == 801.301
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
+    assert trend.box_range_low is None
+    assert trend.box_range_high is None
 
 
 def test_market_trend_classifier_expands_too_narrow_box_range() -> None:
@@ -32,8 +50,8 @@ def test_market_trend_classifier_expands_too_narrow_box_range() -> None:
     )
 
     assert trend.market_state == "box"
-    assert trend.box_range_low == 2106.89
-    assert trend.box_range_high == 2111.11
+    assert trend.box_range_low == 2107.945
+    assert trend.box_range_high == 2110.055
 
 
 def test_market_trend_classifier_uses_reference_change_for_state() -> None:
@@ -82,7 +100,7 @@ def test_market_trend_classifier_marks_bull_and_bear() -> None:
 def test_market_trend_classifier_uses_learning_data_when_price_is_box() -> None:
     store = MarketPriceStore()
     store.save(market="KRW-XRP", price=800.0)
-    store.save(market="KRW-XRP", price=801.0)
+    store.save(market="KRW-XRP", price=800.6)
     learning_events = [
         LearningEvent(
             event_name="auto_trade_cycle",
@@ -94,7 +112,7 @@ def test_market_trend_classifier_uses_learning_data_when_price_is_box() -> None:
     ]
 
     trend = MarketTrendClassifier().classify(
-        current_price=801.0,
+        current_price=800.6,
         history=store.list_history("KRW-XRP"),
         learning_events=learning_events,
     )

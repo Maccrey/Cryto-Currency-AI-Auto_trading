@@ -72,6 +72,7 @@ class PositionExitService:
         min_order_amount_krw: float = 5_000.0,
         order_rules: UpbitOrderRules | None = None,
         trading_fee_rate: float = 0.0005,
+        take_profit_min_net_pct: float = 0.0012,
         box_range_min_net_profit_pct: float = 0.003,
         box_range_edge_zone_ratio: float = 0.25,
     ) -> None:
@@ -90,6 +91,7 @@ class PositionExitService:
             min_order_amount_krw=min_order_amount_krw,
         )
         self._trading_fee_rate = max(float(trading_fee_rate), 0.0)
+        self._take_profit_min_net_pct = max(float(take_profit_min_net_pct), 0.0)
         self._box_range_min_net_profit_pct = max(float(box_range_min_net_profit_pct), self._trading_fee_rate * 2)
         self._box_range_edge_zone_ratio = min(max(float(box_range_edge_zone_ratio), 0.05), 0.5)
 
@@ -238,6 +240,86 @@ class PositionExitService:
                 "execution": None if execution is None else asdict(execution),
             }
 
+        take_profit_exit = self._take_profit_exit(
+            position=position,
+            current_price=current_price,
+            momentum_score=momentum_score,
+            orderbook_imbalance=orderbook_imbalance,
+            market_state=market_state,
+        )
+        if take_profit_exit["triggered"]:
+            take_profit_details = {key: value for key, value in take_profit_exit.items() if key != "triggered"}
+            resolved_exit = self._resolve_exit_quantity(
+                position=position,
+                current_price=current_price,
+                requested_exit_ratio=self._dynamic_exit_ratio(
+                    requested_exit_ratio=1.0,
+                    reason_code="TAKE_PROFIT_TARGET_HIT",
+                    momentum_score=momentum_score,
+                    orderbook_imbalance=orderbook_imbalance,
+                ),
+            )
+            if resolved_exit["blocked_reason"] is not None:
+                self._record_exit_blocked(
+                    position=position,
+                    reason_code="TAKE_PROFIT_TARGET_HIT",
+                    blocked_reason=resolved_exit["blocked_reason"],
+                    current_price=current_price,
+                    elapsed_sec=elapsed_sec,
+                    momentum_score=momentum_score,
+                    orderbook_imbalance=orderbook_imbalance,
+                )
+                return {
+                    "status": "blocked",
+                    "position": self._position_store.to_payload(position),
+                    "trigger": {
+                        "type": "take_profit",
+                        "reason_code": "TAKE_PROFIT_TARGET_HIT",
+                        "exit_ratio": 0.0,
+                        "blocked_reason": resolved_exit["blocked_reason"],
+                        **take_profit_details,
+                    },
+                    "execution": None,
+                }
+            exit_quantity = resolved_exit["quantity"]
+            exit_ratio = resolved_exit["exit_ratio"]
+            execution = RegularSellExecutor(executor=self._executor).execute(
+                market=position.market,
+                price=current_price,
+                quantity=exit_quantity,
+            )
+            remaining_quantity = round(position.quantity - exit_quantity, 8)
+            if remaining_quantity <= 0:
+                self._position_store.clear()
+                updated_position = None
+            else:
+                updated_position = replace(position, quantity=remaining_quantity)
+                self._position_store.save(updated_position)
+            self._record_exit_event(
+                position=position,
+                trigger_type="take_profit",
+                reason_code="TAKE_PROFIT_TARGET_HIT",
+                exit_ratio=exit_ratio,
+                current_price=current_price,
+                elapsed_sec=elapsed_sec,
+                momentum_score=momentum_score,
+                orderbook_imbalance=orderbook_imbalance,
+                execution=execution,
+                remaining_quantity=remaining_quantity,
+                extra_payload=take_profit_details,
+            )
+            return {
+                "status": "ok",
+                "position": None if updated_position is None else self._position_store.to_payload(updated_position),
+                "trigger": {
+                    "type": "take_profit",
+                    "reason_code": "TAKE_PROFIT_TARGET_HIT",
+                    "exit_ratio": exit_ratio,
+                    **take_profit_details,
+                },
+                "execution": None if execution is None else asdict(execution),
+            }
+
         post_entry = self._post_entry_validator.evaluate(
             position=position,
             current_price=current_price,
@@ -245,6 +327,13 @@ class PositionExitService:
             momentum_score=momentum_score,
             orderbook_imbalance=orderbook_imbalance,
         )
+        if post_entry.triggered and post_entry.reason_code == "TAKE_PROFIT_TARGET_HIT":
+            return {
+                "status": "ok",
+                "position": self._position_store.to_payload(position),
+                "trigger": None,
+                "execution": None,
+            }
         if not post_entry.triggered:
             return {
                 "status": "ok",
@@ -394,6 +483,58 @@ class PositionExitService:
             "box_width_pct": round(box_width_pct, 6),
         }
 
+    def _take_profit_exit(
+        self,
+        *,
+        position,
+        current_price: float,
+        momentum_score: float,
+        orderbook_imbalance: float,
+        market_state: str | None,
+    ) -> dict[str, object]:
+        if position.entry_price <= 0 or current_price <= 0:
+            return {"triggered": False}
+        gross_return_pct = (current_price - position.entry_price) / position.entry_price
+        round_trip_fee_pct = self._trading_fee_rate * 2
+        net_return_pct = gross_return_pct - round_trip_fee_pct
+        target_pct = self._dynamic_take_profit_target_pct(
+            base_target_pct=position.min_expected_return_pct,
+            momentum_score=momentum_score,
+            orderbook_imbalance=orderbook_imbalance,
+            market_state=market_state,
+        )
+        if gross_return_pct < target_pct or net_return_pct < self._take_profit_min_net_pct:
+            return {"triggered": False}
+        return {
+            "triggered": True,
+            "take_profit_target_pct": round(target_pct, 6),
+            "unrealized_return_pct": round(gross_return_pct, 6),
+            "estimated_net_return_pct": round(net_return_pct, 6),
+            "round_trip_fee_pct": round(round_trip_fee_pct, 6),
+        }
+
+    def _dynamic_take_profit_target_pct(
+        self,
+        *,
+        base_target_pct: float,
+        momentum_score: float,
+        orderbook_imbalance: float,
+        market_state: str | None,
+    ) -> float:
+        continuation_score = self._chart_continuation_score(
+            momentum_score=momentum_score,
+            orderbook_imbalance=orderbook_imbalance,
+        )
+        market_adjustment = {
+            "bull": 0.12,
+            "box": -0.05,
+            "bear": -0.18,
+        }.get(str(market_state or ""), 0.0)
+        strength_multiplier = min(max(0.72 + (continuation_score * 0.88) + market_adjustment, 0.65), 1.75)
+        dynamic_target_pct = max(float(base_target_pct), 0.0) * strength_multiplier
+        fee_adjusted_floor = (self._trading_fee_rate * 2) + self._take_profit_min_net_pct
+        return round(max(dynamic_target_pct, fee_adjusted_floor), 6)
+
     @staticmethod
     def _dynamic_exit_ratio(
         *,
@@ -465,7 +606,9 @@ class PositionExitService:
         orderbook_imbalance: float,
         execution: Any,
         remaining_quantity: float,
+        extra_payload: dict[str, object] | None = None,
     ) -> None:
+        extra_payload = extra_payload or {}
         if self._learning_service is not None:
             self._learning_service.record(
                 LearningEvent(
@@ -486,6 +629,7 @@ class PositionExitService:
                         "remaining_quantity": max(remaining_quantity, 0.0),
                         "execution_status": getattr(execution, "status", None),
                         "is_stop_loss": getattr(execution, "is_stop_loss", True),
+                        **extra_payload,
                     },
                 ),
             )

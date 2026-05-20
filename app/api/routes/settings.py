@@ -871,7 +871,7 @@ async function saveSettings() {
     ONCHAIN_STATE: document.getElementById("onchainState").value || "neutral",
     ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT: document.getElementById("onchainActiveAddressesChangePct").value || "0.0",
     ONCHAIN_EXCHANGE_NETFLOW_STATE: document.getElementById("onchainExchangeNetflowState").value || "neutral",
-    ETF_CONTEXT_SOURCE: document.getElementById("etfContextUrl").value ? "http" : "manual",
+    ETF_CONTEXT_SOURCE: document.getElementById("etfContextUrl").value ? "http" : "web",
     ETF_CONTEXT_URL: document.getElementById("etfContextUrl").value,
     ETF_STATE: document.getElementById("etfState").value || "neutral",
     ETF_FLOW_USD: document.getElementById("etfFlowUsd").value || "0.0",

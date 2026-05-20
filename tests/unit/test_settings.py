@@ -55,7 +55,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.external_context_cache_ttl_sec == 30
     assert settings.onchain_context_source == "manual"
     assert settings.onchain_context_url == ""
-    assert settings.etf_context_source == "manual"
+    assert settings.etf_context_source == "web"
     assert settings.etf_context_url == ""
     assert settings.no_trade_adaptive_enabled is True
     assert settings.no_trade_relax_after_cycles == 100

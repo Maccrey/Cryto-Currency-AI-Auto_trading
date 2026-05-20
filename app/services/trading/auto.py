@@ -744,7 +744,7 @@ class AutoTradingService:
         if len(prices) < 2 or prices[0] <= 0:
             return None
         recent_change_pct = (prices[-1] - prices[0]) / prices[0]
-        if abs(recent_change_pct) <= 0.002:
+        if abs(recent_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT:
             return "box"
         return "bull" if recent_change_pct > 0 else "bear"
 

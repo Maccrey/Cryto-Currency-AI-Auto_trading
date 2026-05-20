@@ -41,7 +41,7 @@ ONCHAIN_CONTEXT_URL=
 ONCHAIN_STATE=neutral
 ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT=0.0
 ONCHAIN_EXCHANGE_NETFLOW_STATE=neutral
-ETF_CONTEXT_SOURCE=manual
+ETF_CONTEXT_SOURCE=web
 ETF_CONTEXT_URL=
 ETF_STATE=neutral
 ETF_FLOW_USD=0.0
@@ -157,7 +157,7 @@ DASHBOARD_PORT=8080
 | ONCHAIN_STATE | str | Y | neutral | 온체인 상태, bullish/neutral/bearish |
 | ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT | float | Y | 0.0 | 활성 주소 변화율 |
 | ONCHAIN_EXCHANGE_NETFLOW_STATE | str | Y | neutral | 거래소 순유입 상태, inflow/neutral/outflow |
-| ETF_CONTEXT_SOURCE | str | Y | manual | ETF 데이터 출처, 초기값은 수동/운영 입력 |
+| ETF_CONTEXT_SOURCE | str | Y | web | ETF 데이터 출처, URL이 비어 있으면 공개 웹 데이터 provider 사용 |
 | ETF_CONTEXT_URL | str | N |  | 선택 HTTP ETF 컨텍스트 JSON endpoint |
 | ETF_STATE | str | Y | neutral | ETF 자금 흐름 상태, inflow/neutral/outflow/not_applicable |
 | ETF_FLOW_USD | float | Y | 0.0 | ETF 순유입/순유출 금액 USD |

@@ -39,7 +39,7 @@ class SettingsModel(BaseModel):
     onchain_state: str = Field(default="neutral")
     onchain_active_addresses_change_pct: float = Field(default=0.0)
     onchain_exchange_netflow_state: str = Field(default="neutral")
-    etf_context_source: str = Field(default="manual")
+    etf_context_source: str = Field(default="web")
     etf_context_url: str = Field(default="")
     etf_state: str = Field(default="neutral")
     etf_flow_usd: float = Field(default=0.0)
@@ -340,7 +340,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
             _setting("ONCHAIN_ACTIVE_ADDRESSES_CHANGE_PCT", "0.0", env_values),
         ),
         "onchain_exchange_netflow_state": _setting("ONCHAIN_EXCHANGE_NETFLOW_STATE", "neutral", env_values),
-        "etf_context_source": _setting("ETF_CONTEXT_SOURCE", "manual", env_values),
+        "etf_context_source": _setting("ETF_CONTEXT_SOURCE", "web", env_values),
         "etf_context_url": _setting("ETF_CONTEXT_URL", "", env_values),
         "etf_state": _setting("ETF_STATE", "neutral", env_values),
         "etf_flow_usd": float(_setting("ETF_FLOW_USD", "0.0", env_values)),

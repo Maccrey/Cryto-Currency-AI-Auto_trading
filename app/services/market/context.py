@@ -17,7 +17,7 @@ class ExternalMarketContextConfig:
     onchain_state: str = "neutral"
     onchain_active_addresses_change_pct: float = 0.0
     onchain_exchange_netflow_state: str = "neutral"
-    etf_source: str = "manual"
+    etf_source: str = "web"
     etf_url: str = ""
     etf_state: str = "neutral"
     etf_flow_usd: float = 0.0
@@ -483,10 +483,34 @@ class PublicWebExternalMarketContextProvider:
     def _coinglass_data(raw: Any) -> object:
         if not isinstance(raw, dict):
             return None
-        data = raw.get("data")
-        if data is None and isinstance(raw.get("result"), dict):
-            data = raw["result"].get("data")
-        return data
+        for candidate in (
+            raw.get("data"),
+            raw.get("result"),
+            raw.get("rows"),
+            raw.get("list"),
+            raw.get("records"),
+            raw.get("items"),
+        ):
+            data = PublicWebExternalMarketContextProvider._coinglass_nested_data(candidate)
+            if data is not None:
+                return data
+        return None
+
+    @staticmethod
+    def _coinglass_nested_data(value: Any) -> object:
+        if isinstance(value, list):
+            return value
+        if not isinstance(value, dict):
+            return None
+        for key in ("data", "rows", "list", "records", "items"):
+            nested = value.get(key)
+            if isinstance(nested, list):
+                return nested
+            if isinstance(nested, dict):
+                nested_data = PublicWebExternalMarketContextProvider._coinglass_nested_data(nested)
+                if nested_data is not None:
+                    return nested_data
+        return value
 
     @staticmethod
     def _coinglass_flow_value(item: dict[str, Any]) -> float | None:
