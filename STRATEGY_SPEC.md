@@ -221,6 +221,7 @@ if elapsed_sec >= validation_window_sec and unrealized_return_pct < min_expected
 ## 6.5 손절 후 재진입 차단
 - `REENTRY_BLOCK_SECONDS` 동안 동일 종목 재진입 금지
 - 연속 손절 시 block 시간 확대 가능
+- 최근 실행 원장에서 약신호 매수가 대부분이고 손절 손실이 익절 수익보다 큰 상태에서는 약신호 재진입과 추가매수를 차단한다.
 
 ---
 
@@ -234,6 +235,7 @@ if elapsed_sec >= validation_window_sec and unrealized_return_pct < min_expected
 
 ### 브레이크이븐 스탑
 - 일정 수익 도달 후 손절가를 entry_price 이상으로 올려 손실 없는 포지션으로 전환
+- 부분 익절 후 잔여 수량이 있으면 손절가를 entry_price + 왕복 수수료 + 보호 버퍼 이상으로 상향한다.
 
 ### 트레일링 스탑
 - `trailing_stop_enabled=true`일 때 고점 갱신 기준으로 손절가를 이동

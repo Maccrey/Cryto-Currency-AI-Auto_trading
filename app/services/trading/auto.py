@@ -11,6 +11,7 @@ from app.services.learning.service import LearningEvent, LearningService
 from app.services.market.store import MarketPriceStore
 from app.services.market.trend import MarketTrendClassifier
 from app.services.market.upbit_ticker import UpbitTickerSnapshot
+from app.services.execution.ledger import ExecutionLedger, ExecutionPerformanceProfile
 from app.services.portfolio.sync import PortfolioState
 from app.services.position.store import CurrentPositionStore
 from app.services.recovery.orchestrator import BootState
@@ -56,6 +57,11 @@ class AutoTradingConfig:
     market_state_entry_guard_enabled: bool = True
     market_state_transition_confirmation_ticks: int = 2
     market_state_bear_entry_min_score: float = 0.65
+    historical_loss_guard_enabled: bool = True
+    historical_loss_guard_min_fills: int = 20
+    historical_loss_guard_stop_loss_to_profit_ratio: float = 1.2
+    historical_loss_guard_weak_buy_ratio: float = 0.7
+    historical_loss_guard_box_entry_min_score: float = 0.30
 
 
 class AutoTradingService:
@@ -84,6 +90,7 @@ class AutoTradingService:
         live_portfolio_sync_service: Any | None = None,
         telegram_notifier: Any | None = None,
         uptime_store: TradingUptimeStore | None = None,
+        execution_ledger: ExecutionLedger | None = None,
     ) -> None:
         self._market = market
         self._trading_mode = trading_mode
@@ -104,6 +111,7 @@ class AutoTradingService:
         self._live_portfolio_sync_service = live_portfolio_sync_service
         self._telegram_notifier = telegram_notifier
         self._uptime_store = uptime_store
+        self._execution_ledger = execution_ledger
         self._trend_classifier = MarketTrendClassifier()
         self._prices: deque[float] = deque(maxlen=max(config.min_history, 2))
         self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
@@ -384,6 +392,36 @@ class AutoTradingService:
                     "box_range_low": decision.regime.box_range_low,
                     "box_range_high": decision.regime.box_range_high,
                     **market_state_extra,
+                    **rule_variant,
+                },
+            )
+        historical_loss_guard = self._historical_loss_guard_decision(
+            entry_type=entry_type,
+            signal_level=decision.signal.level,
+            signal_score=decision.signal.score,
+            box_range_opportunity=box_range_opportunity,
+        )
+        if not historical_loss_guard["allowed"]:
+            rule_variant = self._variant_extra(variant_payload)
+            self._consecutive_entry_blocks += 1
+            return self._record_cycle(
+                status="blocked",
+                reason=str(historical_loss_guard["reason_code"]),
+                extra={
+                    "entry_type": entry_type,
+                    "signal_level": decision.signal.level,
+                    "signal_score": decision.signal.score,
+                    "signal_blocked": decision.signal.blocked,
+                    "signal_reason_codes": decision.signal.reason_codes,
+                    "sizing_allowed": decision.sizing.allowed,
+                    "sizing_blocked_reason": decision.sizing.blocked_reason,
+                    "buy_amount": 0.0,
+                    "market_state": entry_market_state,
+                    "market_state_label": entry_market_state_label,
+                    "box_range_low": decision.regime.box_range_low,
+                    "box_range_high": decision.regime.box_range_high,
+                    **market_state_extra,
+                    **self._historical_loss_guard_extra(historical_loss_guard),
                     **rule_variant,
                 },
             )
@@ -736,6 +774,66 @@ class AutoTradingService:
             "previous_market_state": decision.previous_market_state,
             "market_state_transition": decision.transition,
             "market_state_confirmation_count": decision.current_state_count,
+        }
+
+    def _historical_loss_guard_decision(
+        self,
+        *,
+        entry_type: str,
+        signal_level: str,
+        signal_score: float,
+        box_range_opportunity: dict[str, object],
+    ) -> dict[str, object]:
+        profile = self._active_historical_loss_profile()
+        if profile is None or signal_level != "weak":
+            return {"allowed": True}
+
+        box_entry_allowed = bool(box_range_opportunity.get("allowed"))
+        if entry_type == "scale_in":
+            return {
+                "allowed": False,
+                "reason_code": "WEAK_SCALE_IN_HISTORICAL_LOSS_BLOCK",
+                "profile": profile,
+                "box_entry_allowed": box_entry_allowed,
+            }
+        if (not box_entry_allowed) or signal_score < self._config.historical_loss_guard_box_entry_min_score:
+            return {
+                "allowed": False,
+                "reason_code": "WEAK_ENTRY_HISTORICAL_LOSS_BLOCK",
+                "profile": profile,
+                "box_entry_allowed": box_entry_allowed,
+            }
+        return {"allowed": True}
+
+    def _active_historical_loss_profile(self) -> ExecutionPerformanceProfile | None:
+        if not self._config.historical_loss_guard_enabled or self._execution_ledger is None:
+            return None
+        profile = self._execution_ledger.performance_profile()
+        fill_count = profile.buy_count + profile.sell_count
+        if fill_count < self._config.historical_loss_guard_min_fills:
+            return None
+        if profile.stop_loss_count <= 0 or profile.stop_loss_pnl >= 0:
+            return None
+        if profile.weak_buy_ratio < self._config.historical_loss_guard_weak_buy_ratio:
+            return None
+        if profile.stop_loss_to_profit_ratio < self._config.historical_loss_guard_stop_loss_to_profit_ratio:
+            return None
+        return profile
+
+    @staticmethod
+    def _historical_loss_guard_extra(decision: dict[str, object]) -> dict[str, object]:
+        profile = decision.get("profile")
+        if not isinstance(profile, ExecutionPerformanceProfile):
+            return {}
+        return {
+            "historical_loss_guard_active": True,
+            "historical_loss_guard_regular_sell_pnl": profile.regular_sell_pnl,
+            "historical_loss_guard_stop_loss_pnl": profile.stop_loss_pnl,
+            "historical_loss_guard_realized_pnl": profile.realized_pnl,
+            "historical_loss_guard_weak_buy_ratio": profile.weak_buy_ratio,
+            "historical_loss_guard_stop_loss_to_profit_ratio": profile.stop_loss_to_profit_ratio,
+            "historical_loss_guard_recent_stop_loss_reason": profile.recent_stop_loss_reason,
+            "historical_loss_guard_box_entry_allowed": bool(decision.get("box_entry_allowed")),
         }
 
     def _recent_price_market_state(self) -> str | None:

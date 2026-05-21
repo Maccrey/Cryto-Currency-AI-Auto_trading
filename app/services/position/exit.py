@@ -75,6 +75,8 @@ class PositionExitService:
         take_profit_min_net_pct: float = 0.0012,
         box_range_min_net_profit_pct: float = 0.003,
         box_range_edge_zone_ratio: float = 0.25,
+        weak_signal_take_profit_min_exit_ratio: float = 0.75,
+        profit_protection_buffer_pct: float = 0.0002,
     ) -> None:
         self._position_store = position_store
         self._hard_stop_monitor = hard_stop_monitor
@@ -94,6 +96,8 @@ class PositionExitService:
         self._take_profit_min_net_pct = max(float(take_profit_min_net_pct), 0.0)
         self._box_range_min_net_profit_pct = max(float(box_range_min_net_profit_pct), self._trading_fee_rate * 2)
         self._box_range_edge_zone_ratio = min(max(float(box_range_edge_zone_ratio), 0.05), 0.5)
+        self._weak_signal_take_profit_min_exit_ratio = min(max(float(weak_signal_take_profit_min_exit_ratio), 0.25), 1.0)
+        self._profit_protection_buffer_pct = max(float(profit_protection_buffer_pct), 0.0)
 
     def evaluate_and_execute(
         self,
@@ -257,6 +261,8 @@ class PositionExitService:
                     reason_code="TAKE_PROFIT_TARGET_HIT",
                     momentum_score=momentum_score,
                     orderbook_imbalance=orderbook_imbalance,
+                    signal_level=position.signal_level,
+                    weak_signal_take_profit_min_exit_ratio=self._weak_signal_take_profit_min_exit_ratio,
                 ),
             )
             if resolved_exit["blocked_reason"] is not None:
@@ -293,7 +299,11 @@ class PositionExitService:
                 self._position_store.clear()
                 updated_position = None
             else:
-                updated_position = replace(position, quantity=remaining_quantity)
+                updated_position = self._profit_protected_position(
+                    position=position,
+                    current_price=current_price,
+                    remaining_quantity=remaining_quantity,
+                )
                 self._position_store.save(updated_position)
             self._record_exit_event(
                 position=position,
@@ -347,7 +357,14 @@ class PositionExitService:
             reason_code=post_entry.reason_code,
             momentum_score=momentum_score,
             orderbook_imbalance=orderbook_imbalance,
+            signal_level=position.signal_level,
+            weak_signal_take_profit_min_exit_ratio=self._weak_signal_take_profit_min_exit_ratio,
         )
+        if self._should_full_exit_post_entry_stop(
+            position=position,
+            reason_code=post_entry.reason_code,
+        ):
+            dynamic_exit_ratio = 1.0
         resolved_exit = self._resolve_exit_quantity(
             position=position,
             current_price=current_price,
@@ -542,6 +559,8 @@ class PositionExitService:
         reason_code: str | None,
         momentum_score: float,
         orderbook_imbalance: float,
+        signal_level: str | None = None,
+        weak_signal_take_profit_min_exit_ratio: float = 0.75,
     ) -> float:
         continuation_score = PositionExitService._chart_continuation_score(
             momentum_score=momentum_score,
@@ -549,10 +568,43 @@ class PositionExitService:
         )
         inverse_chart_exit_ratio = round(0.25 + ((1.0 - continuation_score) * 0.75), 3)
         if reason_code == "TAKE_PROFIT_TARGET_HIT":
-            return min(max(inverse_chart_exit_ratio, 0.25), requested_exit_ratio)
+            min_exit_ratio = weak_signal_take_profit_min_exit_ratio if signal_level == "weak" else 0.25
+            return min(max(inverse_chart_exit_ratio, min_exit_ratio), requested_exit_ratio)
         if momentum_score < -0.3 or orderbook_imbalance < -0.3:
             return 1.0
         return max(min(requested_exit_ratio, 1.0), inverse_chart_exit_ratio, 0.25)
+
+    @staticmethod
+    def _should_full_exit_post_entry_stop(
+        *,
+        position,
+        reason_code: str | None,
+    ) -> bool:
+        return position.signal_level == "weak" and str(reason_code or "").startswith("STOP_LOSS_")
+
+    def _profit_protected_position(
+        self,
+        *,
+        position,
+        current_price: float,
+        remaining_quantity: float,
+    ):
+        fee_adjusted_floor = position.entry_price * (
+            1 + (self._trading_fee_rate * 2) + self._profit_protection_buffer_pct
+        )
+        if fee_adjusted_floor > current_price:
+            protected_stop_loss_price = position.stop_loss_price
+        else:
+            protected_stop_loss_price = max(
+                position.stop_loss_price,
+                min(fee_adjusted_floor, current_price * (1 - self._trading_fee_rate)),
+            )
+        return replace(
+            position,
+            quantity=remaining_quantity,
+            stop_loss_price=round(protected_stop_loss_price, 2),
+            stop_loss_reason="PROFIT_PROTECTED",
+        )
 
     @staticmethod
     def _chart_continuation_score(*, momentum_score: float, orderbook_imbalance: float) -> float:

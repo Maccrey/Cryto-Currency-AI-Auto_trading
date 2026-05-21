@@ -420,6 +420,7 @@ def create_app(
         live_portfolio_sync_service=live_portfolio_sync_service,
         telegram_notifier=trade_fill_notifier,
         uptime_store=TradingUptimeStore(path=runtime_state_dir / "trading-uptime.json"),
+        execution_ledger=execution_ledger,
     )
     app.state.auto_trading_service = auto_trading_service
     rule_review_service = RuleReviewService(

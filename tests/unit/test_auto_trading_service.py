@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.services.execution.demo import DemoExecutor
+from app.services.execution.demo import DemoExecutor, FillResult
 from app.services.execution.ledger import ExecutionLedger
 from app.services.market.store import MarketPriceStore
 from app.services.market.upbit_ticker import UpbitTickerSnapshot
@@ -93,6 +93,7 @@ def _build_service(
     executor=None,
     live_enabled: bool = False,
     telegram_notifier=None,
+    execution_ledger: ExecutionLedger | None = None,
 ) -> AutoTradingService:
     learning_service = LearningService(log_dir=tmp_path)
     position_store = CurrentPositionStore()
@@ -100,7 +101,7 @@ def _build_service(
         live_order_gateway=ForbiddenLiveOrderGateway(),
         learning_service=learning_service,
     )
-    execution_ledger = ExecutionLedger()
+    execution_ledger = execution_ledger or ExecutionLedger()
     lifecycle_ledger = PositionLifecycleLedger()
     return AutoTradingService(
         market="KRW-XRP",
@@ -172,6 +173,7 @@ def _build_service(
             min_history=min_history,
         ),
         telegram_notifier=telegram_notifier,
+        execution_ledger=execution_ledger,
     )
 
 
@@ -184,6 +186,57 @@ class ExternalContextProviderStub:
             "etf": {"state": "inflow"},
             "learning_weight": 1.1,
         }
+
+
+def _loss_dominated_weak_buy_ledger() -> ExecutionLedger:
+    ledger = ExecutionLedger()
+    for _ in range(14):
+        ledger.record_fill(
+            FillResult(
+                market="KRW-XRP",
+                side="buy",
+                filled_price=1000.0,
+                filled_quantity=10.0,
+                fee=5.0,
+                status="filled",
+                mode="demo",
+                is_virtual=True,
+                is_stop_loss=False,
+            ),
+            signal_level="weak",
+            signal_score=0.24,
+        )
+    for _ in range(4):
+        ledger.record_fill(
+            FillResult(
+                market="KRW-XRP",
+                side="sell",
+                filled_price=1010.0,
+                filled_quantity=10.0,
+                fee=5.05,
+                status="filled",
+                mode="demo",
+                is_virtual=True,
+                is_stop_loss=False,
+            ),
+            reason_code="TAKE_PROFIT_TARGET_HIT",
+        )
+    for _ in range(4):
+        ledger.record_fill(
+            FillResult(
+                market="KRW-XRP",
+                side="sell",
+                filled_price=940.0,
+                filled_quantity=10.0,
+                fee=4.7,
+                status="filled",
+                mode="demo",
+                is_virtual=True,
+                is_stop_loss=True,
+            ),
+            reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
+        )
+    return ledger
 
 
 def test_auto_trading_service_records_waiting_until_history_is_ready(tmp_path: Path) -> None:
@@ -205,6 +258,28 @@ def test_auto_trading_service_records_external_context_in_learning_cycle(tmp_pat
 
     assert result["external_context"]["onchain"]["state"] == "bullish"
     assert latest.payload["external_context"]["etf"]["state"] == "inflow"
+
+
+def test_auto_trading_service_blocks_weak_scale_in_when_historical_losses_dominate(tmp_path: Path) -> None:
+    service = _build_service(
+        tmp_path,
+        [800.0],
+        execution_ledger=_loss_dominated_weak_buy_ledger(),
+    )
+
+    decision = service._historical_loss_guard_decision(
+        entry_type="scale_in",
+        signal_level="weak",
+        signal_score=0.29,
+        box_range_opportunity={"allowed": False},
+    )
+    extra = service._historical_loss_guard_extra(decision)
+
+    assert decision["allowed"] is False
+    assert decision["reason_code"] == "WEAK_SCALE_IN_HISTORICAL_LOSS_BLOCK"
+    assert extra["historical_loss_guard_active"] is True
+    assert extra["historical_loss_guard_stop_loss_pnl"] < 0
+    assert extra["historical_loss_guard_weak_buy_ratio"] == 1.0
 
 
 def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -> None:

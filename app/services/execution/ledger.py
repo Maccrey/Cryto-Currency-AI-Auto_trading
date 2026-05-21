@@ -27,6 +27,20 @@ class ExecutionLedgerSummary:
     recent_stop_loss_reason: str | None
 
 
+@dataclass(frozen=True)
+class ExecutionPerformanceProfile:
+    realized_pnl: float
+    regular_sell_pnl: float
+    stop_loss_pnl: float
+    buy_count: int
+    weak_buy_count: int
+    sell_count: int
+    stop_loss_count: int
+    weak_buy_ratio: float
+    stop_loss_to_profit_ratio: float
+    recent_stop_loss_reason: str | None
+
+
 class ExecutionLedger:
     """Track fill history for runtime dashboard summaries."""
 
@@ -104,6 +118,73 @@ class ExecutionLedger:
             buy_count=buy_count,
             sell_count=sell_count,
             stop_loss_count=stop_loss_count,
+            recent_stop_loss_reason=recent_stop_loss_reason,
+        )
+
+    def performance_profile(self) -> ExecutionPerformanceProfile:
+        buy_count = 0
+        weak_buy_count = 0
+        sell_count = 0
+        stop_loss_count = 0
+        recent_stop_loss_reason = None
+        realized_pnl = 0.0
+        regular_sell_pnl = 0.0
+        stop_loss_pnl = 0.0
+        open_quantity = 0.0
+        average_cost = 0.0
+
+        for record in self._records:
+            fill = record.fill
+            if fill.status != "filled":
+                continue
+
+            if fill.side == "buy":
+                buy_count += 1
+                if record.signal_level == "weak":
+                    weak_buy_count += 1
+                total_cost = (average_cost * open_quantity) + (fill.filled_price * fill.filled_quantity) + fill.fee
+                open_quantity += fill.filled_quantity
+                average_cost = 0.0 if open_quantity <= 0 else total_cost / open_quantity
+                continue
+
+            sell_count += 1
+            if fill.is_stop_loss:
+                stop_loss_count += 1
+                recent_stop_loss_reason = record.reason_code
+
+            matched_quantity = min(open_quantity, fill.filled_quantity)
+            if matched_quantity <= 0:
+                continue
+
+            proceeds = (fill.filled_price * matched_quantity) - fill.fee
+            pnl = proceeds - (average_cost * matched_quantity)
+            realized_pnl += pnl
+            if fill.is_stop_loss:
+                stop_loss_pnl += pnl
+            else:
+                regular_sell_pnl += pnl
+            open_quantity = round(open_quantity - matched_quantity, 8)
+            if open_quantity <= 0:
+                open_quantity = 0.0
+                average_cost = 0.0
+
+        weak_buy_ratio = 0.0 if buy_count <= 0 else weak_buy_count / buy_count
+        profitable_sell_pnl = max(regular_sell_pnl, 0.0)
+        stop_loss_to_profit_ratio = (
+            abs(stop_loss_pnl) / profitable_sell_pnl
+            if profitable_sell_pnl > 0
+            else (float("inf") if stop_loss_pnl < 0 else 0.0)
+        )
+        return ExecutionPerformanceProfile(
+            realized_pnl=round(realized_pnl, 2),
+            regular_sell_pnl=round(regular_sell_pnl, 2),
+            stop_loss_pnl=round(stop_loss_pnl, 2),
+            buy_count=buy_count,
+            weak_buy_count=weak_buy_count,
+            sell_count=sell_count,
+            stop_loss_count=stop_loss_count,
+            weak_buy_ratio=round(weak_buy_ratio, 4),
+            stop_loss_to_profit_ratio=round(stop_loss_to_profit_ratio, 4),
             recent_stop_loss_reason=recent_stop_loss_reason,
         )
 
