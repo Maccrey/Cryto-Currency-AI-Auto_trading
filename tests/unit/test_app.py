@@ -2555,6 +2555,7 @@ def test_dashboard_market_endpoint_returns_market_summary(monkeypatch) -> None:
             "recent_change_pct": 0.0061,
             "market_state": "bull",
             "market_state_label": "상승장",
+            "market_state_source": "price_history",
             "box_range_low": None,
             "box_range_high": None,
             "history": [

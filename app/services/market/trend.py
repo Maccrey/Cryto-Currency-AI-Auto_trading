@@ -41,20 +41,15 @@ class MarketTrendClassifier:
                 (current_price - history[0].price) / history[0].price,
                 4,
             )
-        state_change_pct = (
-            recent_change_pct
-            if reference_change_pct is None
-            else round(reference_change_pct, 4)
+        state_change_pct, state_source = self._state_change_pct(
+            recent_change_pct=recent_change_pct,
+            reference_change_pct=reference_change_pct,
         )
         price_market_state = self._market_state(recent_change_pct=state_change_pct)
         learned_state, learned_confidence, sample_count = self._learned_market_state(
             learning_events or [],
         )
-        market_state = self._blend_market_state(
-            price_market_state=price_market_state,
-            learned_market_state=learned_state,
-            learned_confidence=learned_confidence,
-        )
+        market_state = price_market_state
         box_range_low, box_range_high = self._box_range(
             market_state=market_state,
             current_price=current_price,
@@ -68,8 +63,21 @@ class MarketTrendClassifier:
             box_range_high=box_range_high,
             learning_sample_count=sample_count,
             learning_confidence=learned_confidence,
-            source="learning_data" if market_state == learned_state and sample_count >= 5 else "price_history",
+            source=state_source,
         )
+
+    @staticmethod
+    def _state_change_pct(
+        *,
+        recent_change_pct: float,
+        reference_change_pct: float | None,
+    ) -> tuple[float, str]:
+        if reference_change_pct is None:
+            return recent_change_pct, "price_history"
+        reference = round(reference_change_pct, 4)
+        if abs(reference) <= MarketTrendClassifier.BOX_THRESHOLD_PCT and abs(recent_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT:
+            return recent_change_pct, "price_history"
+        return reference, "ticker_reference"
 
     @staticmethod
     def _market_state(*, recent_change_pct: float) -> str:
@@ -133,20 +141,3 @@ class MarketTrendClassifier:
         total_weight = sum(weighted_counts.values())
         confidence = 0.0 if total_weight <= 0 else round(weight / total_weight, 3)
         return learned_state, confidence, sample_count
-
-    @staticmethod
-    def _blend_market_state(
-        *,
-        price_market_state: str,
-        learned_market_state: str | None,
-        learned_confidence: float,
-    ) -> str:
-        if learned_market_state is None:
-            return price_market_state
-        if price_market_state == "box" and learned_confidence >= MarketTrendClassifier.LEARNING_BOX_OVERRIDE_CONFIDENCE:
-            return learned_market_state
-        if learned_market_state == price_market_state:
-            return price_market_state
-        if learned_confidence >= MarketTrendClassifier.LEARNING_TREND_OVERRIDE_CONFIDENCE:
-            return learned_market_state
-        return price_market_state

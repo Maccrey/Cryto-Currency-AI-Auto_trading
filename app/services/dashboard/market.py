@@ -101,7 +101,6 @@ class DashboardMarketSummaryFeed:
         if not payload.get("learning_sample_count"):
             payload.pop("learning_sample_count", None)
             payload.pop("learning_confidence", None)
-            payload.pop("market_state_source", None)
         return payload
 
     @staticmethod

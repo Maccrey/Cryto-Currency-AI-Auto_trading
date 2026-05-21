@@ -158,6 +158,38 @@ def test_dashboard_market_facade_does_not_duplicate_unchanged_provider_price() -
     assert payload["summary"]["market_state_label"] == "하락장"
 
 
+def test_dashboard_market_facade_falls_back_to_price_history_when_ticker_change_is_flat() -> None:
+    timestamps = iter(
+        [
+            "2026-04-19T20:35:00+09:00",
+            "2026-04-19T20:35:01+09:00",
+        ],
+    )
+    store = MarketPriceStore(
+        timestamp_provider=lambda: next(timestamps),
+    )
+    store.save(market="KRW-XRP", price=2033.0)
+    provider = CurrentTickerProviderStub(
+        UpbitTickerSnapshot(
+            trade_price=2030.0,
+            signed_change_rate=0.0,
+        ),
+    )
+    facade = DashboardMarketFacade(
+        market="KRW-XRP",
+        market_price_store=store,
+        dashboard_market_service=DashboardMarketService(),
+        current_price_provider=provider,
+    )
+
+    payload = facade.build_current_response()
+
+    assert payload["summary"]["recent_change_pct"] == -0.0015
+    assert payload["summary"]["market_state"] == "bear"
+    assert payload["summary"]["market_state_label"] == "하락장"
+    assert payload["summary"]["market_state_source"] == "price_history"
+
+
 def test_dashboard_market_facade_returns_current_price_change_and_history() -> None:
     timestamps = iter(
         [
@@ -193,6 +225,7 @@ def test_dashboard_market_facade_returns_current_price_change_and_history() -> N
             "recent_change_pct": 0.0061,
             "market_state": "bull",
             "market_state_label": "상승장",
+            "market_state_source": "price_history",
             "box_range_low": None,
             "box_range_high": None,
             "history": [
