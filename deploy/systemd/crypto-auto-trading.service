@@ -1,0 +1,21 @@
+[Unit]
+Description=Crypto Auto Trading server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=maccrey
+Group=maccrey
+WorkingDirectory=/home/maccrey/Crypo_Auto_Trading
+Environment=PYTHONUNBUFFERED=1
+Environment=TRADING_MODE=demo
+Environment=LEARNING_ENABLED=true
+Environment=STORAGE_DIR=/home/maccrey/Crypo_Auto_Trading/storage
+EnvironmentFile=-/home/maccrey/Crypo_Auto_Trading/.env
+ExecStart=/home/maccrey/Crypo_Auto_Trading/deploy/start-server.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
