@@ -24,6 +24,7 @@ class MarketTrendClassifier:
 
     BOX_THRESHOLD_PCT = 0.001
     MIN_BOX_WIDTH_PCT = 0.001
+    RECENT_TREND_POINTS = 12
     LEARNING_BOX_OVERRIDE_CONFIDENCE = 0.65
     LEARNING_TREND_OVERRIDE_CONFIDENCE = 0.82
 
@@ -41,8 +42,13 @@ class MarketTrendClassifier:
                 (current_price - history[0].price) / history[0].price,
                 4,
             )
+        recent_window_change_pct = self._recent_window_change_pct(
+            current_price=current_price,
+            history=history,
+        )
         state_change_pct, state_source = self._state_change_pct(
             recent_change_pct=recent_change_pct,
+            recent_window_change_pct=recent_window_change_pct,
             reference_change_pct=reference_change_pct,
         )
         price_market_state = self._market_state(recent_change_pct=state_change_pct)
@@ -70,14 +76,64 @@ class MarketTrendClassifier:
     def _state_change_pct(
         *,
         recent_change_pct: float,
+        recent_window_change_pct: float,
         reference_change_pct: float | None,
     ) -> tuple[float, str]:
+        if abs(recent_window_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT:
+            return recent_window_change_pct, "price_history"
         if reference_change_pct is None:
             return recent_change_pct, "price_history"
         reference = round(reference_change_pct, 4)
         if abs(reference) <= MarketTrendClassifier.BOX_THRESHOLD_PCT and abs(recent_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT:
             return recent_change_pct, "price_history"
         return reference, "ticker_reference"
+
+    @staticmethod
+    def _recent_window_change_pct(
+        *,
+        current_price: float,
+        history: list[MarketPriceSnapshot],
+    ) -> float:
+        if len(history) < 2:
+            return 0.0
+        prices = [item.price for item in history if item.price > 0]
+        if not prices:
+            return 0.0
+        if prices[-1] != current_price and current_price > 0:
+            prices.append(current_price)
+        if len(prices) < 2:
+            return 0.0
+
+        last_index = len(prices) - 1
+        previous_index = last_index - 1
+        while previous_index >= 0 and prices[last_index] == prices[previous_index]:
+            previous_index -= 1
+        if previous_index < 0:
+            return 0.0
+
+        direction = 1 if prices[last_index] > prices[previous_index] else -1
+        start_index = previous_index
+        same_direction_moves = 1
+        min_index = max(0, last_index - MarketTrendClassifier.RECENT_TREND_POINTS + 1)
+        while start_index > min_index:
+            previous_price = prices[start_index - 1]
+            current_window_price = prices[start_index]
+            if previous_price == current_window_price:
+                start_index -= 1
+                continue
+            current_direction = 1 if current_window_price > previous_price else -1
+            if current_direction != direction:
+                break
+            start_index -= 1
+            same_direction_moves += 1
+
+        if len(prices) > 2 and same_direction_moves < 2:
+            return 0.0
+
+        start_price = prices[start_index]
+        if start_price <= 0:
+            return 0.0
+        return round((current_price - start_price) / start_price, 4)
 
     @staticmethod
     def _market_state(*, recent_change_pct: float) -> str:

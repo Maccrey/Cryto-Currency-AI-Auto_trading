@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from app.services.learning.service import LearningEvent
 from app.services.signals.features import FeatureSnapshot
@@ -152,6 +152,7 @@ class SignalEngine:
                     "reason_codes": decision.reason_codes,
                     "regime_score": features.regime_score,
                     "liquidity_score": features.liquidity_score,
+                    "market_features": asdict(features),
                     "technical_indicators": {
                         "rsi_14": features.rsi_14,
                         "macd_histogram": features.macd_histogram,

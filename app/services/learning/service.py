@@ -49,6 +49,22 @@ class JsonlLearningExporter:
             handle.write("\n")
 
 
+class MarketObservationExporter:
+    """Append raw market observations used for replay and rule analysis."""
+
+    def __init__(self, *, log_dir: Path) -> None:
+        self._log_dir = log_dir
+        self._log_dir.mkdir(parents=True, exist_ok=True)
+        self._log_path = self._log_dir / "market-observations.jsonl"
+
+    def export(self, payload: dict[str, Any]) -> None:
+        row = dict(payload)
+        row["schema_version"] = 1
+        with self._log_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, ensure_ascii=True))
+            handle.write("\n")
+
+
 class LearningEventStore:
     """Keep recent learning events in memory for runtime inspection."""
 
@@ -89,6 +105,7 @@ class LearningService:
             log_dir=log_dir,
             event_serializer=self._event_serializer,
         )
+        self._market_observation_exporter = MarketObservationExporter(log_dir=log_dir)
         self._event_store = event_store or LearningEventStore()
 
     def record(self, event: LearningEvent) -> None:
@@ -107,6 +124,9 @@ class LearningService:
     def record_many(self, events: list[LearningEvent]) -> None:
         for event in events:
             self.record(event)
+
+    def record_market_observation(self, payload: dict[str, Any]) -> None:
+        self._market_observation_exporter.export(payload)
 
     def recent_events(self, *, limit: int | None = None) -> list[LearningEvent]:
         return self._event_store.list_events(limit=limit)

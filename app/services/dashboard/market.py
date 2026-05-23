@@ -59,13 +59,14 @@ class DashboardMarketSummaryFeed:
         history: list[MarketPriceSnapshot],
         market_price_store: MarketPriceStore,
         reference_change_pct: float | None = None,
+        trend_history: list[MarketPriceSnapshot] | None = None,
     ) -> DashboardMarket | None:
         if snapshot is None:
             return None
 
         trend = self._trend_classifier.classify(
             current_price=snapshot.price,
-            history=history,
+            history=trend_history or history,
             learning_events=[] if self._learning_service is None else self._learning_service.recent_events(limit=200),
             reference_change_pct=reference_change_pct,
         )

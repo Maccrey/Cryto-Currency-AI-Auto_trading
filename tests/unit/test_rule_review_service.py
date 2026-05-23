@@ -268,6 +268,86 @@ def test_rule_review_uses_technical_indicators_in_codex_prompt_and_changes(tmp_p
     assert proposal["codex_suggested_changes"][0]["parameter"] == "TECHNICAL_TREND_CONFIRMATION"
 
 
+def test_rule_review_summarizes_market_features_and_raw_observations(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "event_name": "signal_generated",
+                        "payload": {
+                            "market_features": {
+                                "traded_value_multiple": 1.6,
+                                "orderbook_imbalance": 0.24,
+                                "spread_bps": 8.0,
+                                "short_volatility": 0.001,
+                            },
+                        },
+                    },
+                    ensure_ascii=True,
+                ),
+                json.dumps(
+                    {
+                        "event_name": "auto_trade_cycle",
+                        "payload": {
+                            "market_window": {
+                                "price_change_pct": 0.003,
+                                "traded_value_multiple": 1.4,
+                            },
+                        },
+                    },
+                    ensure_ascii=True,
+                ),
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "market-observations.jsonl").write_text(
+        "\n".join(
+            json.dumps(
+                {
+                    "recorded_at": f"2026-05-22T09:00:0{index}+09:00",
+                    "trade_price": 800 + index,
+                    "traded_value": 1000000 + index,
+                    "spread_bps": 8.0,
+                    "orderbook_imbalance": 0.2,
+                    "liquidity_score": 0.9,
+                    "regime_score": 0.7,
+                },
+                ensure_ascii=True,
+            )
+            for index in range(4)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    review = service.review()["review"]
+    proposal = service.create_proposal(review_id=str(review["id"]))["proposal"]
+    replay = service.verify_replay(str(proposal["id"]), fixture_path=Path("fixtures/replay_ticks.json"))
+
+    assert review["market_data_quality_summary"]["feature_sample_count"] == 1
+    assert review["market_data_quality_summary"]["window_sample_count"] == 1
+    assert review["market_data_quality_summary"]["raw_observation_count"] == 4
+    assert "가격/거래량 데이터 품질" in review["codex_rule_prompt"]
+    assert replay["proposal"]["replay_result"]["source"] == "market_observations"
+
+
 def test_auto_rule_update_skips_when_learning_incomplete_or_win_rate_high(tmp_path: Path) -> None:
     (tmp_path / "learning.jsonl").write_text(
         "\n".join(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from app.services.replay.harness import ReplayHarness
@@ -20,6 +21,9 @@ def test_replay_harness_replays_fixture_and_produces_signal_results() -> None:
     assert results[1].timestamp == "2026-04-18T09:00:03+09:00"
     assert results[1].signal_level == "strong"
     assert round(results[1].signal_score, 2) == 0.71
+    summary = harness.summarize(results)
+    assert summary.signal_count == 2
+    assert summary.profit_guard_status == "passed"
 
 
 def test_replay_fixture_loader_reads_ticks_from_json() -> None:
@@ -31,3 +35,31 @@ def test_replay_fixture_loader_reads_ticks_from_json() -> None:
     assert len(ticks) == 4
     assert ticks[0].price == 800.0
     assert ticks[-1].orderbook_imbalance == 0.38
+
+
+def test_replay_loader_reads_market_observation_jsonl(tmp_path: Path) -> None:
+    observation_path = tmp_path / "market-observations.jsonl"
+    observation_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "recorded_at": "2026-05-22T09:00:00+09:00",
+                        "trade_price": 800.0,
+                        "traded_value": 1000000.0,
+                        "spread_bps": 8.0,
+                        "orderbook_imbalance": 0.2,
+                        "liquidity_score": 0.9,
+                        "regime_score": 0.7,
+                    },
+                ),
+            ],
+        ),
+        encoding="utf-8",
+    )
+
+    ticks = ReplayFixtureLoader().load_market_observations(observation_path)
+
+    assert len(ticks) == 1
+    assert ticks[0].timestamp == "2026-05-22T09:00:00+09:00"
+    assert ticks[0].price == 800.0

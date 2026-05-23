@@ -321,6 +321,8 @@ false면 앱 시작 실패
 - ETF 공개 데이터는 순유입과 순유출을 분리해 보관하되, 대시보드에는 0이 아닌 방향만 표시한다. API 응답에 별도 `inFlowUsd`/`outFlowUsd`가 있으면 `change` 값보다 우선해 순유출 0 고정 표시를 방지한다.
 - bullish/onchain outflow/ETF inflow는 학습 가중치를 높이고, bearish/onchain inflow/ETF outflow는 낮춘다.
 - 룰 개선 분석은 학습 로그의 외부 컨텍스트 표본 수, 온체인/ETF 상태 분포, 평균 학습 가중치를 함께 집계한다.
+- 가격/거래량 원시 관측값은 `LEARNING_LOG_DIR/<코인>/<투자성향>/market-observations.jsonl` 또는 기본 XRP의 `LEARNING_LOG_DIR/<투자성향>/market-observations.jsonl`에 append-only로 저장한다.
+- 룰 개선 replay는 원시 관측값이 충분하면 이를 우선 사용하고, replay 결과에는 signal count, blocked count, trade count, final profit rate, max drawdown을 함께 남긴다.
 
 ### NO_TRADE_ADAPTIVE
 - demo에서 `AUTO_MIN_SIGNAL_LEVEL` 또는 `FEE_ADJUSTED_EDGE_LIMIT` 차단만 반복되면 완화 후보로 진단한다.
@@ -336,6 +338,7 @@ false면 앱 시작 실패
 - 기본값은 `./storage`이며 Docker는 `./storage:/app/storage` 볼륨으로 영속화한다.
 - 기존 `logs/`와 `data/`를 유지하려면 업데이트 전에 `mkdir -p storage && mv logs storage/logs && mv data storage/data`를 실행하거나, `.env`에 기존 `LEARNING_LOG_DIR`/`LEARNING_DATASET_DIR` 경로를 그대로 남긴다.
 - 룰 변경 이력은 `LEARNING_LOG_DIR/<코인>/<투자성향>/rule-change-history.jsonl` 또는 기본 XRP의 `LEARNING_LOG_DIR/<투자성향>/rule-change-history.jsonl`에 append-only로 유지된다.
+- 시장 원시 관측 이력은 같은 디렉터리의 `market-observations.jsonl`에 append-only로 유지되어 룰 개선과 replay 재현에 사용된다.
 
 ### AUTO_RULE_UPDATE_* / 자동 룰 업데이트 정책
 - `AUTO_RULE_UPDATE_ENABLED=true`일 때만 자동 룰 재평가 게이트가 활성화된다.

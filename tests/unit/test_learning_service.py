@@ -64,6 +64,26 @@ def test_learning_service_persists_fill_and_restart_events(tmp_path: Path) -> No
     assert rows[1]["payload"]["trading_profile"] == "scalping"
 
 
+def test_learning_service_records_market_observations_to_separate_jsonl(tmp_path: Path) -> None:
+    service = LearningService(log_dir=tmp_path)
+
+    service.record_market_observation(
+        {
+            "recorded_at": "2026-05-22T09:00:00+09:00",
+            "market": "KRW-XRP",
+            "trade_price": 820.0,
+            "traded_value": 1200000.0,
+        },
+    )
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "market-observations.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert rows[0]["schema_version"] == 1
+    assert rows[0]["trade_price"] == 820.0
+
+
 def test_learning_service_keeps_recent_events_in_memory(tmp_path: Path) -> None:
     service = LearningService(log_dir=tmp_path)
 

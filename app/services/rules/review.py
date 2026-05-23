@@ -83,6 +83,7 @@ class RuleReviewService:
             "external_context_summary": metrics["external_context_summary"],
             "rule_variant_shadow_summary": metrics["rule_variant_shadow_summary"],
             "technical_indicator_summary": metrics["technical_indicator_summary"],
+            "market_data_quality_summary": metrics["market_data_quality_summary"],
             "codex_rule_prompt": self._build_codex_rule_prompt(metrics),
             "approval_required": self._config.require_manual_approval,
             "created_at": datetime.now(UTC).isoformat(),
@@ -145,6 +146,10 @@ class RuleReviewService:
             "technical_indicator_summary": review.get(
                 "technical_indicator_summary",
                 self._empty_technical_indicator_summary(),
+            ),
+            "market_data_quality_summary": review.get(
+                "market_data_quality_summary",
+                self._empty_market_data_quality_summary(),
             ),
             "codex_rule_prompt": review.get("codex_rule_prompt", ""),
             "codex_suggested_changes": changes,
@@ -301,17 +306,33 @@ class RuleReviewService:
 
     def verify_replay(self, proposal_id: str, *, fixture_path: Path) -> dict[str, object]:
         proposal = self._proposals[proposal_id]
-        ticks = ReplayFixtureLoader().load(fixture_path)
-        results = ReplayHarness().run(ticks)
-        blocked_count = sum(1 for result in results if result.blocked)
-        signal_count = len(results)
-        passed = signal_count > 0 and blocked_count < signal_count
+        loader = ReplayFixtureLoader()
+        ticks = loader.load(fixture_path)
+        observation_ticks = loader.load_market_observations(self._learning_log_dir / "market-observations.jsonl")
+        if len(observation_ticks) >= 4:
+            ticks = observation_ticks
+        harness = ReplayHarness()
+        results = harness.run(ticks)
+        replay_summary = harness.summarize(results)
+        blocked_count = replay_summary.blocked_count
+        signal_count = replay_summary.signal_count
+        passed = (
+            signal_count > 0
+            and blocked_count < signal_count
+            and replay_summary.profit_guard_status == "passed"
+        )
         proposal["replay_result"] = {
             "status": "passed" if passed else "failed",
             "fixture_path": str(fixture_path),
+            "source": "market_observations" if len(observation_ticks) >= 4 else "fixture",
             "signal_count": signal_count,
             "blocked_count": blocked_count,
-            "max_signal_score": max((result.signal_score for result in results), default=0.0),
+            "trade_count": replay_summary.trade_count,
+            "final_equity": replay_summary.final_equity,
+            "final_profit_rate": replay_summary.final_profit_rate,
+            "max_drawdown_pct": replay_summary.max_drawdown_pct,
+            "profit_guard_status": replay_summary.profit_guard_status,
+            "max_signal_score": replay_summary.max_signal_score,
             "verified_at": datetime.now(UTC).isoformat(),
         }
         if not passed:
@@ -558,6 +579,10 @@ class RuleReviewService:
                 "technical_indicator_summary",
                 self._empty_technical_indicator_summary(),
             ),
+            "market_data_quality_summary": proposal.get(
+                "market_data_quality_summary",
+                self._empty_market_data_quality_summary(),
+            ),
             "previous_rule_snapshot": self._previous_rule_snapshot(changes),
             "proposed_rule_snapshot": self._proposed_rule_snapshot(changes),
             "changed_parameters": self._changed_parameters(changes),
@@ -619,6 +644,7 @@ class RuleReviewService:
             f"- 차단/경고: {', '.join(str(item) for item in history.get('blocked_reason_summary', [])) or '없음'}",
             f"- A/B/C 동시 테스트: {json.dumps(history.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
             f"- 전문 보조지표 요약: {json.dumps(history.get('technical_indicator_summary', {}), ensure_ascii=False, sort_keys=True)}",
+            f"- 시장 데이터 품질: {json.dumps(history.get('market_data_quality_summary', {}), ensure_ascii=False, sort_keys=True)}",
             "",
         ]
         with self._learning_md_path.open("a", encoding="utf-8") as file:
@@ -758,6 +784,8 @@ class RuleReviewService:
         context_samples: list[dict[str, Any]] = []
         rule_variant_shadow_samples: list[dict[str, Any]] = []
         technical_indicator_samples: list[dict[str, Any]] = []
+        market_feature_samples: list[dict[str, Any]] = []
+        market_window_samples: list[dict[str, Any]] = []
         completion_rates: list[float] = []
         closed_trade_pnls: list[float] = []
         log_path = self._learning_log_dir / "learning.jsonl"
@@ -796,9 +824,15 @@ class RuleReviewService:
                     shadow = payload.get("rule_variant_shadow")
                     if isinstance(shadow, dict):
                         rule_variant_shadow_samples.append(shadow)
+                    market_window = payload.get("market_window")
+                    if isinstance(market_window, dict):
+                        market_window_samples.append(market_window)
                 technical_indicators = payload.get("technical_indicators")
                 if event_name == "signal_generated" and isinstance(technical_indicators, dict):
                     technical_indicator_samples.append(technical_indicators)
+                market_features = payload.get("market_features")
+                if event_name == "signal_generated" and isinstance(market_features, dict):
+                    market_feature_samples.append(market_features)
                 context = payload.get("external_context") if event_name == "auto_trade_cycle" else payload
                 if event_name in {"auto_trade_cycle", "external_market_context_snapshot"} and isinstance(context, dict):
                     context_samples.append(context)
@@ -827,6 +861,11 @@ class RuleReviewService:
             "external_context_summary": self._external_context_summary(context_samples),
             "rule_variant_shadow_summary": self._rule_variant_shadow_summary(rule_variant_shadow_samples),
             "technical_indicator_summary": self._technical_indicator_summary(technical_indicator_samples),
+            "market_data_quality_summary": self._market_data_quality_summary(
+                market_feature_samples=market_feature_samples,
+                market_window_samples=market_window_samples,
+                observation_path=self._learning_log_dir / "market-observations.jsonl",
+            ),
             "learning_completion_rate": round(max(completion_rates, default=0.0), 3),
             "win_rate": self._win_rate(closed_trade_pnls),
         }
@@ -995,6 +1034,60 @@ class RuleReviewService:
         }
 
     @staticmethod
+    def _empty_market_data_quality_summary() -> dict[str, object]:
+        return {
+            "feature_sample_count": 0,
+            "window_sample_count": 0,
+            "raw_observation_count": 0,
+            "avg_price_change_pct": 0.0,
+            "avg_traded_value_multiple": 1.0,
+            "avg_orderbook_imbalance": 0.0,
+            "avg_spread_bps": 0.0,
+            "avg_short_volatility": 0.0,
+            "quality_level": "insufficient",
+        }
+
+    @staticmethod
+    def _market_data_quality_summary(
+        *,
+        market_feature_samples: list[dict[str, Any]],
+        market_window_samples: list[dict[str, Any]],
+        observation_path: Path,
+    ) -> dict[str, object]:
+        feature_count = len(market_feature_samples)
+        window_count = len(market_window_samples)
+        raw_count = RuleReviewService._line_count(observation_path)
+        if feature_count == 0 and window_count == 0 and raw_count == 0:
+            return RuleReviewService._empty_market_data_quality_summary()
+        price_changes = RuleReviewService._float_values(market_window_samples, "price_change_pct")
+        traded_value_multiples = (
+            RuleReviewService._float_values(market_feature_samples, "traded_value_multiple")
+            + RuleReviewService._float_values(market_window_samples, "traded_value_multiple")
+        )
+        imbalances = RuleReviewService._float_values(market_feature_samples, "orderbook_imbalance")
+        spreads = RuleReviewService._float_values(market_feature_samples, "spread_bps")
+        volatility = RuleReviewService._float_values(market_feature_samples, "short_volatility")
+        total_signal = feature_count + window_count + raw_count
+        quality_level = "strong" if total_signal >= 500 else ("usable" if total_signal >= 80 else "thin")
+        return {
+            "feature_sample_count": feature_count,
+            "window_sample_count": window_count,
+            "raw_observation_count": raw_count,
+            "avg_price_change_pct": RuleReviewService._average(price_changes, 0.0),
+            "avg_traded_value_multiple": RuleReviewService._average(traded_value_multiples, 1.0),
+            "avg_orderbook_imbalance": RuleReviewService._average(imbalances, 0.0),
+            "avg_spread_bps": RuleReviewService._average(spreads, 0.0),
+            "avg_short_volatility": RuleReviewService._average(volatility, 0.0),
+            "quality_level": quality_level,
+        }
+
+    @staticmethod
+    def _line_count(path: Path) -> int:
+        if not path.exists():
+            return 0
+        return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+
+    @staticmethod
     def _technical_indicator_summary(samples: list[dict[str, Any]]) -> dict[str, object]:
         if not samples:
             return RuleReviewService._empty_technical_indicator_summary()
@@ -1103,9 +1196,7 @@ class RuleReviewService:
         context_changes = self._external_context_proposed_changes(review)
         shadow_changes = self._rule_variant_shadow_proposed_changes(review)
         technical_changes = self._technical_indicator_proposed_changes(review)
-        preferred_changes = shadow_changes + technical_changes + context_changes
-        if preferred_changes:
-            return preferred_changes[: self._config.max_params_per_run]
+        market_quality_changes = self._market_data_quality_proposed_changes(review)
         if self._is_no_trade_mitigation_candidate(review):
             changes = [
                 {
@@ -1127,6 +1218,9 @@ class RuleReviewService:
                 },
             ]
             return (technical_changes + context_changes + changes)[: self._config.max_params_per_run]
+        preferred_changes = shadow_changes + technical_changes + market_quality_changes + context_changes
+        if preferred_changes:
+            return preferred_changes[: self._config.max_params_per_run]
         return [
             {
                 "file": "STRATEGY_SPEC.md",
@@ -1195,6 +1289,53 @@ class RuleReviewService:
                 },
             ]
         return []
+
+    def _market_data_quality_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
+        summary = review.get("market_data_quality_summary")
+        if not isinstance(summary, dict):
+            return []
+        raw_count = int(summary.get("raw_observation_count") or 0)
+        feature_count = int(summary.get("feature_sample_count") or 0)
+        if raw_count + feature_count <= 0:
+            return [
+                {
+                    "file": "app/services/trading/auto.py",
+                    "parameter": "MARKET_OBSERVATION_LOGGING",
+                    "current_value": "not_persisted",
+                    "proposed_value": "persist_price_volume_feature_windows",
+                    "reason": "가격 움직임과 거래량 원시 샘플이 부족해 룰 개선 재현성이 낮습니다. 별도 시장 관측 로그를 우선 축적합니다.",
+                },
+            ]
+        traded_value_multiple = self._float(summary.get("avg_traded_value_multiple"), 1.0)
+        price_change_pct = self._float(summary.get("avg_price_change_pct"), 0.0)
+        changes: list[dict[str, object]] = []
+        if traded_value_multiple >= 1.25 and price_change_pct > 0:
+            changes.append(
+                {
+                    "file": "app/services/signals/engine.py",
+                    "parameter": "PRICE_VOLUME_CONFIRMATION",
+                    "current_value": "score_components",
+                    "proposed_value": "prefer_positive_price_with_volume_expansion",
+                    "reason": (
+                        "최근 시장 관측에서 가격 상승과 거래대금 확장이 함께 나타납니다. "
+                        "거래량이 동반된 상승 신호를 우선하도록 진입 신뢰도를 높입니다."
+                    ),
+                },
+            )
+        if traded_value_multiple >= 1.25 and price_change_pct < 0:
+            changes.append(
+                {
+                    "file": "app/services/risk/sideways.py",
+                    "parameter": "VOLUME_SPIKE_DOWNTREND_GUARD",
+                    "current_value": "not_explicit",
+                    "proposed_value": "block_or_reduce_on_distribution_volume",
+                    "reason": (
+                        "거래대금 확장이 가격 하락과 함께 나타납니다. "
+                        "분배성 거래량 구간에서는 신규 진입보다 방어적 축소를 우선합니다."
+                    ),
+                },
+            )
+        return changes
 
     def _technical_indicator_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
         summary = review.get("technical_indicator_summary")
@@ -1317,6 +1458,7 @@ class RuleReviewService:
                 f"차단 사유: {json.dumps(metrics.get('blocked_reason_summary', []), ensure_ascii=False, sort_keys=True)}",
                 f"사이징 차단: {json.dumps(metrics.get('sizing_blocked_reason_summary', []), ensure_ascii=False, sort_keys=True)}",
                 f"전문 보조지표: {json.dumps(metrics.get('technical_indicator_summary', {}), ensure_ascii=False, sort_keys=True)}",
+                f"가격/거래량 데이터 품질: {json.dumps(metrics.get('market_data_quality_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 f"외부 컨텍스트: {json.dumps(metrics.get('external_context_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 f"A/B/C 동시 테스트: {json.dumps(metrics.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 "제안은 최대 변경 수 제한을 지키고, 변경 이유/기대효과/리스크/replay 검증 기준을 함께 남긴다.",

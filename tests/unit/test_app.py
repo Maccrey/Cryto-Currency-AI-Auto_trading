@@ -1316,6 +1316,7 @@ def test_settings_learning_reset_archives_current_profile_log(
     log_dir = tmp_path / "learning" / "scalping"
     log_dir.mkdir(parents=True)
     (log_dir / "learning.jsonl").write_text('{"event_name":"signal_generated"}\n', encoding="utf-8")
+    (log_dir / "market-observations.jsonl").write_text('{"trade_price":800}\n', encoding="utf-8")
     monkeypatch.setenv("ENV_FILE_PATH", str(env_file))
     monkeypatch.delenv("TRADING_MODE", raising=False)
     monkeypatch.delenv("LEARNING_LOG_DIR", raising=False)
@@ -1576,6 +1577,7 @@ def test_settings_data_purge_deletes_learning_and_demo_data_without_archive(
     assert payload["archive_path"] is None
     assert payload["learning_log_path"] == str(log_dir / "learning.jsonl")
     assert (log_dir / "learning.jsonl").read_text(encoding="utf-8") == ""
+    assert not (log_dir / "market-observations.jsonl").exists()
     assert not (tmp_path / "learning" / "reset_archive").exists()
     assert execution_ledger.list_records() == []
     assert position_lifecycle_ledger.list_records() == []
@@ -2552,7 +2554,7 @@ def test_dashboard_market_endpoint_returns_market_summary(monkeypatch) -> None:
             "severity": "info",
             "current_price": 830.0,
             "recorded_at": "2026-04-19T20:40:02+09:00",
-            "recent_change_pct": 0.0061,
+            "recent_change_pct": 0.0122,
             "market_state": "bull",
             "market_state_label": "상승장",
             "market_state_source": "price_history",

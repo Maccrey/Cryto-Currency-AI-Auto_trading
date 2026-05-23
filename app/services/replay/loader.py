@@ -34,3 +34,33 @@ class ReplayFixtureLoader:
             for item in payload
         ]
 
+    def load_market_observations(self, path: Path, *, limit: int = 500) -> list[ReplayTick]:
+        if not path.exists():
+            return []
+        rows: list[dict[str, object]] = []
+        for raw_line in path.read_text(encoding="utf-8").splitlines()[-max(limit, 0) :]:
+            if not raw_line.strip():
+                continue
+            try:
+                item = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(item, dict):
+                rows.append(item)
+        ticks: list[ReplayTick] = []
+        for item in rows:
+            try:
+                ticks.append(
+                    ReplayTick(
+                        timestamp=str(item.get("recorded_at") or item.get("timestamp") or ""),
+                        price=float(item["trade_price"]),
+                        traded_value=float(item.get("traded_value", 0.0)),
+                        spread_bps=float(item.get("spread_bps", 0.0)),
+                        orderbook_imbalance=float(item.get("orderbook_imbalance", 0.0)),
+                        liquidity_score=float(item.get("liquidity_score", 0.5)),
+                        regime_score=float(item.get("regime_score", 0.5)),
+                    ),
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+        return ticks

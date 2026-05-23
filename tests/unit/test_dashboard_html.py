@@ -111,6 +111,10 @@ def test_dashboard_includes_rule_review_pipeline_panel() -> None:
     assert "refreshRuleHistory" in DASHBOARD_HTML
     assert "renderLatestRuleProposal" in DASHBOARD_HTML
     assert "renderRuleHistory" in DASHBOARD_HTML
+    assert 'id="ruleDataQuality"' in DASHBOARD_HTML
+    assert 'id="ruleReplayProfit"' in DASHBOARD_HTML
+    assert "formatMarketDataQuality" in DASHBOARD_HTML
+    assert "formatReplayProfit" in DASHBOARD_HTML
 
 
 def test_settings_includes_server_name_field() -> None:

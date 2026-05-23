@@ -23,7 +23,7 @@ from app.services.trading.auto import AutoTradingConfig, AutoTradingService
 from app.services.trading.decision import TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
-from app.services.learning.service import LearningService
+from app.services.learning.service import LearningEvent, LearningService
 
 
 class ForbiddenLiveOrderGateway:
@@ -280,6 +280,49 @@ def test_auto_trading_service_blocks_weak_scale_in_when_historical_losses_domina
     assert extra["historical_loss_guard_active"] is True
     assert extra["historical_loss_guard_stop_loss_pnl"] < 0
     assert extra["historical_loss_guard_weak_buy_ratio"] == 1.0
+
+
+def test_auto_trading_service_blocks_weak_entry_when_learning_logs_show_weak_stop_losses(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0])
+    for entry_price in (2039.9, 2025.0):
+        service._learning_service.record(
+            LearningEvent(
+                event_name="position_opened",
+                market="KRW-XRP",
+                mode="demo",
+                payload={
+                    "signal_level": "weak",
+                    "entry_price": entry_price,
+                    "quantity": 10.0,
+                },
+            ),
+        )
+        service._learning_service.record(
+            LearningEvent(
+                event_name="position_lifecycle_updated",
+                market="KRW-XRP",
+                mode="demo",
+                payload={
+                    "event_type": "closed",
+                    "reason_code": "STOP_LOSS_MOMENTUM_REVERSAL",
+                    "signal_level": "weak",
+                    "entry_price": entry_price,
+                },
+            ),
+        )
+
+    decision = service._historical_loss_guard_decision(
+        entry_type="initial",
+        signal_level="weak",
+        signal_score=0.29,
+        box_range_opportunity={"allowed": False},
+    )
+    extra = service._historical_loss_guard_extra(decision)
+
+    assert decision["allowed"] is False
+    assert decision["reason_code"] == "WEAK_ENTRY_HISTORICAL_LOSS_BLOCK"
+    assert extra["historical_loss_guard_active"] is True
+    assert extra["historical_loss_guard_recent_stop_loss_reason"] == "STOP_LOSS_MOMENTUM_REVERSAL"
 
 
 def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -> None:

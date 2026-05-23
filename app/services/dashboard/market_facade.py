@@ -13,6 +13,8 @@ class CurrentPriceProvider(Protocol):
 class DashboardMarketFacade:
     """Provide dashboard-oriented market responses from market state."""
 
+    TREND_HISTORY_LIMIT = 60
+
     def __init__(
         self,
         *,
@@ -29,12 +31,14 @@ class DashboardMarketFacade:
 
     def build_current_response(self, *, history_limit: int = 20) -> dict[str, object]:
         snapshot = self._fetch_or_get_snapshot()
-        history = self._chart_history(history_limit=history_limit)
+        full_history = self._market_price_store.list_history(self._market)
+        history = self._chart_history_from(full_history, history_limit=history_limit)
         market = self._dashboard_market_service.build(
             snapshot=snapshot,
             history=history,
             market_price_store=self._market_price_store,
             reference_change_pct=self._latest_ticker_meta.get("signed_change_rate"),
+            trend_history=full_history[-self.TREND_HISTORY_LIMIT :],
         )
         if market is None:
             return {
@@ -53,11 +57,15 @@ class DashboardMarketFacade:
 
     def _chart_history(self, *, history_limit: int) -> list:
         history = self._market_price_store.list_history(self._market)
+        return self._chart_history_from(history, history_limit=history_limit)
+
+    @staticmethod
+    def _chart_history_from(history: list, *, history_limit: int) -> list:
         if history_limit >= len(history):
             return history
         if history_limit < 288:
             return history[-history_limit:]
-        return self._sample_history(history, limit=history_limit)
+        return DashboardMarketFacade._sample_history(history, limit=history_limit)
 
     @staticmethod
     def _sample_history(history: list, *, limit: int) -> list:

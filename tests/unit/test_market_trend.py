@@ -138,3 +138,22 @@ def test_market_trend_classifier_uses_price_history_when_reference_is_flat() -> 
     assert trend.market_state == "bear"
     assert trend.market_state_label == "하락장"
     assert trend.source == "price_history"
+
+
+def test_market_trend_classifier_uses_recent_drop_over_positive_reference() -> None:
+    store = MarketPriceStore()
+    store.save(market="KRW-XRP", price=2040.0)
+    store.save(market="KRW-XRP", price=2037.0)
+    store.save(market="KRW-XRP", price=2034.0)
+    store.save(market="KRW-XRP", price=2031.0)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=2031.0,
+        history=store.list_history("KRW-XRP"),
+        reference_change_pct=0.018,
+    )
+
+    assert trend.recent_change_pct == -0.0044
+    assert trend.market_state == "bear"
+    assert trend.market_state_label == "하락장"
+    assert trend.source == "price_history"

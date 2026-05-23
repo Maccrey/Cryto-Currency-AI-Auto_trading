@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -59,6 +59,7 @@ class AutoTradingConfig:
     market_state_bear_entry_min_score: float = 0.65
     historical_loss_guard_enabled: bool = True
     historical_loss_guard_min_fills: int = 20
+    historical_loss_guard_min_learning_stop_losses: int = 2
     historical_loss_guard_stop_loss_to_profit_ratio: float = 1.2
     historical_loss_guard_weak_buy_ratio: float = 0.7
     historical_loss_guard_box_entry_min_score: float = 0.30
@@ -248,6 +249,7 @@ class AutoTradingService:
         self._market_price_store.save(market=self._market, price=snapshot.trade_price)
         self._prices.append(snapshot.trade_price)
         self._traded_values.append(self._traded_value(snapshot))
+        self._record_market_observation(snapshot)
         shock_decision = None
         if len(self._prices) >= self._config.min_history:
             shock_decision = self._market_shock_guard.check(prices=list(self._prices))
@@ -362,7 +364,7 @@ class AutoTradingService:
         entry_type = "scale_in" if position is not None else "initial"
         entry_market_state = decision.regime.market_state
         entry_market_state_label = decision.regime.market_state_label
-        if entry_type == "scale_in" and self._recent_price_market_state() == "bear":
+        if self._recent_price_market_state() == "bear":
             entry_market_state = "bear"
             entry_market_state_label = "하락장"
         market_state_entry = self._market_state_entry_guard.evaluate(
@@ -806,9 +808,24 @@ class AutoTradingService:
         return {"allowed": True}
 
     def _active_historical_loss_profile(self) -> ExecutionPerformanceProfile | None:
-        if not self._config.historical_loss_guard_enabled or self._execution_ledger is None:
+        if not self._config.historical_loss_guard_enabled:
             return None
-        profile = self._execution_ledger.performance_profile()
+        profile = self._execution_ledger.performance_profile() if self._execution_ledger is not None else None
+        learning_profile = self._learning_stop_loss_profile()
+        if profile is None and learning_profile is None:
+            return None
+        if profile is None:
+            return learning_profile
+        if learning_profile is None:
+            return self._active_ledger_loss_profile(profile)
+        ledger_profile = self._active_ledger_loss_profile(profile)
+        if ledger_profile is None:
+            return learning_profile
+        if learning_profile.stop_loss_count > ledger_profile.stop_loss_count:
+            return learning_profile
+        return ledger_profile
+
+    def _active_ledger_loss_profile(self, profile: ExecutionPerformanceProfile) -> ExecutionPerformanceProfile | None:
         fill_count = profile.buy_count + profile.sell_count
         if fill_count < self._config.historical_loss_guard_min_fills:
             return None
@@ -819,6 +836,50 @@ class AutoTradingService:
         if profile.stop_loss_to_profit_ratio < self._config.historical_loss_guard_stop_loss_to_profit_ratio:
             return None
         return profile
+
+    def _learning_stop_loss_profile(self) -> ExecutionPerformanceProfile | None:
+        buy_count = 0
+        weak_buy_count = 0
+        stop_loss_count = 0
+        weak_stop_loss_count = 0
+        recent_stop_loss_reason = None
+        for event in self._learning_service.recent_events(limit=500):
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            if event.event_name == "position_opened":
+                buy_count += 1
+                if payload.get("signal_level") == "weak":
+                    weak_buy_count += 1
+                continue
+            if event.event_name != "position_lifecycle_updated" or payload.get("event_type") != "closed":
+                continue
+            reason_code = str(payload.get("reason_code") or "")
+            signal_level = str(payload.get("signal_level") or "")
+            if not reason_code.startswith("STOP_LOSS"):
+                continue
+            stop_loss_count += 1
+            recent_stop_loss_reason = reason_code
+            if signal_level == "weak":
+                weak_stop_loss_count += 1
+
+        if stop_loss_count < self._config.historical_loss_guard_min_learning_stop_losses:
+            return None
+        if weak_stop_loss_count <= 0:
+            return None
+        weak_buy_ratio = 0.0 if buy_count <= 0 else weak_buy_count / buy_count
+        if weak_buy_ratio < self._config.historical_loss_guard_weak_buy_ratio:
+            return None
+        return ExecutionPerformanceProfile(
+            realized_pnl=0.0,
+            regular_sell_pnl=0.0,
+            stop_loss_pnl=-float(stop_loss_count),
+            buy_count=buy_count,
+            weak_buy_count=weak_buy_count,
+            sell_count=stop_loss_count,
+            stop_loss_count=stop_loss_count,
+            weak_buy_ratio=round(weak_buy_ratio, 4),
+            stop_loss_to_profit_ratio=float("inf"),
+            recent_stop_loss_reason=recent_stop_loss_reason,
+        )
 
     @staticmethod
     def _historical_loss_guard_extra(decision: dict[str, object]) -> dict[str, object]:
@@ -941,6 +1002,7 @@ class AutoTradingService:
             "hard_stop": self._boot_state.hard_stop,
             "trading_ready": self._boot_state.trading_ready,
             "learning_completion_rate": self._learning_completion_rate(),
+            "market_window": self._market_window_summary(),
         }
         external_context = self._external_context()
         if external_context is not None:
@@ -1018,3 +1080,53 @@ class AutoTradingService:
         if self._config.min_history <= 0:
             return 1.0
         return round(min(len(self._prices) / self._config.min_history, 1.0), 3)
+
+    def _record_market_observation(self, snapshot: UpbitTickerSnapshot) -> None:
+        payload: dict[str, object] = {
+            "recorded_at": self._clock().isoformat(),
+            "market": self._market,
+            "mode": self._trading_mode,
+            "trade_price": snapshot.trade_price,
+            "traded_value": self._traded_value(snapshot),
+            "spread_bps": self._config.spread_bps,
+            "orderbook_imbalance": self._orderbook_imbalance(),
+            "liquidity_score": self._liquidity_score(),
+            "regime_score": self._regime_score(),
+            "history_count": len(self._prices),
+            "price_window": list(self._prices),
+            "traded_value_window": list(self._traded_values),
+        }
+        ticker_meta = asdict(snapshot)
+        payload["ticker"] = {key: value for key, value in ticker_meta.items() if value is not None}
+        record_observation = getattr(self._learning_service, "record_market_observation", None)
+        if record_observation is not None:
+            record_observation(payload)
+
+    def _market_window_summary(self) -> dict[str, object]:
+        prices = [float(price) for price in self._prices if price > 0]
+        traded_values = [float(value) for value in self._traded_values if value >= 0]
+        if len(prices) < 2:
+            price_change_pct = 0.0
+            last_return_pct = 0.0
+            price_range_pct = 0.0
+        else:
+            price_change_pct = round((prices[-1] - prices[0]) / prices[0], 6)
+            last_return_pct = round((prices[-1] - prices[-2]) / prices[-2], 6)
+            price_range_pct = round((max(prices) - min(prices)) / prices[-1], 6)
+        if len(traded_values) < 2:
+            traded_value_multiple = 1.0
+        else:
+            baseline = sum(traded_values[:-1]) / max(len(traded_values[:-1]), 1)
+            traded_value_multiple = round(traded_values[-1] / baseline, 4) if baseline > 0 else 1.0
+        return {
+            "sample_count": len(prices),
+            "current_price": prices[-1] if prices else None,
+            "price_change_pct": price_change_pct,
+            "last_return_pct": last_return_pct,
+            "price_range_pct": price_range_pct,
+            "traded_value_multiple": traded_value_multiple,
+            "spread_bps": self._config.spread_bps,
+            "orderbook_imbalance": self._orderbook_imbalance(),
+            "liquidity_score": self._liquidity_score(),
+            "regime_score": self._regime_score(),
+        }

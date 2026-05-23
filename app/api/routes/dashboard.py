@@ -232,10 +232,13 @@ DASHBOARD_HTML = """
     body.dark .toggle { background: var(--primary); }
     body.dark .toggle::after { transform: translateX(18px); }
     .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    .rule-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .rule-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
     .rule-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
     .rule-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .rule-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+    .rule-value.good { color: #1f6b35; }
+    .rule-value.mid { color: #7a5400; }
+    .rule-value.bad { color: #b42318; }
     .modal-backdrop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(15, 23, 42, 0.56); z-index: 50; }
     .modal-backdrop.visible { display: flex; }
     .rule-modal { width: min(780px, 100%); max-height: min(82vh, 760px); display: flex; flex-direction: column; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 18px 48px rgba(15, 23, 42, 0.32); overflow: hidden; }
@@ -455,6 +458,8 @@ DASHBOARD_HTML = """
       <div class="rule-item"><div class="rule-label">거래 수</div><div id="ruleTrades" class="rule-value">-</div></div>
       <div class="rule-item"><div class="rule-label">손절 수</div><div id="ruleStopLosses" class="rule-value">-</div></div>
       <div class="rule-item"><div class="rule-label">승인 필요</div><div id="ruleApproval" class="rule-value">-</div></div>
+      <div class="rule-item"><div class="rule-label">데이터 품질</div><div id="ruleDataQuality" class="rule-value">-</div></div>
+      <div class="rule-item"><div class="rule-label">Replay 수익</div><div id="ruleReplayProfit" class="rule-value">-</div></div>
     </div>
     <table>
       <tbody id="ruleReviewTable">
@@ -1300,15 +1305,24 @@ function renderRulePipeline(payload) {
   document.getElementById("ruleTrades").textContent = number(source.trade_count || 0);
   document.getElementById("ruleStopLosses").textContent = number(source.stop_loss_count || 0);
   document.getElementById("ruleApproval").textContent = source.approval_required ? "필요" : "불필요";
+  const quality = source.market_data_quality_summary || proposal.market_data_quality_summary || {};
+  const qualityElement = document.getElementById("ruleDataQuality");
+  qualityElement.textContent = formatMarketDataQualityBadge(quality);
+  qualityElement.className = `rule-value ${marketDataQualityClass(quality)}`;
+  const replayProfitElement = document.getElementById("ruleReplayProfit");
+  replayProfitElement.textContent = formatReplayProfit(proposal.replay_result || {});
+  replayProfitElement.className = `rule-value ${replayProfitClass(proposal.replay_result || {})}`;
   const causes = (source.major_loss_causes || []).map((item) => `${item.reason} ${number(item.count)}건`).join(", ") || "데이터 부족";
   const changes = (proposal.codex_suggested_changes || []).map((item) => `${item.parameter}: ${item.proposed_value}`).join(", ") || "변경안 없음";
   const replay = proposal.replay_result ? JSON.stringify(proposal.replay_result) : "replay 필요";
   const reasons = (proposal.rejection_reasons || []).join(", ") || "없음";
   const externalContext = formatRuleExternalContext(source.external_context_summary || {});
   const historyWarnings = formatRuleHistoryWarnings(proposal.history_warnings || []);
+  const marketQuality = formatMarketDataQuality(quality);
   document.getElementById("ruleReviewTable").innerHTML = [
     row("대상 코인", source.trade_coin || "-"),
     row("룰 로그 경로", source.learning_log_dir || "-"),
+    row("가격/거래량 기록 품질", marketQuality),
     row("외부 컨텍스트", externalContext),
     row("히스토리 경고", historyWarnings),
     row("주요 손실 원인", causes),
@@ -1317,6 +1331,41 @@ function renderRulePipeline(payload) {
     row("차단/승인 사유", reasons),
     row("상태", proposal.status || "reviewed")
   ].join("");
+}
+
+function formatMarketDataQualityBadge(summary) {
+  const level = summary.quality_level || "insufficient";
+  const label = {strong: "강함", usable: "사용 가능", thin: "얇음", insufficient: "부족"}[level] || level;
+  return `${label} / 원시 ${number(summary.raw_observation_count || 0)}건`;
+}
+
+function marketDataQualityClass(summary) {
+  const level = summary.quality_level || "insufficient";
+  if (level === "strong") return "good";
+  if (level === "usable" || level === "thin") return "mid";
+  return "bad";
+}
+
+function formatMarketDataQuality(summary) {
+  return [
+    `feature ${number(summary.feature_sample_count || 0)}건`,
+    `window ${number(summary.window_sample_count || 0)}건`,
+    `raw ${number(summary.raw_observation_count || 0)}건`,
+    `가격변화 ${percent(summary.avg_price_change_pct || 0)}`,
+    `거래대금 배율 ${number(summary.avg_traded_value_multiple || 1, 3)}`
+  ].join(" / ");
+}
+
+function formatReplayProfit(replay) {
+  if (!replay || !replay.status) return "검증 전";
+  return `${percent(replay.final_profit_rate || 0)} / DD ${percent(replay.max_drawdown_pct || 0)}`;
+}
+
+function replayProfitClass(replay) {
+  if (!replay || !replay.status) return "mid";
+  if (replay.status === "passed" && (replay.final_profit_rate || 0) >= 0) return "good";
+  if (replay.status === "passed") return "mid";
+  return "bad";
 }
 
 function formatRuleExternalContext(summary) {

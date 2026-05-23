@@ -190,6 +190,40 @@ def test_dashboard_market_facade_falls_back_to_price_history_when_ticker_change_
     assert payload["summary"]["market_state_source"] == "price_history"
 
 
+def test_dashboard_market_facade_uses_unsampled_recent_history_for_market_state() -> None:
+    prices = [1900.0 + index for index in range(120)]
+    prices.extend([2040.0, 2037.0, 2034.0])
+    timestamps = iter(
+        f"2026-04-19T20:{minute // 60:02d}:{minute % 60:02d}+09:00"
+        for minute in range(len(prices) + 1)
+    )
+    store = MarketPriceStore(
+        timestamp_provider=lambda: next(timestamps),
+    )
+    for price in prices:
+        store.save(market="KRW-XRP", price=price)
+    provider = CurrentTickerProviderStub(
+        UpbitTickerSnapshot(
+            trade_price=2031.0,
+            signed_change_rate=0.018,
+        ),
+    )
+    facade = DashboardMarketFacade(
+        market="KRW-XRP",
+        market_price_store=store,
+        dashboard_market_service=DashboardMarketService(),
+        current_price_provider=provider,
+    )
+
+    payload = facade.build_current_response(history_limit=20)
+
+    assert len(payload["summary"]["history"]) == 20
+    assert payload["summary"]["recent_change_pct"] == -0.0044
+    assert payload["summary"]["market_state"] == "bear"
+    assert payload["summary"]["market_state_label"] == "하락장"
+    assert payload["summary"]["market_state_source"] == "price_history"
+
+
 def test_dashboard_market_facade_returns_current_price_change_and_history() -> None:
     timestamps = iter(
         [
@@ -222,7 +256,7 @@ def test_dashboard_market_facade_returns_current_price_change_and_history() -> N
             "severity": "info",
             "current_price": 830.0,
             "recorded_at": "2026-04-19T20:30:02+09:00",
-            "recent_change_pct": 0.0061,
+            "recent_change_pct": 0.0122,
             "market_state": "bull",
             "market_state_label": "상승장",
             "market_state_source": "price_history",

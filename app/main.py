@@ -604,6 +604,7 @@ def create_app(
             runtime_state_dir / "execution-ledger.json",
             runtime_state_dir / "current-position.json",
             runtime_state_dir / "trading-uptime.json",
+            profile_learning_log_dir / "market-observations.jsonl",
         ]:
             if path.exists():
                 path.unlink()
