@@ -2,6 +2,8 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
+.DS_Store
+._*
 
 # Runtime logs, learning logs, simulated trade ledgers, and local datasets.
 logs/
