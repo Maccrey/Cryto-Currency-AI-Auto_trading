@@ -82,6 +82,41 @@ def test_dataset_exporter_converts_learning_jsonl_to_parquet(tmp_path: Path) -> 
     assert pd.isna(frame.loc[2, "payload.reason_code"])
 
 
+def test_dataset_exporter_enriches_market_regime_columns(tmp_path: Path) -> None:
+    log_dir = tmp_path / "logs"
+    dataset_dir = tmp_path / "dataset"
+    service = LearningService(log_dir=log_dir)
+    service.record_many(
+        [
+            LearningEvent(
+                event_name="auto_trade_cycle",
+                market="KRW-XRP",
+                mode="demo",
+                payload={
+                    "status": "blocked",
+                    "market_state": "box",
+                    "market_state_label": "박스권",
+                    "box_range_low": 1990.0,
+                    "box_range_high": 2050.0,
+                },
+            ),
+            LearningEvent(
+                event_name="signal_generated",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"level": "weak", "score": 0.21},
+            ),
+        ],
+    )
+
+    parquet_path = DatasetExporter(dataset_dir=dataset_dir).export(log_dir / "learning.jsonl")
+
+    frame = pd.read_parquet(parquet_path)
+    assert list(frame["market_state"]) == ["box", "box"]
+    assert frame.loc[1, "market_regime_source"] == "carried_forward"
+    assert frame.loc[0, "payload.box_range_low"] == 1990.0
+
+
 def test_dataset_exporter_raises_on_missing_jsonl(tmp_path: Path) -> None:
     exporter = DatasetExporter(dataset_dir=tmp_path / "dataset")
 

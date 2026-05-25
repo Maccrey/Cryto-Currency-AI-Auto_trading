@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,9 @@ class LearningLogDiagnostics:
             "sizing_blocked_reasons": dict(sizing_blocked_reasons),
             "signal_reason_codes": dict(signal_reason_codes),
             "external_context_summary": self._external_context_summary(external_context_samples),
+            "market_state_summary": self._market_state_summary(events),
+            "stop_loss_summary": self._stop_loss_summary(events),
+            "no_trade_summary": self._no_trade_summary(events),
             "diagnosis": self._diagnose(
                 events=events,
                 auto_cycles=auto_cycles,
@@ -121,6 +125,142 @@ class LearningLogDiagnostics:
             "etf_state_counts": dict(etf_counts),
             "avg_learning_weight": round(sum(weights) / len(weights), 3) if weights else 1.0,
         }
+
+    @staticmethod
+    def _market_state_summary(events: list[dict[str, Any]]) -> dict[str, object]:
+        state_counts: Counter[str] = Counter()
+        source_counts: Counter[str] = Counter()
+        latest_state = None
+        latest_label = None
+        latest_box_range = {"low": None, "high": None}
+        for event in events:
+            payload = event.get("payload") or {}
+            if not isinstance(payload, dict):
+                continue
+            state = payload.get("market_state")
+            if state not in {"bull", "bear", "box"}:
+                continue
+            state_counts.update([str(state)])
+            source_counts.update([str(payload.get("market_state_source") or "payload")])
+            latest_state = str(state)
+            latest_label = payload.get("market_state_label")
+            latest_box_range = {
+                "low": payload.get("box_range_low"),
+                "high": payload.get("box_range_high"),
+            }
+        return {
+            "sample_count": sum(state_counts.values()),
+            "state_counts": dict(state_counts),
+            "source_counts": dict(source_counts),
+            "latest_state": latest_state,
+            "latest_state_label": latest_label,
+            "latest_box_range": latest_box_range,
+        }
+
+    @staticmethod
+    def _stop_loss_summary(events: list[dict[str, Any]]) -> dict[str, object]:
+        reason_counts: Counter[str] = Counter()
+        market_state_counts: Counter[str] = Counter()
+        signal_level_counts: Counter[str] = Counter()
+        returns: list[float] = []
+        for event in events:
+            if event.get("event_name") not in {"position_exit_completed", "position_lifecycle_updated"}:
+                continue
+            payload = event.get("payload") or {}
+            if not isinstance(payload, dict):
+                continue
+            reason_code = str(payload.get("reason_code") or "")
+            if not reason_code.startswith("STOP_LOSS"):
+                continue
+            reason_counts.update([reason_code])
+            state = payload.get("market_state")
+            if state in {"bull", "bear", "box"}:
+                market_state_counts.update([str(state)])
+            signal_level = payload.get("signal_level")
+            if signal_level is not None:
+                signal_level_counts.update([str(signal_level)])
+            return_pct = LearningLogDiagnostics._exit_return_pct(payload)
+            if return_pct is not None:
+                returns.append(return_pct)
+        return {
+            "total_stop_losses": sum(reason_counts.values()),
+            "reason_counts": dict(reason_counts),
+            "market_state_counts": dict(market_state_counts),
+            "signal_level_counts": dict(signal_level_counts),
+            "avg_return_pct": round(sum(returns) / len(returns), 6) if returns else None,
+        }
+
+    @staticmethod
+    def _no_trade_summary(events: list[dict[str, Any]]) -> dict[str, object]:
+        event_times = [LearningLogDiagnostics._parse_dt(event.get("recorded_at")) for event in events]
+        event_times = [item for item in event_times if item is not None]
+        if not event_times:
+            return {"status": "unknown", "window_hours": 24}
+        last_event_at = max(event_times)
+        window_start = last_event_at - timedelta(hours=24)
+        window_events = [
+            event for event in events
+            if (LearningLogDiagnostics._parse_dt(event.get("recorded_at")) or datetime.min.replace(tzinfo=UTC)) >= window_start
+        ]
+        cycles = [event for event in window_events if event.get("event_name") == "auto_trade_cycle"]
+        fills = [event for event in window_events if event.get("event_name") == "fill_result"]
+        reasons = Counter(
+            str((event.get("payload") or {}).get("reason"))
+            for event in cycles
+            if (event.get("payload") or {}).get("reason") is not None
+        )
+        states = Counter(
+            str((event.get("payload") or {}).get("market_state"))
+            for event in cycles
+            if (event.get("payload") or {}).get("market_state") in {"bull", "bear", "box"}
+        )
+        last_fill_times = [
+            LearningLogDiagnostics._parse_dt(event.get("recorded_at"))
+            for event in events
+            if event.get("event_name") == "fill_result"
+        ]
+        last_fill_times = [item for item in last_fill_times if item is not None]
+        last_fill_at = max(last_fill_times) if last_fill_times else None
+        return {
+            "window_hours": 24,
+            "window_start_at": window_start.isoformat(),
+            "last_event_at": last_event_at.isoformat(),
+            "last_fill_at": None if last_fill_at is None else last_fill_at.isoformat(),
+            "hours_since_last_fill": None if last_fill_at is None else round((last_event_at - last_fill_at).total_seconds() / 3600, 2),
+            "window_cycle_count": len(cycles),
+            "window_fill_count": len(fills),
+            "blocked_reason_counts": dict(reasons),
+            "market_state_counts": dict(states),
+        }
+
+    @staticmethod
+    def _exit_return_pct(payload: dict[str, Any]) -> float | None:
+        direct = payload.get("unrealized_return_pct")
+        if direct is not None:
+            try:
+                return float(direct)
+            except (TypeError, ValueError):
+                pass
+        try:
+            entry = float(payload.get("entry_price", 0.0) or 0.0)
+            current = float(payload.get("current_price", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return None
+        if entry <= 0 or current <= 0:
+            return None
+        return round((current - entry) / entry, 6)
+
+    @staticmethod
+    def _parse_dt(value: object) -> datetime | None:
+        if value is None:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
 
     @staticmethod
     def _diagnose(

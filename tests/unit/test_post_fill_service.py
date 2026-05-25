@@ -111,6 +111,8 @@ def test_post_fill_service_injects_position_for_buy_fill() -> None:
     assert len(records) == 1
     assert records[0].event_type == "opened"
     assert [event.event_name for event in learning_service.events] == ["position_opened"]
+    assert learning_service.events[0].payload["market_state"] == "bull"
+    assert learning_service.events[0].payload["market_state_label"] == "상승장"
 
 
 def test_post_fill_service_merges_additional_buy_into_current_position() -> None:

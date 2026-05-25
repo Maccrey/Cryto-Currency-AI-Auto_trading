@@ -39,6 +39,11 @@ class ModelTrainingReadinessService:
             for row in auto_cycles
             if (row.get("payload") or {}).get("status") == "blocked"
         ]
+        market_state_counts = Counter(
+            str((row.get("payload") or {}).get("market_state"))
+            for row in rows
+            if (row.get("payload") or {}).get("market_state") in {"bull", "bear", "box"}
+        )
         metrics = {
             "total_events": len(rows),
             "signal_events": counts.get("signal_generated", 0),
@@ -54,9 +59,9 @@ class ModelTrainingReadinessService:
             "blocked_cycles": self._thresholds.min_blocked_cycles,
         }
         gaps = {
-            key: max(required[key] - value, 0)
-            for key, value in metrics.items()
-            if value < required[key]
+            key: max(required[key] - metrics.get(key, 0), 0)
+            for key in required
+            if metrics.get(key, 0) < required[key]
         }
         completion_rate = self.completion_rate(metrics=metrics, required=required)
         return {

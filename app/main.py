@@ -146,7 +146,11 @@ def create_app(
 
     telegram_gateway = None
     if settings.telegram_bot_token and settings.telegram_chat_id:
-        current_server_name = lambda: load_settings(env_file=settings.env_file_path).server_name
+        env_file_service = EnvFileService(settings.env_file_path)
+
+        def current_server_name() -> str:
+            return env_file_service.server_name(fallback=settings.server_name)
+
         telegram_gateway = TelegramHttpGateway(
             bot_token=settings.telegram_bot_token,
             chat_id=settings.telegram_chat_id,

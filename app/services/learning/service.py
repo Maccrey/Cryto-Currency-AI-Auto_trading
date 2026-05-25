@@ -59,7 +59,7 @@ class MarketObservationExporter:
 
     def export(self, payload: dict[str, Any]) -> None:
         row = dict(payload)
-        row["schema_version"] = 1
+        row["schema_version"] = 2
         with self._log_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row, ensure_ascii=True))
             handle.write("\n")

@@ -56,6 +56,13 @@ class EnvFileService:
             },
         }
 
+    def server_name(self, *, fallback: str = "") -> str:
+        saved_name = self._read().get("SERVER_NAME", "").strip()
+        if saved_name:
+            return saved_name
+        fallback = fallback.strip()
+        return fallback or self._default_server_name()
+
     def secret_value(self, key: str) -> dict[str, object]:
         if key not in SECRET_KEYS:
             return {

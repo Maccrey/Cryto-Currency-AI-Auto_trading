@@ -137,6 +137,9 @@ class PositionExitService:
                     elapsed_sec=elapsed_sec,
                     momentum_score=momentum_score,
                     orderbook_imbalance=orderbook_imbalance,
+                    market_state=market_state,
+                    box_range_low=box_range_low,
+                    box_range_high=box_range_high,
                 )
                 return {
                     "status": "blocked",
@@ -164,6 +167,9 @@ class PositionExitService:
                 elapsed_sec=elapsed_sec,
                 momentum_score=momentum_score,
                 orderbook_imbalance=orderbook_imbalance,
+                market_state=market_state,
+                box_range_low=box_range_low,
+                box_range_high=box_range_high,
                 execution=execution,
                 remaining_quantity=0.0,
             )
@@ -200,6 +206,9 @@ class PositionExitService:
                     elapsed_sec=elapsed_sec,
                     momentum_score=momentum_score,
                     orderbook_imbalance=orderbook_imbalance,
+                    market_state=market_state,
+                    box_range_low=box_range_low,
+                    box_range_high=box_range_high,
                 )
                 return {
                     "status": "blocked",
@@ -228,6 +237,9 @@ class PositionExitService:
                 elapsed_sec=elapsed_sec,
                 momentum_score=momentum_score,
                 orderbook_imbalance=orderbook_imbalance,
+                market_state=market_state,
+                box_range_low=box_range_low,
+                box_range_high=box_range_high,
                 execution=execution,
                 remaining_quantity=0.0,
             )
@@ -274,6 +286,9 @@ class PositionExitService:
                     elapsed_sec=elapsed_sec,
                     momentum_score=momentum_score,
                     orderbook_imbalance=orderbook_imbalance,
+                    market_state=market_state,
+                    box_range_low=box_range_low,
+                    box_range_high=box_range_high,
                 )
                 return {
                     "status": "blocked",
@@ -314,6 +329,9 @@ class PositionExitService:
                 elapsed_sec=elapsed_sec,
                 momentum_score=momentum_score,
                 orderbook_imbalance=orderbook_imbalance,
+                market_state=market_state,
+                box_range_low=box_range_low,
+                box_range_high=box_range_high,
                 execution=execution,
                 remaining_quantity=remaining_quantity,
                 extra_payload=take_profit_details,
@@ -379,6 +397,9 @@ class PositionExitService:
                 elapsed_sec=elapsed_sec,
                 momentum_score=momentum_score,
                 orderbook_imbalance=orderbook_imbalance,
+                market_state=market_state,
+                box_range_low=box_range_low,
+                box_range_high=box_range_high,
             )
             return {
                 "status": "blocked",
@@ -421,6 +442,9 @@ class PositionExitService:
             elapsed_sec=elapsed_sec,
             momentum_score=momentum_score,
             orderbook_imbalance=orderbook_imbalance,
+            market_state=market_state,
+            box_range_low=box_range_low,
+            box_range_high=box_range_high,
             execution=execution,
             remaining_quantity=remaining_quantity,
         )
@@ -607,6 +631,32 @@ class PositionExitService:
         )
 
     @staticmethod
+    def _market_state_payload(
+        *,
+        market_state: str | None,
+        box_range_low: float | None,
+        box_range_high: float | None,
+    ) -> dict[str, object]:
+        if market_state not in {"bull", "bear", "box"}:
+            return {}
+        return {
+            "market_state": market_state,
+            "market_state_label": {
+                "bull": "상승장",
+                "bear": "하락장",
+                "box": "박스권",
+            }[market_state],
+            "box_range_low": box_range_low if market_state == "box" else None,
+            "box_range_high": box_range_high if market_state == "box" else None,
+        }
+
+    @staticmethod
+    def _return_pct(*, entry_price: float, current_price: float) -> float:
+        if entry_price <= 0 or current_price <= 0:
+            return 0.0
+        return round((current_price - entry_price) / entry_price, 6)
+
+    @staticmethod
     def _chart_continuation_score(*, momentum_score: float, orderbook_imbalance: float) -> float:
         normalized_momentum = (max(min(momentum_score, 1.0), -1.0) + 1.0) / 2.0
         normalized_imbalance = max(min(orderbook_imbalance + 0.5, 1.0), 0.0)
@@ -622,6 +672,9 @@ class PositionExitService:
         elapsed_sec: int,
         momentum_score: float,
         orderbook_imbalance: float,
+        market_state: str | None = None,
+        box_range_low: float | None = None,
+        box_range_high: float | None = None,
     ) -> None:
         if self._learning_service is None:
             return
@@ -637,6 +690,11 @@ class PositionExitService:
                     "elapsed_sec": elapsed_sec,
                     "momentum_score": momentum_score,
                     "orderbook_imbalance": orderbook_imbalance,
+                    **self._market_state_payload(
+                        market_state=market_state,
+                        box_range_low=box_range_low,
+                        box_range_high=box_range_high,
+                    ),
                     "entry_price": position.entry_price,
                     "quantity": position.quantity,
                     "notional": self._order_rules.notional(price=current_price, quantity=position.quantity),
@@ -659,6 +717,9 @@ class PositionExitService:
         execution: Any,
         remaining_quantity: float,
         extra_payload: dict[str, object] | None = None,
+        market_state: str | None = None,
+        box_range_low: float | None = None,
+        box_range_high: float | None = None,
     ) -> None:
         extra_payload = extra_payload or {}
         if self._learning_service is not None:
@@ -676,6 +737,15 @@ class PositionExitService:
                         "elapsed_sec": elapsed_sec,
                         "momentum_score": momentum_score,
                         "orderbook_imbalance": orderbook_imbalance,
+                        "unrealized_return_pct": self._return_pct(
+                            entry_price=position.entry_price,
+                            current_price=current_price,
+                        ),
+                        **self._market_state_payload(
+                            market_state=market_state,
+                            box_range_low=box_range_low,
+                            box_range_high=box_range_high,
+                        ),
                         "entry_price": position.entry_price,
                         "previous_quantity": position.quantity,
                         "remaining_quantity": max(remaining_quantity, 0.0),
@@ -698,6 +768,11 @@ class PositionExitService:
                         "previous_quantity": position.quantity,
                         "remaining_quantity": max(remaining_quantity, 0.0),
                         "stop_loss_price": position.stop_loss_price,
+                        **self._market_state_payload(
+                            market_state=market_state,
+                            box_range_low=box_range_low,
+                            box_range_high=box_range_high,
+                        ),
                     },
                 ),
             )
@@ -706,6 +781,14 @@ class PositionExitService:
                 execution,
                 reason_code=reason_code,
                 signal_level=position.signal_level,
+                market_state=market_state,
+                market_state_label=self._market_state_payload(
+                    market_state=market_state,
+                    box_range_low=box_range_low,
+                    box_range_high=box_range_high,
+                ).get("market_state_label"),
+                box_range_low=box_range_low if market_state == "box" else None,
+                box_range_high=box_range_high if market_state == "box" else None,
             )
         if self._position_lifecycle_ledger is not None:
             if max(remaining_quantity, 0.0) <= 0:

@@ -80,7 +80,7 @@ def test_learning_service_records_market_observations_to_separate_jsonl(tmp_path
         json.loads(line)
         for line in (tmp_path / "market-observations.jsonl").read_text(encoding="utf-8").splitlines()
     ]
-    assert rows[0]["schema_version"] == 1
+    assert rows[0]["schema_version"] == 2
     assert rows[0]["trade_price"] == 820.0
 
 

@@ -16,6 +16,10 @@ class ExecutionLedgerRecord:
     recorded_at: str | None
     signal_level: str | None = None
     signal_score: float | None = None
+    market_state: str | None = None
+    market_state_label: str | None = None
+    box_range_low: float | None = None
+    box_range_high: float | None = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +61,10 @@ class ExecutionLedger:
         recorded_at: str | None = None,
         signal_level: str | None = None,
         signal_score: float | None = None,
+        market_state: object | None = None,
+        market_state_label: object | None = None,
+        box_range_low: object | None = None,
+        box_range_high: object | None = None,
     ) -> None:
         self._records.append(
             ExecutionLedgerRecord(
@@ -65,6 +73,10 @@ class ExecutionLedger:
                 recorded_at=recorded_at or datetime.now().astimezone().isoformat(timespec="seconds"),
                 signal_level=signal_level,
                 signal_score=signal_score,
+                market_state=None if market_state is None else str(market_state),
+                market_state_label=None if market_state_label is None else str(market_state_label),
+                box_range_low=self._optional_float(box_range_low),
+                box_range_high=self._optional_float(box_range_high),
             ),
         )
         self._persist()
@@ -260,12 +272,25 @@ class ExecutionLedger:
                         reason_code=None if item.get("reason_code") is None else str(item.get("reason_code")),
                         recorded_at=None if item.get("recorded_at") is None else str(item.get("recorded_at")),
                         signal_level=None if item.get("signal_level") is None else str(item.get("signal_level")),
-                        signal_score=None if item.get("signal_score") is None else float(item.get("signal_score")),
+                        signal_score=self._optional_float(item.get("signal_score")),
+                        market_state=None if item.get("market_state") is None else str(item.get("market_state")),
+                        market_state_label=None if item.get("market_state_label") is None else str(item.get("market_state_label")),
+                        box_range_low=self._optional_float(item.get("box_range_low")),
+                        box_range_high=self._optional_float(item.get("box_range_high")),
                     ),
                 )
             except (TypeError, ValueError):
                 continue
         self._records = restored
+
+    @staticmethod
+    def _optional_float(value: object) -> float | None:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     def _persist(self) -> None:
         if self._storage_path is None:
@@ -279,6 +304,10 @@ class ExecutionLedger:
                     "recorded_at": record.recorded_at,
                     "signal_level": record.signal_level,
                     "signal_score": record.signal_score,
+                    "market_state": record.market_state,
+                    "market_state_label": record.market_state_label,
+                    "box_range_low": record.box_range_low,
+                    "box_range_high": record.box_range_high,
                 }
                 for record in self._records
             ],

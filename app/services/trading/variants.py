@@ -21,6 +21,19 @@ class DemoRuleVariant:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class DemoRuleVariantPolicy:
+    buy_multiplier: float
+    sell_multiplier: float
+    take_profit_pct: float
+    stop_loss_pct: float
+    entry_allowed: bool
+    action_reason: str
+    market_state: str
+    market_pressure: float
+    box_position: float | None
+
+
 @dataclass
 class ShadowPortfolio:
     cash_balance: float
@@ -39,7 +52,7 @@ class DemoRuleVariantShadowTester:
         DemoRuleVariant(
             key="A",
             label="룰 A 안정형",
-            description="기본 신호와 기본 익절/손절 폭으로 추적합니다.",
+            description="기본 신호에 장세 민감 배수를 더해 균형 있게 추적합니다.",
             buy_multiplier=1.0,
             sell_multiplier=1.0,
             take_profit_pct=0.006,
@@ -48,7 +61,7 @@ class DemoRuleVariantShadowTester:
         DemoRuleVariant(
             key="B",
             label="룰 B 추세형",
-            description="상승장에서만 진입을 키우고 익절 폭을 넓힙니다.",
+            description="상승장 강도에만 진입을 키우고 추세 지속 시 익절 폭을 넓힙니다.",
             buy_multiplier=1.18,
             sell_multiplier=0.82,
             take_profit_pct=0.009,
@@ -57,7 +70,7 @@ class DemoRuleVariantShadowTester:
         DemoRuleVariant(
             key="C",
             label="룰 C 방어형",
-            description="하락장과 박스권에서 작게 진입하고 빠르게 줄입니다.",
+            description="하락장 노출을 빠르게 줄이고 박스권 하단에서만 작게 진입합니다.",
             buy_multiplier=0.72,
             sell_multiplier=1.3,
             take_profit_pct=0.004,
@@ -99,6 +112,8 @@ class DemoRuleVariantShadowTester:
             "leader_key": leader["variant_key"],
             "leader_label": leader["variant_label"],
             "leader_reason": self._leader_reason(leader),
+            "market_state": leader["market_state"],
+            "market_state_label": leader["market_state_label"],
             "results": results,
         }
 
@@ -126,18 +141,23 @@ class DemoRuleVariantShadowTester:
         current_price: float,
     ) -> dict[str, object]:
         shadow = self._portfolios[variant.key]
+        policy = self._market_sensitive_policy(
+            variant=variant,
+            decision=decision,
+            current_price=current_price,
+        )
         action = "hold"
         if shadow.asset_balance > 0:
             action = self._maybe_shadow_sell(
                 shadow=shadow,
-                variant=variant,
+                policy=policy,
                 decision=decision,
                 current_price=current_price,
             )
         elif decision.sizing.allowed and decision.signal.level != "weak":
             action = self._maybe_shadow_buy(
                 shadow=shadow,
-                variant=variant,
+                policy=policy,
                 decision=decision,
                 current_price=current_price,
             )
@@ -158,24 +178,129 @@ class DemoRuleVariantShadowTester:
             "trade_count": shadow.trade_count,
             "win_rate": None if win_rate is None else round(win_rate, 4),
             "last_action": action,
+            "action_reason": policy.action_reason,
+            "entry_allowed_by_variant": policy.entry_allowed,
+            "market_state": policy.market_state,
+            "market_state_label": decision.regime.market_state_label,
+            "market_pressure": policy.market_pressure,
+            "box_position": policy.box_position,
             "buy_multiplier": variant.buy_multiplier,
             "sell_multiplier": variant.sell_multiplier,
             "take_profit_pct": variant.take_profit_pct,
             "stop_loss_pct": variant.stop_loss_pct,
+            "effective_buy_multiplier": policy.buy_multiplier,
+            "effective_sell_multiplier": policy.sell_multiplier,
+            "effective_take_profit_pct": policy.take_profit_pct,
+            "effective_stop_loss_pct": policy.stop_loss_pct,
         }
+
+    def _market_sensitive_policy(
+        self,
+        *,
+        variant: DemoRuleVariant,
+        decision: TradeDecisionResult,
+        current_price: float,
+    ) -> DemoRuleVariantPolicy:
+        market_state = decision.regime.market_state if decision.regime.market_state in {"bull", "bear", "box"} else "box"
+        market_pressure = self._market_pressure(decision)
+        box_position = self._box_position(decision=decision, current_price=current_price)
+        buy_multiplier = variant.buy_multiplier
+        sell_multiplier = variant.sell_multiplier
+        take_profit_pct = variant.take_profit_pct
+        stop_loss_pct = variant.stop_loss_pct
+        entry_allowed = True
+        action_reason = f"{market_state}_neutral"
+
+        if variant.key == "A":
+            if market_state == "bull":
+                buy_multiplier *= 1.0 + (max(market_pressure, 0.0) * 0.18)
+                sell_multiplier *= 0.92
+                take_profit_pct *= 1.08
+                stop_loss_pct *= 1.08
+                action_reason = "bull_balance_boost"
+            elif market_state == "bear":
+                buy_multiplier *= 0.52
+                sell_multiplier *= 1.28
+                take_profit_pct *= 0.82
+                stop_loss_pct *= 0.78
+                action_reason = "bear_balance_defense"
+            else:
+                lower_zone = box_position is None or box_position <= 0.45
+                buy_multiplier *= 0.82 if lower_zone else 0.42
+                sell_multiplier *= 1.08
+                take_profit_pct *= 0.9
+                stop_loss_pct *= 0.88
+                entry_allowed = lower_zone
+                action_reason = "box_lower_balance" if lower_zone else "box_upper_entry_block"
+
+        if variant.key == "B":
+            if market_state == "bull":
+                buy_multiplier *= 1.08 + (max(market_pressure, 0.0) * 0.28)
+                sell_multiplier *= 0.76
+                take_profit_pct *= 1.18 + (max(market_pressure, 0.0) * 0.2)
+                stop_loss_pct *= 1.08
+                action_reason = "bull_trend_expansion"
+            else:
+                entry_allowed = False
+                buy_multiplier = 0.0
+                sell_multiplier *= 1.6 if market_state == "bear" else 1.18
+                take_profit_pct *= 0.72 if market_state == "bear" else 0.85
+                stop_loss_pct *= 0.72 if market_state == "bear" else 0.88
+                action_reason = f"{market_state}_trend_entry_block"
+
+        if variant.key == "C":
+            if market_state == "bear":
+                entry_allowed = False
+                buy_multiplier = 0.0
+                sell_multiplier *= 1.55
+                take_profit_pct *= 0.72
+                stop_loss_pct *= 0.68
+                action_reason = "bear_defensive_exit"
+            elif market_state == "box":
+                lower_zone = box_position is not None and box_position <= 0.35
+                entry_allowed = lower_zone
+                buy_multiplier *= 0.86 if lower_zone else 0.0
+                sell_multiplier *= 1.22 if lower_zone else 1.4
+                take_profit_pct *= 0.86
+                stop_loss_pct *= 0.82
+                action_reason = "box_low_defensive_entry" if lower_zone else "box_mid_high_entry_block"
+            else:
+                buy_multiplier *= 0.68 + (max(market_pressure, 0.0) * 0.08)
+                sell_multiplier *= 1.08
+                take_profit_pct *= 0.92
+                stop_loss_pct *= 0.88
+                action_reason = "bull_defensive_participation"
+
+        volatility_penalty = min(max(decision.features.short_volatility / 0.02, 0.0), 1.0)
+        if volatility_penalty > 0.5:
+            buy_multiplier *= 1.0 - ((volatility_penalty - 0.5) * 0.22)
+            sell_multiplier *= 1.0 + ((volatility_penalty - 0.5) * 0.18)
+            stop_loss_pct *= 0.94
+
+        return DemoRuleVariantPolicy(
+            buy_multiplier=round(max(buy_multiplier, 0.0), 4),
+            sell_multiplier=round(max(sell_multiplier, 0.0), 4),
+            take_profit_pct=round(max(take_profit_pct, self._trading_fee_rate * 2), 6),
+            stop_loss_pct=round(max(stop_loss_pct, self._trading_fee_rate * 2), 6),
+            entry_allowed=entry_allowed,
+            action_reason=action_reason,
+            market_state=market_state,
+            market_pressure=round(market_pressure, 4),
+            box_position=None if box_position is None else round(box_position, 4),
+        )
 
     def _maybe_shadow_buy(
         self,
         *,
         shadow: ShadowPortfolio,
-        variant: DemoRuleVariant,
+        policy: DemoRuleVariantPolicy,
         decision: TradeDecisionResult,
         current_price: float,
     ) -> str:
-        if variant.key == "B" and decision.regime.market_state != "bull":
+        if not policy.entry_allowed:
             return "hold"
         buy_amount = min(
-            max(decision.sizing.buy_amount * variant.buy_multiplier, 0.0),
+            max(decision.sizing.buy_amount * policy.buy_multiplier, 0.0),
             shadow.cash_balance / (1 + self._trading_fee_rate),
         )
         if buy_amount <= 0:
@@ -192,7 +317,7 @@ class DemoRuleVariantShadowTester:
         self,
         *,
         shadow: ShadowPortfolio,
-        variant: DemoRuleVariant,
+        policy: DemoRuleVariantPolicy,
         decision: TradeDecisionResult,
         current_price: float,
     ) -> str:
@@ -200,14 +325,15 @@ class DemoRuleVariantShadowTester:
             return "hold"
         profit_pct = (current_price - shadow.avg_buy_price) / shadow.avg_buy_price
         should_exit = (
-            profit_pct >= variant.take_profit_pct
-            or profit_pct <= -variant.stop_loss_pct
+            profit_pct >= policy.take_profit_pct
+            or profit_pct <= -policy.stop_loss_pct
             or decision.regime.market_state == "bear"
+            or self._box_high_exit(decision=decision, current_price=current_price)
         )
         if not should_exit:
             return "hold"
         base_sell_ratio = decision.sizing.sell_ratio if decision.sizing.sell_ratio > 0 else 0.35
-        sell_ratio = min(max(base_sell_ratio * variant.sell_multiplier, 0.1), 1.0)
+        sell_ratio = min(max(base_sell_ratio * policy.sell_multiplier, 0.1), 1.0)
         quantity = round(shadow.asset_balance * sell_ratio, 8)
         if quantity <= 0:
             return "hold"
@@ -227,10 +353,33 @@ class DemoRuleVariantShadowTester:
         return "sell"
 
     @staticmethod
+    def _market_pressure(decision: TradeDecisionResult) -> float:
+        momentum = max(min(decision.features.ret_30s / 0.02, 1.0), -1.0)
+        imbalance = max(min(decision.features.orderbook_imbalance / 0.35, 1.0), -1.0)
+        ma_trend = max(min(decision.features.ma_trend / 0.01, 1.0), -1.0)
+        return max(min((momentum * 0.5) + (imbalance * 0.35) + (ma_trend * 0.15), 1.0), -1.0)
+
+    @staticmethod
+    def _box_position(*, decision: TradeDecisionResult, current_price: float) -> float | None:
+        low = decision.regime.box_range_low
+        high = decision.regime.box_range_high
+        if low is None or high is None or high <= low:
+            return None
+        return max(min((current_price - low) / (high - low), 1.0), 0.0)
+
+    @staticmethod
+    def _box_high_exit(*, decision: TradeDecisionResult, current_price: float) -> bool:
+        if decision.regime.market_state != "box":
+            return False
+        position = DemoRuleVariantShadowTester._box_position(decision=decision, current_price=current_price)
+        return position is not None and position >= 0.82
+
+    @staticmethod
     def _leader_reason(leader: dict[str, object]) -> str:
         return (
-            f"{leader['variant_label']}이 같은 시세 흐름에서 현재 수익률 "
-            f"{float(leader['profit_rate']):.2%}로 가장 높습니다."
+            f"{leader['variant_label']}이 {leader['market_state_label']} 흐름에서 "
+            f"현재 수익률 {float(leader['profit_rate']):.2%}로 가장 높습니다. "
+            f"적용 사유는 {leader['action_reason']}입니다."
         )
 
     @staticmethod
@@ -239,5 +388,7 @@ class DemoRuleVariantShadowTester:
             "leader_key": None,
             "leader_label": None,
             "leader_reason": "현재가가 없어 A/B/C 동시 테스트를 실행하지 못했습니다.",
+            "market_state": None,
+            "market_state_label": None,
             "results": [],
         }

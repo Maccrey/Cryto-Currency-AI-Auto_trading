@@ -25,6 +25,7 @@ class MarketTrendClassifier:
     BOX_THRESHOLD_PCT = 0.001
     MIN_BOX_WIDTH_PCT = 0.001
     RECENT_TREND_POINTS = 12
+    STATE_LOOKBACK_POINTS = 288
     LEARNING_BOX_OVERRIDE_CONFIDENCE = 0.65
     LEARNING_TREND_OVERRIDE_CONFIDENCE = 0.82
 
@@ -36,15 +37,16 @@ class MarketTrendClassifier:
         learning_events: list[LearningEvent] | None = None,
         reference_change_pct: float | None = None,
     ) -> MarketTrendSnapshot:
+        state_history = self._state_history(history)
         recent_change_pct = 0.0
-        if len(history) >= 2 and history[0].price > 0:
+        if len(state_history) >= 2 and state_history[0].price > 0:
             recent_change_pct = round(
-                (current_price - history[0].price) / history[0].price,
+                (current_price - state_history[0].price) / state_history[0].price,
                 4,
             )
         recent_window_change_pct = self._recent_window_change_pct(
             current_price=current_price,
-            history=history,
+            history=state_history,
         )
         state_change_pct, state_source = self._state_change_pct(
             recent_change_pct=recent_change_pct,
@@ -59,7 +61,7 @@ class MarketTrendClassifier:
         box_range_low, box_range_high = self._box_range(
             market_state=market_state,
             current_price=current_price,
-            history=history,
+            history=state_history,
         )
         return MarketTrendSnapshot(
             recent_change_pct=state_change_pct,
@@ -71,6 +73,12 @@ class MarketTrendClassifier:
             learning_confidence=learned_confidence,
             source=state_source,
         )
+
+    @staticmethod
+    def _state_history(history: list[MarketPriceSnapshot]) -> list[MarketPriceSnapshot]:
+        if len(history) <= MarketTrendClassifier.STATE_LOOKBACK_POINTS:
+            return history
+        return history[-MarketTrendClassifier.STATE_LOOKBACK_POINTS :]
 
     @staticmethod
     def _state_change_pct(

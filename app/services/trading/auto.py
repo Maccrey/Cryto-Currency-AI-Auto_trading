@@ -900,12 +900,12 @@ class AutoTradingService:
     def _recent_price_market_state(self) -> str | None:
         history = self._market_price_store.list_history(self._market)
         prices = [item.price for item in history if item.price > 0]
-        if len(prices) < 2 or prices[0] <= 0:
+        if len(prices) < 2:
             return None
-        recent_change_pct = (prices[-1] - prices[0]) / prices[0]
-        if abs(recent_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT:
-            return "box"
-        return "bull" if recent_change_pct > 0 else "bear"
+        try:
+            return self._classify_current_market_state(prices[-1]).market_state
+        except Exception:
+            return None
 
     def _box_range_buy_opportunity(
         self,
@@ -1009,6 +1009,8 @@ class AutoTradingService:
             payload["external_context"] = external_context
         if extra is not None:
             payload.update(extra)
+        for key, value in self._market_regime_payload().items():
+            payload.setdefault(key, value)
         self._last_cycle = dict(payload)
         self._learning_service.record(
             LearningEvent(
@@ -1081,7 +1083,29 @@ class AutoTradingService:
             return 1.0
         return round(min(len(self._prices) / self._config.min_history, 1.0), 3)
 
+    def _market_regime_payload(self, current_price: float | None = None) -> dict[str, object]:
+        if current_price is None:
+            snapshot = self._market_price_store.get(self._market)
+            if snapshot is None or snapshot.price <= 0:
+                return {}
+            current_price = snapshot.price
+        try:
+            trend = self._classify_current_market_state(float(current_price))
+        except Exception:
+            return {}
+        return {
+            "market_state": trend.market_state,
+            "market_state_label": trend.market_state_label,
+            "box_range_low": trend.box_range_low,
+            "box_range_high": trend.box_range_high,
+            "market_state_recent_change_pct": trend.recent_change_pct,
+            "market_state_source": trend.source,
+            "market_state_learning_sample_count": trend.learning_sample_count,
+            "market_state_learning_confidence": trend.learning_confidence,
+        }
+
     def _record_market_observation(self, snapshot: UpbitTickerSnapshot) -> None:
+        price_window = list(self._prices)
         payload: dict[str, object] = {
             "recorded_at": self._clock().isoformat(),
             "market": self._market,
@@ -1093,9 +1117,12 @@ class AutoTradingService:
             "liquidity_score": self._liquidity_score(),
             "regime_score": self._regime_score(),
             "history_count": len(self._prices),
-            "price_window": list(self._prices),
+            "price_window": price_window,
+            "price_window_low": min(price_window) if price_window else None,
+            "price_window_high": max(price_window) if price_window else None,
             "traded_value_window": list(self._traded_values),
         }
+        payload.update(self._market_regime_payload(snapshot.trade_price))
         ticker_meta = asdict(snapshot)
         payload["ticker"] = {key: value for key, value in ticker_meta.items() if value is not None}
         record_observation = getattr(self._learning_service, "record_market_observation", None)
@@ -1109,10 +1136,14 @@ class AutoTradingService:
             price_change_pct = 0.0
             last_return_pct = 0.0
             price_range_pct = 0.0
+            price_window_low = prices[-1] if prices else None
+            price_window_high = prices[-1] if prices else None
         else:
+            price_window_low = min(prices)
+            price_window_high = max(prices)
             price_change_pct = round((prices[-1] - prices[0]) / prices[0], 6)
             last_return_pct = round((prices[-1] - prices[-2]) / prices[-2], 6)
-            price_range_pct = round((max(prices) - min(prices)) / prices[-1], 6)
+            price_range_pct = round((price_window_high - price_window_low) / prices[-1], 6)
         if len(traded_values) < 2:
             traded_value_multiple = 1.0
         else:
@@ -1124,6 +1155,8 @@ class AutoTradingService:
             "price_change_pct": price_change_pct,
             "last_return_pct": last_return_pct,
             "price_range_pct": price_range_pct,
+            "price_window_low": price_window_low,
+            "price_window_high": price_window_high,
             "traded_value_multiple": traded_value_multiple,
             "spread_bps": self._config.spread_bps,
             "orderbook_imbalance": self._orderbook_imbalance(),

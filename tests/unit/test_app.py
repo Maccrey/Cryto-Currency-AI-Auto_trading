@@ -1283,6 +1283,8 @@ def test_trading_start_endpoint_reports_telegram_notification(monkeypatch, tmp_p
     assert started["telegram_notification"]["status"] == "sent"
     assert len(StubTelegramGateway.instances) == 1
     assert "자동매매 루프가 시작되었습니다." in StubTelegramGateway.instances[0].messages[0]
+    env_file.write_text(env_file.read_text(encoding="utf-8") + "SERVER_NAME=서울-저장서버\n", encoding="utf-8")
+    assert StubTelegramGateway.instances[0].server_name_provider() == "서울-저장서버"
 
 
 def test_settings_learning_reset_archives_current_profile_log(

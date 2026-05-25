@@ -9,7 +9,14 @@ from app.services.trading.decision import TradeDecisionResult
 from app.services.trading.variants import DemoRuleVariantShadowTester
 
 
-def _decision(*, market_state: str, signal_level: str = "strong", buy_amount: float = 100_000) -> TradeDecisionResult:
+def _decision(
+    *,
+    market_state: str,
+    signal_level: str = "strong",
+    buy_amount: float = 100_000,
+    box_range_low: float | None = None,
+    box_range_high: float | None = None,
+) -> TradeDecisionResult:
     return TradeDecisionResult(
         features=FeatureSnapshot(
             ret_1s=0.01,
@@ -37,8 +44,8 @@ def _decision(*, market_state: str, signal_level: str = "strong", buy_amount: fl
             reason_codes=[],
             market_state=market_state,
             market_state_label={"bull": "상승장", "bear": "하락장", "box": "박스권"}[market_state],
-            box_range_low=None,
-            box_range_high=None,
+            box_range_low=box_range_low,
+            box_range_high=box_range_high,
         ),
         sizing=SizingDecision(
             allowed=True,
@@ -68,6 +75,8 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
     assert {item["variant_key"] for item in report["results"]} == {"A", "B", "C"}
     assert report["leader_key"] in {"A", "B", "C"}
     assert all(item["last_action"] == "buy" for item in report["results"])
+    assert all("effective_buy_multiplier" in item for item in report["results"])
+    assert report["market_state"] == "bull"
 
 
 def test_demo_rule_variant_trend_rule_buys_only_in_bull_market() -> None:
@@ -107,3 +116,59 @@ def test_demo_rule_variant_shadow_tester_compares_profit_rate_after_same_price_m
     assert results["B"]["profit_rate"] > results["A"]["profit_rate"]
     assert results["A"]["profit_rate"] > results["C"]["profit_rate"]
     assert report["leader_key"] == "B"
+
+
+def test_demo_rule_variant_defensive_rule_buys_only_near_box_low() -> None:
+    tester = DemoRuleVariantShadowTester()
+    portfolio = PortfolioState(
+        cash_balance=1_000_000,
+        asset_currency="XRP",
+        asset_balance=0,
+        avg_buy_price=0,
+    )
+
+    low_report = tester.evaluate(
+        decision=_decision(market_state="box", box_range_low=980.0, box_range_high=1_040.0),
+        current_price=990.0,
+        portfolio=portfolio,
+    )
+
+    results = {item["variant_key"]: item for item in low_report["results"]}
+    assert results["C"]["last_action"] == "buy"
+    assert results["C"]["action_reason"] == "box_low_defensive_entry"
+    assert results["C"]["box_position"] < 0.35
+
+    high_tester = DemoRuleVariantShadowTester()
+    high_report = high_tester.evaluate(
+        decision=_decision(market_state="box", box_range_low=980.0, box_range_high=1_040.0),
+        current_price=1_030.0,
+        portfolio=portfolio,
+    )
+
+    high_results = {item["variant_key"]: item for item in high_report["results"]}
+    assert high_results["C"]["last_action"] == "hold"
+    assert high_results["C"]["entry_allowed_by_variant"] is False
+    assert high_results["C"]["action_reason"] == "box_mid_high_entry_block"
+
+
+def test_demo_rule_variant_bear_market_sells_defensive_rule_more_aggressively() -> None:
+    tester = DemoRuleVariantShadowTester()
+    portfolio = PortfolioState(
+        cash_balance=900_000,
+        asset_currency="XRP",
+        asset_balance=100,
+        avg_buy_price=1_000,
+    )
+
+    report = tester.evaluate(
+        decision=_decision(market_state="bear", buy_amount=0),
+        current_price=990.0,
+        portfolio=portfolio,
+    )
+
+    results = {item["variant_key"]: item for item in report["results"]}
+    assert results["A"]["last_action"] == "sell"
+    assert results["C"]["last_action"] == "sell"
+    assert results["C"]["effective_sell_multiplier"] > results["A"]["effective_sell_multiplier"]
+    assert results["C"]["asset_balance"] < results["A"]["asset_balance"]
+    assert results["C"]["action_reason"] == "bear_defensive_exit"

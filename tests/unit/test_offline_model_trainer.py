@@ -34,6 +34,7 @@ def test_offline_trainer_refuses_when_learning_data_is_insufficient(tmp_path: Pa
     assert report["status"] == "refused"
     assert report["reason_code"] == "insufficient_learning_data"
     assert report["readiness"]["status"] == "not_ready"
+    assert report["learning_analysis"]["no_trade_analysis"]["status"] in {"not_no_trade", "needs_review", "defensible"}
     assert Path(str(report["report_path"])).exists()
 
 
@@ -198,6 +199,7 @@ def test_offline_trainer_writes_shadow_report_when_gates_pass(tmp_path: Path) ->
     assert report["status"] == "trained"
     assert report["shadow_mode_required"] is True
     assert report["live_apply_allowed"] is False
+    assert "regime_performance" in report["learning_analysis"]
     assert Path(str(report["shadow_predictions_path"])).exists()
     assert Path(str(report["report_path"])).exists()
 

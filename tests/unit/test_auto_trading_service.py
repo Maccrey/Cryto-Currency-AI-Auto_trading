@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from app.services.execution.demo import DemoExecutor, FillResult
@@ -343,6 +344,12 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert result["rule_variant_leader_key"] in {"A", "B", "C"}
     assert {item["variant_key"] for item in result["rule_variant_shadow"]["results"]} == {"A", "B", "C"}
     assert service.last_cycle()["rule_variant_leader_key"] == result["rule_variant_leader_key"]
+    observation_rows = [
+        json.loads(line)
+        for line in (tmp_path / "market-observations.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert observation_rows[-1]["market_state"] == "bull"
+    assert observation_rows[-1]["market_state_label"] == "상승장"
 
 
 def test_auto_trading_service_blocks_weak_bear_market_state_entry(tmp_path: Path) -> None:

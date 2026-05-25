@@ -82,6 +82,7 @@ class PostFillService:
                 event_type=event_type,
                 position=position,
             )
+        regime_payload = self._regime_payload(getattr(execution_result.decision, "regime", None))
         if self._learning_service is not None:
             self._learning_service.record(
                 LearningEvent(
@@ -96,6 +97,7 @@ class PostFillService:
                         "event_type": event_type,
                         "validation_window_sec": position.validation_window_sec,
                         "min_expected_return_pct": position.min_expected_return_pct,
+                        **regime_payload,
                     },
                 ),
             )
@@ -104,6 +106,10 @@ class PostFillService:
                 execution,
                 signal_level=execution_result.decision.signal.level,
                 signal_score=execution_result.decision.signal.score,
+                market_state=regime_payload.get("market_state"),
+                market_state_label=regime_payload.get("market_state_label"),
+                box_range_low=regime_payload.get("box_range_low"),
+                box_range_high=regime_payload.get("box_range_high"),
             )
         if self._telegram_notifier is not None:
             total_asset_value = self._total_asset_value_after_fill(
@@ -117,6 +123,19 @@ class PostFillService:
             execution_result=execution_result,
             position=position,
         )
+
+    @staticmethod
+    def _regime_payload(regime) -> dict[str, object]:
+        if regime is None:
+            return {}
+        return {
+            "market_state": getattr(regime, "market_state", None),
+            "market_state_label": getattr(regime, "market_state_label", None),
+            "box_range_low": getattr(regime, "box_range_low", None),
+            "box_range_high": getattr(regime, "box_range_high", None),
+            "regime_label": getattr(regime, "label", None),
+            "regime_score": getattr(regime, "score", None),
+        }
 
     def _total_asset_value_after_fill(self, *, current_price: float) -> float | None:
         if self._execution_ledger is None or self._initial_portfolio_state is None:

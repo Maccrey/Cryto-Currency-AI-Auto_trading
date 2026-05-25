@@ -62,6 +62,14 @@ def test_env_file_service_uses_machine_name_when_server_name_is_blank(
     assert "SERVER_NAME=seoul-demo" in env_path.read_text(encoding="utf-8")
 
 
+def test_env_file_service_server_name_prefers_saved_value_over_runtime_fallback(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text("SERVER_NAME=서울-데모-저장값\n", encoding="utf-8")
+    service = EnvFileService(env_path)
+
+    assert service.server_name(fallback="초기환경값") == "서울-데모-저장값"
+
+
 def test_env_file_service_reports_missing_keys_when_switching_to_live(tmp_path: Path) -> None:
     env_path = tmp_path / ".env"
     env_path.write_text("TRADING_MODE=live\nLEARNING_ENABLED=true\n", encoding="utf-8")
