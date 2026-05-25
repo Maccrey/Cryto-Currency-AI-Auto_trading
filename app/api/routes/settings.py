@@ -21,6 +21,7 @@ def build_settings_router(
     reset_demo_trading_data_service: Callable[[], dict[str, object]] | None = None,
     purge_runtime_data_service: Callable[[], dict[str, object]] | None = None,
     telegram_test_service: Callable[[], dict[str, object]] | None = None,
+    after_save_service: Callable[[], dict[str, object]] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/settings")
 
@@ -43,7 +44,10 @@ def build_settings_router(
 
     @router.post("")
     def save_settings(payload: dict[str, object]) -> dict[str, object]:
-        return env_file_service.save(payload)
+        result = env_file_service.save(payload)
+        if result.get("saved") and after_save_service is not None:
+            result["runtime_apply"] = after_save_service()
+        return result
 
     @router.get("/trading/readiness")
     def trading_readiness() -> dict[str, object]:
@@ -188,8 +192,8 @@ SETTINGS_HTML = """
     .danger-zone { margin-top: 18px; padding-top: 16px; border-top: 1px solid #f1b8b1; }
     .subsection { margin-top: 18px; padding-top: 16px; border-top: 1px solid #d8e0e6; }
     .rule-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
-    .rule-result { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 13px; }
-    .rule-result th, .rule-result td { padding: 8px; border-top: 1px solid #d8e0e6; text-align: left; vertical-align: top; }
+    .rule-result { width: 100%; margin-top: 10px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+    .rule-result th, .rule-result td { padding: 8px; border-top: 1px solid #d8e0e6; text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
     .rule-result th { width: 150px; color: #52616d; }
     .modal-backdrop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(15, 23, 42, 0.54); z-index: 50; }
     .modal-backdrop.visible { display: flex; }
@@ -197,12 +201,12 @@ SETTINGS_HTML = """
     .rule-modal header { padding: 16px 18px; border-bottom: 1px solid #d8e0e6; }
     .rule-modal h2 { margin: 0; font-size: 18px; }
     .rule-modal-body { padding: 16px 18px; overflow-y: auto; line-height: 1.45; }
-    .rule-step { padding: 10px 0; border-bottom: 1px solid #edf2f5; font-size: 13px; }
+    .rule-step { padding: 10px 0; border-bottom: 1px solid #edf2f5; font-size: 13px; overflow-wrap: anywhere; word-break: break-word; }
     .rule-step strong { display: block; margin-bottom: 4px; }
     .rule-step.completed strong { color: #1f6b35; }
     .rule-step.blocked strong { color: #b42318; }
     .rule-step.running strong { color: #1769aa; }
-    .rule-final { margin-top: 14px; padding: 12px; border: 1px solid #d8e0e6; border-radius: 6px; background: #f4f7f9; white-space: pre-line; font-size: 13px; }
+    .rule-final { margin-top: 14px; padding: 12px; border: 1px solid #d8e0e6; border-radius: 6px; background: #f4f7f9; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; font-size: 13px; }
     .rule-modal-footer { padding: 12px 18px; border-top: 1px solid #d8e0e6; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
     .hidden { display: none !important; }
     .next-steps { display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
@@ -211,6 +215,15 @@ SETTINGS_HTML = """
     .start-panel.visible { display: block; }
     .start-panel.blocked { border-color: #f1b8b1; background: #fff1f0; color: #8a1f13; }
     .secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: white; color: #172026; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
+    @media (max-width: 560px) {
+      main { padding: 20px 12px; }
+      section { padding: 16px; }
+      .row { grid-template-columns: 1fr; }
+      .rule-actions { display: grid; grid-template-columns: 1fr; }
+      .rule-actions button { width: 100%; min-height: 42px; }
+      .rule-result th { width: 108px; }
+      .rule-modal { max-height: 88vh; }
+    }
     .note { color: #52616d; font-size: 13px; line-height: 1.45; }
     .checkbox-line { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13px; font-weight: 650; }
   </style>

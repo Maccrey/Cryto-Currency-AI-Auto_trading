@@ -63,6 +63,14 @@ class EnvFileService:
         fallback = fallback.strip()
         return fallback or self._default_server_name()
 
+    def demo_initial_capital(self, *, fallback: int = 1_000_000) -> int:
+        saved_value = self._read().get("DEMO_INITIAL_CAPITAL", "").strip()
+        try:
+            capital = int(saved_value)
+        except ValueError:
+            return fallback
+        return capital if capital > 0 else fallback
+
     def secret_value(self, key: str) -> dict[str, object]:
         if key not in SECRET_KEYS:
             return {

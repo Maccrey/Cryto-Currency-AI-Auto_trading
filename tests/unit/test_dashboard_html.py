@@ -125,6 +125,14 @@ def test_settings_includes_server_name_field() -> None:
     assert "/settings/telegram/test" in SETTINGS_HTML
 
 
+def test_settings_rule_improvement_layout_wraps_long_text() -> None:
+    assert ".rule-result { width: 100%; margin-top: 10px; border-collapse: collapse; table-layout: fixed;" in SETTINGS_HTML
+    assert "overflow-wrap: anywhere; word-break: break-word;" in SETTINGS_HTML
+    assert ".rule-final { margin-top: 14px;" in SETTINGS_HTML
+    assert "white-space: pre-wrap" in SETTINGS_HTML
+    assert ".rule-actions { display: grid; grid-template-columns: 1fr; }" in SETTINGS_HTML
+
+
 def test_dashboard_includes_external_market_context_panel() -> None:
     assert "온체인/ETF 상황" in DASHBOARD_HTML
     assert 'fetchJson("/dashboard/external-context")' in DASHBOARD_HTML
@@ -133,6 +141,10 @@ def test_dashboard_includes_external_market_context_panel() -> None:
     assert 'id="etfSource"' not in DASHBOARD_HTML
     assert 'id="contextUsdPrice"' in DASHBOARD_HTML
     assert 'id="contextUsdPrice" class="context-value usd-price"' in DASHBOARD_HTML
+    assert 'class="card market-context-card"' in DASHBOARD_HTML
+    assert 'class="context-grid market-context-grid"' in DASHBOARD_HTML
+    assert ".market-context-card .context-grid { grid-template-columns: repeat(2, minmax(0, 1fr));" in DASHBOARD_HTML
+    assert ".market-context-card .market-context-detail { grid-column: 1 / -1; }" in DASHBOARD_HTML
     assert ".context-value.usd-price { font-size: 26px;" in DASHBOARD_HTML
     assert ".context-value.usd-price span { font-size: 13px;" in DASHBOARD_HTML
     assert ".context-value.usd-price .krw-price" in DASHBOARD_HTML

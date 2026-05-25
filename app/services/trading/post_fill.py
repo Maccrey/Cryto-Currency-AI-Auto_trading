@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 
 from app.integrations.telegram.notifier import TelegramNotifier
@@ -30,6 +31,7 @@ class PostFillService:
         telegram_notifier: TelegramNotifier | None = None,
         execution_ledger: ExecutionLedger | None = None,
         initial_portfolio_state: PortfolioState | None = None,
+        initial_portfolio_state_provider: Callable[[], PortfolioState | None] | None = None,
         position_lifecycle_ledger: PositionLifecycleLedger | None = None,
         learning_service: LearningService | None = None,
     ) -> None:
@@ -38,6 +40,7 @@ class PostFillService:
         self._telegram_notifier = telegram_notifier
         self._execution_ledger = execution_ledger
         self._initial_portfolio_state = initial_portfolio_state
+        self._initial_portfolio_state_provider = initial_portfolio_state_provider
         self._position_lifecycle_ledger = position_lifecycle_ledger
         self._learning_service = learning_service
 
@@ -138,13 +141,19 @@ class PostFillService:
         }
 
     def _total_asset_value_after_fill(self, *, current_price: float) -> float | None:
-        if self._execution_ledger is None or self._initial_portfolio_state is None:
+        initial_portfolio_state = self._current_initial_portfolio_state()
+        if self._execution_ledger is None or initial_portfolio_state is None:
             return None
         portfolio = self._execution_ledger.portfolio_state(
-            initial_cash=self._initial_portfolio_state.cash_balance,
-            asset_currency=self._initial_portfolio_state.asset_currency,
+            initial_cash=initial_portfolio_state.cash_balance,
+            asset_currency=initial_portfolio_state.asset_currency,
         )
         return round(portfolio.cash_balance + (portfolio.asset_balance * current_price), 2)
+
+    def _current_initial_portfolio_state(self) -> PortfolioState | None:
+        if self._initial_portfolio_state_provider is not None:
+            return self._initial_portfolio_state_provider()
+        return self._initial_portfolio_state
 
     @staticmethod
     def _merge_position(

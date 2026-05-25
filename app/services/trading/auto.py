@@ -191,17 +191,44 @@ class AutoTradingService:
     def last_cycle(self) -> dict[str, object] | None:
         return dict(self._last_cycle) if self._last_cycle is not None else None
 
-    def reset_demo_portfolio(self) -> dict[str, object]:
+    def set_demo_portfolio_baseline(self, portfolio: PortfolioState) -> dict[str, object]:
+        if self._trading_mode != "demo":
+            return {
+                "applied": False,
+                "message": "demo portfolio baseline is only available in demo mode",
+            }
+        try:
+            self._boot_state = replace(self._boot_state, portfolio_state=portfolio)
+        except TypeError:
+            setattr(self._boot_state, "portfolio_state", portfolio)
+        self._demo_cash_balance = portfolio.cash_balance
+        self._demo_asset_currency = portfolio.asset_currency
+        self._demo_asset_balance = portfolio.asset_balance
+        self._demo_avg_buy_price = portfolio.avg_buy_price
+        return {
+            "applied": True,
+            "cash_balance": round(self._demo_cash_balance, 2),
+            "asset_currency": self._demo_asset_currency,
+            "asset_balance": round(self._demo_asset_balance, 8),
+        }
+
+    def reset_demo_portfolio(self, portfolio: PortfolioState | None = None) -> dict[str, object]:
         if self._trading_mode != "demo":
             return {
                 "reset": False,
                 "message": "demo trading data reset is only available in demo mode",
             }
-        portfolio = getattr(self._boot_state, "portfolio_state", None)
-        self._demo_cash_balance = 0.0 if portfolio is None else portfolio.cash_balance
-        self._demo_asset_currency = self._market.split("-")[-1] if portfolio is None else portfolio.asset_currency
-        self._demo_asset_balance = 0.0 if portfolio is None else portfolio.asset_balance
-        self._demo_avg_buy_price = 0.0 if portfolio is None else portfolio.avg_buy_price
+        if portfolio is not None:
+            self.set_demo_portfolio_baseline(portfolio)
+        else:
+            portfolio = getattr(self._boot_state, "portfolio_state", None)
+            if portfolio is None:
+                self._demo_cash_balance = 0.0
+                self._demo_asset_currency = self._market.split("-")[-1]
+                self._demo_asset_balance = 0.0
+                self._demo_avg_buy_price = 0.0
+            else:
+                self.set_demo_portfolio_baseline(portfolio)
         self._position_opened_at = None
         if self._uptime_store is not None:
             self._uptime_store.reset()

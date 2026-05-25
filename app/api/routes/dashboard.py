@@ -18,6 +18,7 @@ from app.services.recovery.orchestrator import BootState
 def build_dashboard_router(
     *,
     boot_state: BootState,
+    boot_state_provider: Callable[[], BootState] | None = None,
     trading_mode: str,
     trading_profile: str,
     trading_profile_label: str,
@@ -40,7 +41,7 @@ def build_dashboard_router(
     @router.get("/summary")
     def dashboard_summary() -> dict[str, object]:
         return dashboard_summary_facade.build_response(
-            boot_state=boot_state,
+            boot_state=boot_state_provider() if boot_state_provider is not None else boot_state,
             trading_mode=trading_mode,
             trading_profile=trading_profile,
             trading_profile_label=trading_profile_label,
@@ -186,7 +187,8 @@ DASHBOARD_HTML = """
     .ai-value { margin-top: 8px; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
     .context-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
     .context-item.half { grid-column: span 2; }
-    .context-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+    .context-item { min-height: 78px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); min-width: 0; }
+    .market-context-card .context-item { display: flex; flex-direction: column; justify-content: flex-start; }
     .context-label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .context-value { margin-top: 8px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; white-space: pre-line; }
     .context-value.compact { font-size: 13px; line-height: 1.45; font-weight: 700; }
@@ -259,7 +261,19 @@ DASHBOARD_HTML = """
       .panel { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
-      .grid, .section-grid, .rule-grid, .context-grid, .ticker-strip, .ai-crew, .variant-grid { grid-template-columns: 1fr; }
+      .grid, .section-grid, .rule-grid, .ticker-strip, .ai-crew, .variant-grid { grid-template-columns: 1fr; }
+      .context-grid { grid-template-columns: 1fr; }
+      .market-context-card { padding: 14px; }
+      .market-context-card .context-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .market-context-card .market-context-price,
+      .market-context-card .market-context-detail { grid-column: 1 / -1; }
+      .market-context-card .context-item.half { grid-column: span 1; }
+      .market-context-card .context-item { min-height: auto; padding: 10px; }
+      .market-context-card .context-value { margin-top: 6px; font-size: 14px; line-height: 1.35; }
+      .market-context-card .context-value.compact { font-size: 12px; line-height: 1.38; }
+      .market-context-card .context-value.usd-price { font-size: 22px; line-height: 1.15; }
+      .market-context-card .context-value.usd-price span,
+      .market-context-card .context-value.usd-price .krw-price { font-size: 12px; }
       .wrap { padding-left: 14px; padding-right: 14px; }
     }
   </style>
@@ -354,12 +368,12 @@ DASHBOARD_HTML = """
     </div>
   </section>
 
-  <section class="card">
+  <section class="card market-context-card">
     <h2>온체인/ETF 상황</h2>
-    <div class="context-grid">
-      <div class="context-item"><div class="context-label">USD 가격</div><div id="contextUsdPrice" class="context-value usd-price">-</div></div>
-      <div class="context-item"><div class="context-label">온체인 데이터</div><div id="onchainState" class="context-value compact">-</div></div>
-      <div class="context-item"><div class="context-label">ETF 상태</div><div id="etfState" class="context-value compact">-</div></div>
+    <div class="context-grid market-context-grid">
+      <div class="context-item market-context-price"><div class="context-label">USD 가격</div><div id="contextUsdPrice" class="context-value usd-price">-</div></div>
+      <div class="context-item market-context-detail"><div class="context-label">온체인 데이터</div><div id="onchainState" class="context-value compact">-</div></div>
+      <div class="context-item market-context-detail"><div class="context-label">ETF 상태</div><div id="etfState" class="context-value compact">-</div></div>
       <div class="context-item"><div class="context-label">학습 가중치</div><div id="contextWeight" class="context-value">-</div></div>
       <div class="context-item half"><div class="context-label">수집 상태</div><div id="contextStatus" class="context-value">-</div></div>
       <div class="context-item half"><div class="context-label">기록 시각</div><div id="contextRecordedAt" class="context-value">-</div></div>

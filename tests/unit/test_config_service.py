@@ -70,6 +70,22 @@ def test_env_file_service_server_name_prefers_saved_value_over_runtime_fallback(
     assert service.server_name(fallback="초기환경값") == "서울-데모-저장값"
 
 
+def test_env_file_service_demo_initial_capital_prefers_saved_positive_value(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text("DEMO_INITIAL_CAPITAL=2500000\n", encoding="utf-8")
+    service = EnvFileService(env_path)
+
+    assert service.demo_initial_capital(fallback=1_000_000) == 2_500_000
+
+
+def test_env_file_service_demo_initial_capital_falls_back_when_invalid(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text("DEMO_INITIAL_CAPITAL=0\n", encoding="utf-8")
+    service = EnvFileService(env_path)
+
+    assert service.demo_initial_capital(fallback=1_000_000) == 1_000_000
+
+
 def test_env_file_service_reports_missing_keys_when_switching_to_live(tmp_path: Path) -> None:
     env_path = tmp_path / ".env"
     env_path.write_text("TRADING_MODE=live\nLEARNING_ENABLED=true\n", encoding="utf-8")

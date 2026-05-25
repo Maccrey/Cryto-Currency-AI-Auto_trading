@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 import json
 import os
@@ -51,7 +52,7 @@ from app.services.market.context import (
 )
 from app.services.market.upbit_ticker import UpbitTickerPriceProvider
 from app.services.notification.factory import build_notification_services
-from app.services.portfolio.sync import PortfolioSyncService
+from app.services.portfolio.sync import PortfolioState, PortfolioSyncService
 from app.services.dashboard.overlay import StopLossOverlayService
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.exit import PositionExitService
@@ -114,6 +115,7 @@ def create_app(
     timestamp_provider: Callable[[], str] | None = None,
 ) -> FastAPI:
     settings = load_settings()
+    env_file_service = EnvFileService(settings.env_file_path)
     trading_profile = get_trading_profile(settings.trading_profile)
     profile_learning_log_dir = learning_log_dir_for_coin_profile(
         settings.learning_log_dir,
@@ -146,7 +148,6 @@ def create_app(
 
     telegram_gateway = None
     if settings.telegram_bot_token and settings.telegram_chat_id:
-        env_file_service = EnvFileService(settings.env_file_path)
 
         def current_server_name() -> str:
             return env_file_service.server_name(fallback=settings.server_name)
@@ -283,15 +284,44 @@ def create_app(
         )
 
     boot_state = runtime_services.runtime_service.start()
+    runtime_boot_state = {"value": boot_state}
+
+    def current_boot_state():
+        return runtime_boot_state["value"]
+
+    def current_boot_portfolio_state() -> PortfolioState | None:
+        return getattr(current_boot_state(), "portfolio_state", None)
+
+    def set_boot_portfolio_state(portfolio: PortfolioState) -> None:
+        current_state = current_boot_state()
+        try:
+            runtime_boot_state["value"] = replace(current_state, portfolio_state=portfolio)
+        except TypeError:
+            setattr(current_state, "portfolio_state", portfolio)
+            runtime_boot_state["value"] = current_state
+
+    def demo_initial_portfolio() -> PortfolioState:
+        current_portfolio = current_boot_portfolio_state()
+        return PortfolioState(
+            cash_balance=float(env_file_service.demo_initial_capital(fallback=settings.demo_initial_capital)),
+            asset_currency=(
+                current_portfolio.asset_currency
+                if current_portfolio is not None
+                else settings.trade_coin
+            ),
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+        )
+
     demo_portfolio_state = None
-    boot_portfolio_state = getattr(boot_state, "portfolio_state", None)
+    boot_portfolio_state = current_boot_portfolio_state()
     if (
         settings.trading_mode == "demo"
         and boot_portfolio_state is not None
         and execution_ledger.list_records()
     ):
         demo_portfolio_state = execution_ledger.portfolio_state(
-            initial_cash=float(settings.demo_initial_capital),
+            initial_cash=float(env_file_service.demo_initial_capital(fallback=settings.demo_initial_capital)),
             asset_currency=boot_portfolio_state.asset_currency,
         )
     live_rest_client = UpbitRestClient(
@@ -362,6 +392,7 @@ def create_app(
             telegram_notifier=trade_fill_notifier,
             execution_ledger=execution_ledger,
             initial_portfolio_state=boot_portfolio_state,
+            initial_portfolio_state_provider=current_boot_portfolio_state,
             position_lifecycle_ledger=position_lifecycle_ledger,
             order_rules=order_rules,
             trading_fee_rate=float(settings.trading_fee_rate),
@@ -377,6 +408,7 @@ def create_app(
             telegram_notifier=trade_fill_notifier,
             execution_ledger=execution_ledger,
             initial_portfolio_state=boot_portfolio_state,
+            initial_portfolio_state_provider=current_boot_portfolio_state,
             position_lifecycle_ledger=position_lifecycle_ledger,
             learning_service=learning_service,
         )
@@ -427,6 +459,35 @@ def create_app(
         execution_ledger=execution_ledger,
     )
     app.state.auto_trading_service = auto_trading_service
+
+    def apply_saved_demo_initial_capital(*, force_reset: bool = False) -> dict[str, object]:
+        if settings.trading_mode != "demo":
+            return {
+                "status": "skipped",
+                "applied": False,
+                "reason": "not_demo_mode",
+            }
+        if not force_reset and (
+            auto_trading_service.is_running()
+            or position_store.get() is not None
+            or bool(execution_ledger.list_records())
+        ):
+            return {
+                "status": "deferred",
+                "applied": False,
+                "reason": "demo_runtime_data_exists",
+                "message": "저장된 데모 시작 투자금은 데모 트레이딩 데이터 리셋 후 적용됩니다.",
+            }
+        portfolio = demo_initial_portfolio()
+        set_boot_portfolio_state(portfolio)
+        result = auto_trading_service.set_demo_portfolio_baseline(portfolio)
+        return {
+            "status": "applied" if result.get("applied") else "skipped",
+            "applied": bool(result.get("applied")),
+            "cash_balance": result.get("cash_balance"),
+            "asset_currency": result.get("asset_currency"),
+            "asset_balance": result.get("asset_balance"),
+        }
     rule_review_service = RuleReviewService(
         market=settings.trade_market,
         trade_coin=settings.trade_coin,
@@ -502,6 +563,7 @@ def create_app(
                 "telegram_notification": telegram_notification,
                 "message": message,
             }
+        apply_saved_demo_initial_capital()
         if not auto_trading_service.should_run():
             return {
                 "status": "not_ready",
@@ -585,7 +647,9 @@ def create_app(
         execution_ledger.clear()
         position_lifecycle_ledger.clear()
         position_store.clear()
-        demo_result = auto_trading_service.reset_demo_portfolio()
+        portfolio = demo_initial_portfolio()
+        set_boot_portfolio_state(portfolio)
+        demo_result = auto_trading_service.reset_demo_portfolio(portfolio)
         return {
             "status": "reset" if demo_result.get("reset") else "skipped",
             "reset": bool(demo_result.get("reset")),
@@ -603,7 +667,9 @@ def create_app(
         execution_ledger.clear()
         position_lifecycle_ledger.clear()
         position_store.clear()
-        demo_result = auto_trading_service.reset_demo_portfolio()
+        portfolio = demo_initial_portfolio()
+        set_boot_portfolio_state(portfolio)
+        demo_result = auto_trading_service.reset_demo_portfolio(portfolio)
         for path in [
             runtime_state_dir / "execution-ledger.json",
             runtime_state_dir / "current-position.json",
@@ -687,13 +753,14 @@ def create_app(
     app.include_router(
         build_health_router(
             boot_state=boot_state,
+            boot_state_provider=current_boot_state,
             trading_mode=settings.trading_mode,
             learning_enabled=settings.learning_enabled,
         ),
     )
     app.include_router(
         build_settings_router(
-            env_file_service=EnvFileService(settings.env_file_path),
+            env_file_service=env_file_service,
             learning_data_reset_service=learning_data_reset_service,
             learning_service=learning_service,
             start_trading_service=start_trading_service,
@@ -702,11 +769,13 @@ def create_app(
             reset_demo_trading_data_service=reset_demo_trading_data_service,
             purge_runtime_data_service=purge_runtime_data_service,
             telegram_test_service=telegram_test_service,
+            after_save_service=apply_saved_demo_initial_capital,
         ),
     )
     app.include_router(
         build_dashboard_router(
             boot_state=boot_state,
+            boot_state_provider=current_boot_state,
             trading_mode=settings.trading_mode,
             trading_profile=settings.trading_profile,
             trading_profile_label=trading_profile.label,

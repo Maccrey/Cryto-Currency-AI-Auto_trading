@@ -1386,6 +1386,153 @@ def test_learning_routes_use_coin_scoped_log_dir_for_non_default_coin(
     assert payload["diagnostics"]["log_path"] == str(log_dir / "learning.jsonl")
 
 
+def test_settings_save_applies_demo_initial_capital_to_empty_runtime(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = PortfolioState(
+                    cash_balance=1_000_000.0,
+                    asset_currency="XRP",
+                    asset_balance=0.0,
+                    avg_buy_price=0.0,
+                )
+                reconcile_result = None
+
+            return BootState()
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "LEARNING_ENABLED=true",
+                "TRADING_PROFILE=scalping",
+                "TRADE_MARKET=KRW-XRP",
+                "TRADE_COIN=XRP",
+                "DEMO_INITIAL_CAPITAL=1000000",
+                f"LEARNING_LOG_DIR={tmp_path / 'learning'}",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ENV_FILE_PATH", str(env_file))
+    monkeypatch.delenv("TRADING_MODE", raising=False)
+    monkeypatch.delenv("LEARNING_LOG_DIR", raising=False)
+
+    client = TestClient(create_app(recovery_orchestrator=SuccessfulBootOrchestrator()))
+
+    response = client.post(
+        "/settings",
+        json={
+            "TRADING_MODE": "demo",
+            "LEARNING_ENABLED": "true",
+            "TRADING_PROFILE": "scalping",
+            "TRADE_MARKET": "KRW-XRP",
+            "TRADE_COIN": "XRP",
+            "DEMO_INITIAL_CAPITAL": "2500000",
+        },
+    )
+
+    payload = response.json()
+    assert payload["saved"] is True
+    assert payload["runtime_apply"]["status"] == "applied"
+    assert payload["runtime_apply"]["cash_balance"] == 2_500_000.0
+
+    summary = client.get("/dashboard/summary").json()
+    assert summary["cash_balance"] == 2_500_000.0
+
+
+def test_settings_demo_trading_reset_uses_saved_initial_capital_when_runtime_data_exists(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = PortfolioState(
+                    cash_balance=1_000_000.0,
+                    asset_currency="XRP",
+                    asset_balance=0.0,
+                    avg_buy_price=0.0,
+                )
+                reconcile_result = None
+
+            return BootState()
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TRADING_MODE=demo",
+                "LEARNING_ENABLED=true",
+                "TRADING_PROFILE=scalping",
+                "TRADE_MARKET=KRW-XRP",
+                "TRADE_COIN=XRP",
+                "DEMO_INITIAL_CAPITAL=1000000",
+                f"LEARNING_LOG_DIR={tmp_path / 'learning'}",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ENV_FILE_PATH", str(env_file))
+    monkeypatch.delenv("TRADING_MODE", raising=False)
+    monkeypatch.delenv("LEARNING_LOG_DIR", raising=False)
+    execution_ledger = ExecutionLedger()
+    execution_ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=800.0,
+            filled_quantity=100.0,
+            fee=40.0,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    client = TestClient(
+        create_app(
+            recovery_orchestrator=SuccessfulBootOrchestrator(),
+            execution_ledger=execution_ledger,
+        ),
+    )
+
+    saved = client.post(
+        "/settings",
+        json={
+            "TRADING_MODE": "demo",
+            "LEARNING_ENABLED": "true",
+            "TRADING_PROFILE": "scalping",
+            "TRADE_MARKET": "KRW-XRP",
+            "TRADE_COIN": "XRP",
+            "DEMO_INITIAL_CAPITAL": "2500000",
+        },
+    ).json()
+
+    assert saved["saved"] is True
+    assert saved["runtime_apply"]["status"] == "deferred"
+
+    reset = client.post("/settings/demo-trading/reset").json()
+
+    assert reset["reset"] is True
+    assert reset["cash_balance"] == 2_500_000.0
+    assert execution_ledger.list_records() == []
+    summary = client.get("/dashboard/summary").json()
+    assert summary["cash_balance"] == 2_500_000.0
+
+
 def test_settings_demo_trading_reset_clears_runtime_trade_data(
     monkeypatch,
     tmp_path,
