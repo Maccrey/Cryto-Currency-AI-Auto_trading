@@ -602,6 +602,7 @@ class RuleReviewService:
             "previous_rule_snapshot": self._previous_rule_snapshot(changes),
             "proposed_rule_snapshot": self._proposed_rule_snapshot(changes),
             "changed_parameters": self._changed_parameters(changes),
+            "optimization_tracking": self._optimization_tracking_summary(proposal=proposal, changes=changes),
             "change_reason": change_reason
             or "; ".join(change_reasons)
             or "학습 로그 기반 Codex 룰 개선 파이프라인 이벤트",
@@ -652,6 +653,7 @@ class RuleReviewService:
             f"- 적용 대상: {history.get('applied_target', '-')}",
             f"- 승인 상태: {history.get('approval_status', '-')}",
             f"- 변경 항목: {', '.join(str(item) for item in changed_parameters) if changed_parameters else '없음'}",
+            f"- 최적화 추적: {json.dumps(history.get('optimization_tracking', {}), ensure_ascii=False, sort_keys=True)}",
             f"- 변경 이유: {history.get('change_reason', '-')}",
             f"- 기대 효과: {history.get('expected_effect', '-')}",
             f"- 알려진 리스크: {history.get('known_risks', '-')}",
@@ -972,6 +974,47 @@ class RuleReviewService:
             lowered in cls.LOCKED_PARAMETER_NAMES
             or any(normalized.upper().startswith(prefix) for prefix in cls.LOCKED_PARAMETER_PREFIXES)
         )
+
+
+    @staticmethod
+    def _optimization_tracking_summary(*, proposal: dict[str, Any], changes: Any) -> dict[str, object]:
+        changed_parameters = RuleReviewService._changed_parameters(changes)
+        replay_result = proposal.get("replay_result") if isinstance(proposal.get("replay_result"), dict) else {}
+        return {
+            "schema_version": 1,
+            "tracking_goal": "compare_rule_update_effect_in_next_reviews",
+            "changed_parameters": changed_parameters,
+            "baseline": {
+                "trade_count": proposal.get("trade_count"),
+                "stop_loss_count": proposal.get("stop_loss_count"),
+                "no_trade_blocked_count": proposal.get("no_trade_blocked_count"),
+                "win_rate": proposal.get("win_rate"),
+                "trade_staleness_summary": proposal.get(
+                    "trade_staleness_summary",
+                    RuleReviewService._empty_trade_staleness_summary(),
+                ),
+                "rule_variant_shadow_summary": proposal.get(
+                    "rule_variant_shadow_summary",
+                    RuleReviewService._empty_rule_variant_shadow_summary(),
+                ),
+            },
+            "post_update_metrics_to_compare": [
+                "hours_since_last_trade",
+                "trade_count_delta",
+                "stop_loss_count_delta",
+                "no_trade_blocked_count_delta",
+                "win_rate_delta",
+                "replay_final_profit_rate_delta",
+                "demo_realized_pnl_delta",
+                "trade_logic_update_trace.applied_count",
+            ],
+            "latest_replay": {
+                "status": replay_result.get("status"),
+                "final_profit_rate": replay_result.get("final_profit_rate"),
+                "max_drawdown_pct": replay_result.get("max_drawdown_pct"),
+                "trade_count": replay_result.get("trade_count"),
+            },
+        }
 
     @staticmethod
     def _expected_effect(changes: Any) -> str:

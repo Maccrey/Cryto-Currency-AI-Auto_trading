@@ -436,6 +436,14 @@ class AutoTradingService:
             signal_score=decision.signal.score,
             box_range_opportunity=box_range_opportunity,
         )
+        trade_logic_update_trace = self._trade_logic_update_trace(
+            decision=decision,
+            variant_payload=variant_payload,
+            entry_type=entry_type,
+            market_state=entry_market_state,
+            historical_loss_guard=historical_loss_guard,
+            log_backed_recovery=log_backed_recovery,
+        )
         if not historical_loss_guard["allowed"] and not log_backed_recovery:
             rule_variant = self._variant_extra(variant_payload)
             self._consecutive_entry_blocks += 1
@@ -457,6 +465,7 @@ class AutoTradingService:
                     "box_range_high": decision.regime.box_range_high,
                     **market_state_extra,
                     **self._historical_loss_guard_extra(historical_loss_guard),
+                    "trade_logic_update_trace": trade_logic_update_trace,
                     **rule_variant,
                 },
             )
@@ -520,6 +529,7 @@ class AutoTradingService:
                     "sideways_avg_abs_return_pct": sideways_decision.avg_abs_return_pct,
                     "sideways_min_scale_in_price": sideways_decision.min_scale_in_price,
                     "no_trade_relaxed": relaxed_signal,
+                    "trade_logic_update_trace": trade_logic_update_trace,
                     **rule_variant,
                 },
             )
@@ -605,6 +615,7 @@ class AutoTradingService:
                 **market_state_extra,
                 "no_trade_relaxed": relaxed_signal,
                 "log_backed_bull_weak_recovery": log_backed_recovery,
+                "trade_logic_update_trace": trade_logic_update_trace,
                 **self._box_range_extra(box_range_opportunity),
                 "post_fill_position_opened": post_fill_result.position is not None,
                 **self._variant_extra(variant_payload),
@@ -811,6 +822,48 @@ class AutoTradingService:
             "previous_market_state": decision.previous_market_state,
             "market_state_transition": decision.transition,
             "market_state_confirmation_count": decision.current_state_count,
+        }
+
+
+    def _trade_logic_update_trace(
+        self,
+        *,
+        decision,
+        variant_payload: dict[str, object] | None,
+        entry_type: str,
+        market_state: str,
+        historical_loss_guard: dict[str, object],
+        log_backed_recovery: bool,
+    ) -> dict[str, object]:
+        leader_key = variant_payload.get("leader_key") if isinstance(variant_payload, dict) else None
+        baseline_block_reason = None if historical_loss_guard.get("allowed") else historical_loss_guard.get("reason_code")
+        return {
+            "version": "2026-05-30-no-trade-bull-b-recovery",
+            "purpose": "track_optimization_effect_for_future_rule_reviews",
+            "applied": bool(log_backed_recovery),
+            "candidate": bool(
+                self._trading_mode == "demo"
+                and entry_type == "initial"
+                and market_state == "bull"
+                and decision.signal.level == "weak"
+                and decision.signal.score >= 0.24
+            ),
+            "baseline_block_reason": baseline_block_reason,
+            "entry_type": entry_type,
+            "market_state": market_state,
+            "signal_level": decision.signal.level,
+            "signal_score": decision.signal.score,
+            "sizing_allowed_before_relax": decision.sizing.allowed,
+            "sizing_blocked_reason_before_relax": decision.sizing.blocked_reason,
+            "rule_variant_leader_key": leader_key,
+            "consecutive_entry_blocks": self._consecutive_entry_blocks,
+            "optimization_metric_keys": [
+                "filled_after_recovery",
+                "blocked_after_recovery",
+                "post_fill_position_opened",
+                "replay_final_profit_rate",
+                "demo_realized_pnl",
+            ],
         }
 
     def _log_backed_bull_weak_recovery(

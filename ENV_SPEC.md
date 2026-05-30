@@ -291,6 +291,7 @@ false면 앱 시작 실패
 | previous_rule_snapshot | object | Y | 변경 전 파라미터 |
 | proposed_rule_snapshot | object | Y | 변경 후 후보 파라미터 |
 | changed_parameters | array | Y | 변경 파라미터 목록 |
+| optimization_tracking | object | Y | 변경 전 기준값과 다음 리뷰에서 비교할 최적화 지표 목록 |
 | change_reason | str | Y | 변경 사유 |
 | expected_effect | str | Y | 기대 효과 |
 | known_risks | str | Y | 알려진 리스크 |
@@ -347,6 +348,7 @@ false면 앱 시작 실패
 - 학습데이터 충족률이 `AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE` 미만이면 자동 변경을 차단한다.
 - 승률이 `AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD` 이상이면 자동 변경을 차단한다. 기본 0.80은 승률 80% 이상 유지 구간에서 룰을 흔들지 않기 위한 안전장치다.
 - 자동 변경은 review, proposal, replay, demo 적용 결과를 `rule-change-history.jsonl`에 기록한다. replay 실패 또는 게이트 미달이면 live 적용을 진행하지 않는다.
+- 매매 로직 변경이 적용된 자동매매 사이클은 `auto_trade_cycle.payload.trade_logic_update_trace`에 로직 버전, 적용 여부, 기존 차단 사유, 비교 지표 키를 남겨 다음 룰 개선에서 최적화 효과를 비교한다.
 
 ### AUTO_TRADING_ENABLED / live 안전 정책
 - 앱 부팅만으로 자동 운용 루프를 시작하지 않는다.

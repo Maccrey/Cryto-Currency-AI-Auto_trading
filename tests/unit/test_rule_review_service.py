@@ -807,6 +807,8 @@ def test_rule_change_history_is_appended_for_proposal_lifecycle(tmp_path: Path) 
     assert rows[0]["proposal_id"] == proposal["id"]
     assert rows[0]["trade_coin"] == "BTC"
     assert rows[0]["changed_parameters"] == ["BUY_RATIO_MEDIUM"]
+    assert rows[0]["optimization_tracking"]["changed_parameters"] == ["BUY_RATIO_MEDIUM"]
+    assert "no_trade_blocked_count_delta" in rows[0]["optimization_tracking"]["post_update_metrics_to_compare"]
     assert rows[0]["change_reason"] == "AUTO_MIN_SIGNAL_LEVEL 차단 반복"
     assert rows[0]["expected_effect"]
     assert rows[0]["known_risks"]
