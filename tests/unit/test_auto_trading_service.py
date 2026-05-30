@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from app.services.execution.demo import DemoExecutor, FillResult
 from app.services.execution.ledger import ExecutionLedger
@@ -636,3 +637,22 @@ def test_auto_trading_service_does_not_run_live_without_explicit_live_flag(tmp_p
     )
 
     assert service.should_run() is False
+
+
+
+def test_auto_trading_service_allows_log_backed_bull_b_leader_weak_recovery(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0])
+    service._consecutive_entry_blocks = 100
+    decision = SimpleNamespace(
+        signal=SimpleNamespace(level="weak", score=0.26, blocked=False),
+        sizing=SimpleNamespace(allowed=False, blocked_reason="FEE_ADJUSTED_EDGE_LIMIT"),
+    )
+
+    allowed = service._log_backed_bull_weak_recovery(
+        decision=decision,
+        variant_payload={"leader_key": "B"},
+        entry_type="initial",
+        market_state="bull",
+    )
+
+    assert allowed is True

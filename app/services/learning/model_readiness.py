@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +65,13 @@ class ModelTrainingReadinessService:
             if metrics.get(key, 0) < required[key]
         }
         completion_rate = self.completion_rate(metrics=metrics, required=required)
+        first_event_at = self._first_event_at(all_rows)
+        latest_event_at = self._latest_event_at(all_rows)
+        last_trade_at = self._last_event_at(
+            all_rows,
+            {"fill_result", "position_opened", "position_closed", "position_exit_completed"},
+        )
+        last_auto_rule_update_at = self._last_event_at(all_rows, {"auto_rule_update"})
         return {
             "status": "ready" if not gaps else "not_ready",
             "log_path": str(self._log_path),
@@ -74,6 +82,10 @@ class ModelTrainingReadinessService:
             "completion_percent": int(completion_rate * 100),
             "completion_reset_at": None if reset_index is None else all_rows[reset_index].get("recorded_at"),
             "completion_scope": "since_last_auto_rule_update" if reset_index is not None else "all_learning_logs",
+            "first_event_at": first_event_at,
+            "latest_event_at": latest_event_at,
+            "last_trade_at": last_trade_at,
+            "last_auto_rule_update_at": last_auto_rule_update_at,
             "recommended_next_step": self._recommended_next_step(gaps),
             "planned_ml_extra": "ml",
             "planned_packages": ["tensorflow", "scikit-learn", "pandas", "pyarrow"],
@@ -120,6 +132,42 @@ class ModelTrainingReadinessService:
             if bool(payload.get("reset_learning_completion")):
                 return index
         return None
+
+    @classmethod
+    def _first_event_at(cls, rows: list[dict[str, Any]]) -> str | None:
+        for row in rows:
+            if cls._event_datetime(row) is not None:
+                return str(row.get("recorded_at"))
+        return None
+
+    @classmethod
+    def _latest_event_at(cls, rows: list[dict[str, Any]]) -> str | None:
+        for row in reversed(rows):
+            if cls._event_datetime(row) is not None:
+                return str(row.get("recorded_at"))
+        return None
+
+    @classmethod
+    def _last_event_at(cls, rows: list[dict[str, Any]], event_names: set[str]) -> str | None:
+        for row in reversed(rows):
+            if str(row.get("event_name")) not in event_names:
+                continue
+            if cls._event_datetime(row) is not None:
+                return str(row.get("recorded_at"))
+        return None
+
+    @staticmethod
+    def _event_datetime(row: dict[str, Any]) -> datetime | None:
+        value = row.get("recorded_at")
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
 
     @staticmethod
     def _recommended_next_step(gaps: dict[str, int]) -> str:

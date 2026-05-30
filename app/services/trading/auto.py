@@ -424,13 +424,19 @@ class AutoTradingService:
                     **rule_variant,
                 },
             )
+        log_backed_recovery = self._log_backed_bull_weak_recovery(
+            decision=decision,
+            variant_payload=variant_payload,
+            entry_type=entry_type,
+            market_state=entry_market_state,
+        )
         historical_loss_guard = self._historical_loss_guard_decision(
             entry_type=entry_type,
             signal_level=decision.signal.level,
             signal_score=decision.signal.score,
             box_range_opportunity=box_range_opportunity,
         )
-        if not historical_loss_guard["allowed"]:
+        if not historical_loss_guard["allowed"] and not log_backed_recovery:
             rule_variant = self._variant_extra(variant_payload)
             self._consecutive_entry_blocks += 1
             return self._record_cycle(
@@ -476,6 +482,7 @@ class AutoTradingService:
             )
         relaxed_signal = (
             market_state_entry.transition_boost
+            or log_backed_recovery
             or self._should_relax_weak_signal(decision)
             or bool(box_range_opportunity["allowed"])
         )
@@ -597,6 +604,7 @@ class AutoTradingService:
                 "box_range_high": decision.regime.box_range_high,
                 **market_state_extra,
                 "no_trade_relaxed": relaxed_signal,
+                "log_backed_bull_weak_recovery": log_backed_recovery,
                 **self._box_range_extra(box_range_opportunity),
                 "post_fill_position_opened": post_fill_result.position is not None,
                 **self._variant_extra(variant_payload),
@@ -804,6 +812,28 @@ class AutoTradingService:
             "market_state_transition": decision.transition,
             "market_state_confirmation_count": decision.current_state_count,
         }
+
+    def _log_backed_bull_weak_recovery(
+        self,
+        *,
+        decision,
+        variant_payload: dict[str, object] | None,
+        entry_type: str,
+        market_state: str,
+    ) -> bool:
+        if self._trading_mode != "demo":
+            return False
+        if entry_type != "initial" or market_state != "bull":
+            return False
+        if decision.signal.level != "weak" or decision.signal.score < 0.24:
+            return False
+        if decision.signal.blocked:
+            return False
+        if not isinstance(variant_payload, dict) or variant_payload.get("leader_key") != "B":
+            return False
+        if self._consecutive_entry_blocks < max(self._config.no_trade_relax_after_cycles, 1):
+            return False
+        return decision.sizing.allowed or decision.sizing.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT"
 
     def _historical_loss_guard_decision(
         self,

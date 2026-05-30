@@ -511,6 +511,7 @@ def create_app(
         readiness_service=ModelTrainingReadinessService(log_dir=profile_learning_log_dir),
         rule_review_service=rule_review_service,
         fixture_path=Path("fixtures/replay_ticks.json"),
+        no_trade_trigger_hours=settings.auto_rule_update_no_trade_hours,
     )
 
     @app.on_event("shutdown")

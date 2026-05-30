@@ -373,6 +373,10 @@ SETTINGS_HTML = """
           <label for="autoRuleWinRateSkip">자동 변경 제외 승률</label>
           <input id="autoRuleWinRateSkip" type="number" min="0" max="1" step="0.01" placeholder="0.8">
         </div>
+        <div>
+          <label for="autoRuleNoTradeHours">무거래 자동 개선 시간</label>
+          <input id="autoRuleNoTradeHours" type="number" min="1" max="168" step="1" placeholder="24">
+        </div>
       </div>
       <div id="autoRuleStatus" class="note"></div>
     </div>
@@ -676,10 +680,11 @@ async function loadSettings() {
     document.getElementById("autoRuleUpdateEnabled").checked = values.AUTO_RULE_UPDATE_ENABLED === "true";
     document.getElementById("autoRuleCompletionRate").value = values.AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE || "1.0";
     document.getElementById("autoRuleWinRateSkip").value = values.AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD || "0.8";
+    document.getElementById("autoRuleNoTradeHours").value = values.AUTO_RULE_UPDATE_NO_TRADE_HOURS || "24";
     const dataPath = data.data_path_status || {};
     document.getElementById("dataPathStatus").textContent = `로그 ${dataPath.learning_log_dir || "-"} / 데이터셋 ${dataPath.learning_dataset_dir || "-"}`;
     const autoRule = data.auto_rule_update || {};
-    document.getElementById("autoRuleStatus").textContent = `현재 ${autoRule.enabled ? "ON" : "OFF"} / 충족률 ${autoRule.learning_completion_rate_required || 1.0} / 승률 기준 ${autoRule.win_rate_skip_threshold || 0.8}`;
+    document.getElementById("autoRuleStatus").textContent = `현재 ${autoRule.enabled ? "ON" : "OFF"} / 충족률 ${autoRule.learning_completion_rate_required || 1.0} / 승률 기준 ${autoRule.win_rate_skip_threshold || 0.8} / 무거래 ${autoRule.no_trade_hours || 24}시간`;
     document.getElementById("accessKey").value = values.UPBIT_ACCESS_KEY || "";
     document.getElementById("secretKey").value = values.UPBIT_SECRET_KEY || "";
     setTelegramTokenHidden(values.TELEGRAM_BOT_TOKEN === "***");
@@ -900,6 +905,7 @@ async function saveSettings() {
     AUTO_RULE_UPDATE_ENABLED: document.getElementById("autoRuleUpdateEnabled").checked ? "true" : "false",
     AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE: document.getElementById("autoRuleCompletionRate").value || "1.0",
     AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD: document.getElementById("autoRuleWinRateSkip").value || "0.8",
+    AUTO_RULE_UPDATE_NO_TRADE_HOURS: document.getElementById("autoRuleNoTradeHours").value || "24",
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,
     TELEGRAM_CHAT_ID: document.getElementById("telegramChat").value,
     TELEGRAM_USER_ID: document.getElementById("telegramUserId").value,

@@ -148,6 +148,7 @@ DASHBOARD_PORT=8080
 | RULE_REVIEW_MIN_TRADES | int | Y | 100 | 룰 변경안 생성을 허용하는 최소 거래 수 |
 | RULE_REVIEW_MIN_STOPLOSSES | int | Y | 20 | 손절 관련 룰 변경안 생성을 허용하는 최소 손절 수 |
 | RULE_CHANGE_MAX_PARAMS_PER_RUN | int | Y | 3 | 한 번의 룰 개선 실행에서 바꿀 수 있는 최대 파라미터 수 |
+| AUTO_RULE_UPDATE_NO_TRADE_HOURS | float | Y | 24 | 마지막 체결 이후 이 시간 이상 거래가 없고 차단 로그가 있으면 자동 룰 개선을 시작하는 기준 |
 | RULE_CHANGE_APPLY_TARGET | str | Y | demo | 룰 변경안 기본 적용 대상, demo만 허용 |
 | RULE_CHANGE_REQUIRE_MANUAL_APPROVAL | bool | Y | true | live 반영 전 수동 승인 필수 여부 |
 | EXTERNAL_CONTEXT_ENABLED | bool | Y | true | 온체인/ETF 외부 컨텍스트 학습 로그 및 대시보드 표시 활성화 |
@@ -256,6 +257,7 @@ false면 앱 시작 실패
 
 ### RULE_REVIEW / RULE_CHANGE
 - 룰 개선은 `RULE_REVIEW_ENABLED=true`일 때만 실행한다.
+- 자동 룰 개선은 학습데이터 충족률 기준 외에도 `AUTO_RULE_UPDATE_NO_TRADE_HOURS` 기본 24시간 동안 체결이 없고 자동매매 차단 로그가 누적되면 실행된다.
 - `RULE_REVIEW_WINDOW_DAYS` 최근 로그를 기본 분석 대상으로 한다.
 - `RULE_REVIEW_MIN_TRADES` 미만이면 변경안 생성은 `insufficient_sample` 상태로 차단한다.
 - 손절 수가 `RULE_REVIEW_MIN_STOPLOSSES` 미만이면 손절 파라미터 변경안은 만들지 않는다.

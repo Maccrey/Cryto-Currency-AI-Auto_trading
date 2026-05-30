@@ -84,6 +84,7 @@ class RuleReviewService:
             "rule_variant_shadow_summary": metrics["rule_variant_shadow_summary"],
             "technical_indicator_summary": metrics["technical_indicator_summary"],
             "market_data_quality_summary": metrics["market_data_quality_summary"],
+            "trade_staleness_summary": metrics["trade_staleness_summary"],
             "codex_rule_prompt": self._build_codex_rule_prompt(metrics),
             "approval_required": self._config.require_manual_approval,
             "created_at": datetime.now(UTC).isoformat(),
@@ -151,6 +152,10 @@ class RuleReviewService:
                 "market_data_quality_summary",
                 self._empty_market_data_quality_summary(),
             ),
+            "trade_staleness_summary": review.get(
+                "trade_staleness_summary",
+                self._empty_trade_staleness_summary(),
+            ),
             "codex_rule_prompt": review.get("codex_rule_prompt", ""),
             "codex_suggested_changes": changes,
             "locked_parameters": self._changed_parameters(locked_changes),
@@ -172,7 +177,13 @@ class RuleReviewService:
         )
         return {"proposal": proposal}
 
-    def auto_improve(self, *, fixture_path: Path, force: bool = False) -> dict[str, object]:
+    def auto_improve(
+        self,
+        *,
+        fixture_path: Path,
+        force: bool = False,
+        trigger_reason: str = "manual",
+    ) -> dict[str, object]:
         steps: list[dict[str, object]] = []
 
         review_response = self.review()
@@ -191,7 +202,7 @@ class RuleReviewService:
                 "message": (
                     "자동 룰 업데이트 조건을 충족하지 못했습니다: " + ", ".join(auto_gate_reasons)
                     if auto_gate_reasons
-                    else "학습 로그 기반 자동 룰 개선 파이프라인을 시작했습니다."
+                    else f"학습 로그 기반 자동 룰 개선 파이프라인을 시작했습니다. 트리거={trigger_reason}"
                 ),
             },
         )
@@ -264,6 +275,7 @@ class RuleReviewService:
                 "prompt": review.get("codex_rule_prompt", ""),
             },
             "steps": steps,
+            "trigger_reason": trigger_reason,
             "review": review,
             "proposal": proposal,
             "final_summary": final_summary,
@@ -583,6 +595,10 @@ class RuleReviewService:
                 "market_data_quality_summary",
                 self._empty_market_data_quality_summary(),
             ),
+            "trade_staleness_summary": proposal.get(
+                "trade_staleness_summary",
+                self._empty_trade_staleness_summary(),
+            ),
             "previous_rule_snapshot": self._previous_rule_snapshot(changes),
             "proposed_rule_snapshot": self._proposed_rule_snapshot(changes),
             "changed_parameters": self._changed_parameters(changes),
@@ -786,6 +802,8 @@ class RuleReviewService:
         technical_indicator_samples: list[dict[str, Any]] = []
         market_feature_samples: list[dict[str, Any]] = []
         market_window_samples: list[dict[str, Any]] = []
+        latest_event_at: datetime | None = None
+        last_trade_at: datetime | None = None
         completion_rates: list[float] = []
         closed_trade_pnls: list[float] = []
         log_path = self._learning_log_dir / "learning.jsonl"
@@ -798,9 +816,15 @@ class RuleReviewService:
                 except json.JSONDecodeError:
                     continue
                 event_name = str(row.get("event_name", ""))
+                recorded_at = self._parse_datetime(row.get("recorded_at"))
+                if recorded_at is not None and (latest_event_at is None or recorded_at > latest_event_at):
+                    latest_event_at = recorded_at
                 payload = row.get("payload") or {}
                 if not isinstance(payload, dict):
                     payload = {}
+                if event_name in {"fill_result", "position_opened", "position_closed", "position_exit_completed"}:
+                    if recorded_at is not None and (last_trade_at is None or recorded_at > last_trade_at):
+                        last_trade_at = recorded_at
                 if event_name in {"fill_result", "position_closed"}:
                     trade_count += 1
                     if payload.get("side") == "sell" or event_name == "position_closed":
@@ -865,6 +889,10 @@ class RuleReviewService:
                 market_feature_samples=market_feature_samples,
                 market_window_samples=market_window_samples,
                 observation_path=self._learning_log_dir / "market-observations.jsonl",
+            ),
+            "trade_staleness_summary": self._trade_staleness_summary(
+                last_trade_at=last_trade_at,
+                latest_event_at=latest_event_at,
             ),
             "learning_completion_rate": round(max(completion_rates, default=0.0), 3),
             "win_rate": self._win_rate(closed_trade_pnls),
@@ -993,6 +1021,46 @@ class RuleReviewService:
             "etf_inflow_usd_total": round(sum(etf_inflows), 2),
             "etf_outflow_usd_total": round(sum(etf_outflows), 2),
         }
+
+
+    @staticmethod
+    def _empty_trade_staleness_summary() -> dict[str, object]:
+        return {
+            "last_trade_at": None,
+            "latest_event_at": None,
+            "hours_since_last_trade": None,
+            "no_trade_24h": False,
+        }
+
+    @staticmethod
+    def _trade_staleness_summary(
+        *,
+        last_trade_at: datetime | None,
+        latest_event_at: datetime | None,
+    ) -> dict[str, object]:
+        if latest_event_at is None:
+            return RuleReviewService._empty_trade_staleness_summary()
+        hours_since_last_trade = None
+        if last_trade_at is not None:
+            hours_since_last_trade = round((latest_event_at - last_trade_at).total_seconds() / 3600, 3)
+        return {
+            "last_trade_at": None if last_trade_at is None else last_trade_at.isoformat(),
+            "latest_event_at": latest_event_at.isoformat(),
+            "hours_since_last_trade": hours_since_last_trade,
+            "no_trade_24h": hours_since_last_trade is not None and hours_since_last_trade >= 24.0,
+        }
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> datetime | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
 
     @staticmethod
     def _empty_external_context_summary() -> dict[str, object]:
@@ -1194,6 +1262,7 @@ class RuleReviewService:
 
     def _default_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
         context_changes = self._external_context_proposed_changes(review)
+        staleness_changes = self._trade_staleness_proposed_changes(review)
         shadow_changes = self._rule_variant_shadow_proposed_changes(review)
         technical_changes = self._technical_indicator_proposed_changes(review)
         market_quality_changes = self._market_data_quality_proposed_changes(review)
@@ -1217,8 +1286,8 @@ class RuleReviewService:
                     "reason": "demo no-trade 완화 시 수수료 보정 엣지 차단을 재평가해 0원 주문 차단을 해소합니다.",
                 },
             ]
-            return (technical_changes + context_changes + changes)[: self._config.max_params_per_run]
-        preferred_changes = shadow_changes + technical_changes + market_quality_changes + context_changes
+            return (staleness_changes + technical_changes + context_changes + changes)[: self._config.max_params_per_run]
+        preferred_changes = staleness_changes + shadow_changes + technical_changes + market_quality_changes + context_changes
         if preferred_changes:
             return preferred_changes[: self._config.max_params_per_run]
         return [
@@ -1228,6 +1297,37 @@ class RuleReviewService:
                 "current_value": None,
                 "proposed_value": "pending_codex_patch",
                 "reason": "학습 로그 분석 후 Codex가 제한된 변경안을 작성해야 합니다.",
+            },
+        ]
+
+
+    def _trade_staleness_proposed_changes(self, review: dict[str, Any]) -> list[dict[str, object]]:
+        summary = review.get("trade_staleness_summary")
+        shadow = review.get("rule_variant_shadow_summary")
+        if not isinstance(summary, dict) or not bool(summary.get("no_trade_24h")):
+            return []
+        best_key = str(shadow.get("best_variant_key") or "") if isinstance(shadow, dict) else ""
+        hours = self._float(summary.get("hours_since_last_trade"), 0.0)
+        if best_key == "B":
+            return [
+                {
+                    "file": "app/services/trading/auto.py",
+                    "parameter": "BULL_TREND_WEAK_SIGNAL_RECOVERY",
+                    "current_value": "historical_loss_guard_blocks_all_weak_entries",
+                    "proposed_value": "allow_bull_B_leader_weak_recovery_after_no_trade",
+                    "reason": (
+                        f"최근 {round(hours, 1)}시간 체결이 없고 A/B/C 섀도우에서 룰 B 추세형이 우세합니다. "
+                        "상승장 확인과 수수료 엣지 재평가가 동시에 맞을 때만 약한 신호 회복 진입을 허용합니다."
+                    ),
+                },
+            ]
+        return [
+            {
+                "file": "app/services/trading/auto.py",
+                "parameter": "NO_TRADE_24H_REVIEW_TRIGGER",
+                "current_value": "manual_or_learning_completion_only",
+                "proposed_value": "review_logs_after_24h_without_fills",
+                "reason": f"최근 {round(hours, 1)}시간 체결이 없어 차단 사유와 장세별 섀도우 성과를 재검토합니다.",
             },
         ]
 
@@ -1459,6 +1559,7 @@ class RuleReviewService:
                 f"사이징 차단: {json.dumps(metrics.get('sizing_blocked_reason_summary', []), ensure_ascii=False, sort_keys=True)}",
                 f"전문 보조지표: {json.dumps(metrics.get('technical_indicator_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 f"가격/거래량 데이터 품질: {json.dumps(metrics.get('market_data_quality_summary', {}), ensure_ascii=False, sort_keys=True)}",
+                f"거래 공백: {json.dumps(metrics.get('trade_staleness_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 f"외부 컨텍스트: {json.dumps(metrics.get('external_context_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 f"A/B/C 동시 테스트: {json.dumps(metrics.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 "제안은 최대 변경 수 제한을 지키고, 변경 이유/기대효과/리스크/replay 검증 기준을 함께 남긴다.",

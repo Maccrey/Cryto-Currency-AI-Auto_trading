@@ -72,6 +72,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.auto_rule_update_enabled is True
     assert settings.auto_rule_update_min_learning_completion_rate == 1.0
     assert settings.auto_rule_update_win_rate_skip_threshold == 0.80
+    assert settings.auto_rule_update_no_trade_hours == 24.0
 
 
 def test_storage_dir_drives_persistent_data_paths(tmp_path: Path) -> None:
@@ -89,6 +90,7 @@ def test_storage_dir_drives_persistent_data_paths(tmp_path: Path) -> None:
                 "AUTO_RULE_UPDATE_ENABLED=true",
                 "AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE=1.0",
                 "AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD=0.8",
+                "AUTO_RULE_UPDATE_NO_TRADE_HOURS=24",
             ],
         ),
         encoding="utf-8",
@@ -204,6 +206,10 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "rule_change_max_params_per_run",
         "rule_change_apply_target",
         "rule_change_require_manual_approval",
+        "auto_rule_update_enabled",
+        "auto_rule_update_min_learning_completion_rate",
+        "auto_rule_update_win_rate_skip_threshold",
+        "auto_rule_update_no_trade_hours",
         "external_context_enabled",
         "external_context_cache_ttl_sec",
         "onchain_context_source",

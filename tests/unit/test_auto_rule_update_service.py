@@ -147,3 +147,60 @@ def test_auto_rule_update_service_resets_without_rule_change_when_win_rate_is_hi
     assert result["reset_learning_completion"] is True
     assert result["rule_changed"] is False
     assert "win_rate_above_auto_update_threshold" in result["result"]["proposal"]["rejection_reasons"]
+
+
+
+def test_auto_rule_update_service_runs_after_24h_without_trade_even_when_learning_incomplete(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                '{"event_name":"fill_result","market":"KRW-XRP","mode":"demo","payload":{"side":"buy"},"recorded_at":"2026-05-01T00:00:00+00:00"}',
+                '{"event_name":"auto_trade_cycle","market":"KRW-XRP","mode":"demo","payload":{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL","sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"},"recorded_at":"2026-05-02T01:00:00+00:00"}',
+                '{"event_name":"auto_trade_cycle","market":"KRW-XRP","mode":"demo","payload":{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL","sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"},"recorded_at":"2026-05-02T01:00:03+00:00"}',
+                '{"event_name":"auto_trade_cycle","market":"KRW-XRP","mode":"demo","payload":{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL","sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"},"recorded_at":"2026-05-02T01:00:06+00:00"}',
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rule_review_service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=100,
+            min_stoplosses=20,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+            auto_update_enabled=True,
+        ),
+    )
+    service = AutoRuleUpdateService(
+        readiness_service=ModelTrainingReadinessService(
+            log_dir=tmp_path,
+            thresholds=ModelTrainingThresholds(
+                min_total_events=100,
+                min_signal_events=100,
+                min_fill_events=60,
+                min_exit_events=20,
+                min_blocked_cycles=80,
+            ),
+        ),
+        rule_review_service=rule_review_service,
+        fixture_path=Path("fixtures/replay_ticks.json"),
+        no_trade_trigger_hours=24,
+    )
+
+    result = service.maybe_run()
+    second = service.maybe_run()
+
+    assert result["status"] == "completed"
+    assert result["completion_rate"] < 1.0
+    assert result["no_trade_trigger"]["reason"] == "no_trade_24h"
+    assert result["result"]["trigger_reason"] == "no_trade_24h"
+    assert result["rule_changed"] is True
+    assert second["status"] == "skipped"
+    assert second["reason"] == "already_applied_no_trade_24h"

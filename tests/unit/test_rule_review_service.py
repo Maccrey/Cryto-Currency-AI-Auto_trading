@@ -638,6 +638,60 @@ def test_rule_review_includes_coin_and_log_dir_metadata(tmp_path: Path) -> None:
     assert proposals["learning_log_dir"] == str(tmp_path)
 
 
+
+def test_rule_review_summarizes_24h_trade_staleness_and_prefers_bull_recovery(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps({"event_name": "fill_result", "payload": {"side": "buy"}, "recorded_at": "2026-05-01T00:00:00+00:00"}),
+                json.dumps(
+                    {
+                        "event_name": "auto_trade_cycle",
+                        "payload": {
+                            "status": "blocked",
+                            "reason": "WEAK_ENTRY_HISTORICAL_LOSS_BLOCK",
+                            "sizing_blocked_reason": "FEE_ADJUSTED_EDGE_LIMIT",
+                            "rule_variant_shadow": {
+                                "leader_key": "B",
+                                "leader_label": "룰 B 추세형",
+                                "results": [
+                                    {"variant_key": "A", "variant_label": "룰 A 안정형", "profit_rate": 0.0},
+                                    {"variant_key": "B", "variant_label": "룰 B 추세형", "profit_rate": 0.004},
+                                ],
+                            },
+                        },
+                        "recorded_at": "2026-05-02T02:00:00+00:00",
+                    },
+                    ensure_ascii=True,
+                ),
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    review = service.review()["review"]
+    proposal = service.create_proposal(review_id=str(review["id"]))["proposal"]
+
+    assert review["trade_staleness_summary"]["no_trade_24h"] is True
+    assert review["trade_staleness_summary"]["hours_since_last_trade"] == 26.0
+    assert "거래 공백" in review["codex_rule_prompt"]
+    assert proposal["codex_suggested_changes"][0]["parameter"] == "BULL_TREND_WEAK_SIGNAL_RECOVERY"
+
 def test_rule_review_summarizes_external_market_context(tmp_path: Path) -> None:
     (tmp_path / "learning.jsonl").write_text(
         "\n".join(

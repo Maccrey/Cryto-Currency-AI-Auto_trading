@@ -53,6 +53,7 @@ class EnvFileService:
                     values.get("AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE", "1.0"),
                 ),
                 "win_rate_skip_threshold": float(values.get("AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD", "0.80")),
+                "no_trade_hours": float(values.get("AUTO_RULE_UPDATE_NO_TRADE_HOURS", "24")),
             },
         }
 
