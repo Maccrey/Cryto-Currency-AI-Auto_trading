@@ -788,9 +788,10 @@ def create_app(
             dashboard_learning_facade=dashboard_services.learning_facade,
             dashboard_recovery_facade=dashboard_services.recovery_facade,
             promotion_dashboard_facade=promotion_services.dashboard_facade,
-            external_context_provider=lambda: external_context_service.snapshot(
+            external_context_provider=lambda force=False: external_context_service.snapshot(
                 market=settings.trade_market,
                 trade_coin=settings.trade_coin,
+                force=force,
             ),
         ),
     )
@@ -832,7 +833,7 @@ def create_app(
             learning_log_dir=profile_learning_log_dir,
         ),
     )
-    app.include_router(build_rules_router(rule_review_service=rule_review_service))
+    app.include_router(build_rules_router(rule_review_service=rule_review_service, learning_service=learning_service))
     return app
 
 

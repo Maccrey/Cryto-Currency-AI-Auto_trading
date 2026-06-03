@@ -70,6 +70,9 @@ class HttpExternalMarketContextProvider:
     def close(self) -> None:
         self._client.close()
 
+    def clear_cache(self) -> None:
+        self._cache.clear()
+
     def _fetch_section(self, url: str, *, market: str, trade_coin: str) -> dict[str, object]:
         cache_key = ("context", url, market, trade_coin.upper())
         cached = self._cache.get(cache_key)
@@ -147,6 +150,9 @@ class PublicWebExternalMarketContextProvider:
 
     def close(self) -> None:
         self._client.close()
+
+    def clear_cache(self) -> None:
+        self._cache.clear()
 
     def _fetch_optional(
         self,
@@ -679,8 +685,12 @@ class ExternalMarketContextService:
         self._config = config or ExternalMarketContextConfig()
         self._provider = provider
 
-    def snapshot(self, *, market: str, trade_coin: str) -> dict[str, object]:
+    def snapshot(self, *, market: str, trade_coin: str, force: bool = False) -> dict[str, object]:
         coin = trade_coin.upper()
+        if force and self._provider is not None:
+            clear_cache = getattr(self._provider, "clear_cache", None)
+            if clear_cache is not None:
+                clear_cache()
         if not self._config.enabled:
             return {
                 "enabled": False,

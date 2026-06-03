@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.services.learning.service import LearningEvent, LearningService
 from app.services.rules.review import RuleReviewService
 
 
@@ -41,7 +42,11 @@ class RuleRollbackPayload(BaseModel):
     rolled_back_by: str = ""
 
 
-def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
+def build_rules_router(
+    *,
+    rule_review_service: RuleReviewService,
+    learning_service: LearningService | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/api/v1/rules")
 
     @router.post("/review")
@@ -66,7 +71,25 @@ def build_rules_router(*, rule_review_service: RuleReviewService) -> APIRouter:
     @router.post("/auto-improve")
     def auto_improve_rules(payload: RuleAutoImprovePayload | None = None) -> dict[str, object]:
         fixture_path = "fixtures/replay_ticks.json" if payload is None else payload.fixture_path
-        return rule_review_service.auto_improve(fixture_path=Path(fixture_path))
+        result = rule_review_service.auto_improve(fixture_path=Path(fixture_path))
+        if learning_service is not None:
+            reset_learning_completion = result.get("status") == "completed"
+            if reset_learning_completion:
+                learning_service.record(
+                    LearningEvent(
+                        event_name="auto_rule_update",
+                        market=str(getattr(rule_review_service, "_market", "unknown")),
+                        mode=str(getattr(rule_review_service, "_trading_mode", "unknown")),
+                        payload={
+                            "status": result.get("status", "unknown"),
+                            "reset_learning_completion": True,
+                            "trigger_reason": result.get("trigger_reason", "manual"),
+                            "rule_changed": bool((result.get("proposal") or {}).get("demo_applied")),
+                        },
+                    ),
+                )
+            result["reset_learning_completion"] = reset_learning_completion
+        return result
 
     @router.get("/proposals/{proposal_id}")
     def get_rule_proposal(proposal_id: str) -> dict[str, object]:

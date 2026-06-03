@@ -157,3 +157,36 @@ def test_market_trend_classifier_uses_recent_drop_over_positive_reference() -> N
     assert trend.market_state == "bear"
     assert trend.market_state_label == "하락장"
     assert trend.source == "price_history"
+
+def test_market_trend_classifier_treats_weak_rebound_inside_bear_reference_as_box() -> None:
+    store = MarketPriceStore()
+    for price in [1912.0, 1913.0, 1914.0, 1915.0, 1916.0]:
+        store.save(market="KRW-XRP", price=price)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=1916.0,
+        history=store.list_history("KRW-XRP"),
+        reference_change_pct=-0.024,
+    )
+
+    assert trend.recent_change_pct == 0.0
+    assert trend.market_state == "box"
+    assert trend.market_state_label == "박스권"
+    assert trend.source == "bear_reference_box"
+
+
+def test_market_trend_classifier_allows_strong_recovery_over_bear_reference() -> None:
+    store = MarketPriceStore()
+    for price in [1900.0, 1903.0, 1906.0, 1909.0, 1912.0]:
+        store.save(market="KRW-XRP", price=price)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=1912.0,
+        history=store.list_history("KRW-XRP"),
+        reference_change_pct=-0.024,
+    )
+
+    assert trend.recent_change_pct == 0.0063
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
+    assert trend.source == "price_history"

@@ -156,6 +156,9 @@ class AutoTradingService:
         )
         self._last_cycle: dict[str, object] | None = None
         self._pending_live_order_id: str | None = None
+        self._last_ticker_reference_change_pct: float | None = None
+        self._last_auto_rule_update_check_at = 0
+        self._auto_rule_update_check_interval_sec = 60
         self._last_market_shock_alert_at: dict[str, int] = {}
 
     def should_run(self) -> bool:
@@ -273,6 +276,7 @@ class AutoTradingService:
         if snapshot.trade_price <= 0:
             return self._record_cycle(status="waiting", reason="INVALID_PRICE_SNAPSHOT")
 
+        self._last_ticker_reference_change_pct = snapshot.signed_change_rate
         self._market_price_store.save(market=self._market, price=snapshot.trade_price)
         self._prices.append(snapshot.trade_price)
         self._traded_values.append(self._traded_value(snapshot))
@@ -654,11 +658,18 @@ class AutoTradingService:
             observed_box_range_high=trend.box_range_high,
         )
 
-    def _classify_current_market_state(self, current_price: float):
+    def _classify_current_market_state(
+        self,
+        current_price: float,
+        *,
+        reference_change_pct: float | None = None,
+    ):
+        reference = self._last_ticker_reference_change_pct if reference_change_pct is None else reference_change_pct
         return self._trend_classifier.classify(
             current_price=current_price,
             history=self._market_price_store.list_history(self._market),
             learning_events=self._learning_service.recent_events(limit=200),
+            reference_change_pct=reference,
         )
 
     def _portfolio_state(self) -> PortfolioState:
@@ -1130,7 +1141,7 @@ class AutoTradingService:
                 payload=payload,
             ),
         )
-        if self._auto_rule_update_service is not None:
+        if self._auto_rule_update_service is not None and self._should_check_auto_rule_update():
             update_result = self._auto_rule_update_service.maybe_run()
             if update_result.get("status") in {"completed", "needs_retry", "failed", "blocked"}:
                 self._learning_service.record(
@@ -1142,6 +1153,13 @@ class AutoTradingService:
                     ),
                 )
         return payload
+
+    def _should_check_auto_rule_update(self) -> bool:
+        now = int(self._clock().timestamp())
+        if now - self._last_auto_rule_update_check_at < self._auto_rule_update_check_interval_sec:
+            return False
+        self._last_auto_rule_update_check_at = now
+        return True
 
     def _external_context(self, *, record: bool = True) -> dict[str, object] | None:
         if self._external_context_provider is None:
@@ -1193,14 +1211,22 @@ class AutoTradingService:
             return 1.0
         return round(min(len(self._prices) / self._config.min_history, 1.0), 3)
 
-    def _market_regime_payload(self, current_price: float | None = None) -> dict[str, object]:
+    def _market_regime_payload(
+        self,
+        current_price: float | None = None,
+        *,
+        reference_change_pct: float | None = None,
+    ) -> dict[str, object]:
         if current_price is None:
             snapshot = self._market_price_store.get(self._market)
             if snapshot is None or snapshot.price <= 0:
                 return {}
             current_price = snapshot.price
         try:
-            trend = self._classify_current_market_state(float(current_price))
+            trend = self._classify_current_market_state(
+                float(current_price),
+                reference_change_pct=reference_change_pct,
+            )
         except Exception:
             return {}
         return {
@@ -1232,7 +1258,12 @@ class AutoTradingService:
             "price_window_high": max(price_window) if price_window else None,
             "traded_value_window": list(self._traded_values),
         }
-        payload.update(self._market_regime_payload(snapshot.trade_price))
+        payload.update(
+            self._market_regime_payload(
+                snapshot.trade_price,
+                reference_change_pct=snapshot.signed_change_rate,
+            ),
+        )
         ticker_meta = asdict(snapshot)
         payload["ticker"] = {key: value for key, value in ticker_meta.items() if value is not None}
         record_observation = getattr(self._learning_service, "record_market_observation", None)

@@ -23,6 +23,8 @@ class MarketTrendClassifier:
     """Classify the price-card trend state from recent market price history."""
 
     BOX_THRESHOLD_PCT = 0.001
+    BEAR_REFERENCE_THRESHOLD_PCT = -0.01
+    BEAR_MARKET_RECOVERY_THRESHOLD_PCT = 0.004
     MIN_BOX_WIDTH_PCT = 0.001
     RECENT_TREND_POINTS = 12
     STATE_LOOKBACK_POINTS = 288
@@ -87,11 +89,18 @@ class MarketTrendClassifier:
         recent_window_change_pct: float,
         reference_change_pct: float | None,
     ) -> tuple[float, str]:
+        reference = None if reference_change_pct is None else round(reference_change_pct, 4)
+        if (
+            reference is not None
+            and reference <= MarketTrendClassifier.BEAR_REFERENCE_THRESHOLD_PCT
+            and recent_window_change_pct > MarketTrendClassifier.BOX_THRESHOLD_PCT
+            and recent_window_change_pct < MarketTrendClassifier.BEAR_MARKET_RECOVERY_THRESHOLD_PCT
+        ):
+            return 0.0, "bear_reference_box"
         if abs(recent_window_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT:
             return recent_window_change_pct, "price_history"
-        if reference_change_pct is None:
+        if reference is None:
             return recent_change_pct, "price_history"
-        reference = round(reference_change_pct, 4)
         if abs(reference) <= MarketTrendClassifier.BOX_THRESHOLD_PCT and abs(recent_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT:
             return recent_change_pct, "price_history"
         return reference, "ticker_reference"

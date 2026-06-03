@@ -107,7 +107,7 @@ class DemoRuleVariantShadowTester:
             )
             for variant in self._variants
         ]
-        leader = max(results, key=lambda item: (float(item["profit_rate"]), item["variant_key"] == "A"))
+        leader = max(results, key=self._leader_score)
         return {
             "leader_key": leader["variant_key"],
             "leader_label": leader["variant_label"],
@@ -373,6 +373,24 @@ class DemoRuleVariantShadowTester:
             return False
         position = DemoRuleVariantShadowTester._box_position(decision=decision, current_price=current_price)
         return position is not None and position >= 0.82
+
+    @staticmethod
+    def _leader_score(item: dict[str, object]) -> tuple[float, float, int]:
+        profit_rate = float(item.get("profit_rate") or 0.0)
+        trade_count = int(item.get("trade_count") or 0)
+        market_state = str(item.get("market_state") or "box")
+        market_pressure = float(item.get("market_pressure") or 0.0)
+        variant_key = str(item.get("variant_key") or "")
+        suitability = 0.0
+        if market_state == "bull":
+            suitability = {"B": 0.12, "A": 0.08, "C": 0.03}.get(variant_key, 0.0)
+            suitability += max(market_pressure, 0.0) * (0.08 if variant_key == "B" else 0.03)
+        elif market_state == "bear":
+            suitability = {"C": 0.12, "A": 0.05, "B": -0.04}.get(variant_key, 0.0)
+            suitability += abs(min(market_pressure, 0.0)) * (0.06 if variant_key == "C" else 0.02)
+        else:
+            suitability = {"C": 0.09, "A": 0.07, "B": -0.02}.get(variant_key, 0.0)
+        return profit_rate, suitability, trade_count
 
     @staticmethod
     def _leader_reason(leader: dict[str, object]) -> str:

@@ -83,7 +83,7 @@ def build_dashboard_router(
         return promotion_dashboard_facade.build_history_response()
 
     @router.get("/external-context")
-    def dashboard_external_context() -> dict[str, object]:
+    def dashboard_external_context(force: bool = False) -> dict[str, object]:
         if external_context_provider is None:
             return {
                 "status": "not_configured",
@@ -91,7 +91,7 @@ def build_dashboard_router(
             }
         return {
             "status": "ok",
-            "context": external_context_provider(),
+            "context": _external_context_snapshot(force=force),
         }
 
     return router
@@ -178,7 +178,7 @@ DASHBOARD_HTML = """
     th, td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
     th { color: var(--muted); font-size: 12px; }
     .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
-    .table-box { min-height: 268px; overflow: hidden; }
+    .table-box { min-height: 268px; overflow-x: auto; overflow-y: hidden; }
     .state-panel { min-height: 366px; }
     .metric-table tbody { display: table-row-group; }
     .ai-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
@@ -274,6 +274,11 @@ DASHBOARD_HTML = """
       .market-context-card .context-value.usd-price { font-size: 22px; line-height: 1.15; }
       .market-context-card .context-value.usd-price span,
       .market-context-card .context-value.usd-price .krw-price { font-size: 12px; }
+      .action-row .btn { flex: 1 1 100%; justify-content: center; }
+      .rule-modal { width: 100%; max-height: 92vh; }
+      .modal-backdrop { align-items: flex-start; padding: 10px; overflow-y: auto; }
+      .rule-modal header, .rule-modal-body, .rule-modal-footer { padding-left: 12px; padding-right: 12px; }
+      .rule-modal-footer .btn { flex: 1 1 100%; justify-content: center; }
       .wrap { padding-left: 14px; padding-right: 14px; }
     }
   </style>
@@ -288,7 +293,7 @@ DASHBOARD_HTML = """
       </div>
       <nav class="nav">
         <button id="themeToggle" class="theme-switch" type="button" onclick="toggleTheme()"><span class="toggle"></span><span id="themeLabel">다크모드</span></button>
-        <button class="btn primary" type="button" onclick="refreshDashboard()">새로고침</button>
+        <button class="btn primary" type="button" onclick="refreshDashboard(true)">새로고침</button>
         <a class="btn" href="/settings">설정</a>
         <a class="btn" href="/health" target="_blank" rel="noreferrer">상태 API</a>
         <span id="tradingRuntime" class="runtime-pill" title="트레이딩 운영시간"></span>
@@ -1412,10 +1417,14 @@ function renderRuleHistory(payload) {
 }
 
 async function refreshRuleHistory() {
-  renderRuleHistory(await fetchJson("/api/v1/rules/history"));
+  const payload = await fetchJson("/api/v1/rules/history");
+  cachedRuleHistoryResponse = payload;
+  renderRuleHistory(payload);
 }
 
 async function runCodexRuleAutomation(initialMessage = "학습 로그를 읽고 변경안을 생성하는 자동 파이프라인을 실행합니다.") {
+  if (autoRuleImproveInFlight) return;
+  autoRuleImproveInFlight = true;
   openRuleAutomationModal();
   appendRuleAutomationStep("Codex CLI 룰 개선 하네스 시작", "running", initialMessage);
   try {
@@ -1423,6 +1432,10 @@ async function runCodexRuleAutomation(initialMessage = "학습 로그를 읽고 
     renderRuleAutomationResult(result);
     renderRulePipeline({proposal: result.proposal || {}, review: result.review || {}});
     await refreshRuleHistory();
+    if (result.reset_learning_completion) {
+      sessionStorage.removeItem(AUTO_RULE_READY_KEY);
+    }
+    await refreshDashboard(true);
   } catch (error) {
     appendRuleAutomationStep("자동 룰 개선 실패", "blocked", error.message);
     const finalBox = document.getElementById("ruleAutomationFinal");
@@ -1430,19 +1443,16 @@ async function runCodexRuleAutomation(initialMessage = "학습 로그를 읽고 
     finalBox.classList.remove("hidden");
     document.getElementById("ruleAutomationRetry").classList.remove("hidden");
     document.getElementById("ruleAutomationClose").classList.remove("hidden");
+  } finally {
+    autoRuleImproveInFlight = false;
   }
 }
 
 async function maybeRunAutoRuleImprove(progress) {
   if (progress < 100 || autoRuleImproveInFlight) return;
   if (sessionStorage.getItem(AUTO_RULE_READY_KEY) === "done") return;
-  autoRuleImproveInFlight = true;
   sessionStorage.setItem(AUTO_RULE_READY_KEY, "done");
-  try {
-    await runCodexRuleAutomation("학습완료율 100% 도달로 학습 데이터, 온체인 데이터, ETF 상태를 함께 분석합니다.");
-  } finally {
-    autoRuleImproveInFlight = false;
-  }
+  await runCodexRuleAutomation("학습완료율 100% 도달로 학습 데이터, 온체인 데이터, ETF 상태를 함께 분석합니다.");
 }
 
 async function runRuleReview() {
@@ -1504,14 +1514,14 @@ async function rollbackRuleProposal() {
   await refreshRuleHistory();
 }
 
-async function refreshDashboard() {
+async function refreshDashboard(forceSlow = false) {
   if (dashboardRefreshInFlight) return;
   dashboardRefreshInFlight = true;
   document.getElementById("statusLine").textContent = "데이터를 불러오는 중...";
   try {
     const now = Date.now();
-    const shouldRefreshSlowData = now - lastSlowDashboardRefreshAt >= DASHBOARD_SLOW_REFRESH_INTERVAL_MS;
-    const slowRefreshPromise = shouldRefreshSlowData ? refreshSlowDashboardData(now) : Promise.resolve();
+    const shouldRefreshSlowData = forceSlow || now - lastSlowDashboardRefreshAt >= DASHBOARD_SLOW_REFRESH_INTERVAL_MS;
+    const slowRefreshPromise = shouldRefreshSlowData ? refreshSlowDashboardData(now, forceSlow) : Promise.resolve();
     const [health, summary, marketResponse, learningResponse, learningHealthResponse, readinessResponse, executions, promotionResponse, tradingStatus] = await Promise.all([
       fetchJson("/health"),
       fetchJson("/dashboard/summary"),
@@ -1547,14 +1557,16 @@ async function refreshDashboard() {
   }
 }
 
-async function refreshSlowDashboardData(startedAt) {
-  if (dashboardSlowRefreshInFlight) return;
-  dashboardSlowRefreshInFlight = true;
+async function refreshSlowDashboardData(startedAt, force = false) {
+  if (dashboardSlowRefreshInFlight) {
+    return dashboardSlowRefreshInFlight;
+  }
+  dashboardSlowRefreshInFlight = (async () => {
   try {
     const [ruleProposalResponse, ruleHistoryResponse, externalContextResponse, diagnosticsResponse] = await Promise.all([
       fetchJson("/api/v1/rules/proposals"),
       fetchJson("/api/v1/rules/history"),
-      fetchJson("/dashboard/external-context"),
+      fetchJson(force ? "/dashboard/external-context?force=true" : "/dashboard/external-context"),
       fetchJson("/learning/diagnostics")
     ]);
     cachedRuleProposalResponse = ruleProposalResponse;
@@ -1567,6 +1579,8 @@ async function refreshSlowDashboardData(startedAt) {
     lastSlowDashboardRefreshAt = startedAt;
     dashboardSlowRefreshInFlight = false;
   }
+  })();
+  return dashboardSlowRefreshInFlight;
 }
 
 function renderExternalContext(context, market) {

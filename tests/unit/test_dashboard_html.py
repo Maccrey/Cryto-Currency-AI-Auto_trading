@@ -135,7 +135,7 @@ def test_settings_rule_improvement_layout_wraps_long_text() -> None:
 
 def test_dashboard_includes_external_market_context_panel() -> None:
     assert "온체인/ETF 상황" in DASHBOARD_HTML
-    assert 'fetchJson("/dashboard/external-context")' in DASHBOARD_HTML
+    assert 'fetchJson(force ? "/dashboard/external-context?force=true" : "/dashboard/external-context")' in DASHBOARD_HTML
     assert "renderExternalContext" in DASHBOARD_HTML
     assert 'id="onchainSource"' not in DASHBOARD_HTML
     assert 'id="etfSource"' not in DASHBOARD_HTML
@@ -273,7 +273,7 @@ def test_dashboard_refresh_throttles_overlapping_requests() -> None:
     assert "if (dashboardRefreshInFlight) return;" in DASHBOARD_HTML
     assert "dashboardRefreshInFlight = false;" in DASHBOARD_HTML
     assert "function refreshSlowDashboardData" in DASHBOARD_HTML
-    assert "if (dashboardSlowRefreshInFlight) return;" in DASHBOARD_HTML
+    assert "return dashboardSlowRefreshInFlight;" in DASHBOARD_HTML
     assert 'console.warn(`느린 대시보드 데이터 갱신 실패: ${error.message}`);' in DASHBOARD_HTML
     assert "lastSlowDashboardRefreshAt = startedAt;" in DASHBOARD_HTML
     assert "setInterval(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS);" in DASHBOARD_HTML
