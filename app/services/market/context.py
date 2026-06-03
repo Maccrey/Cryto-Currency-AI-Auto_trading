@@ -715,7 +715,8 @@ class ExternalMarketContextService:
             self._config.onchain_active_addresses_change_pct,
         )
         configured_etf_state = self._string_value(etf_payload.get("state"), self._config.etf_state)
-        etf_state = configured_etf_state if coin in self.ETF_SUPPORTED_COINS else "not_applicable"
+        etf_applicable = coin in self.ETF_SUPPORTED_COINS or bool(etf_payload)
+        etf_state = configured_etf_state if etf_applicable else "not_applicable"
         etf_flow_usd = self._float_value(etf_payload.get("flow_usd"), self._config.etf_flow_usd)
         market_usd_price = self._float_value(market_payload.get("usd_price"), 0.0)
         etf_inflow_usd = self._float_value(etf_payload.get("inflow_usd"), max(etf_flow_usd, 0.0))
@@ -756,6 +757,8 @@ class ExternalMarketContextService:
             "trade_coin": coin,
             "onchain": {
                 "source": onchain_source,
+                "metric": self._string_value(onchain_payload.get("metric"), "manual_onchain_context" if not onchain_payload else "unknown"),
+                "data_status": "provider" if onchain_payload else "fallback",
                 "state": onchain_state,
                 "active_addresses_change_pct": onchain_active_addresses_change_pct,
                 "exchange_netflow_state": onchain_exchange_netflow_state,
@@ -774,18 +777,21 @@ class ExternalMarketContextService:
             },
             "etf": {
                 "source": etf_source,
+                "metric": self._string_value(etf_payload.get("metric"), "manual_etf_context" if not etf_payload else "unknown"),
+                "data_status": "provider" if etf_payload else "fallback",
+                "flow_date": self._string_value(etf_payload.get("flow_date"), ""),
                 "state": etf_state,
-                "flow_usd": etf_flow_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "inflow_usd": etf_inflow_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "outflow_usd": etf_outflow_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "holding_change_coin": etf_holding_change if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "total_aum_usd": etf_total_aum_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "total_holding_coin": etf_total_holding_coin if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "flow_usd_change": etf_flow_change_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "inflow_usd_change": etf_inflow_change_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "outflow_usd_change": etf_outflow_change_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "total_aum_usd_change": etf_total_aum_change_usd if coin in self.ETF_SUPPORTED_COINS else 0.0,
-                "total_holding_coin_change": etf_total_holding_change_coin if coin in self.ETF_SUPPORTED_COINS else 0.0,
+                "flow_usd": etf_flow_usd if etf_applicable else 0.0,
+                "inflow_usd": etf_inflow_usd if etf_applicable else 0.0,
+                "outflow_usd": etf_outflow_usd if etf_applicable else 0.0,
+                "holding_change_coin": etf_holding_change if etf_applicable else 0.0,
+                "total_aum_usd": etf_total_aum_usd if etf_applicable else 0.0,
+                "total_holding_coin": etf_total_holding_coin if etf_applicable else 0.0,
+                "flow_usd_change": etf_flow_change_usd if etf_applicable else 0.0,
+                "inflow_usd_change": etf_inflow_change_usd if etf_applicable else 0.0,
+                "outflow_usd_change": etf_outflow_change_usd if etf_applicable else 0.0,
+                "total_aum_usd_change": etf_total_aum_change_usd if etf_applicable else 0.0,
+                "total_holding_coin_change": etf_total_holding_change_coin if etf_applicable else 0.0,
             },
             "market_data": {
                 "source": self._string_value(market_payload.get("source"), "web") if market_payload else "manual",

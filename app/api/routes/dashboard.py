@@ -1584,6 +1584,7 @@ async function refreshSlowDashboardData(startedAt, force = false) {
 }
 
 function renderExternalContext(context, market) {
+  context = context || {};
   const onchain = context.onchain || {};
   const etf = context.etf || {};
   const marketData = context.market_data || {};
@@ -1594,7 +1595,8 @@ function renderExternalContext(context, market) {
     : `<span class="krw-price">${price(market.current_price)} <span class="${changeClass(upbitChangeRate)}">(${percent(upbitChangeRate)})</span></span>`;
   document.getElementById("contextUsdPrice").innerHTML = `${usd(marketData.usd_price)}<br><span class="${changeClass(usdChange)}">24시간 ${percent(usdChange)}</span><br>${krwPriceLine}`;
   document.getElementById("onchainState").textContent = [
-    `${formatContextState(onchain.state)} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)}`,
+    `${formatContextState(onchain.state)} / 주소변화 ${percent(onchain.active_addresses_change_pct || 0)} / 출처 ${formatContextSource(onchain.source)} (${formatContextDataStatus(onchain.data_status)})`,
+    `지표: ${formatContextMetric(onchain.metric)}`,
     `거래소 순유입·순유출: ${formatContextState(onchain.exchange_netflow_state)}`,
     `고래 지갑 움직임: ${formatContextState(onchain.whale_activity_state)}${formatContextBasis(onchain.whale_activity_basis)}`,
     `MVRV/SOPR: ${formatContextState(onchain.valuation_state)}${formatContextBasis(onchain.valuation_basis)}`
@@ -1603,7 +1605,8 @@ function renderExternalContext(context, market) {
   const holdingChange = Number(etf.holding_change_coin || 0);
   const etfFlowLines = formatEtfFlowLines(etf);
   const etfLines = [
-    `${formatContextState(etf.state)}`,
+    `${formatContextState(etf.state)} / 출처 ${formatContextSource(etf.source)} (${formatContextDataStatus(etf.data_status)})`,
+    etf.metric ? `지표 ${formatContextMetric(etf.metric)}${etf.flow_date ? ` / 기준일 ${etf.flow_date}` : ""}` : "",
     ...etfFlowLines,
     formatEtfMetricLine("보유수량 변화", holdingChange, `${tradeCoin}`, holdingChange, 0),
     etf.total_aum_usd ? formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0, false) : "",
@@ -1651,7 +1654,40 @@ function formatExternalContextStatus(onchain, etf) {
   if (etf.fetch_error) errors.push("ETF 오류");
   if (errors.length) return errors.join(" / ");
   if (onchain.state === "disabled" || etf.state === "disabled") return "비활성";
+  if (!onchain.state && !etf.state) return "대기 중";
   return "정상";
+}
+
+function formatContextSource(value) {
+  const labels = {
+    web: "웹",
+    http: "HTTP",
+    manual: "수동"
+  };
+  return labels[value] || value || "-";
+}
+
+function formatContextDataStatus(value) {
+  const labels = {
+    provider: "거래 코인 자료",
+    fallback: "기본값"
+  };
+  return labels[value] || value || "대기";
+}
+
+function formatContextMetric(value) {
+  const labels = {
+    btc_unique_addresses: "BTC 활성 주소",
+    xrp_recent_ledger_tx_count: "XRP Ledger 거래 수",
+    farside_btc_etf_total_flow: "BTC ETF 순흐름",
+    xrp_insights_etf_tracker: "XRP ETF tracker",
+    manual_onchain_context: "수동 온체인 설정",
+    manual_etf_context: "수동 ETF 설정"
+  };
+  if (!value) return "-";
+  if (labels[value]) return labels[value];
+  if (String(value).startsWith("coinglass_")) return `Coinglass ${String(value).replace("coinglass_", "").replace("_etf", "").toUpperCase()} ETF`;
+  return value;
 }
 
 function formatContextState(value) {
@@ -1742,15 +1778,21 @@ function formatBlockedReason(value) {
     TECHNICAL_OVERBOUGHT_BLOCKED: "보조지표 과매수 차단",
     EXTERNAL_CONTEXT_BULLISH_BOOST: "외부 컨텍스트 상승 보정",
     EXTERNAL_CONTEXT_RISK_OFF: "외부 컨텍스트 위험 회피",
-    TARGET_DAILY_RETURN_0_5PCT: "일 목표 수익률 기준 반영"
+    TARGET_DAILY_RETURN_0_5PCT: "일 목표 수익률 기준 반영",
+    SCALE_IN_SIGNAL_NOT_STRONGER: "기존 진입보다 강하지 않은 추가매수 차단"
   };
   return formatKoreanLabel(value, labels, "기타 차단 사유");
 }
 
 function renderNoTradeDiagnostics(diagnostics) {
-  const diagnosis = diagnostics.diagnosis || {};
-  const mitigation = diagnostics.mitigation || {};
-  document.getElementById("noTradeDiagnosis").textContent = `${formatDiagnosisState(diagnosis.state)} / ${diagnosis.message || ""}`.trim();
+  diagnostics = diagnostics || {};
+  const diagnosis = diagnostics.diagnosis || {state: "NO_TRADE_DATA", message: "진단 데이터가 아직 도착하지 않았습니다."};
+  const mitigation = diagnostics.mitigation || {action: "MONITOR", message: "자동매매 로그가 쌓이면 원인을 표시합니다."};
+  const summary = diagnostics.no_trade_summary || {};
+  const summaryLine = summary.window_cycle_count !== undefined
+    ? ` / 24시간 사이클 ${number(summary.window_cycle_count || 0)}건, 체결 ${number(summary.window_fill_count || 0)}건`
+    : "";
+  document.getElementById("noTradeDiagnosis").textContent = `${formatDiagnosisState(diagnosis.state)} / ${diagnosis.message || ""}${summaryLine}`.trim();
   document.getElementById("noTradeMitigation").textContent = `${formatMitigationAction(mitigation.action)} / ${mitigation.message || ""}`.trim();
   document.getElementById("noTradeBlockedReasons").textContent = formatBlockedReasons(diagnostics);
   document.getElementById("noTradeExternalContext").textContent = formatDiagnosticsExternalContext(diagnostics.external_context_summary || {});

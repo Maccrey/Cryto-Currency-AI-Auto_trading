@@ -245,6 +245,12 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert "표본 ${number(summary.sample_count || 0)}건" in DASHBOARD_HTML
     assert "온체인 ${onchain}" in DASHBOARD_HTML
     assert "ETF ${etf}" in DASHBOARD_HTML
+    assert "function formatContextSource(value)" in DASHBOARD_HTML
+    assert "function formatContextDataStatus(value)" in DASHBOARD_HTML
+    assert "function formatContextMetric(value)" in DASHBOARD_HTML
+    assert "거래 코인 자료" in DASHBOARD_HTML
+    assert "진단 데이터가 아직 도착하지 않았습니다." in DASHBOARD_HTML
+    assert "SCALE_IN_SIGNAL_NOT_STRONGER" in DASHBOARD_HTML
     assert "평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}" in DASHBOARD_HTML
 
 

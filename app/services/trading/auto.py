@@ -160,6 +160,8 @@ class AutoTradingService:
         self._last_auto_rule_update_check_at = 0
         self._auto_rule_update_check_interval_sec = 60
         self._last_market_shock_alert_at: dict[str, int] = {}
+        self._last_entry_signal_level: str | None = None
+        self._last_entry_signal_score: float | None = None
 
     def should_run(self) -> bool:
         if not self._config.enabled:
@@ -233,6 +235,8 @@ class AutoTradingService:
             else:
                 self.set_demo_portfolio_baseline(portfolio)
         self._position_opened_at = None
+        self._last_entry_signal_level = None
+        self._last_entry_signal_score = None
         if self._uptime_store is not None:
             self._uptime_store.reset()
             if self.is_running():
@@ -571,6 +575,33 @@ class AutoTradingService:
                 **rule_variant,
             },
         )
+        if self._scale_in_signal_not_stronger(position=position, decision=decision):
+            rule_variant = self._variant_extra(variant_payload)
+            self._consecutive_entry_blocks += 1
+            return self._record_cycle(
+                status="blocked",
+                reason="SCALE_IN_SIGNAL_NOT_STRONGER",
+                extra={
+                    "entry_type": "scale_in",
+                    "signal_level": decision.signal.level,
+                    "signal_score": decision.signal.score,
+                    "signal_blocked": decision.signal.blocked,
+                    "signal_reason_codes": decision.signal.reason_codes,
+                    "previous_entry_signal_level": self._previous_entry_signal_level(position),
+                    "previous_entry_signal_score": self._last_entry_signal_score,
+                    "sizing_allowed": decision.sizing.allowed,
+                    "sizing_blocked_reason": decision.sizing.blocked_reason,
+                    "buy_amount": 0.0,
+                    "market_state": decision.regime.market_state,
+                    "market_state_label": decision.regime.market_state_label,
+                    "box_range_low": decision.regime.box_range_low,
+                    "box_range_high": decision.regime.box_range_high,
+                    **market_state_extra,
+                    "no_trade_relaxed": relaxed_signal,
+                    "trade_logic_update_trace": trade_logic_update_trace,
+                    **rule_variant,
+                },
+            )
         if self._trading_mode == "demo" and not self._can_afford_demo_buy(decision.sizing.buy_amount):
             rule_variant = self._variant_extra(variant_payload)
             return self._record_cycle(
@@ -597,6 +628,8 @@ class AutoTradingService:
         if post_fill_result.position is not None:
             self._position_opened_at = self._clock()
             self._consecutive_entry_blocks = 0
+            self._last_entry_signal_level = decision.signal.level
+            self._last_entry_signal_score = decision.signal.score
 
         return self._record_cycle(
             status=execution_result.status,
@@ -1074,6 +1107,26 @@ class AutoTradingService:
             return False
         max_price = position.entry_price * (1 + self._config.scale_in_max_price_premium_pct)
         return current_price <= max_price
+
+    def _scale_in_signal_not_stronger(self, *, position, decision) -> bool:
+        if position is None:
+            return False
+        if self._last_entry_signal_score is not None:
+            return decision.signal.score <= self._last_entry_signal_score + 1e-9
+        previous_level = self._previous_entry_signal_level(position)
+        return self._signal_level_rank(decision.signal.level) <= self._signal_level_rank(previous_level)
+
+    def _previous_entry_signal_level(self, position) -> str | None:
+        return self._last_entry_signal_level or getattr(position, "signal_level", None)
+
+    @staticmethod
+    def _signal_level_rank(level: str | None) -> int:
+        return {
+            "weak": 1,
+            "medium": 2,
+            "strong": 3,
+            "very_strong": 4,
+        }.get(str(level or ""), 0)
 
     def _traded_value(self, snapshot: UpbitTickerSnapshot) -> float:
         value = snapshot.acc_trade_price_24h

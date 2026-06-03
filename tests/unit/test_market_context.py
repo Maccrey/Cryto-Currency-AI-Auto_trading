@@ -139,6 +139,31 @@ def test_external_market_context_includes_etf_aum_and_holdings() -> None:
     assert context["etf"]["total_holding_coin"] == 828_326_979
 
 
+def test_external_market_context_displays_provider_etf_for_trade_coin_outside_default_support() -> None:
+    class Provider:
+        def fetch(self, *, market: str, trade_coin: str) -> dict[str, dict[str, object]]:
+            return {
+                "etf": {
+                    "source": "web",
+                    "metric": "coinglass_ada_etf",
+                    "state": "inflow",
+                    "flow_usd": 1_250_000,
+                    "total_aum_usd": 25_000_000,
+                }
+            }
+
+    context = ExternalMarketContextService(
+        config=ExternalMarketContextConfig(enabled=True),
+        provider=Provider(),
+    ).snapshot(market="KRW-ADA", trade_coin="ADA")
+
+    assert context["etf"]["state"] == "inflow"
+    assert context["etf"]["flow_usd"] == 1_250_000
+    assert context["etf"]["total_aum_usd"] == 25_000_000
+    assert context["etf"]["metric"] == "coinglass_ada_etf"
+    assert context["etf"]["data_status"] == "provider"
+
+
 def test_external_market_context_falls_back_to_manual_when_http_provider_fails() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": "unavailable"})

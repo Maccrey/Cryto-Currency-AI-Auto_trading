@@ -337,9 +337,53 @@ def test_sizing_engine_caps_buy_amount_by_stop_loss_risk_budget() -> None:
     )
 
     assert decision.allowed is True
-    assert decision.buy_amount == 33333.3
-    assert decision.buy_quantity == 41.6666
+    assert decision.buy_amount == 25454.5
+    assert decision.buy_quantity == 31.8181
     assert decision.stop_loss_price == 776.0
+
+
+def test_sizing_engine_risk_cap_scales_with_signal_strength() -> None:
+    engine = SizingEngine(
+        min_cash_reserve=100000,
+        max_spread_bps=15,
+        max_slippage_bps=20,
+        max_stop_loss_risk_amount=37500,
+    )
+    portfolio = PortfolioState(
+        cash_balance=10_000_000.0,
+        asset_currency="XRP",
+        asset_balance=0.0,
+        avg_buy_price=0.0,
+    )
+    regime = RegimeSnapshot(
+        label="risk_on",
+        score=0.72,
+        size_multiplier=1.4,
+        entry_allowed=True,
+        reason_codes=[],
+    )
+
+    medium = engine.size_entry(
+        portfolio,
+        SignalDecision(level="medium", score=0.45, blocked=False, reason_codes=[]),
+        regime,
+        current_price=800.0,
+        spread_bps=10.0,
+        slippage_bps=12.0,
+    )
+    very_strong = engine.size_entry(
+        portfolio,
+        SignalDecision(level="very_strong", score=0.9, blocked=False, reason_codes=[]),
+        regime,
+        current_price=800.0,
+        spread_bps=10.0,
+        slippage_bps=12.0,
+    )
+
+    assert medium.allowed is True
+    assert very_strong.allowed is True
+    assert medium.buy_amount < very_strong.buy_amount
+    assert very_strong.buy_amount == 1_250_000.0
 
 
 def test_buy_and_sell_sizing_policies_are_separate() -> None:

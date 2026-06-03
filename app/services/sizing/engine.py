@@ -138,9 +138,10 @@ class SizingEngine:
         if self._max_stop_loss_risk_amount is not None:
             if self._max_stop_loss_risk_amount <= 0:
                 return self._blocked("STOP_LOSS_RISK_LIMIT")
+            risk_budget = self._risk_budget_for_buy_ratio(base_buy_ratio)
             buy_amount = min(
                 buy_amount,
-                round(self._max_stop_loss_risk_amount / stop_loss_pct, 1),
+                round(risk_budget / stop_loss_pct, 1),
             )
         if buy_amount <= 0:
             return self._blocked("STOP_LOSS_RISK_LIMIT")
@@ -205,6 +206,15 @@ class SizingEngine:
         if regime.market_state == "box":
             return 0.78
         return 1.0
+
+    def _risk_budget_for_buy_ratio(self, buy_ratio: float) -> float:
+        if self._max_stop_loss_risk_amount is None:
+            return 0.0
+        strongest_ratio = max(self._buy_policy.RATIOS.values())
+        if strongest_ratio <= 0:
+            return 0.0
+        strength_multiplier = max(min(buy_ratio / strongest_ratio, 1.0), 0.0)
+        return self._max_stop_loss_risk_amount * strength_multiplier
 
     @staticmethod
     def _sell_market_state_multiplier(regime: RegimeSnapshot) -> float:
