@@ -12,6 +12,8 @@ from app.services.rules.review import RuleReviewService
 class RuleProposalPayload(BaseModel):
     review_id: str | None = None
     proposed_changes: list[dict[str, object]] | None = None
+    auto_apply: bool = True
+    fixture_path: str = "fixtures/replay_ticks.json"
 
 
 class RuleLiveApprovalPayload(BaseModel):
@@ -55,10 +57,34 @@ def build_rules_router(
 
     @router.post("/proposals")
     def create_rule_proposal(payload: RuleProposalPayload | None = None) -> dict[str, object]:
-        return rule_review_service.create_proposal(
+        result = rule_review_service.create_proposal(
             review_id=None if payload is None else payload.review_id,
             proposed_changes=None if payload is None else payload.proposed_changes,
         )
+        auto_apply = True if payload is None else payload.auto_apply
+        if not auto_apply:
+            return result
+
+        proposal = result["proposal"]
+        auto_apply_result = {
+            "enabled": True,
+            "fixture_path": "fixtures/replay_ticks.json" if payload is None else payload.fixture_path,
+            "replay_status": "skipped",
+            "demo_applied": bool(proposal.get("demo_applied")),
+        }
+        if proposal.get("status") != "blocked":
+            replay_result = rule_review_service.verify_replay(
+                str(proposal["id"]),
+                fixture_path=Path(str(auto_apply_result["fixture_path"])),
+            )
+            proposal = replay_result["proposal"]
+            auto_apply_result["replay_status"] = str((proposal.get("replay_result") or {}).get("status", "unknown"))
+            demo_result = rule_review_service.apply_demo(str(proposal["id"]))
+            proposal = demo_result["proposal"]
+            auto_apply_result["demo_applied"] = bool(proposal.get("demo_applied"))
+        else:
+            auto_apply_result["replay_status"] = "blocked"
+        return {"proposal": proposal, "auto_apply": auto_apply_result}
 
     @router.get("/proposals")
     def list_rule_proposals(limit: int = 20) -> dict[str, object]:

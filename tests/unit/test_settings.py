@@ -45,7 +45,7 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.rule_review_min_stoplosses == 20
     assert settings.rule_change_max_params_per_run == 3
     assert settings.rule_change_apply_target == "demo"
-    assert settings.rule_change_require_manual_approval is True
+    assert settings.rule_change_require_manual_approval is False
     assert settings.fixed_stop_loss_pct == 0.030
     assert settings.stop_loss_weak == 0.030
     assert settings.stop_loss_medium == 0.030

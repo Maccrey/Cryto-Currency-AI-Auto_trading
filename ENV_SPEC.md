@@ -32,7 +32,7 @@ RULE_REVIEW_MIN_TRADES=100
 RULE_REVIEW_MIN_STOPLOSSES=20
 RULE_CHANGE_MAX_PARAMS_PER_RUN=3
 RULE_CHANGE_APPLY_TARGET=demo
-RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true
+RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=false
 
 EXTERNAL_CONTEXT_ENABLED=true
 EXTERNAL_CONTEXT_CACHE_TTL_SEC=30
@@ -151,7 +151,7 @@ DASHBOARD_PORT=8080
 | RULE_CHANGE_MAX_PARAMS_PER_RUN | int | Y | 3 | 한 번의 룰 개선 실행에서 바꿀 수 있는 최대 파라미터 수 |
 | AUTO_RULE_UPDATE_NO_TRADE_HOURS | float | Y | 24 | 마지막 체결 이후 이 시간 이상 거래가 없고 차단 로그가 있으면 자동 룰 개선을 시작하는 기준 |
 | RULE_CHANGE_APPLY_TARGET | str | Y | demo | 룰 변경안 기본 적용 대상, demo만 허용 |
-| RULE_CHANGE_REQUIRE_MANUAL_APPROVAL | bool | Y | true | live 반영 전 수동 승인 필수 여부 |
+| RULE_CHANGE_REQUIRE_MANUAL_APPROVAL | bool | Y | false | demo 룰 개선 자동 적용 여부와 별개인 live 반영 전 수동 승인 필수 여부 |
 | EXTERNAL_CONTEXT_ENABLED | bool | Y | true | 온체인/ETF 외부 컨텍스트 학습 로그 및 대시보드 표시 활성화 |
 | EXTERNAL_CONTEXT_CACHE_TTL_SEC | int | Y | 30 | HTTP 온체인/ETF 컨텍스트 성공 응답 캐시 시간 |
 | ONCHAIN_CONTEXT_SOURCE | str | Y | manual | 온체인 데이터 출처, 초기값은 수동/운영 입력 |
@@ -265,7 +265,7 @@ false면 앱 시작 실패
 - 손절 수가 `RULE_REVIEW_MIN_STOPLOSSES` 미만이면 손절 파라미터 변경안은 만들지 않는다.
 - `RULE_CHANGE_MAX_PARAMS_PER_RUN`을 초과하는 파라미터 변경은 거부한다.
 - `RULE_CHANGE_APPLY_TARGET=demo`만 허용한다. live 직접 적용은 금지한다.
-- `RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true`가 기본이며, live 반영 API는 승인 상태와 demo/replay 결과를 요구한다.
+- `RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=false`가 기본이며, 대시보드 룰 개선은 replay 통과 시 demo에 자동 적용된다. live 반영 API는 별도의 승인 상태와 demo/replay 결과를 요구한다.
 - 룰 변경 히스토리는 코인/투자성향별 `rule-change-history.jsonl`에 append-only로 저장한다.
 - 히스토리에는 기존 룰 snapshot, 신규 룰 snapshot, 변경 사유, 기대 효과, 알려진 리스크, replay/demo/live 결과, 승인자, 한국어 커밋 메시지와 commit hash가 포함되어야 한다.
 - live 승인 전 동일 파라미터의 과거 실패/rollback 이력을 확인해야 한다.
@@ -404,7 +404,7 @@ RULE_REVIEW_MIN_TRADES=100
 RULE_REVIEW_MIN_STOPLOSSES=20
 RULE_CHANGE_MAX_PARAMS_PER_RUN=3
 RULE_CHANGE_APPLY_TARGET=demo
-RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=true
+RULE_CHANGE_REQUIRE_MANUAL_APPROVAL=false
 DEMO_INITIAL_CAPITAL=1000000
 ```
 

@@ -38,6 +38,9 @@ def test_rule_review_api_contract(tmp_path) -> None:
     proposal = proposal_response.json()["proposal"]
     assert proposal["apply_target"] == "demo"
     assert proposal["trade_coin"] == "XRP"
+    assert proposal_response.json()["auto_apply"]["replay_status"] == "blocked"
+    assert proposal_response.json()["auto_apply"]["demo_applied"] is False
+    assert proposal["demo_applied"] is False
 
     list_response = client.get("/api/v1/rules/proposals")
     assert list_response.status_code == 200
@@ -101,7 +104,15 @@ def test_rule_review_api_contract(tmp_path) -> None:
     assert detail_response.json()["proposal"]["id"] == proposal["id"]
     assert detail_response.json()["proposal"]["commit_hash"] == "abc1234"
 
-    demo_response = client.post(f"/api/v1/rules/proposals/{proposal['id']}/apply-demo")
+    manual_proposal_response = client.post(
+        "/api/v1/rules/proposals",
+        json={"review_id": review["id"], "auto_apply": False},
+    )
+    assert manual_proposal_response.status_code == 200
+    manual_proposal = manual_proposal_response.json()["proposal"]
+    assert manual_proposal["demo_applied"] is False
+
+    demo_response = client.post(f"/api/v1/rules/proposals/{manual_proposal['id']}/apply-demo")
     assert demo_response.status_code == 200
     assert demo_response.json()["proposal"]["demo_applied"] is False
 
@@ -129,3 +140,56 @@ def test_rule_review_api_contract(tmp_path) -> None:
     ]
     assert "final_summary" in auto_payload
     assert auto_payload["proposal"]["id"]
+
+
+def test_rule_proposal_route_auto_applies_demo_when_replay_passes(tmp_path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                (
+                    '{"event_name":"auto_trade_cycle","payload":'
+                    '{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL",'
+                    '"sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"}}'
+                ),
+                (
+                    '{"event_name":"auto_trade_cycle","payload":'
+                    '{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL",'
+                    '"sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"}}'
+                ),
+                (
+                    '{"event_name":"auto_trade_cycle","payload":'
+                    '{"status":"blocked","reason":"AUTO_MIN_SIGNAL_LEVEL",'
+                    '"sizing_blocked_reason":"FEE_ADJUSTED_EDGE_LIMIT"}}'
+                ),
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trade_coin="XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=100,
+            min_stoplosses=20,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=False,
+        ),
+    )
+    app = FastAPI()
+    app.include_router(build_rules_router(rule_review_service=service))
+    client = TestClient(app)
+
+    response = client.post("/api/v1/rules/proposals", json={"fixture_path": "fixtures/replay_ticks.json"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["auto_apply"]["replay_status"] == "passed"
+    assert payload["auto_apply"]["demo_applied"] is True
+    assert payload["proposal"]["status"] == "demo_applied"
+    assert payload["proposal"]["approval_required"] is False

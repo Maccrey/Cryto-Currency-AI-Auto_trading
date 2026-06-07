@@ -423,7 +423,7 @@ SETTINGS_HTML = """
     </div>
     <div class="subsection">
       <label>룰 개선</label>
-      <div class="note">Codex 자동 룰 개선은 분석, 변경안 생성, replay 검증, demo 적용을 한 번에 실행하고 진행 과정을 모달로 표시한다. live 반영은 결과 확인 후 별도 승인한다.</div>
+      <div class="note">Codex 자동 룰 개선은 분석, 변경안 생성, replay 검증, demo 적용을 승인 없이 한 번에 실행하고 진행 과정을 모달로 표시한다. live 반영은 결과 확인 후 별도 승인한다.</div>
       <div class="rule-actions">
         <button class="primary" type="button" onclick="runCodexRuleAutomation()">Codex 자동 룰 개선 시작</button>
         <button class="primary" type="button" onclick="approveRuleProposalForLive()">live 승인 적용</button>
