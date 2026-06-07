@@ -254,6 +254,7 @@ def test_env_spec_variables_are_loaded_by_settings_schema() -> None:
         "min_order_amount_krw",
         "profile_min_net_edge_pct",
         "min_cash_reserve",
+        "capital_risk_pct",
         "max_daily_loss",
         "max_slippage_bps",
         "max_spread_bps",

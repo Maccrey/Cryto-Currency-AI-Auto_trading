@@ -281,13 +281,13 @@ def test_position_exit_service_uses_inverse_chart_strength_for_take_profit_sell_
     assert result["status"] == "ok"
     assert result["trigger"]["type"] == "take_profit"
     assert result["trigger"]["reason_code"] == "TAKE_PROFIT_TARGET_HIT"
-    assert result["trigger"]["exit_ratio"] == 0.445
+    assert result["trigger"]["exit_ratio"] == 0.55
     assert result["trigger"]["take_profit_target_pct"] == 0.005965
     assert result["trigger"]["estimated_net_return_pct"] == 0.006317
     assert result["execution"]["side"] == "sell"
     assert result["execution"]["is_stop_loss"] is False
-    assert result["execution"]["filled_quantity"] == 44.5
-    assert result["position"]["quantity"] == 55.5
+    assert result["execution"]["filled_quantity"] == 55.0
+    assert result["position"]["quantity"] == 45.0
     assert result["position"]["stop_loss_price"] > 820.0
     assert result["position"]["stop_loss_reason"] == "PROFIT_PROTECTED"
     assert learning_service.events[0].payload["trigger_type"] == "take_profit"
@@ -320,9 +320,9 @@ def test_position_exit_service_sells_more_of_weak_signal_take_profit() -> None:
 
     assert result["status"] == "ok"
     assert result["trigger"]["type"] == "take_profit"
-    assert result["trigger"]["exit_ratio"] == 0.75
-    assert result["execution"]["filled_quantity"] == 75.0
-    assert result["position"]["quantity"] == 25.0
+    assert result["trigger"]["exit_ratio"] == 0.85
+    assert result["execution"]["filled_quantity"] == 85.0
+    assert result["position"]["quantity"] == 15.0
     assert result["position"]["stop_loss_price"] > 820.0
 
 

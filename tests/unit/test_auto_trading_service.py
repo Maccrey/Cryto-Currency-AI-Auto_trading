@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -728,3 +729,28 @@ def test_auto_trading_service_allows_log_backed_bull_b_leader_weak_recovery(tmp_
     assert trace["applied"] is True
     assert trace["baseline_block_reason"] == "WEAK_ENTRY_HISTORICAL_LOSS_BLOCK"
     assert trace["rule_variant_leader_key"] == "B"
+
+
+def test_auto_trading_service_limits_scale_in_count_and_caps_amount(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0, 806.0, 813.0, 824.0, 818.0, 823.0], min_history=4)
+    service._config = replace(service._config, scale_in_max_position_multiplier=0.1)
+
+    for _ in range(4):
+        service.tick()
+    service.tick()
+    service._last_entry_signal_score = 0.1
+    scale_in = service.tick()
+
+    assert scale_in["status"] == "filled"
+    assert scale_in["entry_type"] == "scale_in"
+    assert scale_in["scale_in_count"] == 1
+    assert scale_in["scale_in_cap_applied"] is True
+    assert scale_in["scale_in_original_buy_amount"] > scale_in["buy_amount"]
+
+    service._scale_in_count = service._config.scale_in_max_entries
+    position = service._position_store.get()
+    decision = service._trade_decision_service.evaluate(service._build_decision_request(818.0, relax_fee_edge=True))
+    limited = service._scale_in_limit_decision(position=position, decision=decision, current_price=818.0)
+
+    assert limited["allowed"] is False
+    assert limited["reason_code"] == "SCALE_IN_MAX_ENTRIES"

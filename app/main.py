@@ -81,7 +81,7 @@ from app.services.runtime.uptime import TradingUptimeStore
 from app.services.signals.engine import SignalEngine
 from app.services.signals.features import MarketFeatureCalculator
 from app.services.regime.engine import RegimeEngine
-from app.services.sizing.engine import SizingEngine
+from app.services.sizing.engine import BuySizingPolicy, SellSizingPolicy, SizingEngine
 from app.services.trading.auto import AutoTradingConfig, AutoTradingService
 from app.services.trading.decision import TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
@@ -276,9 +276,26 @@ def create_app(
                 max_spread_bps=float(settings.max_spread_bps),
                 max_slippage_bps=float(settings.max_slippage_bps),
                 max_stop_loss_risk_amount=float(settings.max_daily_loss) * 0.25,
+                capital_risk_pct=float(settings.capital_risk_pct),
                 trading_fee_rate=float(settings.trading_fee_rate),
                 order_rules=order_rules,
                 min_net_edge_pct=float(settings.profile_min_net_edge_pct),
+                buy_policy=BuySizingPolicy(
+                    {
+                        "weak": settings.buy_ratio_weak,
+                        "medium": settings.buy_ratio_medium,
+                        "strong": settings.buy_ratio_strong,
+                        "very_strong": settings.buy_ratio_very_strong,
+                    },
+                ),
+                sell_policy=SellSizingPolicy(
+                    {
+                        "weak": settings.sell_ratio_weak,
+                        "medium": settings.sell_ratio_medium,
+                        "strong": settings.sell_ratio_strong,
+                        "very_strong": settings.sell_ratio_very_strong,
+                    },
+                ),
                 stop_loss_by_signal=trading_profile.stop_loss_by_signal(),
             ),
         )

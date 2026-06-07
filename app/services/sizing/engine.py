@@ -25,12 +25,15 @@ class SizingDecision:
 class BuySizingPolicy:
     """Strength-to-buy-ratio policy for entry sizing."""
 
-    RATIOS = {
-        "weak": 0.08,
-        "medium": 0.18,
-        "strong": 0.35,
-        "very_strong": 0.55,
+    DEFAULT_RATIOS = {
+        "weak": 0.10,
+        "medium": 0.24,
+        "strong": 0.48,
+        "very_strong": 0.72,
     }
+
+    def __init__(self, ratios: dict[str, float] | None = None) -> None:
+        self.RATIOS = dict(ratios or self.DEFAULT_RATIOS)
 
     def ratio_for(self, signal_level: str) -> float:
         return self.RATIOS[signal_level]
@@ -46,12 +49,15 @@ class BuySizingPolicy:
 class SellSizingPolicy:
     """Strength-to-sell-ratio policy for exit sizing."""
 
-    RATIOS = {
-        "weak": 0.12,
-        "medium": 0.28,
-        "strong": 0.45,
-        "very_strong": 0.70,
+    DEFAULT_RATIOS = {
+        "weak": 0.35,
+        "medium": 0.55,
+        "strong": 0.75,
+        "very_strong": 0.90,
     }
+
+    def __init__(self, ratios: dict[str, float] | None = None) -> None:
+        self.RATIOS = dict(ratios or self.DEFAULT_RATIOS)
 
     def ratio_for(self, signal_level: str) -> float:
         return self.RATIOS[signal_level]
@@ -74,6 +80,7 @@ class SizingEngine:
         max_spread_bps: float,
         max_slippage_bps: float,
         max_stop_loss_risk_amount: float | None = None,
+        capital_risk_pct: float | None = None,
         trading_fee_rate: float = 0.0005,
         min_net_edge_pct: float = 0.0008,
         min_order_amount_krw: float = 5_000.0,
@@ -86,6 +93,7 @@ class SizingEngine:
         self._max_spread_bps = max_spread_bps
         self._max_slippage_bps = max_slippage_bps
         self._max_stop_loss_risk_amount = max_stop_loss_risk_amount
+        self._capital_risk_pct = None if capital_risk_pct is None else max(float(capital_risk_pct), 0.0)
         self._trading_fee_rate = trading_fee_rate
         self._min_net_edge_pct = min_net_edge_pct
         self._order_rules = order_rules or UpbitOrderRules(
@@ -135,10 +143,10 @@ class SizingEngine:
         max_fee_adjusted_buy_amount = round(investable_cash / (1 + self._trading_fee_rate), 1)
         buy_amount = min(buy_amount, max_fee_adjusted_buy_amount)
         stop_loss_pct = self._stop_loss_by_signal[signal.level]
-        if self._max_stop_loss_risk_amount is not None:
-            if self._max_stop_loss_risk_amount <= 0:
+        if self._max_stop_loss_risk_amount is not None or self._capital_risk_pct is not None:
+            risk_budget = self._risk_budget_for_buy_ratio(base_buy_ratio, investable_cash=investable_cash)
+            if risk_budget <= 0:
                 return self._blocked("STOP_LOSS_RISK_LIMIT")
-            risk_budget = self._risk_budget_for_buy_ratio(base_buy_ratio)
             buy_amount = min(
                 buy_amount,
                 round(risk_budget / stop_loss_pct, 1),
@@ -207,14 +215,15 @@ class SizingEngine:
             return 0.78
         return 1.0
 
-    def _risk_budget_for_buy_ratio(self, buy_ratio: float) -> float:
-        if self._max_stop_loss_risk_amount is None:
-            return 0.0
+    def _risk_budget_for_buy_ratio(self, buy_ratio: float, *, investable_cash: float) -> float:
+        absolute_budget = max(float(self._max_stop_loss_risk_amount or 0.0), 0.0)
+        capital_budget = investable_cash * float(self._capital_risk_pct or 0.0)
+        risk_budget = max(absolute_budget, capital_budget)
         strongest_ratio = max(self._buy_policy.RATIOS.values())
         if strongest_ratio <= 0:
             return 0.0
         strength_multiplier = max(min(buy_ratio / strongest_ratio, 1.0), 0.0)
-        return self._max_stop_loss_risk_amount * strength_multiplier
+        return risk_budget * strength_multiplier
 
     @staticmethod
     def _sell_market_state_multiplier(regime: RegimeSnapshot) -> float:

@@ -42,6 +42,8 @@ class AutoTradingConfig:
     no_trade_relax_min_score: float = 0.18
     scale_in_enabled: bool = True
     scale_in_max_price_premium_pct: float = 0.0
+    scale_in_max_entries: int = 2
+    scale_in_max_position_multiplier: float = 0.55
     reentry_block_seconds: int = 180
     sideways_risk_guard_enabled: bool = True
     sideways_price_range_pct: float = 0.002
@@ -162,6 +164,7 @@ class AutoTradingService:
         self._last_market_shock_alert_at: dict[str, int] = {}
         self._last_entry_signal_level: str | None = None
         self._last_entry_signal_score: float | None = None
+        self._scale_in_count = 0
 
     def should_run(self) -> bool:
         if not self._config.enabled:
@@ -237,6 +240,7 @@ class AutoTradingService:
         self._position_opened_at = None
         self._last_entry_signal_level = None
         self._last_entry_signal_score = None
+        self._scale_in_count = 0
         if self._uptime_store is not None:
             self._uptime_store.reset()
             if self.is_running():
@@ -308,6 +312,7 @@ class AutoTradingService:
             )
             if result.get("position") is None:
                 self._position_opened_at = None
+                self._scale_in_count = 0
             self._apply_demo_execution(result.get("execution"))
             if result.get("trigger") is not None:
                 trigger = result.get("trigger")
@@ -575,6 +580,39 @@ class AutoTradingService:
                 **rule_variant,
             },
         )
+        scale_in_limit = self._scale_in_limit_decision(position=position, decision=decision, current_price=snapshot.trade_price)
+        if not scale_in_limit["allowed"]:
+            rule_variant = self._variant_extra(variant_payload)
+            self._consecutive_entry_blocks += 1
+            return self._record_cycle(
+                status="blocked",
+                reason=str(scale_in_limit["reason_code"]),
+                extra={
+                    "entry_type": "scale_in",
+                    "signal_level": decision.signal.level,
+                    "signal_score": decision.signal.score,
+                    "signal_blocked": decision.signal.blocked,
+                    "signal_reason_codes": decision.signal.reason_codes,
+                    "previous_entry_signal_level": self._previous_entry_signal_level(position),
+                    "previous_entry_signal_score": self._last_entry_signal_score,
+                    "sizing_allowed": decision.sizing.allowed,
+                    "sizing_blocked_reason": decision.sizing.blocked_reason,
+                    "buy_amount": 0.0,
+                    "scale_in_count": self._scale_in_count,
+                    "scale_in_max_entries": self._config.scale_in_max_entries,
+                    "market_state": decision.regime.market_state,
+                    "market_state_label": decision.regime.market_state_label,
+                    "box_range_low": decision.regime.box_range_low,
+                    "box_range_high": decision.regime.box_range_high,
+                    **market_state_extra,
+                    "no_trade_relaxed": relaxed_signal,
+                    "trade_logic_update_trace": trade_logic_update_trace,
+                    **rule_variant,
+                },
+            )
+        decision = scale_in_limit["decision"]
+        scale_in_cap_applied = bool(scale_in_limit.get("cap_applied"))
+        scale_in_original_buy_amount = scale_in_limit.get("original_buy_amount")
         if self._scale_in_signal_not_stronger(position=position, decision=decision):
             rule_variant = self._variant_extra(variant_payload)
             self._consecutive_entry_blocks += 1
@@ -630,6 +668,10 @@ class AutoTradingService:
             self._consecutive_entry_blocks = 0
             self._last_entry_signal_level = decision.signal.level
             self._last_entry_signal_score = decision.signal.score
+            if entry_type == "scale_in":
+                self._scale_in_count += 1
+            else:
+                self._scale_in_count = 0
 
         return self._record_cycle(
             status=execution_result.status,
@@ -655,6 +697,9 @@ class AutoTradingService:
                 "trade_logic_update_trace": trade_logic_update_trace,
                 **self._box_range_extra(box_range_opportunity),
                 "post_fill_position_opened": post_fill_result.position is not None,
+                "scale_in_count": self._scale_in_count,
+                "scale_in_cap_applied": scale_in_cap_applied,
+                "scale_in_original_buy_amount": scale_in_original_buy_amount,
                 **self._variant_extra(variant_payload),
             },
         )
@@ -1103,6 +1148,32 @@ class AutoTradingService:
             "box_range_width_pct": opportunity.get("box_range_width_pct"),
             "box_range_required_pct": opportunity.get("box_range_required_pct"),
             "box_range_buy_zone_high": opportunity.get("box_range_buy_zone_high"),
+        }
+
+
+    def _scale_in_limit_decision(self, *, position, decision, current_price: float) -> dict[str, object]:
+        if position is None:
+            return {"allowed": True, "decision": decision, "cap_applied": False, "original_buy_amount": None}
+        max_entries = max(int(self._config.scale_in_max_entries), 0)
+        if self._scale_in_count >= max_entries:
+            return {"allowed": False, "reason_code": "SCALE_IN_MAX_ENTRIES", "decision": decision}
+        if not decision.sizing.allowed or decision.sizing.buy_amount <= 0 or current_price <= 0:
+            return {"allowed": True, "decision": decision, "cap_applied": False, "original_buy_amount": None}
+        current_notional = max(position.entry_price * position.quantity, 0.0)
+        max_scale_in_amount = current_notional * max(float(self._config.scale_in_max_position_multiplier), 0.0)
+        if max_scale_in_amount <= 0 or decision.sizing.buy_amount <= max_scale_in_amount:
+            return {"allowed": True, "decision": decision, "cap_applied": False, "original_buy_amount": None}
+        adjusted_amount = round(max_scale_in_amount, 1)
+        adjusted_sizing = replace(
+            decision.sizing,
+            buy_amount=adjusted_amount,
+            buy_quantity=round(adjusted_amount / current_price, 4),
+        )
+        return {
+            "allowed": True,
+            "decision": replace(decision, sizing=adjusted_sizing),
+            "cap_applied": True,
+            "original_buy_amount": decision.sizing.buy_amount,
         }
 
     def _scale_in_allowed(self, *, position, current_price: float) -> bool:

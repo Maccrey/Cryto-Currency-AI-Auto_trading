@@ -62,15 +62,15 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 TELEGRAM_NOTIFY_IN_DEMO=true
 
-BUY_RATIO_WEAK=0.08
-BUY_RATIO_MEDIUM=0.18
-BUY_RATIO_STRONG=0.35
-BUY_RATIO_VERY_STRONG=0.55
+BUY_RATIO_WEAK=0.10
+BUY_RATIO_MEDIUM=0.24
+BUY_RATIO_STRONG=0.48
+BUY_RATIO_VERY_STRONG=0.72
 
-SELL_RATIO_WEAK=0.12
-SELL_RATIO_MEDIUM=0.28
-SELL_RATIO_STRONG=0.45
-SELL_RATIO_VERY_STRONG=0.70
+SELL_RATIO_WEAK=0.35
+SELL_RATIO_MEDIUM=0.55
+SELL_RATIO_STRONG=0.75
+SELL_RATIO_VERY_STRONG=0.90
 
 STOP_LOSS_WEAK=0.030
 STOP_LOSS_MEDIUM=0.030
@@ -85,6 +85,7 @@ MIN_ORDER_AMOUNT_KRW=5000
 PROFILE_MIN_NET_EDGE_PCT=0.0008
 
 MIN_CASH_RESERVE=100000
+CAPITAL_RISK_PCT=0.018
 MAX_DAILY_LOSS=150000
 MAX_SLIPPAGE_BPS=20
 MAX_SPREAD_BPS=15
@@ -173,14 +174,14 @@ DASHBOARD_PORT=8080
 | UPBIT_SECRET_KEY | str | Y |  | 업비트 시크릿 키 |
 | TELEGRAM_BOT_TOKEN | str | Y |  | 텔레그램 봇 토큰 |
 | TELEGRAM_CHAT_ID | str | Y |  | 텔레그램 채팅 ID |
-| BUY_RATIO_WEAK | float | Y | 0.08 | weak 매수 비율 |
-| BUY_RATIO_MEDIUM | float | Y | 0.18 | medium 매수 비율 |
-| BUY_RATIO_STRONG | float | Y | 0.35 | strong 매수 비율 |
-| BUY_RATIO_VERY_STRONG | float | Y | 0.55 | very strong 매수 비율 |
-| SELL_RATIO_WEAK | float | Y | 0.12 | weak 매도 비율 |
-| SELL_RATIO_MEDIUM | float | Y | 0.28 | medium 매도 비율 |
-| SELL_RATIO_STRONG | float | Y | 0.45 | strong 매도 비율 |
-| SELL_RATIO_VERY_STRONG | float | Y | 0.70 | very strong 매도 비율 |
+| BUY_RATIO_WEAK | float | Y | 0.10 | weak 매수 비율 |
+| BUY_RATIO_MEDIUM | float | Y | 0.24 | medium 매수 비율 |
+| BUY_RATIO_STRONG | float | Y | 0.48 | strong 매수 비율 |
+| BUY_RATIO_VERY_STRONG | float | Y | 0.72 | very strong 매수 비율 |
+| SELL_RATIO_WEAK | float | Y | 0.35 | weak 매도 비율 |
+| SELL_RATIO_MEDIUM | float | Y | 0.55 | medium 매도 비율 |
+| SELL_RATIO_STRONG | float | Y | 0.75 | strong 매도 비율 |
+| SELL_RATIO_VERY_STRONG | float | Y | 0.90 | very strong 매도 비율 |
 | STOP_LOSS_WEAK | float | Y | 프로필 고정값 | 룰 변경 대상이 아닌 고정 손절 비율 |
 | STOP_LOSS_MEDIUM | float | Y | 프로필 고정값 | 룰 변경 대상이 아닌 고정 손절 비율 |
 | STOP_LOSS_STRONG | float | Y | 프로필 고정값 | 룰 변경 대상이 아닌 고정 손절 비율 |
@@ -192,6 +193,7 @@ DASHBOARD_PORT=8080
 | MIN_ORDER_AMOUNT_KRW | float | Y | 5000 | 업비트 KRW 마켓 최소 주문 가능 금액 |
 | PROFILE_MIN_NET_EDGE_PCT | float | Y | 0.0008 | 왕복 수수료를 제외하고 현재 투자성향 진입에 요구하는 최소 순엣지 |
 | MIN_CASH_RESERVE | int | Y | 100000 | 최소 현금 보유 |
+| CAPITAL_RISK_PCT | float | Y | 0.018 | 투자 가능 현금 대비 1회 진입 손절 리스크 예산 비율 |
 | MAX_DAILY_LOSS | int | Y | 150000 | 일일 손실 한도 |
 | MAX_SLIPPAGE_BPS | int | Y | 20 | 허용 슬리피지 상한 |
 | MAX_SPREAD_BPS | int | Y | 15 | 허용 spread 상한 |

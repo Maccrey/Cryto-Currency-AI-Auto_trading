@@ -40,9 +40,9 @@ def test_sizing_engine_computes_buy_amount_for_strong_signal() -> None:
     assert decision == SizingDecision(
         allowed=True,
         order_side="buy",
-        buy_ratio=0.462,
-        buy_amount=184800.0,
-        buy_quantity=231.0,
+        buy_ratio=0.62,
+        buy_amount=248000.0,
+        buy_quantity=310.0,
         sell_ratio=0.0,
         sell_amount=0.0,
         sell_quantity=0.0,
@@ -199,8 +199,8 @@ def test_sizing_engine_allows_medium_scalping_entry_with_relaxed_edge_buffer() -
     )
 
     assert decision.allowed is True
-    assert decision.buy_amount == 34200.0
-    assert decision.buy_quantity == 42.75
+    assert decision.buy_amount == 46000.0
+    assert decision.buy_quantity == 57.5
     assert decision.stop_loss_price == 776.0
 
 
@@ -270,8 +270,8 @@ def test_sizing_engine_can_relax_fee_edge_for_demo_no_trade_recovery() -> None:
     )
 
     assert decision.allowed is True
-    assert decision.buy_amount == 20000.0
-    assert decision.buy_quantity == 25.0
+    assert decision.buy_amount == 26000.0
+    assert decision.buy_quantity == 32.5
 
 
 def test_sizing_engine_blocks_buy_below_upbit_minimum_order_amount() -> None:
@@ -337,8 +337,8 @@ def test_sizing_engine_caps_buy_amount_by_stop_loss_risk_budget() -> None:
     )
 
     assert decision.allowed is True
-    assert decision.buy_amount == 25454.5
-    assert decision.buy_quantity == 31.8181
+    assert decision.buy_amount == 26111.1
+    assert decision.buy_quantity == 32.6389
     assert decision.stop_loss_price == 776.0
 
 
@@ -390,8 +390,8 @@ def test_buy_and_sell_sizing_policies_are_separate() -> None:
     buy_policy = BuySizingPolicy()
     sell_policy = SellSizingPolicy()
 
-    assert buy_policy.ratio_for("strong") == 0.35
-    assert sell_policy.ratio_for("strong") == 0.45
+    assert buy_policy.ratio_for("strong") == 0.48
+    assert sell_policy.ratio_for("strong") == 0.75
 
 
 def test_sizing_policies_scale_from_chart_strength_score() -> None:
@@ -428,9 +428,9 @@ def test_sizing_engine_includes_sell_size_and_stop_loss_price() -> None:
         slippage_bps=12.0,
     )
 
-    assert decision.sell_ratio == 0.232
-    assert decision.sell_quantity == 46.4
-    assert decision.sell_amount == 37120.0
+    assert decision.sell_ratio == 0.49
+    assert decision.sell_quantity == 98.0
+    assert decision.sell_amount == 78400.0
     assert decision.stop_loss_price == 776.0
 
 
@@ -480,3 +480,38 @@ def test_sizing_engine_adjusts_buy_and_sell_ratios_by_market_state() -> None:
 
     assert bull.buy_ratio > box.buy_ratio
     assert bull.sell_ratio < box.sell_ratio
+
+
+def test_sizing_engine_uses_capital_risk_pct_for_large_portfolios() -> None:
+    engine = SizingEngine(
+        min_cash_reserve=100000,
+        max_spread_bps=15,
+        max_slippage_bps=20,
+        max_stop_loss_risk_amount=37_500,
+        capital_risk_pct=0.018,
+    )
+    portfolio = PortfolioState(
+        cash_balance=10_000_000.0,
+        asset_currency="XRP",
+        asset_balance=0.0,
+        avg_buy_price=0.0,
+    )
+
+    decision = engine.size_entry(
+        portfolio,
+        SignalDecision(level="strong", score=0.72, blocked=False, reason_codes=[]),
+        RegimeSnapshot(
+            label="risk_on",
+            score=0.72,
+            size_multiplier=1.1,
+            entry_allowed=True,
+            reason_codes=[],
+        ),
+        current_price=800.0,
+        spread_bps=10.0,
+        slippage_bps=12.0,
+    )
+
+    assert decision.allowed is True
+    assert decision.buy_amount > 1_250_000.0
+    assert decision.buy_amount == 4_653_000.0

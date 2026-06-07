@@ -57,14 +57,14 @@ class SettingsModel(BaseModel):
     telegram_bot_token: str = Field(default="")
     telegram_chat_id: str = Field(default="")
     telegram_notify_in_demo: bool = Field(default=True)
-    buy_ratio_weak: float = Field(default=0.08)
-    buy_ratio_medium: float = Field(default=0.18)
-    buy_ratio_strong: float = Field(default=0.35)
-    buy_ratio_very_strong: float = Field(default=0.55)
-    sell_ratio_weak: float = Field(default=0.12)
-    sell_ratio_medium: float = Field(default=0.28)
-    sell_ratio_strong: float = Field(default=0.45)
-    sell_ratio_very_strong: float = Field(default=0.70)
+    buy_ratio_weak: float = Field(default=0.10)
+    buy_ratio_medium: float = Field(default=0.24)
+    buy_ratio_strong: float = Field(default=0.48)
+    buy_ratio_very_strong: float = Field(default=0.72)
+    sell_ratio_weak: float = Field(default=0.35)
+    sell_ratio_medium: float = Field(default=0.55)
+    sell_ratio_strong: float = Field(default=0.75)
+    sell_ratio_very_strong: float = Field(default=0.90)
     stop_loss_weak: float = Field(default=0.030)
     stop_loss_medium: float = Field(default=0.030)
     stop_loss_strong: float = Field(default=0.030)
@@ -77,6 +77,7 @@ class SettingsModel(BaseModel):
     min_order_amount_krw: float = Field(default=5_000.0)
     profile_min_net_edge_pct: float = Field(default=0.0008)
     min_cash_reserve: int = Field(default=100000)
+    capital_risk_pct: float = Field(default=0.018)
     max_daily_loss: int = Field(default=150000)
     max_slippage_bps: int = Field(default=20)
     max_spread_bps: int = Field(default=15)
@@ -184,6 +185,13 @@ class SettingsModel(BaseModel):
             raise ValueError("PROFILE_MIN_NET_EDGE_PCT must be between 0 and 0.05")
         return value
 
+    @field_validator("capital_risk_pct")
+    @classmethod
+    def validate_capital_risk_pct(cls, value: float) -> float:
+        if value < 0 or value > 0.10:
+            raise ValueError("CAPITAL_RISK_PCT must be between 0 and 0.10")
+        return value
+
     @field_validator("log_format")
     @classmethod
     def validate_log_format(cls, value: str) -> str:
@@ -255,6 +263,7 @@ class AppSettings:
     min_order_amount_krw: float
     profile_min_net_edge_pct: float
     min_cash_reserve: int
+    capital_risk_pct: float
     max_daily_loss: int
     max_slippage_bps: int
     max_spread_bps: int
@@ -365,14 +374,14 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         "telegram_bot_token": _setting("TELEGRAM_BOT_TOKEN", "", env_values),
         "telegram_chat_id": _setting("TELEGRAM_CHAT_ID", "", env_values),
         "telegram_notify_in_demo": _parse_bool(_setting("TELEGRAM_NOTIFY_IN_DEMO", "true", env_values)),
-        "buy_ratio_weak": float(_setting("BUY_RATIO_WEAK", "0.08", env_values)),
-        "buy_ratio_medium": float(_setting("BUY_RATIO_MEDIUM", "0.18", env_values)),
-        "buy_ratio_strong": float(_setting("BUY_RATIO_STRONG", "0.35", env_values)),
-        "buy_ratio_very_strong": float(_setting("BUY_RATIO_VERY_STRONG", "0.55", env_values)),
-        "sell_ratio_weak": float(_setting("SELL_RATIO_WEAK", "0.12", env_values)),
-        "sell_ratio_medium": float(_setting("SELL_RATIO_MEDIUM", "0.28", env_values)),
-        "sell_ratio_strong": float(_setting("SELL_RATIO_STRONG", "0.45", env_values)),
-        "sell_ratio_very_strong": float(_setting("SELL_RATIO_VERY_STRONG", "0.70", env_values)),
+        "buy_ratio_weak": float(_setting("BUY_RATIO_WEAK", "0.10", env_values)),
+        "buy_ratio_medium": float(_setting("BUY_RATIO_MEDIUM", "0.24", env_values)),
+        "buy_ratio_strong": float(_setting("BUY_RATIO_STRONG", "0.48", env_values)),
+        "buy_ratio_very_strong": float(_setting("BUY_RATIO_VERY_STRONG", "0.72", env_values)),
+        "sell_ratio_weak": float(_setting("SELL_RATIO_WEAK", "0.35", env_values)),
+        "sell_ratio_medium": float(_setting("SELL_RATIO_MEDIUM", "0.55", env_values)),
+        "sell_ratio_strong": float(_setting("SELL_RATIO_STRONG", "0.75", env_values)),
+        "sell_ratio_very_strong": float(_setting("SELL_RATIO_VERY_STRONG", "0.90", env_values)),
         "stop_loss_weak": profile_spec.fixed_stop_loss_pct,
         "stop_loss_medium": profile_spec.fixed_stop_loss_pct,
         "stop_loss_strong": profile_spec.fixed_stop_loss_pct,
@@ -395,6 +404,7 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
             ),
         ),
         "min_cash_reserve": int(_setting("MIN_CASH_RESERVE", "100000", env_values)),
+        "capital_risk_pct": float(_setting("CAPITAL_RISK_PCT", "0.018", env_values)),
         "max_daily_loss": int(_setting("MAX_DAILY_LOSS", "150000", env_values)),
         "max_slippage_bps": int(_setting("MAX_SLIPPAGE_BPS", "20", env_values)),
         "max_spread_bps": int(_setting("MAX_SPREAD_BPS", "15", env_values)),
