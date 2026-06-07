@@ -190,3 +190,29 @@ def test_market_trend_classifier_allows_strong_recovery_over_bear_reference() ->
     assert trend.market_state == "bull"
     assert trend.market_state_label == "상승장"
     assert trend.source == "price_history"
+
+
+def test_market_trend_classifier_uses_learning_override_when_reference_is_ambiguous() -> None:
+    store = MarketPriceStore()
+    store.save(market="KRW-XRP", price=800.0)
+    store.save(market="KRW-XRP", price=800.0)
+    learning_events = [
+        LearningEvent(
+            event_name="auto_trade_cycle",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"market_state": "bull", "status": "filled"},
+        )
+        for _ in range(8)
+    ]
+
+    trend = MarketTrendClassifier().classify(
+        current_price=800.0,
+        history=store.list_history("KRW-XRP"),
+        learning_events=learning_events,
+        reference_change_pct=-0.0012,
+    )
+
+    assert trend.market_state == "bull"
+    assert trend.source == "learning_trend_override"
+    assert trend.learning_confidence == 1.0

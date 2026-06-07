@@ -190,3 +190,25 @@ def test_demo_rule_variant_shadow_tester_tracks_stop_loss_and_drawdown() -> None
     assert results["A"]["stop_loss_count"] == 1
     assert results["A"]["loss_count"] == 1
     assert results["A"]["max_drawdown_pct"] > 0
+
+
+def test_demo_rule_variant_shadow_tester_explores_weak_bull_candidates() -> None:
+    tester = DemoRuleVariantShadowTester()
+
+    report = tester.evaluate(
+        decision=_decision(market_state="bull", signal_level="weak"),
+        current_price=1_000,
+        portfolio=PortfolioState(
+            cash_balance=1_000_000,
+            asset_currency="XRP",
+            asset_balance=0,
+            avg_buy_price=0,
+        ),
+    )
+
+    results = {item["variant_key"]: item for item in report["results"]}
+    assert results["A"]["last_action"] == "buy"
+    assert results["B"]["last_action"] == "buy"
+    assert results["C"]["last_action"] == "buy"
+    assert results["B"]["effective_buy_multiplier"] > results["A"]["effective_buy_multiplier"]
+    assert results["C"]["effective_stop_loss_pct"] < results["A"]["effective_stop_loss_pct"]

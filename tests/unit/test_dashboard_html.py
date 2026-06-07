@@ -372,3 +372,11 @@ def test_settings_includes_external_context_and_no_trade_controls() -> None:
     assert "Blockchain.com" in SETTINGS_HTML
     assert "XRPSCAN" in SETTINGS_HTML
     assert "NO_TRADE_RELAX_AFTER_CYCLES" in SETTINGS_HTML
+
+
+def test_dashboard_html_refreshes_external_context_independently() -> None:
+    from app.api.routes.dashboard import DASHBOARD_HTML
+
+    assert "Promise.allSettled" in DASHBOARD_HTML
+    assert "cachedExternalContextResponse = externalContextResult.value" in DASHBOARD_HTML
+    assert "외부 컨텍스트 대기 중" in DASHBOARD_HTML

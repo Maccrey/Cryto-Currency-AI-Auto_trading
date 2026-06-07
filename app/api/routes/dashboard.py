@@ -1563,16 +1563,22 @@ async function refreshSlowDashboardData(startedAt, force = false) {
   }
   dashboardSlowRefreshInFlight = (async () => {
   try {
-    const [ruleProposalResponse, ruleHistoryResponse, externalContextResponse, diagnosticsResponse] = await Promise.all([
+    const results = await Promise.allSettled([
       fetchJson("/api/v1/rules/proposals"),
       fetchJson("/api/v1/rules/history"),
       fetchJson(force ? "/dashboard/external-context?force=true" : "/dashboard/external-context"),
       fetchJson("/learning/diagnostics")
     ]);
-    cachedRuleProposalResponse = ruleProposalResponse;
-    cachedRuleHistoryResponse = ruleHistoryResponse;
-    cachedExternalContextResponse = externalContextResponse;
-    cachedDiagnosticsResponse = diagnosticsResponse;
+    const [ruleProposalResult, ruleHistoryResult, externalContextResult, diagnosticsResult] = results;
+    if (ruleProposalResult.status === "fulfilled") cachedRuleProposalResponse = ruleProposalResult.value;
+    if (ruleHistoryResult.status === "fulfilled") cachedRuleHistoryResponse = ruleHistoryResult.value;
+    if (externalContextResult.status === "fulfilled") cachedExternalContextResponse = externalContextResult.value;
+    if (diagnosticsResult.status === "fulfilled") cachedDiagnosticsResponse = diagnosticsResult.value;
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.warn(`느린 대시보드 항목 ${index + 1} 갱신 실패: ${result.reason.message}`);
+      }
+    });
   } catch (error) {
     console.warn(`느린 대시보드 데이터 갱신 실패: ${error.message}`);
   } finally {
@@ -1585,6 +1591,15 @@ async function refreshSlowDashboardData(startedAt, force = false) {
 
 function renderExternalContext(context, market) {
   context = context || {};
+  if (!context.onchain && !context.etf && !context.market_data) {
+    document.getElementById("contextUsdPrice").textContent = "외부 컨텍스트 대기 중";
+    document.getElementById("onchainState").textContent = "온체인 데이터를 불러오는 중입니다.";
+    document.getElementById("etfState").textContent = "ETF 데이터를 불러오는 중입니다.";
+    document.getElementById("contextWeight").textContent = "1";
+    document.getElementById("contextStatus").textContent = "대기 중";
+    document.getElementById("contextRecordedAt").textContent = "-";
+    return;
+  }
   const onchain = context.onchain || {};
   const etf = context.etf || {};
   const marketData = context.market_data || {};

@@ -66,19 +66,19 @@ class DemoRuleVariantShadowTester:
             key="B",
             label="룰 B 추세형",
             description="상승장 강도에만 진입을 키우고 추세 지속 시 익절 폭을 넓힙니다.",
-            buy_multiplier=1.18,
-            sell_multiplier=0.82,
-            take_profit_pct=0.009,
-            stop_loss_pct=0.005,
+            buy_multiplier=1.85,
+            sell_multiplier=0.45,
+            take_profit_pct=0.014,
+            stop_loss_pct=0.0065,
         ),
         DemoRuleVariant(
             key="C",
             label="룰 C 방어형",
             description="하락장 노출을 빠르게 줄이고 박스권 하단에서만 작게 진입합니다.",
-            buy_multiplier=0.72,
-            sell_multiplier=1.3,
-            take_profit_pct=0.004,
-            stop_loss_pct=0.003,
+            buy_multiplier=0.38,
+            sell_multiplier=2.0,
+            take_profit_pct=0.0032,
+            stop_loss_pct=0.002,
         ),
     )
 
@@ -159,7 +159,7 @@ class DemoRuleVariantShadowTester:
                 decision=decision,
                 current_price=current_price,
             )
-        elif decision.sizing.allowed and decision.signal.level != "weak":
+        elif decision.sizing.allowed:
             action = self._maybe_shadow_buy(
                 shadow=shadow,
                 policy=policy,
@@ -222,16 +222,16 @@ class DemoRuleVariantShadowTester:
 
         if variant.key == "A":
             if market_state == "bull":
-                buy_multiplier *= 1.0 + (max(market_pressure, 0.0) * 0.18)
-                sell_multiplier *= 0.92
-                take_profit_pct *= 1.08
-                stop_loss_pct *= 1.08
+                buy_multiplier *= 1.0 + (max(market_pressure, 0.0) * 0.28)
+                sell_multiplier *= 0.88
+                take_profit_pct *= 1.12
+                stop_loss_pct *= 1.04
                 action_reason = "bull_balance_boost"
             elif market_state == "bear":
-                buy_multiplier *= 0.52
-                sell_multiplier *= 1.28
-                take_profit_pct *= 0.82
-                stop_loss_pct *= 0.78
+                buy_multiplier *= 0.35
+                sell_multiplier *= 1.65
+                take_profit_pct *= 0.72
+                stop_loss_pct *= 0.65
                 action_reason = "bear_balance_defense"
             else:
                 lower_zone = box_position is None or box_position <= 0.45
@@ -244,47 +244,56 @@ class DemoRuleVariantShadowTester:
 
         if variant.key == "B":
             if market_state == "bull":
-                buy_multiplier *= 1.08 + (max(market_pressure, 0.0) * 0.28)
-                sell_multiplier *= 0.76
-                take_profit_pct *= 1.18 + (max(market_pressure, 0.0) * 0.2)
-                stop_loss_pct *= 1.08
+                buy_multiplier *= 1.28 + (max(market_pressure, 0.0) * 0.45)
+                sell_multiplier *= 0.52
+                take_profit_pct *= 1.35 + (max(market_pressure, 0.0) * 0.28)
+                stop_loss_pct *= 1.18
                 action_reason = "bull_trend_expansion"
             else:
                 entry_allowed = False
                 buy_multiplier = 0.0
-                sell_multiplier *= 1.6 if market_state == "bear" else 1.18
-                take_profit_pct *= 0.72 if market_state == "bear" else 0.85
-                stop_loss_pct *= 0.72 if market_state == "bear" else 0.88
+                sell_multiplier *= 2.2 if market_state == "bear" else 1.55
+                take_profit_pct *= 0.62 if market_state == "bear" else 0.78
+                stop_loss_pct *= 0.55 if market_state == "bear" else 0.76
                 action_reason = f"{market_state}_trend_entry_block"
 
         if variant.key == "C":
             if market_state == "bear":
                 entry_allowed = False
                 buy_multiplier = 0.0
-                sell_multiplier *= 1.55
-                take_profit_pct *= 0.72
-                stop_loss_pct *= 0.68
+                sell_multiplier *= 2.4
+                take_profit_pct *= 0.58
+                stop_loss_pct *= 0.55
                 action_reason = "bear_defensive_exit"
             elif market_state == "box":
-                lower_zone = box_position is not None and box_position <= 0.35
+                lower_zone = box_position is not None and box_position <= 0.30
                 entry_allowed = lower_zone
-                buy_multiplier *= 0.86 if lower_zone else 0.0
-                sell_multiplier *= 1.22 if lower_zone else 1.4
-                take_profit_pct *= 0.86
-                stop_loss_pct *= 0.82
+                buy_multiplier *= 0.72 if lower_zone else 0.0
+                sell_multiplier *= 1.55 if lower_zone else 2.0
+                take_profit_pct *= 0.72
+                stop_loss_pct *= 0.70
                 action_reason = "box_low_defensive_entry" if lower_zone else "box_mid_high_entry_block"
             else:
-                buy_multiplier *= 0.68 + (max(market_pressure, 0.0) * 0.08)
-                sell_multiplier *= 1.08
-                take_profit_pct *= 0.92
-                stop_loss_pct *= 0.88
+                buy_multiplier *= 0.42 + (max(market_pressure, 0.0) * 0.06)
+                sell_multiplier *= 1.35
+                take_profit_pct *= 0.82
+                stop_loss_pct *= 0.72
                 action_reason = "bull_defensive_participation"
 
         volatility_penalty = min(max(decision.features.short_volatility / 0.02, 0.0), 1.0)
         if volatility_penalty > 0.5:
-            buy_multiplier *= 1.0 - ((volatility_penalty - 0.5) * 0.22)
-            sell_multiplier *= 1.0 + ((volatility_penalty - 0.5) * 0.18)
-            stop_loss_pct *= 0.94
+            buy_multiplier *= 1.0 - ((volatility_penalty - 0.5) * 0.35)
+            sell_multiplier *= 1.0 + ((volatility_penalty - 0.5) * 0.28)
+            stop_loss_pct *= 0.88
+
+        if decision.signal.level == "weak":
+            if variant.key == "B":
+                entry_allowed = entry_allowed and market_state == "bull" and market_pressure >= 0.15
+                buy_multiplier *= 0.62
+            elif variant.key == "C":
+                buy_multiplier *= 0.55
+            else:
+                buy_multiplier *= 0.75
 
         return DemoRuleVariantPolicy(
             buy_multiplier=round(max(buy_multiplier, 0.0), 4),

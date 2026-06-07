@@ -59,7 +59,14 @@ class MarketTrendClassifier:
         learned_state, learned_confidence, sample_count = self._learned_market_state(
             learning_events or [],
         )
-        market_state = price_market_state
+        market_state, state_source = self._apply_learning_override(
+            price_market_state=price_market_state,
+            state_source=state_source,
+            learned_state=learned_state,
+            learned_confidence=learned_confidence,
+            recent_window_change_pct=recent_window_change_pct,
+            reference_change_pct=reference_change_pct,
+        )
         box_range_low, box_range_high = self._box_range(
             market_state=market_state,
             current_price=current_price,
@@ -75,6 +82,38 @@ class MarketTrendClassifier:
             learning_confidence=learned_confidence,
             source=state_source,
         )
+
+
+    @staticmethod
+    def _apply_learning_override(
+        *,
+        price_market_state: str,
+        state_source: str,
+        learned_state: str | None,
+        learned_confidence: float,
+        recent_window_change_pct: float,
+        reference_change_pct: float | None,
+    ) -> tuple[str, str]:
+        if learned_state not in {"bull", "bear", "box"}:
+            return price_market_state, state_source
+        if learned_state == price_market_state:
+            return price_market_state, state_source
+        if state_source == "price_history":
+            return price_market_state, state_source
+        if learned_state == "box" and learned_confidence >= MarketTrendClassifier.LEARNING_BOX_OVERRIDE_CONFIDENCE:
+            if abs(recent_window_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT * 1.5:
+                return "box", "learning_box_override"
+        if learned_confidence < MarketTrendClassifier.LEARNING_TREND_OVERRIDE_CONFIDENCE:
+            return price_market_state, state_source
+        if reference_change_pct is not None and abs(reference_change_pct) >= 0.02:
+            return price_market_state, state_source
+        if abs(recent_window_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT:
+            return learned_state, "learning_trend_override"
+        if learned_state == "bull" and recent_window_change_pct > 0:
+            return "bull", "learning_trend_override"
+        if learned_state == "bear" and recent_window_change_pct < 0:
+            return "bear", "learning_trend_override"
+        return price_market_state, state_source
 
     @staticmethod
     def _state_history(history: list[MarketPriceSnapshot]) -> list[MarketPriceSnapshot]:
