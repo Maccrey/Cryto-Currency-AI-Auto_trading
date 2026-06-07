@@ -129,3 +129,53 @@ def test_learning_log_diagnostics_summarizes_external_market_context(tmp_path: P
     assert diagnostics["external_context_summary"]["onchain_state_counts"] == {"bullish": 1, "bearish": 1}
     assert diagnostics["external_context_summary"]["etf_state_counts"] == {"inflow": 1, "outflow": 1}
     assert diagnostics["external_context_summary"]["avg_learning_weight"] == 1.0
+
+
+def test_learning_log_diagnostics_counts_completed_stop_losses_without_lifecycle_duplicates(tmp_path: Path) -> None:
+    service = LearningService(log_dir=tmp_path)
+    payload = {
+        "reason_code": "STOP_LOSS_MOMENTUM_REVERSAL",
+        "market_state": "bear",
+        "signal_level": "weak",
+        "entry_price": 1000.0,
+        "current_price": 990.0,
+        "elapsed_sec": 120,
+    }
+    service.record(
+        LearningEvent(
+            event_name="position_exit_completed",
+            market="KRW-XRP",
+            mode="demo",
+            payload=payload,
+        ),
+    )
+    service.record(
+        LearningEvent(
+            event_name="position_lifecycle_updated",
+            market="KRW-XRP",
+            mode="demo",
+            payload={**payload, "event_type": "closed"},
+        ),
+    )
+    service.record(
+        LearningEvent(
+            event_name="position_exit_completed",
+            market="KRW-XRP",
+            mode="demo",
+            payload={
+                "reason_code": "TAKE_PROFIT_TARGET_HIT",
+                "entry_price": 1000.0,
+                "current_price": 1005.0,
+            },
+        ),
+    )
+
+    diagnostics = LearningLogDiagnostics(log_dir=tmp_path).build()
+    summary = diagnostics["stop_loss_summary"]
+
+    assert summary["total_stop_losses"] == 1
+    assert summary["avg_return_pct"] == -0.01
+    assert summary["avg_elapsed_sec"] == 120
+    assert summary["profit_exit_counts"] == {"TAKE_PROFIT_TARGET_HIT": 1}
+    assert summary["stop_loss_to_profit_exit_ratio"] == 1.0
+    assert len(summary["recent_stop_losses"]) == 1

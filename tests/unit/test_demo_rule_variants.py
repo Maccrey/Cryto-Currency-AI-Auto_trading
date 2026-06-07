@@ -172,3 +172,21 @@ def test_demo_rule_variant_bear_market_sells_defensive_rule_more_aggressively() 
     assert results["C"]["effective_sell_multiplier"] > results["A"]["effective_sell_multiplier"]
     assert results["C"]["asset_balance"] < results["A"]["asset_balance"]
     assert results["C"]["action_reason"] == "bear_defensive_exit"
+
+
+def test_demo_rule_variant_shadow_tester_tracks_stop_loss_and_drawdown() -> None:
+    tester = DemoRuleVariantShadowTester()
+    portfolio = PortfolioState(
+        cash_balance=1_000_000,
+        asset_currency="XRP",
+        asset_balance=0,
+        avg_buy_price=0,
+    )
+    tester.evaluate(decision=_decision(market_state="bull"), current_price=1_000, portfolio=portfolio)
+
+    report = tester.evaluate(decision=_decision(market_state="bull"), current_price=990, portfolio=portfolio)
+
+    results = {item["variant_key"]: item for item in report["results"]}
+    assert results["A"]["stop_loss_count"] == 1
+    assert results["A"]["loss_count"] == 1
+    assert results["A"]["max_drawdown_pct"] > 0

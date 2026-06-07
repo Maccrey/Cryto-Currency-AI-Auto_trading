@@ -159,35 +159,73 @@ class LearningLogDiagnostics:
 
     @staticmethod
     def _stop_loss_summary(events: list[dict[str, Any]]) -> dict[str, object]:
+        exit_events = [event for event in events if event.get("event_name") == "position_exit_completed"]
+        if not exit_events:
+            exit_events = [
+                event
+                for event in events
+                if event.get("event_name") == "position_lifecycle_updated"
+                and ((event.get("payload") or {}).get("event_type") == "closed")
+            ]
         reason_counts: Counter[str] = Counter()
         market_state_counts: Counter[str] = Counter()
         signal_level_counts: Counter[str] = Counter()
+        take_profit_counts: Counter[str] = Counter()
         returns: list[float] = []
-        for event in events:
-            if event.get("event_name") not in {"position_exit_completed", "position_lifecycle_updated"}:
-                continue
+        take_profit_returns: list[float] = []
+        elapsed_values: list[float] = []
+        recent_stop_losses: list[dict[str, object]] = []
+        for event in exit_events:
             payload = event.get("payload") or {}
             if not isinstance(payload, dict):
                 continue
             reason_code = str(payload.get("reason_code") or "")
-            if not reason_code.startswith("STOP_LOSS"):
-                continue
-            reason_counts.update([reason_code])
-            state = payload.get("market_state")
-            if state in {"bull", "bear", "box"}:
-                market_state_counts.update([str(state)])
-            signal_level = payload.get("signal_level")
-            if signal_level is not None:
-                signal_level_counts.update([str(signal_level)])
             return_pct = LearningLogDiagnostics._exit_return_pct(payload)
-            if return_pct is not None:
-                returns.append(return_pct)
+            if reason_code.startswith("STOP_LOSS"):
+                reason_counts.update([reason_code])
+                state = payload.get("market_state")
+                if state in {"bull", "bear", "box"}:
+                    market_state_counts.update([str(state)])
+                signal_level = payload.get("signal_level")
+                if signal_level is not None:
+                    signal_level_counts.update([str(signal_level)])
+                if return_pct is not None:
+                    returns.append(return_pct)
+                try:
+                    elapsed_values.append(float(payload.get("elapsed_sec")))
+                except (TypeError, ValueError):
+                    pass
+                recent_stop_losses.append(
+                    {
+                        "recorded_at": event.get("recorded_at"),
+                        "reason_code": reason_code,
+                        "market_state": payload.get("market_state"),
+                        "signal_level": signal_level,
+                        "return_pct": return_pct,
+                        "momentum_score": payload.get("momentum_score"),
+                        "orderbook_imbalance": payload.get("orderbook_imbalance"),
+                    },
+                )
+                continue
+            if reason_code in {"TAKE_PROFIT_TARGET_HIT", "BOX_RANGE_HIGH_TAKE_PROFIT"}:
+                take_profit_counts.update([reason_code])
+                if return_pct is not None:
+                    take_profit_returns.append(return_pct)
+        total_stop_losses = sum(reason_counts.values())
+        total_profit_exits = sum(take_profit_counts.values())
         return {
-            "total_stop_losses": sum(reason_counts.values()),
+            "total_stop_losses": total_stop_losses,
             "reason_counts": dict(reason_counts),
             "market_state_counts": dict(market_state_counts),
             "signal_level_counts": dict(signal_level_counts),
             "avg_return_pct": round(sum(returns) / len(returns), 6) if returns else None,
+            "avg_elapsed_sec": round(sum(elapsed_values) / len(elapsed_values), 2) if elapsed_values else None,
+            "profit_exit_counts": dict(take_profit_counts),
+            "avg_profit_exit_return_pct": round(sum(take_profit_returns) / len(take_profit_returns), 6) if take_profit_returns else None,
+            "stop_loss_to_profit_exit_ratio": (
+                None if total_profit_exits <= 0 else round(total_stop_losses / total_profit_exits, 4)
+            ),
+            "recent_stop_losses": recent_stop_losses[-5:],
         }
 
     @staticmethod

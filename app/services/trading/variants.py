@@ -42,6 +42,10 @@ class ShadowPortfolio:
     realized_pnl: float = 0.0
     trade_count: int = 0
     win_count: int = 0
+    stop_loss_count: int = 0
+    loss_count: int = 0
+    peak_equity: float | None = None
+    max_drawdown_pct: float = 0.0
     last_action: str = "hold"
 
 
@@ -130,6 +134,7 @@ class DemoRuleVariantShadowTester:
                     cash_balance=portfolio.cash_balance,
                     asset_balance=portfolio.asset_balance,
                     avg_buy_price=portfolio.avg_buy_price,
+                    peak_equity=portfolio.cash_balance + (portfolio.asset_balance * current_price),
                 ),
             )
 
@@ -163,6 +168,7 @@ class DemoRuleVariantShadowTester:
             )
         shadow.last_action = action
         equity = shadow.cash_balance + (shadow.asset_balance * current_price)
+        self._update_drawdown(shadow=shadow, equity=equity)
         profit_rate = 0.0 if self._initial_equity is None else (equity - self._initial_equity) / self._initial_equity
         win_rate = None if shadow.trade_count <= 0 else shadow.win_count / shadow.trade_count
         return {
@@ -176,7 +182,10 @@ class DemoRuleVariantShadowTester:
             "avg_buy_price": round(shadow.avg_buy_price, 8),
             "realized_pnl": round(shadow.realized_pnl, 2),
             "trade_count": shadow.trade_count,
+            "stop_loss_count": shadow.stop_loss_count,
+            "loss_count": shadow.loss_count,
             "win_rate": None if win_rate is None else round(win_rate, 4),
+            "max_drawdown_pct": round(shadow.max_drawdown_pct, 6),
             "last_action": action,
             "action_reason": policy.action_reason,
             "entry_allowed_by_variant": policy.entry_allowed,
@@ -324,9 +333,10 @@ class DemoRuleVariantShadowTester:
         if shadow.avg_buy_price <= 0:
             return "hold"
         profit_pct = (current_price - shadow.avg_buy_price) / shadow.avg_buy_price
+        stop_loss_triggered = profit_pct <= -policy.stop_loss_pct
         should_exit = (
             profit_pct >= policy.take_profit_pct
-            or profit_pct <= -policy.stop_loss_pct
+            or stop_loss_triggered
             or decision.regime.market_state == "bear"
             or self._box_high_exit(decision=decision, current_price=current_price)
         )
@@ -348,9 +358,23 @@ class DemoRuleVariantShadowTester:
             shadow.avg_buy_price = 0.0
         shadow.realized_pnl = round(shadow.realized_pnl + pnl, 2)
         shadow.trade_count += 1
+        if pnl < 0:
+            shadow.loss_count += 1
+        if stop_loss_triggered:
+            shadow.stop_loss_count += 1
         if pnl > 0:
             shadow.win_count += 1
         return "sell"
+
+    @staticmethod
+    def _update_drawdown(*, shadow: ShadowPortfolio, equity: float) -> None:
+        if shadow.peak_equity is None or equity > shadow.peak_equity:
+            shadow.peak_equity = equity
+            return
+        if shadow.peak_equity <= 0:
+            return
+        drawdown = (shadow.peak_equity - equity) / shadow.peak_equity
+        shadow.max_drawdown_pct = max(shadow.max_drawdown_pct, drawdown)
 
     @staticmethod
     def _market_pressure(decision: TradeDecisionResult) -> float:
@@ -378,6 +402,9 @@ class DemoRuleVariantShadowTester:
     def _leader_score(item: dict[str, object]) -> tuple[float, float, int]:
         profit_rate = float(item.get("profit_rate") or 0.0)
         trade_count = int(item.get("trade_count") or 0)
+        stop_loss_count = int(item.get("stop_loss_count") or 0)
+        loss_count = int(item.get("loss_count") or 0)
+        max_drawdown_pct = float(item.get("max_drawdown_pct") or 0.0)
         market_state = str(item.get("market_state") or "box")
         market_pressure = float(item.get("market_pressure") or 0.0)
         variant_key = str(item.get("variant_key") or "")
@@ -390,7 +417,9 @@ class DemoRuleVariantShadowTester:
             suitability += abs(min(market_pressure, 0.0)) * (0.06 if variant_key == "C" else 0.02)
         else:
             suitability = {"C": 0.09, "A": 0.07, "B": -0.02}.get(variant_key, 0.0)
-        return profit_rate, suitability, trade_count
+        risk_penalty = (max_drawdown_pct * 0.75) + (stop_loss_count * 0.004) + (loss_count * 0.0015)
+        risk_adjusted_profit = profit_rate - risk_penalty
+        return risk_adjusted_profit, suitability, trade_count
 
     @staticmethod
     def _leader_reason(leader: dict[str, object]) -> str:

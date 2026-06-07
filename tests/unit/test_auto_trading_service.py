@@ -327,6 +327,44 @@ def test_auto_trading_service_blocks_weak_entry_when_learning_logs_show_weak_sto
     assert extra["historical_loss_guard_recent_stop_loss_reason"] == "STOP_LOSS_MOMENTUM_REVERSAL"
 
 
+def test_auto_trading_service_does_not_relax_weak_bull_recovery_when_losses_are_active(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0])
+    service._consecutive_entry_blocks = service._config.no_trade_relax_after_cycles
+    for entry_price in (2039.9, 2025.0):
+        service._learning_service.record(
+            LearningEvent(
+                event_name="position_opened",
+                market="KRW-XRP",
+                mode="demo",
+                payload={"signal_level": "weak", "entry_price": entry_price, "quantity": 10.0},
+            ),
+        )
+        service._learning_service.record(
+            LearningEvent(
+                event_name="position_lifecycle_updated",
+                market="KRW-XRP",
+                mode="demo",
+                payload={
+                    "event_type": "closed",
+                    "reason_code": "STOP_LOSS_MOMENTUM_REVERSAL",
+                    "signal_level": "weak",
+                    "entry_price": entry_price,
+                },
+            ),
+        )
+    weak_decision = SimpleNamespace(
+        signal=SimpleNamespace(level="weak", score=0.25, blocked=False),
+        sizing=SimpleNamespace(allowed=True, blocked_reason=None),
+    )
+
+    assert service._log_backed_bull_weak_recovery(
+        decision=weak_decision,
+        variant_payload={"leader_key": "B"},
+        entry_type="initial",
+        market_state="bull",
+    ) is False
+
+
 def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [800.0, 806.0, 813.0, 824.0], min_history=4)
 
@@ -343,7 +381,7 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert portfolio.asset_balance > 0.0
     assert portfolio.avg_buy_price > 0.0
     assert result["rule_variant_leader_key"] in {"A", "B", "C"}
-    assert result["trade_logic_update_trace"]["version"] == "2026-05-30-no-trade-bull-b-recovery"
+    assert result["trade_logic_update_trace"]["version"] == "2026-06-07-loss-aware-weak-recovery-guard"
     assert "demo_realized_pnl" in result["trade_logic_update_trace"]["optimization_metric_keys"]
     assert {item["variant_key"] for item in result["rule_variant_shadow"]["results"]} == {"A", "B", "C"}
     assert service.last_cycle()["rule_variant_leader_key"] == result["rule_variant_leader_key"]

@@ -882,7 +882,7 @@ class AutoTradingService:
         leader_key = variant_payload.get("leader_key") if isinstance(variant_payload, dict) else None
         baseline_block_reason = None if historical_loss_guard.get("allowed") else historical_loss_guard.get("reason_code")
         return {
-            "version": "2026-05-30-no-trade-bull-b-recovery",
+            "version": "2026-06-07-loss-aware-weak-recovery-guard",
             "purpose": "track_optimization_effect_for_future_rule_reviews",
             "applied": bool(log_backed_recovery),
             "candidate": bool(
@@ -907,6 +907,9 @@ class AutoTradingService:
                 "post_fill_position_opened",
                 "replay_final_profit_rate",
                 "demo_realized_pnl",
+                "rule_variant_stop_loss_count",
+                "rule_variant_max_drawdown_pct",
+                "weak_recovery_risk_blocked",
             ],
         }
 
@@ -925,6 +928,8 @@ class AutoTradingService:
         if decision.signal.level != "weak" or decision.signal.score < 0.24:
             return False
         if decision.signal.blocked:
+            return False
+        if self._active_historical_loss_profile() is not None:
             return False
         if not isinstance(variant_payload, dict) or variant_payload.get("leader_key") != "B":
             return False
