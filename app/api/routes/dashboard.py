@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from inspect import Parameter, signature
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -30,7 +31,7 @@ def build_dashboard_router(
     dashboard_learning_facade: DashboardLearningFacade,
     dashboard_recovery_facade: DashboardRecoveryFacade,
     promotion_dashboard_facade: PromotionDashboardFacade,
-    external_context_provider: Callable[[], dict[str, object]] | None = None,
+    external_context_provider: Callable[..., dict[str, object]] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/dashboard")
 
@@ -89,12 +90,27 @@ def build_dashboard_router(
                 "status": "not_configured",
                 "context": None,
             }
+        context = _call_external_context_provider(external_context_provider, force=force)
         return {
             "status": "ok",
-            "context": _external_context_snapshot(force=force),
+            "context": context,
         }
 
     return router
+
+
+def _call_external_context_provider(
+    provider: Callable[..., dict[str, object]],
+    *,
+    force: bool,
+) -> dict[str, object]:
+    provider_signature = signature(provider)
+    if "force" in provider_signature.parameters or any(
+        parameter.kind == Parameter.VAR_KEYWORD
+        for parameter in provider_signature.parameters.values()
+    ):
+        return provider(force=force)
+    return provider()
 
 
 DASHBOARD_HTML = """
