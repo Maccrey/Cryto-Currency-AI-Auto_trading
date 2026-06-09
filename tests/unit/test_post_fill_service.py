@@ -23,7 +23,7 @@ class TelegramNotifierStub:
         self.fills = []
         self.total_asset_values = []
 
-    def notify_fill(self, fill, *, total_asset_value=None) -> None:
+    def notify_fill(self, fill, *, total_asset_value=None, **kwargs) -> None:
         self.fills.append(fill)
         self.total_asset_values.append(total_asset_value)
 

@@ -814,11 +814,19 @@ class PositionExitService:
             total_asset_value = self._total_asset_value_after_fill(
                 current_price=execution.filled_price,
             )
+            market_payload = self._market_state_payload(
+                market_state=market_state,
+                box_range_low=box_range_low,
+                box_range_high=box_range_high,
+            )
             self._telegram_notifier.notify_fill(
                 execution,
                 reason_code=reason_code,
                 entry_price=position.entry_price,
                 total_asset_value=total_asset_value,
+                market_state_label=market_payload.get("market_state_label"),
+                box_range_low=market_payload.get("box_range_low"),
+                box_range_high=market_payload.get("box_range_high"),
             )
 
     def _total_asset_value_after_fill(self, *, current_price: float) -> float | None:

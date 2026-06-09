@@ -77,6 +77,7 @@ class TradeDecisionService:
             observed_box_range_low=request.observed_box_range_low,
             observed_box_range_high=request.observed_box_range_high,
         )
+        signal = self._apply_market_opportunity(signal, regime, features)
         sizing = self._sizing_engine.size_entry(
             request.portfolio,
             signal,
@@ -123,6 +124,69 @@ class TradeDecisionService:
             score=adjusted_score,
             level=TradeDecisionService._score_to_level(adjusted_score),
             reason_codes=reason_codes,
+        )
+
+    @staticmethod
+    def _apply_market_opportunity(
+        signal: SignalDecision,
+        regime: RegimeSnapshot,
+        features: FeatureSnapshot,
+    ) -> SignalDecision:
+        if signal.blocked or signal.level != "weak":
+            return signal
+        score_floor = 0.0
+        reason_code = None
+        if regime.market_state == "bull" and TradeDecisionService._bull_participation_signal(features):
+            score_floor = 0.4
+            reason_code = "BULL_MARKET_PARTICIPATION_BOOST"
+        elif regime.market_state == "box" and TradeDecisionService._box_lower_range_signal(regime, features):
+            score_floor = 0.4
+            reason_code = "BOX_RANGE_VALUE_ENTRY_BOOST"
+        elif regime.market_state == "bear" and TradeDecisionService._bear_rebound_signal(features):
+            score_floor = 0.4
+            reason_code = "BEAR_REBOUND_PARTICIPATION"
+        if reason_code is None or signal.score >= score_floor:
+            return signal
+        reason_codes = list(signal.reason_codes)
+        if reason_code not in reason_codes:
+            reason_codes.append(reason_code)
+        adjusted_score = round(score_floor, 2)
+        return replace(
+            signal,
+            score=adjusted_score,
+            level=TradeDecisionService._score_to_level(adjusted_score),
+            reason_codes=reason_codes,
+        )
+
+    @staticmethod
+    def _bull_participation_signal(features: FeatureSnapshot) -> bool:
+        technical_support = (
+            features.macd_histogram >= -0.0005
+            and features.ma_trend >= -0.0005
+            and features.rsi_14 <= 78.0
+            and features.bollinger_position <= 0.95
+        )
+        flow_support = features.ret_5s >= 0.0 or features.orderbook_imbalance >= -0.08
+        return technical_support and flow_support
+
+    @staticmethod
+    def _box_lower_range_signal(regime: RegimeSnapshot, features: FeatureSnapshot) -> bool:
+        if regime.box_range_low is None or regime.box_range_high is None:
+            return False
+        return (
+            features.bollinger_position <= 0.38
+            and features.rsi_14 >= 32.0
+            and features.orderbook_imbalance >= -0.12
+        )
+
+    @staticmethod
+    def _bear_rebound_signal(features: FeatureSnapshot) -> bool:
+        return (
+            features.ret_5s > 0.0
+            and features.ret_30s > 0.0
+            and features.orderbook_imbalance >= -0.05
+            and features.rsi_14 <= 68.0
+            and features.bollinger_position <= 0.88
         )
 
     @staticmethod

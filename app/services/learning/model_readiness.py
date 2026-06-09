@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from app.services.learning.jsonl import iter_jsonl_objects
 
 
 @dataclass(frozen=True)
@@ -30,27 +31,52 @@ class ModelTrainingReadinessService:
         self._thresholds = thresholds or ModelTrainingThresholds()
 
     def build(self) -> dict[str, object]:
-        all_rows = self._read_rows()
-        reset_index = self._last_completion_reset_index(all_rows)
-        rows = all_rows[reset_index + 1 :] if reset_index is not None else all_rows
-        counts = Counter(str(row.get("event_name")) for row in rows)
-        auto_cycles = [row for row in rows if row.get("event_name") == "auto_trade_cycle"]
-        blocked_cycles = [
-            row
-            for row in auto_cycles
-            if (row.get("payload") or {}).get("status") == "blocked"
-        ]
-        market_state_counts = Counter(
-            str((row.get("payload") or {}).get("market_state"))
-            for row in rows
-            if (row.get("payload") or {}).get("market_state") in {"bull", "bear", "box"}
-        )
+        scoped_counts: Counter[str] = Counter()
+        market_state_counts: Counter[str] = Counter()
+        total_events = 0
+        blocked_cycles = 0
+        first_event_at = None
+        latest_event_at = None
+        last_trade_at = None
+        last_auto_rule_update_at = None
+        reset_at = None
+
+        for row in self._iter_rows():
+            event_name = str(row.get("event_name"))
+            recorded_at = str(row.get("recorded_at")) if self._event_datetime(row) is not None else None
+            if recorded_at is not None:
+                first_event_at = first_event_at or recorded_at
+                latest_event_at = recorded_at
+            if event_name in {"fill_result", "position_opened", "position_closed", "position_exit_completed"}:
+                last_trade_at = recorded_at or last_trade_at
+            if event_name == "auto_rule_update":
+                last_auto_rule_update_at = recorded_at or last_auto_rule_update_at
+                payload = row.get("payload") or {}
+                if isinstance(payload, dict) and bool(payload.get("reset_learning_completion")):
+                    scoped_counts.clear()
+                    market_state_counts.clear()
+                    total_events = 0
+                    blocked_cycles = 0
+                    reset_at = recorded_at
+                    continue
+
+            total_events += 1
+            scoped_counts.update([event_name])
+            payload = row.get("payload") or {}
+            if not isinstance(payload, dict):
+                payload = {}
+            if event_name == "auto_trade_cycle" and payload.get("status") == "blocked":
+                blocked_cycles += 1
+            market_state = payload.get("market_state")
+            if market_state in {"bull", "bear", "box"}:
+                market_state_counts.update([str(market_state)])
+
         metrics = {
-            "total_events": len(rows),
-            "signal_events": counts.get("signal_generated", 0),
-            "fill_events": counts.get("fill_result", 0),
-            "exit_events": counts.get("position_exit_completed", 0),
-            "blocked_cycles": len(blocked_cycles),
+            "total_events": total_events,
+            "signal_events": scoped_counts.get("signal_generated", 0),
+            "fill_events": scoped_counts.get("fill_result", 0),
+            "exit_events": scoped_counts.get("position_exit_completed", 0),
+            "blocked_cycles": blocked_cycles,
         }
         required = {
             "total_events": self._thresholds.min_total_events,
@@ -65,13 +91,6 @@ class ModelTrainingReadinessService:
             if metrics.get(key, 0) < required[key]
         }
         completion_rate = self.completion_rate(metrics=metrics, required=required)
-        first_event_at = self._first_event_at(all_rows)
-        latest_event_at = self._latest_event_at(all_rows)
-        last_trade_at = self._last_event_at(
-            all_rows,
-            {"fill_result", "position_opened", "position_closed", "position_exit_completed"},
-        )
-        last_auto_rule_update_at = self._last_event_at(all_rows, {"auto_rule_update"})
         return {
             "status": "ready" if not gaps else "not_ready",
             "log_path": str(self._log_path),
@@ -80,8 +99,8 @@ class ModelTrainingReadinessService:
             "gaps": gaps,
             "completion_rate": completion_rate,
             "completion_percent": int(completion_rate * 100),
-            "completion_reset_at": None if reset_index is None else all_rows[reset_index].get("recorded_at"),
-            "completion_scope": "since_last_auto_rule_update" if reset_index is not None else "all_learning_logs",
+            "completion_reset_at": reset_at,
+            "completion_scope": "since_last_auto_rule_update" if reset_at is not None else "all_learning_logs",
             "first_event_at": first_event_at,
             "latest_event_at": latest_event_at,
             "last_trade_at": last_trade_at,
@@ -105,20 +124,8 @@ class ModelTrainingReadinessService:
             return 0.0
         return round(sum(ratios) / len(ratios), 3)
 
-    def _read_rows(self) -> list[dict[str, Any]]:
-        if not self._log_path.exists():
-            return []
-        rows: list[dict[str, Any]] = []
-        for line in self._log_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict):
-                rows.append(payload)
-        return rows
+    def _iter_rows(self):
+        return iter_jsonl_objects(self._log_path)
 
     @staticmethod
     def _last_completion_reset_index(rows: list[dict[str, Any]]) -> int | None:

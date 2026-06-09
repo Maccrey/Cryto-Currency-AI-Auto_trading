@@ -412,6 +412,7 @@ class AutoTradingService:
             signal_level=decision.signal.level,
             signal_score=decision.signal.score,
             entry_type=entry_type,
+            signal_reason_codes=decision.signal.reason_codes,
         )
         market_state_extra = self._market_state_extra(market_state_entry)
         if not market_state_entry.allowed:
@@ -970,9 +971,11 @@ class AutoTradingService:
             return False
         if entry_type != "initial" or market_state != "bull":
             return False
-        if decision.signal.level != "weak" or decision.signal.score < 0.24:
-            return False
         if decision.signal.blocked:
+            return False
+        if decision.signal.level == "medium" and "BULL_MARKET_PARTICIPATION_BOOST" in decision.signal.reason_codes:
+            return decision.sizing.allowed or decision.sizing.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT"
+        if decision.signal.level != "weak" or decision.signal.score < 0.24:
             return False
         if self._active_historical_loss_profile() is not None:
             return False

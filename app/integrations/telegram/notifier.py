@@ -19,6 +19,9 @@ class FillMessageTemplate:
         reason_code: str | None = None,
         entry_price: float | None = None,
         total_asset_value: float | None = None,
+        market_state_label: str | None = None,
+        box_range_low: float | None = None,
+        box_range_high: float | None = None,
     ) -> str:
         if fill.is_stop_loss:
             title = "손절 매도가 체결되었습니다."
@@ -36,6 +39,11 @@ class FillMessageTemplate:
         ]
         if total_asset_value is not None:
             lines.append(f"총 보유자산은 {total_asset_value:,.2f}원입니다.")
+        if market_state_label:
+            if market_state_label == "박스권" and box_range_low is not None and box_range_high is not None:
+                lines.append(f"현재 장세는 박스권이며 레인지는 {box_range_low:,.2f}원부터 {box_range_high:,.2f}원입니다.")
+            else:
+                lines.append(f"현재 장세는 {market_state_label}입니다.")
         if fill.side == "sell" and entry_price is not None:
             gross_profit = (fill.filled_price - entry_price) * fill.filled_quantity
             net_profit = gross_profit - fill.fee
@@ -73,6 +81,9 @@ class TelegramNotifier:
         reason_code: str | None = None,
         entry_price: float | None = None,
         total_asset_value: float | None = None,
+        market_state_label: str | None = None,
+        box_range_low: float | None = None,
+        box_range_high: float | None = None,
     ) -> None:
         try:
             self._gateway.send_message(
@@ -82,6 +93,9 @@ class TelegramNotifier:
                         reason_code=reason_code,
                         entry_price=entry_price,
                         total_asset_value=total_asset_value,
+                        market_state_label=market_state_label,
+                        box_range_low=box_range_low,
+                        box_range_high=box_range_high,
                     ),
                 ),
             )

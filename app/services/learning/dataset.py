@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
+
+from app.services.learning.jsonl import iter_jsonl_objects
 
 
 REGIME_LABELS = {
@@ -18,11 +19,7 @@ class RawLearningLogReader:
     def read(self, jsonl_path: Path) -> list[dict[str, object]]:
         if not jsonl_path.exists():
             raise FileNotFoundError(f"Learning log not found: {jsonl_path}")
-        return [
-            json.loads(line)
-            for line in jsonl_path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+        return list(iter_jsonl_objects(jsonl_path))
 
 
 class LearningRowRegimeEnricher:

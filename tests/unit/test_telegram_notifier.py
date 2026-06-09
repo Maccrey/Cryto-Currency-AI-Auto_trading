@@ -184,3 +184,27 @@ def test_telegram_notifier_sends_market_shock_message_with_server_name() -> None
     assert gateway.messages[0].startswith("[서울-데모-1]\n급락 변동성이 감지되었습니다.")
     assert "최근 변화율은 -1.80%" in gateway.messages[0]
     assert "신규 매수는 관망합니다." in gateway.messages[0]
+
+
+def test_telegram_notifier_includes_market_state_and_box_range() -> None:
+    gateway = StubTelegramGateway()
+    notifier = TelegramNotifier(gateway=gateway)
+
+    notifier.notify_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=820.0,
+            filled_quantity=120.5,
+            fee=41.11,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+        market_state_label="박스권",
+        box_range_low=800.0,
+        box_range_high=840.0,
+    )
+
+    assert "현재 장세는 박스권이며 레인지는 800.00원부터 840.00원입니다." in gateway.messages[0]

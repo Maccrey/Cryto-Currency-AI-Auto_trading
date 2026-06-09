@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import json
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from app.services.learning.jsonl import tail_jsonl_objects
 
 
 class LearningLogDiagnostics:
@@ -70,18 +71,7 @@ class LearningLogDiagnostics:
         }
 
     def _read_tail(self, *, limit: int) -> list[dict[str, Any]]:
-        if not self._log_path.exists():
-            return []
-        lines = self._log_path.read_text(encoding="utf-8").splitlines()[-limit:]
-        events: list[dict[str, Any]] = []
-        for line in lines:
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict):
-                events.append(payload)
-        return events
+        return tail_jsonl_objects(self._log_path, limit=limit)
 
     @staticmethod
     def _external_context_samples(events: list[dict[str, Any]]) -> list[dict[str, Any]]:

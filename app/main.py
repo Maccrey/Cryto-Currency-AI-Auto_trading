@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime
@@ -41,6 +42,7 @@ from app.services.execution.live import UpbitLiveOrderGateway
 from app.services.execution.rules import UpbitOrderRules
 from app.services.config.env_file import EnvFileService
 from app.services.learning.service import LearningService
+from app.services.learning.jsonl import iter_jsonl_objects
 from app.services.learning.model_readiness import ModelTrainingReadinessService
 from app.services.learning.reset import LearningDataResetService
 from app.services.market.store import MarketPriceStore
@@ -861,42 +863,29 @@ def _seed_execution_ledger_from_learning_log(
     limit: int,
     initial_cash: float,
 ) -> None:
-    if not log_path.exists():
+    if not log_path.exists() or limit <= 0:
         return
-    records: list[tuple[FillResult, str | None]] = []
-    for raw_line in log_path.read_text(encoding="utf-8").splitlines():
-        if not raw_line.strip():
-            continue
-        try:
-            row = json.loads(raw_line)
-        except json.JSONDecodeError:
-            continue
+    cash_balance = initial_cash
+    asset_balance = 0.0
+    solvent_records: deque[tuple[FillResult, str | None]] = deque(maxlen=limit)
+    for row in iter_jsonl_objects(log_path):
         if row.get("event_name") != "fill_result":
             continue
         payload = row.get("payload") or {}
         try:
-            records.append(
-                (
-                    FillResult(
-                        market=str(row.get("market") or "unknown"),
-                        side=str(payload.get("side")),
-                        filled_price=float(payload.get("filled_price", 0.0)),
-                        filled_quantity=float(payload.get("filled_quantity", 0.0)),
-                        fee=float(payload.get("fee", 0.0)),
-                        status=str(payload.get("status") or "filled"),
-                        mode=str(row.get("mode") or "demo"),
-                        is_virtual=str(row.get("mode") or "demo") == "demo",
-                        is_stop_loss=bool(payload.get("is_stop_loss")),
-                    ),
-                    payload.get("reason_code"),
-                ),
+            fill = FillResult(
+                market=str(row.get("market") or "unknown"),
+                side=str(payload.get("side")),
+                filled_price=float(payload.get("filled_price", 0.0)),
+                filled_quantity=float(payload.get("filled_quantity", 0.0)),
+                fee=float(payload.get("fee", 0.0)),
+                status=str(payload.get("status") or "filled"),
+                mode=str(row.get("mode") or "demo"),
+                is_virtual=str(row.get("mode") or "demo") == "demo",
+                is_stop_loss=bool(payload.get("is_stop_loss")),
             )
         except (TypeError, ValueError):
             continue
-    cash_balance = initial_cash
-    asset_balance = 0.0
-    solvent_records: list[tuple[FillResult, str | None]] = []
-    for fill, reason_code in records:
         if fill.status != "filled":
             continue
         gross_amount = fill.filled_price * fill.filled_quantity
@@ -905,7 +894,7 @@ def _seed_execution_ledger_from_learning_log(
                 continue
             cash_balance -= gross_amount + fill.fee
             asset_balance += fill.filled_quantity
-            solvent_records.append((fill, reason_code))
+            solvent_records.append((fill, payload.get("reason_code")))
             continue
         if fill.side == "sell":
             sell_quantity = min(asset_balance, fill.filled_quantity)
@@ -913,8 +902,8 @@ def _seed_execution_ledger_from_learning_log(
                 continue
             cash_balance += (fill.filled_price * sell_quantity) - fill.fee
             asset_balance = round(asset_balance - sell_quantity, 8)
-            solvent_records.append((fill, reason_code))
-    for fill, reason_code in solvent_records[-limit:]:
+            solvent_records.append((fill, payload.get("reason_code")))
+    for fill, reason_code in solvent_records:
         execution_ledger.record_fill(fill, reason_code=None if reason_code is None else str(reason_code))
 
 

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import Counter
+from collections import Counter, deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from app.services.learning.jsonl import iter_jsonl_objects
 from app.services.replay.harness import ReplayHarness
 from app.services.replay.loader import ReplayFixtureLoader
 
@@ -799,24 +800,19 @@ class RuleReviewService:
         cause_counts: dict[str, int] = {}
         blocked_reasons: Counter[str] = Counter()
         sizing_blocked_reasons: Counter[str] = Counter()
-        context_samples: list[dict[str, Any]] = []
-        rule_variant_shadow_samples: list[dict[str, Any]] = []
-        technical_indicator_samples: list[dict[str, Any]] = []
-        market_feature_samples: list[dict[str, Any]] = []
-        market_window_samples: list[dict[str, Any]] = []
+        sample_limit = 5000
+        context_samples: deque[dict[str, Any]] = deque(maxlen=sample_limit)
+        rule_variant_shadow_samples: deque[dict[str, Any]] = deque(maxlen=sample_limit)
+        technical_indicator_samples: deque[dict[str, Any]] = deque(maxlen=sample_limit)
+        market_feature_samples: deque[dict[str, Any]] = deque(maxlen=sample_limit)
+        market_window_samples: deque[dict[str, Any]] = deque(maxlen=sample_limit)
         latest_event_at: datetime | None = None
         last_trade_at: datetime | None = None
         completion_rates: list[float] = []
         closed_trade_pnls: list[float] = []
         log_path = self._learning_log_dir / "learning.jsonl"
         if log_path.exists():
-            for raw_line in log_path.read_text(encoding="utf-8").splitlines():
-                if not raw_line.strip():
-                    continue
-                try:
-                    row = json.loads(raw_line)
-                except json.JSONDecodeError:
-                    continue
+            for row in iter_jsonl_objects(log_path):
                 event_name = str(row.get("event_name", ""))
                 recorded_at = self._parse_datetime(row.get("recorded_at"))
                 if recorded_at is not None and (latest_event_at is None or recorded_at > latest_event_at):
@@ -868,6 +864,11 @@ class RuleReviewService:
         ]
         no_trade_blocked_count = (
             blocked_reasons.get("AUTO_MIN_SIGNAL_LEVEL", 0)
+            + blocked_reasons.get("WEAK_ENTRY_HISTORICAL_LOSS_BLOCK", 0)
+            + blocked_reasons.get("WEAK_SCALE_IN_HISTORICAL_LOSS_BLOCK", 0)
+            + blocked_reasons.get("MARKET_STATE_BEAR_ENTRY_BLOCK", 0)
+            + blocked_reasons.get("SIDEWAYS_WEAK_RELAXED_ENTRY_BLOCK", 0)
+            + blocked_reasons.get("SIDEWAYS_WEAK_SCALE_IN_BLOCK", 0)
             + blocked_reasons.get("FEE_ADJUSTED_EDGE_LIMIT", 0)
             + sizing_blocked_reasons.get("FEE_ADJUSTED_EDGE_LIMIT", 0)
         )
@@ -1196,7 +1197,7 @@ class RuleReviewService:
     def _line_count(path: Path) -> int:
         if not path.exists():
             return 0
-        return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+        return sum(1 for line in path.open("r", encoding="utf-8") if line.strip())
 
     @staticmethod
     def _technical_indicator_summary(samples: list[dict[str, Any]]) -> dict[str, object]:
@@ -1322,11 +1323,21 @@ class RuleReviewService:
                     ),
                 },
                 {
-                    "file": "app/services/trading/auto.py",
-                    "parameter": "DEMO_FEE_EDGE_RELAXATION",
-                    "current_value": False,
-                    "proposed_value": True,
-                    "reason": "demo no-trade 완화 시 수수료 보정 엣지 차단을 재평가해 0원 주문 차단을 해소합니다.",
+                    "file": "app/services/trading/decision.py",
+                    "parameter": "BULL_BOX_BEAR_REBOUND_SIGNAL_BOOST",
+                    "current_value": "weak_signals_remain_weak",
+                    "proposed_value": "promote_supported_bull_box_bear_rebound_to_medium",
+                    "reason": (
+                        "상승장·박스권 하단·하락장 반등 확인 구간에서도 weak/FEE_ADJUSTED_EDGE_LIMIT 차단이 반복됩니다. "
+                        "기술 지표와 호가가 받쳐주는 구간만 medium으로 승격해 수익 가능한 구간을 놓치지 않도록 합니다."
+                    ),
+                },
+                {
+                    "file": "app/services/market/trend.py",
+                    "parameter": "BROAD_MARKET_STATE_CLASSIFIER",
+                    "current_value": "short_recent_ticks",
+                    "proposed_value": "recent_medium_broad_windows",
+                    "reason": "짧은 틱 변동만으로 하락장 차단이 과다 발생해 중기/광역 가격 흐름을 함께 보고 상승장·하락장·박스권을 판단합니다.",
                 },
             ]
             return (staleness_changes + technical_changes + context_changes + changes)[: self._config.max_params_per_run]

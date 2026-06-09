@@ -121,6 +121,9 @@ class PostFillService:
             self._telegram_notifier.notify_fill(
                 execution,
                 total_asset_value=total_asset_value,
+                market_state_label=regime_payload.get("market_state_label"),
+                box_range_low=regime_payload.get("box_range_low"),
+                box_range_high=regime_payload.get("box_range_high"),
             )
         return PostFillResult(
             execution_result=execution_result,

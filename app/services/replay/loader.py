@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.services.learning.jsonl import tail_jsonl_objects
+
 
 @dataclass(frozen=True)
 class ReplayTick:
@@ -35,18 +37,7 @@ class ReplayFixtureLoader:
         ]
 
     def load_market_observations(self, path: Path, *, limit: int = 500) -> list[ReplayTick]:
-        if not path.exists():
-            return []
-        rows: list[dict[str, object]] = []
-        for raw_line in path.read_text(encoding="utf-8").splitlines()[-max(limit, 0) :]:
-            if not raw_line.strip():
-                continue
-            try:
-                item = json.loads(raw_line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(item, dict):
-                rows.append(item)
+        rows = tail_jsonl_objects(path, limit=max(limit, 0))
         ticks: list[ReplayTick] = []
         for item in rows:
             try:

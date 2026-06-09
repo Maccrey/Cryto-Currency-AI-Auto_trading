@@ -27,6 +27,8 @@ class MarketTrendClassifier:
     BEAR_MARKET_RECOVERY_THRESHOLD_PCT = 0.004
     MIN_BOX_WIDTH_PCT = 0.001
     RECENT_TREND_POINTS = 12
+    MEDIUM_TREND_POINTS = 48
+    BROAD_TREND_POINTS = 144
     STATE_LOOKBACK_POINTS = 288
     LEARNING_BOX_OVERRIDE_CONFIDENCE = 0.65
     LEARNING_TREND_OVERRIDE_CONFIDENCE = 0.82
@@ -50,9 +52,21 @@ class MarketTrendClassifier:
             current_price=current_price,
             history=state_history,
         )
+        medium_window_change_pct = self._window_change_pct(
+            current_price=current_price,
+            history=state_history,
+            points=self.MEDIUM_TREND_POINTS,
+        )
+        broad_window_change_pct = self._window_change_pct(
+            current_price=current_price,
+            history=state_history,
+            points=self.BROAD_TREND_POINTS,
+        )
         state_change_pct, state_source = self._state_change_pct(
             recent_change_pct=recent_change_pct,
             recent_window_change_pct=recent_window_change_pct,
+            medium_window_change_pct=medium_window_change_pct,
+            broad_window_change_pct=broad_window_change_pct,
             reference_change_pct=reference_change_pct,
         )
         price_market_state = self._market_state(recent_change_pct=state_change_pct)
@@ -126,6 +140,8 @@ class MarketTrendClassifier:
         *,
         recent_change_pct: float,
         recent_window_change_pct: float,
+        medium_window_change_pct: float,
+        broad_window_change_pct: float,
         reference_change_pct: float | None,
     ) -> tuple[float, str]:
         reference = None if reference_change_pct is None else round(reference_change_pct, 4)
@@ -136,6 +152,23 @@ class MarketTrendClassifier:
             and recent_window_change_pct < MarketTrendClassifier.BEAR_MARKET_RECOVERY_THRESHOLD_PCT
         ):
             return 0.0, "bear_reference_box"
+        if (
+            recent_window_change_pct < -MarketTrendClassifier.BOX_THRESHOLD_PCT
+            and abs(recent_window_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT * 3
+            and medium_window_change_pct > MarketTrendClassifier.BOX_THRESHOLD_PCT * 2
+            and broad_window_change_pct >= 0
+        ):
+            return medium_window_change_pct, "medium_price_history"
+        if (
+            abs(recent_window_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT
+            and abs(medium_window_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT * 2
+        ):
+            return medium_window_change_pct, "medium_price_history"
+        if (
+            abs(recent_window_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT
+            and abs(broad_window_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT * 3
+        ):
+            return broad_window_change_pct, "broad_price_history"
         if abs(recent_window_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT:
             return recent_window_change_pct, "price_history"
         if reference is None:
@@ -187,6 +220,24 @@ class MarketTrendClassifier:
             return 0.0
 
         start_price = prices[start_index]
+        if start_price <= 0:
+            return 0.0
+        return round((current_price - start_price) / start_price, 4)
+
+    @staticmethod
+    def _window_change_pct(
+        *,
+        current_price: float,
+        history: list[MarketPriceSnapshot],
+        points: int,
+    ) -> float:
+        prices = [item.price for item in history if item.price > 0]
+        if current_price > 0 and (not prices or prices[-1] != current_price):
+            prices.append(current_price)
+        if len(prices) < 2:
+            return 0.0
+        window = prices[-max(points, 2) :]
+        start_price = window[0]
         if start_price <= 0:
             return 0.0
         return round((current_price - start_price) / start_price, 4)

@@ -82,7 +82,8 @@ def test_rule_proposal_allows_demo_no_trade_mitigation_with_small_trade_sample(t
     assert initial_rejection_reasons == []
     assert initial_parameters == [
         "NO_TRADE_RELAX_MIN_SCORE",
-        "DEMO_FEE_EDGE_RELAXATION",
+        "BULL_BOX_BEAR_REBOUND_SIGNAL_BOOST",
+        "BROAD_MARKET_STATE_CLASSIFIER",
     ]
     assert result["demo_applied"] is True
     assert result["status"] == "demo_applied"

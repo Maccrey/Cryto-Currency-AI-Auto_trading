@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.services.learning.dataset import LearningRowRegimeEnricher
+from app.services.learning.jsonl import iter_jsonl_objects
 from app.services.learning.model_readiness import (
     ModelTrainingReadinessService,
     ModelTrainingThresholds,
@@ -125,19 +126,7 @@ class OfflineModelTrainer:
 
     @staticmethod
     def _read_rows(path: Path) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        if not path.exists():
-            return rows
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(row, dict):
-                rows.append(row)
-        return rows
+        return list(iter_jsonl_objects(path))
 
     @staticmethod
     def _build_temporal_split(rows: list[dict[str, Any]]) -> dict[str, object]:

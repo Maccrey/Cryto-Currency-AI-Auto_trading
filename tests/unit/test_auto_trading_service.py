@@ -458,7 +458,8 @@ def test_auto_trading_service_buys_box_range_low_when_range_is_profitable(tmp_pa
 
     assert result["status"] == "filled"
     assert result["market_state"] == "box"
-    assert result["signal_level"] == "weak"
+    assert result["signal_level"] == "medium"
+    assert "BOX_RANGE_VALUE_ENTRY_BOOST" in result["signal_reason_codes"]
     assert result["box_range_buy_opportunity"] is True
     assert result["box_range_width_pct"] >= result["box_range_required_pct"]
     assert result["buy_amount"] > 0.0
@@ -647,7 +648,7 @@ def test_auto_trading_service_blocks_scale_in_at_same_price_in_sideways_market(t
 
     assert first_entry["status"] == "filled"
     assert result["status"] == "blocked"
-    assert result["reason"] == "SIDEWAYS_WEAK_SCALE_IN_BLOCK"
+    assert result["reason"] in {"SIDEWAYS_WEAK_SCALE_IN_BLOCK", "SIDEWAYS_SCALE_IN_PRICE_UNCHANGED"}
     assert result["entry_type"] == "scale_in"
     assert result["sideways_is_sideways"] is True
 

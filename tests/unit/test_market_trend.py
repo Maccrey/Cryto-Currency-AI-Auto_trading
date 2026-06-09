@@ -216,3 +216,18 @@ def test_market_trend_classifier_uses_learning_override_when_reference_is_ambigu
     assert trend.market_state == "bull"
     assert trend.source == "learning_trend_override"
     assert trend.learning_confidence == 1.0
+
+
+def test_market_trend_classifier_uses_medium_trend_over_single_tick_pullback() -> None:
+    store = MarketPriceStore()
+    for price in [1000.0, 1008.0, 1015.0, 1022.0, 1028.0, 1026.0]:
+        store.save(market="KRW-XRP", price=price)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=1026.0,
+        history=store.list_history("KRW-XRP"),
+    )
+
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
+    assert trend.source == "medium_price_history"
