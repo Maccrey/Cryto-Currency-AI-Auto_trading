@@ -503,6 +503,37 @@ class AutoTradingService:
                     **market_state_extra,
                 },
             )
+        post_sell_reentry = self._post_sell_reentry_confirmation(
+            reentry_decision=reentry_decision,
+            decision=decision,
+            market_state_entry=market_state_entry,
+            current_price=snapshot.trade_price,
+            entry_type=entry_type,
+        )
+        if not post_sell_reentry["allowed"]:
+            rule_variant = self._variant_extra(variant_payload)
+            self._consecutive_entry_blocks += 1
+            return self._record_cycle(
+                status="blocked",
+                reason=str(post_sell_reentry["reason_code"]),
+                extra={
+                    "entry_type": entry_type,
+                    "signal_level": decision.signal.level,
+                    "signal_score": decision.signal.score,
+                    "signal_blocked": decision.signal.blocked,
+                    "signal_reason_codes": decision.signal.reason_codes,
+                    "sizing_allowed": decision.sizing.allowed,
+                    "sizing_blocked_reason": decision.sizing.blocked_reason,
+                    "buy_amount": 0.0,
+                    "market_state": entry_market_state,
+                    "market_state_label": entry_market_state_label,
+                    "box_range_low": decision.regime.box_range_low,
+                    "box_range_high": decision.regime.box_range_high,
+                    **market_state_extra,
+                    **post_sell_reentry,
+                    **rule_variant,
+                },
+            )
         relaxed_signal = (
             market_state_entry.transition_boost
             or log_backed_recovery
@@ -957,6 +988,119 @@ class AutoTradingService:
                 "rule_variant_max_drawdown_pct",
                 "weak_recovery_risk_blocked",
             ],
+        }
+
+    def _post_sell_reentry_confirmation(
+        self,
+        *,
+        reentry_decision,
+        decision,
+        market_state_entry,
+        current_price: float,
+        entry_type: str,
+    ) -> dict[str, object]:
+        stop_loss_confirmation = self._post_stop_loss_reentry_confirmation(
+            reentry_decision=reentry_decision,
+            decision=decision,
+            market_state_entry=market_state_entry,
+            current_price=current_price,
+            entry_type=entry_type,
+        )
+        if not stop_loss_confirmation.get("allowed", True) or stop_loss_confirmation.get("post_stop_loss_reentry_confirmed"):
+            return stop_loss_confirmation
+        if entry_type != "initial" or reentry_decision.last_exit_price is None:
+            return {"allowed": True}
+        last_exit_price = float(reentry_decision.last_exit_price)
+        if last_exit_price <= 0 or current_price <= 0:
+            return {"allowed": True}
+        min_reentry_edge_pct = max((self._config.trading_fee_rate * 2) + 0.001, 0.0015)
+        required_pullback_price = round(last_exit_price * (1 - min_reentry_edge_pct), 4)
+        required_breakout_price = round(last_exit_price * (1 + self._config.market_recovery_change_pct), 4)
+        required_confirmation_count = max(
+            self._config.market_recovery_confirmation_ticks,
+            self._config.market_state_transition_confirmation_ticks,
+            1,
+        )
+        strong_signal = decision.signal.level in {"strong", "very_strong"} and decision.signal.score >= 0.65
+        confirmed_bull = (
+            market_state_entry.current_market_state == "bull"
+            and market_state_entry.current_state_count >= required_confirmation_count
+        )
+        cheaper_reentry = current_price <= required_pullback_price
+        confirmed_breakout = confirmed_bull and strong_signal and current_price >= required_breakout_price
+        if cheaper_reentry or confirmed_breakout:
+            return {
+                "allowed": True,
+                "post_sell_reentry_edge_confirmed": True,
+                "post_sell_reentry_mode": "pullback" if cheaper_reentry else "confirmed_bull_breakout",
+                "post_sell_last_exit_reason_code": reentry_decision.last_exit_reason_code,
+                "post_sell_last_exit_price": last_exit_price,
+                "post_sell_required_pullback_price": required_pullback_price,
+                "post_sell_required_breakout_price": required_breakout_price,
+            }
+        return {
+            "allowed": False,
+            "reason_code": "POST_SELL_REENTRY_EDGE_REQUIRED",
+            "post_sell_reentry_edge_confirmed": False,
+            "post_sell_last_exit_reason_code": reentry_decision.last_exit_reason_code,
+            "post_sell_last_exit_price": last_exit_price,
+            "post_sell_required_pullback_price": required_pullback_price,
+            "post_sell_required_breakout_price": required_breakout_price,
+            "post_sell_min_reentry_edge_pct": round(min_reentry_edge_pct, 6),
+            "post_sell_confirmed_bull": confirmed_bull,
+            "post_sell_strong_signal": strong_signal,
+        }
+
+    def _post_stop_loss_reentry_confirmation(
+        self,
+        *,
+        reentry_decision,
+        decision,
+        market_state_entry,
+        current_price: float,
+        entry_type: str,
+    ) -> dict[str, object]:
+        reason_code = reentry_decision.last_exit_reason_code
+        if reason_code is None or not str(reason_code).startswith("STOP_LOSS"):
+            return {"allowed": True}
+        required_confirmation_count = max(
+            self._config.market_recovery_confirmation_ticks,
+            self._config.market_state_transition_confirmation_ticks,
+            1,
+        )
+        last_exit_price = reentry_decision.last_exit_price
+        required_recovery_price = (
+            None
+            if last_exit_price is None or last_exit_price <= 0
+            else round(last_exit_price * (1 + self._config.market_recovery_change_pct), 4)
+        )
+        strong_signal = decision.signal.level in {"strong", "very_strong"} and decision.signal.score >= 0.65
+        confirmed_bull = (
+            entry_type == "initial"
+            and market_state_entry.current_market_state == "bull"
+            and market_state_entry.current_state_count >= required_confirmation_count
+        )
+        recovered_price = required_recovery_price is None or current_price >= required_recovery_price
+        if confirmed_bull and strong_signal and recovered_price:
+            return {
+                "allowed": True,
+                "post_stop_loss_reentry_confirmed": True,
+                "post_stop_loss_required_confirmation_count": required_confirmation_count,
+                "post_stop_loss_required_recovery_price": required_recovery_price,
+                "post_stop_loss_last_exit_reason_code": reason_code,
+                "post_stop_loss_last_exit_price": last_exit_price,
+            }
+        return {
+            "allowed": False,
+            "reason_code": "POST_STOP_LOSS_REENTRY_CONFIRMATION_REQUIRED",
+            "post_stop_loss_reentry_confirmed": False,
+            "post_stop_loss_required_confirmation_count": required_confirmation_count,
+            "post_stop_loss_required_recovery_price": required_recovery_price,
+            "post_stop_loss_last_exit_reason_code": reason_code,
+            "post_stop_loss_last_exit_price": last_exit_price,
+            "post_stop_loss_confirmed_bull": confirmed_bull,
+            "post_stop_loss_strong_signal": strong_signal,
+            "post_stop_loss_recovered_price": recovered_price,
         }
 
     def _log_backed_bull_weak_recovery(

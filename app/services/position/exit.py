@@ -77,8 +77,8 @@ class PositionExitService:
         take_profit_min_net_pct: float = 0.0012,
         box_range_min_net_profit_pct: float = 0.003,
         box_range_edge_zone_ratio: float = 0.25,
-        take_profit_min_exit_ratio: float = 0.55,
-        weak_signal_take_profit_min_exit_ratio: float = 0.85,
+        take_profit_min_exit_ratio: float = 0.75,
+        weak_signal_take_profit_min_exit_ratio: float = 1.0,
         profit_protection_buffer_pct: float = 0.0002,
     ) -> None:
         self._position_store = position_store
@@ -591,8 +591,8 @@ class PositionExitService:
         momentum_score: float,
         orderbook_imbalance: float,
         signal_level: str | None = None,
-        take_profit_min_exit_ratio: float = 0.55,
-        weak_signal_take_profit_min_exit_ratio: float = 0.85,
+        take_profit_min_exit_ratio: float = 0.75,
+        weak_signal_take_profit_min_exit_ratio: float = 1.0,
     ) -> float:
         continuation_score = PositionExitService._chart_continuation_score(
             momentum_score=momentum_score,
@@ -600,6 +600,8 @@ class PositionExitService:
         )
         inverse_chart_exit_ratio = round(0.25 + ((1.0 - continuation_score) * 0.75), 3)
         if reason_code == "TAKE_PROFIT_TARGET_HIT":
+            if momentum_score < -0.3 or orderbook_imbalance < -0.3:
+                return 1.0
             min_exit_ratio = weak_signal_take_profit_min_exit_ratio if signal_level == "weak" else take_profit_min_exit_ratio
             return min(max(inverse_chart_exit_ratio, min_exit_ratio), requested_exit_ratio)
         if momentum_score < -0.3 or orderbook_imbalance < -0.3:

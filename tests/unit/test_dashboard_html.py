@@ -28,6 +28,9 @@ def test_dashboard_includes_24h_profit_rate_chart() -> None:
     assert "${profitLine}${marketPriceLine}${markers}" in DASHBOARD_HTML
     assert "observedSpan < timeSpan * 0.5" in DASHBOARD_HTML
     assert 'class="trade-marker ${markerClass}"' in DASHBOARD_HTML
+    assert 'item.trade_type === "buy" ? "buy" : "sell"' in DASHBOARD_HTML
+    assert 'POST_SELL_REENTRY_EDGE_REQUIRED' in DASHBOARD_HTML
+    assert 'MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 진입 차단"' in DASHBOARD_HTML
     assert 'fetchJson("/dashboard/market?history_limit=288")' in DASHBOARD_HTML
     assert 'renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market);' in DASHBOARD_HTML
     assert "`${market.market || marketLabel} <span" not in DASHBOARD_HTML
@@ -234,7 +237,7 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert 'DEMO_ASSET_WITHOUT_ACTIVE_POSITION: "데모 보유자산과 포지션 불일치"' in DASHBOARD_HTML
     assert 'LIVE_ASSET_WITHOUT_ACTIVE_POSITION: "실거래 보유자산과 포지션 불일치"' in DASHBOARD_HTML
     assert 'REENTRY_BLOCK_AFTER_SELL: "매도 후 재진입 대기"' in DASHBOARD_HTML
-    assert 'MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 약한 진입 차단"' in DASHBOARD_HTML
+    assert 'MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 진입 차단"' in DASHBOARD_HTML
     assert 'MARKET_STATE_BEAR_SCALE_IN_BLOCK: "하락장 추가매수 차단"' in DASHBOARD_HTML
     assert 'AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달"' in DASHBOARD_HTML
     assert 'FEE_ADJUSTED_EDGE_LIMIT: "수수료 반영 기대수익 부족"' in DASHBOARD_HTML

@@ -755,3 +755,133 @@ def test_auto_trading_service_limits_scale_in_count_and_caps_amount(tmp_path: Pa
 
     assert limited["allowed"] is False
     assert limited["reason_code"] == "SCALE_IN_MAX_ENTRIES"
+
+
+def test_auto_trading_service_requires_confirmed_bull_strong_signal_after_stop_loss(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0])
+    service._config = replace(
+        service._config,
+        market_recovery_confirmation_ticks=3,
+        market_state_transition_confirmation_ticks=2,
+        market_recovery_change_pct=0.003,
+    )
+    reentry_decision = SimpleNamespace(
+        last_exit_reason_code="STOP_LOSS_PRICE_HIT",
+        last_exit_price=795.0,
+    )
+    weak_decision = SimpleNamespace(
+        signal=SimpleNamespace(level="medium", score=0.4),
+    )
+    market_state_entry = SimpleNamespace(
+        current_market_state="bull",
+        current_state_count=2,
+    )
+
+    result = service._post_stop_loss_reentry_confirmation(
+        reentry_decision=reentry_decision,
+        decision=weak_decision,
+        market_state_entry=market_state_entry,
+        current_price=800.0,
+        entry_type="initial",
+    )
+
+    assert result["allowed"] is False
+    assert result["reason_code"] == "POST_STOP_LOSS_REENTRY_CONFIRMATION_REQUIRED"
+    assert result["post_stop_loss_confirmed_bull"] is False
+    assert result["post_stop_loss_strong_signal"] is False
+    assert result["post_stop_loss_recovered_price"] is True
+
+
+def test_auto_trading_service_allows_reentry_after_stop_loss_only_on_confirmed_bull_strong_signal(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0])
+    service._config = replace(
+        service._config,
+        market_recovery_confirmation_ticks=3,
+        market_state_transition_confirmation_ticks=2,
+        market_recovery_change_pct=0.003,
+    )
+    reentry_decision = SimpleNamespace(
+        last_exit_reason_code="STOP_LOSS_PRICE_HIT",
+        last_exit_price=795.0,
+    )
+    strong_decision = SimpleNamespace(
+        signal=SimpleNamespace(level="strong", score=0.7),
+    )
+    market_state_entry = SimpleNamespace(
+        current_market_state="bull",
+        current_state_count=3,
+    )
+
+    result = service._post_stop_loss_reentry_confirmation(
+        reentry_decision=reentry_decision,
+        decision=strong_decision,
+        market_state_entry=market_state_entry,
+        current_price=798.0,
+        entry_type="initial",
+    )
+
+    assert result["allowed"] is True
+    assert result["post_stop_loss_reentry_confirmed"] is True
+    assert result["post_stop_loss_required_recovery_price"] == 797.385
+
+
+def test_auto_trading_service_blocks_same_price_reentry_after_regular_sell(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [805.0])
+    service._config = replace(
+        service._config,
+        trading_fee_rate=0.0005,
+        market_recovery_confirmation_ticks=3,
+        market_state_transition_confirmation_ticks=2,
+        market_recovery_change_pct=0.003,
+    )
+    reentry_decision = SimpleNamespace(
+        last_exit_reason_code="TAKE_PROFIT_TARGET_HIT",
+        last_exit_price=805.0,
+    )
+    strong_decision = SimpleNamespace(
+        signal=SimpleNamespace(level="strong", score=0.7),
+    )
+    market_state_entry = SimpleNamespace(
+        current_market_state="box",
+        current_state_count=4,
+    )
+
+    result = service._post_sell_reentry_confirmation(
+        reentry_decision=reentry_decision,
+        decision=strong_decision,
+        market_state_entry=market_state_entry,
+        current_price=805.0,
+        entry_type="initial",
+    )
+
+    assert result["allowed"] is False
+    assert result["reason_code"] == "POST_SELL_REENTRY_EDGE_REQUIRED"
+    assert result["post_sell_required_pullback_price"] == 803.39
+    assert result["post_sell_required_breakout_price"] == 807.415
+
+
+def test_auto_trading_service_allows_regular_sell_reentry_after_pullback(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [805.0])
+    service._config = replace(service._config, trading_fee_rate=0.0005)
+    reentry_decision = SimpleNamespace(
+        last_exit_reason_code="TAKE_PROFIT_TARGET_HIT",
+        last_exit_price=805.0,
+    )
+    medium_decision = SimpleNamespace(
+        signal=SimpleNamespace(level="medium", score=0.45),
+    )
+    market_state_entry = SimpleNamespace(
+        current_market_state="box",
+        current_state_count=1,
+    )
+
+    result = service._post_sell_reentry_confirmation(
+        reentry_decision=reentry_decision,
+        decision=medium_decision,
+        market_state_entry=market_state_entry,
+        current_price=803.0,
+        entry_type="initial",
+    )
+
+    assert result["allowed"] is True
+    assert result["post_sell_reentry_mode"] == "pullback"

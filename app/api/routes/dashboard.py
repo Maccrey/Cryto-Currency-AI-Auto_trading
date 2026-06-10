@@ -1243,13 +1243,32 @@ function marketPriceSummary(market, startTime, endTime) {
 }
 
 function buildProfitTradeMarkers({executions, data, startTime, endTime, timeSpan, minValue, span, left, top, width, height}) {
+  const seriesMarkers = (Array.isArray(data) ? data : [])
+    .filter((item) => item.recorded_at && ["buy", "sell", "stop_loss"].includes(item.trade_type))
+    .map((item) => ({
+      status: "filled",
+      recorded_at: item.recorded_at,
+      side: item.trade_side || (item.trade_type === "buy" ? "buy" : "sell"),
+      is_stop_loss: item.trade_type === "stop_loss" || item.trade_is_stop_loss === true,
+      filled_price: item.trade_price,
+      filled_quantity: item.trade_quantity,
+      reason_code: item.trade_reason_code,
+      signal_level: item.signal_level,
+      signal_score: item.signal_score,
+      profit_rate: item.profit_rate
+    }));
+  const seen = new Set(seriesMarkers.map((item) => `${item.recorded_at}|${item.side}|${item.is_stop_loss ? "stop" : "regular"}`));
   const history = Array.isArray(executions) ? executions : [];
-  const filled = history.filter((item) => item.status === "filled" && item.recorded_at && ["buy", "sell"].includes(item.side));
-  return filled.map((execution) => {
+  const filled = history
+    .filter((item) => item.status === "filled" && item.recorded_at && ["buy", "sell"].includes(item.side))
+    .filter((item) => !seen.has(`${item.recorded_at}|${item.side}|${item.is_stop_loss ? "stop" : "regular"}`));
+  return [...seriesMarkers, ...filled].map((execution) => {
     const timestamp = new Date(execution.recorded_at).getTime();
     if (!Number.isFinite(timestamp) || timestamp < startTime || timestamp > endTime) return "";
     const nearest = nearestProfitPoint(data, timestamp);
-    const profitRate = nearest ? Number(nearest.profit_rate) : 0;
+    const profitRate = execution.profit_rate !== undefined && execution.profit_rate !== null
+      ? Number(execution.profit_rate)
+      : nearest ? Number(nearest.profit_rate) : 0;
     const x = left + ((timestamp - startTime) / timeSpan) * width;
     const y = top + height - ((profitRate - minValue) / span) * height;
     const markerClass = execution.is_stop_loss ? "stop-loss" : execution.side;
@@ -1786,7 +1805,9 @@ function formatBlockedReason(value) {
     LIVE_ASSET_WITHOUT_ACTIVE_POSITION: "실거래 보유자산과 포지션 불일치",
     REENTRY_BLOCK_AFTER_SELL: "매도 후 재진입 대기",
     REENTRY_BLOCK_ACTIVE: "재진입 제한 중",
-    MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 약한 진입 차단",
+    POST_SELL_REENTRY_EDGE_REQUIRED: "매도 후 가격 이점 또는 확정 상승 전환 대기",
+    POST_STOP_LOSS_REENTRY_CONFIRMATION_REQUIRED: "손절 후 확정 상승 전환 대기",
+    MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 진입 차단",
     MARKET_STATE_BEAR_SCALE_IN_BLOCK: "하락장 추가매수 차단",
     AUTO_MIN_SIGNAL_LEVEL: "최소 신호 점수 미달",
     DEMO_CASH_LIMIT: "데모 현금 부족",

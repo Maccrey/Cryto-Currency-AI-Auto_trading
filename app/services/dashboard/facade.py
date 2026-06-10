@@ -802,10 +802,19 @@ class DashboardSummaryFacade:
             if recorded_at is None or recorded_at < cutoff:
                 continue
             equity = cash_balance + (asset_balance * fill.filled_price)
+            trade_type = "stop_loss" if fill.is_stop_loss else fill.side
             points.append(
                 {
                     "recorded_at": recorded_at.isoformat(),
                     "profit_rate": round((equity - initial_cash) / initial_cash, 6),
+                    "trade_side": fill.side,
+                    "trade_type": trade_type,
+                    "trade_is_stop_loss": fill.is_stop_loss,
+                    "trade_price": fill.filled_price,
+                    "trade_quantity": fill.filled_quantity,
+                    "trade_reason_code": record.reason_code,
+                    "signal_level": record.signal_level,
+                    "signal_score": record.signal_score,
                 },
             )
         latest_price = None

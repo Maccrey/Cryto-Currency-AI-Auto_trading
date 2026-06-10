@@ -71,15 +71,7 @@ class MarketStateEntryGuard:
                 current_state_count=current_count,
                 transition=transition,
             )
-        bear_rebound_participation = (
-            entry_type == "initial"
-            and signal_level == "medium"
-            and signal_score >= 0.4
-            and "BEAR_REBOUND_PARTICIPATION" in (signal_reason_codes or [])
-        )
-        if current_state == "bear" and not bear_rebound_participation and (
-            signal_level not in {"strong", "very_strong"} or signal_score < self._bear_entry_min_score
-        ):
+        if current_state == "bear":
             return MarketStateEntryDecision(
                 allowed=False,
                 reason_code="MARKET_STATE_BEAR_ENTRY_BLOCK",

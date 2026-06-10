@@ -97,4 +97,12 @@ class ReentryBlocker:
             allowed=True,
             remaining_seconds=0,
             reason_code=None,
+            last_exit_reason_code=(
+                None if last_exit is None or last_exit.get("reason_code") is None else str(last_exit["reason_code"])
+            ),
+            last_exit_price=(
+                None
+                if last_exit is None or last_exit.get("price") is None
+                else float(last_exit["price"])
+            ),
         )
