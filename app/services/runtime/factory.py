@@ -48,6 +48,7 @@ def build_runtime_services(
     boot_notification_dispatcher: BootNotificationDispatcher | None = None,
     learning_service: LearningService | None = None,
     recovery_orchestrator: RecoveryOrchestrator | None = None,
+    dispatch_boot_notification_on_start: bool = True,
 ) -> RuntimeServices:
     if recovery_orchestrator is None:
         if trading_mode == "demo":
@@ -110,6 +111,7 @@ def build_runtime_services(
         learning_enabled=learning_enabled,
         timestamp_provider=timestamp_provider,
         boot_notification_dispatcher=boot_notification_dispatcher,
+        dispatch_boot_notification_on_start=dispatch_boot_notification_on_start,
     )
 
     return RuntimeServices(

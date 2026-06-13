@@ -73,3 +73,29 @@ def test_app_runtime_service_skips_dispatch_without_notifier() -> None:
 
     assert result is boot_state
     assert orchestrator.boot_calls == 1
+
+
+def test_app_runtime_service_can_defer_boot_notification() -> None:
+    boot_state = BootStateStub()
+    orchestrator = RecoveryOrchestratorStub(boot_state)
+    dispatcher = BootNotificationDispatcherStub()
+    service = AppRuntimeService(
+        recovery_orchestrator=orchestrator,
+        app_name="upbit-auto-trader",
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_enabled=True,
+        timestamp_provider=lambda: "2026-04-19T19:20:00+09:00",
+        boot_notification_dispatcher=dispatcher,
+        dispatch_boot_notification_on_start=False,
+    )
+
+    result = service.start()
+
+    assert result is boot_state
+    assert dispatcher.calls == []
+
+    service.dispatch_boot_notification(boot_state=boot_state)
+
+    assert dispatcher.calls[0]["boot_state"] is boot_state
+    assert dispatcher.calls[0]["cause"] == "process_restart"

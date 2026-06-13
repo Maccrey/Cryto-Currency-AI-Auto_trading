@@ -3230,6 +3230,58 @@ def test_create_app_dispatches_boot_notification_when_boot_is_normal(monkeypatch
     assert dispatcher.calls[0]["boot_state"].hard_stop is False
 
 
+
+
+def test_create_app_boot_notification_uses_demo_ledger_portfolio(monkeypatch) -> None:
+    class SuccessfulBootOrchestrator:
+        def boot(self):
+            class BootState:
+                safe_mode = False
+                hard_stop = False
+                trading_ready = True
+                failure_stage = None
+                portfolio_state = PortfolioState(
+                    cash_balance=1_000_000.0,
+                    asset_currency="XRP",
+                    asset_balance=0.0,
+                    avg_buy_price=0.0,
+                )
+                reconcile_result = {"status": "demo"}
+
+            return BootState()
+
+    ledger = ExecutionLedger()
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=1000.0,
+            filled_quantity=100.0,
+            fee=50.0,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    dispatcher = BootNotificationDispatcherStub()
+    monkeypatch.setenv("TRADING_MODE", "demo")
+    monkeypatch.setenv("LEARNING_ENABLED", "true")
+    monkeypatch.setenv("DEMO_INITIAL_CAPITAL", "1000000")
+
+    create_app(
+        recovery_orchestrator=SuccessfulBootOrchestrator(),
+        boot_notification_dispatcher=dispatcher,
+        execution_ledger=ledger,
+        timestamp_provider=lambda: "2026-04-18T12:45:00+09:00",
+    )
+
+    portfolio = dispatcher.calls[0]["boot_state"].portfolio_state
+    assert portfolio.cash_balance == 899950.0
+    assert portfolio.asset_balance == 100.0
+    assert portfolio.avg_buy_price == 1000.5
+
+
 def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch, tmp_path) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):

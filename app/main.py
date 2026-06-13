@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import datetime
 import json
 import os
+from types import SimpleNamespace
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -199,6 +200,7 @@ def create_app(
         boot_notification_dispatcher=notification_services.boot_notification_dispatcher,
         learning_service=learning_service,
         recovery_orchestrator=recovery_orchestrator,
+        dispatch_boot_notification_on_start=False,
     )
 
     promotion_services = build_promotion_services(
@@ -333,6 +335,7 @@ def create_app(
         )
 
     demo_portfolio_state = None
+    notification_boot_state = current_boot_state()
     boot_portfolio_state = current_boot_portfolio_state()
     if (
         settings.trading_mode == "demo"
@@ -343,6 +346,19 @@ def create_app(
             initial_cash=float(env_file_service.demo_initial_capital(fallback=settings.demo_initial_capital)),
             asset_currency=boot_portfolio_state.asset_currency,
         )
+        current_state = current_boot_state()
+        try:
+            notification_boot_state = replace(current_state, portfolio_state=demo_portfolio_state)
+        except TypeError:
+            notification_boot_state = SimpleNamespace(
+                safe_mode=getattr(current_state, "safe_mode", False),
+                hard_stop=getattr(current_state, "hard_stop", False),
+                trading_ready=getattr(current_state, "trading_ready", False),
+                failure_stage=getattr(current_state, "failure_stage", None),
+                portfolio_state=demo_portfolio_state,
+                reconcile_result=getattr(current_state, "reconcile_result", None),
+            )
+    runtime_services.runtime_service.dispatch_boot_notification(boot_state=notification_boot_state)
     live_rest_client = UpbitRestClient(
         base_url=settings.upbit_base_url,
         auth_signer=UpbitAuthSigner(
