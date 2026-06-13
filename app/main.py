@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime
 import json
+import logging
 import os
 from types import SimpleNamespace
 from pathlib import Path
@@ -46,6 +47,7 @@ from app.services.learning.service import LearningService
 from app.services.learning.jsonl import iter_jsonl_objects
 from app.services.learning.model_readiness import ModelTrainingReadinessService
 from app.services.learning.reset import LearningDataResetService
+from app.services.market.bootstrap import HistoricalMarketBootstrapService, UpbitHistoricalCandleProvider
 from app.services.market.store import MarketPriceStore
 from app.services.market.context import (
     ExternalMarketContextConfig,
@@ -89,6 +91,9 @@ from app.services.trading.auto import AutoTradingConfig, AutoTradingService
 from app.services.trading.decision import TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
+
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(
@@ -398,6 +403,40 @@ def create_app(
     current_price_provider = UpbitTickerPriceProvider(
         base_url=settings.upbit_base_url,
     )
+    market_history_bootstrap_result: dict[str, object] = {
+        "status": "skipped",
+        "reason": "pytest",
+    }
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        historical_candle_provider = UpbitHistoricalCandleProvider(
+            base_url=settings.upbit_base_url,
+        )
+        try:
+            market_history_bootstrap_result = HistoricalMarketBootstrapService(
+                market=settings.trade_market,
+                trading_mode=settings.trading_mode,
+                candle_provider=historical_candle_provider,
+                market_price_store=market_price_store,
+                learning_service=learning_service,
+                observation_path=profile_learning_log_dir / "market-observations.jsonl",
+            ).bootstrap()
+            logger.info(
+                "market_history_bootstrap_completed",
+                extra={"event": market_history_bootstrap_result},
+            )
+        except Exception as exc:
+            market_history_bootstrap_result = {
+                "status": "failed",
+                "source": "upbit_3d_bootstrap",
+                "message": str(exc),
+            }
+            logger.warning(
+                "market_history_bootstrap_failed",
+                extra={"event": market_history_bootstrap_result},
+                exc_info=True,
+            )
+        finally:
+            historical_candle_provider.close()
     dashboard_services = build_dashboard_services(
         market=settings.trade_market,
         boot_state=boot_state,
@@ -496,6 +535,7 @@ def create_app(
         execution_ledger=execution_ledger,
     )
     app.state.auto_trading_service = auto_trading_service
+    app.state.market_history_bootstrap_result = market_history_bootstrap_result
 
     def apply_saved_demo_initial_capital(*, force_reset: bool = False) -> dict[str, object]:
         if settings.trading_mode != "demo":
