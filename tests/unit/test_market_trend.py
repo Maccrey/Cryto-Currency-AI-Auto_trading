@@ -231,3 +231,73 @@ def test_market_trend_classifier_uses_medium_trend_over_single_tick_pullback() -
     assert trend.market_state == "bull"
     assert trend.market_state_label == "상승장"
     assert trend.source == "medium_price_history"
+
+
+def test_market_trend_classifier_keeps_stable_recent_range_as_box_over_learning_bear() -> None:
+    store = MarketPriceStore()
+    for price in ([1711.0, 1712.0, 1711.0, 1710.0] * 80):
+        store.save(market="KRW-XRP", price=price)
+    learning_events = [
+        LearningEvent(
+            event_name="auto_trade_cycle",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"market_state": "bear", "status": "blocked"},
+        )
+        for _ in range(80)
+    ]
+
+    trend = MarketTrendClassifier().classify(
+        current_price=1711.0,
+        history=store.list_history("KRW-XRP"),
+        learning_events=learning_events,
+        reference_change_pct=0.0012,
+    )
+
+    assert trend.market_state == "box"
+    assert trend.market_state_label == "박스권"
+    assert trend.source == "stable_price_box"
+    assert trend.box_range_low is not None
+    assert trend.box_range_high is not None
+
+
+def test_market_trend_classifier_keeps_short_stable_runtime_window_as_box() -> None:
+    store = MarketPriceStore()
+    for price in [1711.0, 1710.0, 1710.0, 1711.0, 1710.0, 1711.0]:
+        store.save(market="KRW-XRP", price=price)
+    learning_events = [
+        LearningEvent(
+            event_name="auto_trade_cycle",
+            market="KRW-XRP",
+            mode="demo",
+            payload={"market_state": "bear", "status": "blocked"},
+        )
+        for _ in range(80)
+    ]
+
+    trend = MarketTrendClassifier().classify(
+        current_price=1711.0,
+        history=store.list_history("KRW-XRP"),
+        learning_events=learning_events,
+        reference_change_pct=0.0012,
+    )
+
+    assert trend.market_state == "box"
+    assert trend.source == "price_history"
+
+
+def test_market_trend_classifier_keeps_short_two_point_stable_move_as_box_over_ticker() -> None:
+    store = MarketPriceStore()
+    store.save(market="KRW-XRP", price=1710.0)
+    store.save(market="KRW-XRP", price=1711.0)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=1711.0,
+        history=store.list_history("KRW-XRP"),
+        reference_change_pct=0.0012,
+    )
+
+    assert trend.recent_change_pct == 0.0006
+    assert trend.market_state == "box"
+    assert trend.market_state_label == "박스권"
+    assert trend.source == "price_history"

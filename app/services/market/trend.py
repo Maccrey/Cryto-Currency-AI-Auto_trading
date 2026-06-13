@@ -30,6 +30,8 @@ class MarketTrendClassifier:
     MEDIUM_TREND_POINTS = 48
     BROAD_TREND_POINTS = 144
     STATE_LOOKBACK_POINTS = 288
+    STABLE_BOX_RANGE_PCT = 0.002
+    STABLE_BOX_MIN_POINTS = 6
     LEARNING_BOX_OVERRIDE_CONFIDENCE = 0.65
     LEARNING_TREND_OVERRIDE_CONFIDENCE = 0.82
 
@@ -62,11 +64,18 @@ class MarketTrendClassifier:
             history=state_history,
             points=self.BROAD_TREND_POINTS,
         )
+        stable_window_range_pct = self._window_range_pct(
+            current_price=current_price,
+            history=state_history,
+            points=self.STATE_LOOKBACK_POINTS,
+        )
         state_change_pct, state_source = self._state_change_pct(
             recent_change_pct=recent_change_pct,
             recent_window_change_pct=recent_window_change_pct,
             medium_window_change_pct=medium_window_change_pct,
             broad_window_change_pct=broad_window_change_pct,
+            stable_window_range_pct=stable_window_range_pct,
+            sample_count=len(state_history),
             reference_change_pct=reference_change_pct,
         )
         price_market_state = self._market_state(recent_change_pct=state_change_pct)
@@ -112,7 +121,7 @@ class MarketTrendClassifier:
             return price_market_state, state_source
         if learned_state == price_market_state:
             return price_market_state, state_source
-        if state_source == "price_history":
+        if state_source in {"price_history", "stable_price_box"}:
             return price_market_state, state_source
         if learned_state == "box" and learned_confidence >= MarketTrendClassifier.LEARNING_BOX_OVERRIDE_CONFIDENCE:
             if abs(recent_window_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT * 1.5:
@@ -142,9 +151,28 @@ class MarketTrendClassifier:
         recent_window_change_pct: float,
         medium_window_change_pct: float,
         broad_window_change_pct: float,
+        stable_window_range_pct: float,
+        sample_count: int,
         reference_change_pct: float | None,
     ) -> tuple[float, str]:
         reference = None if reference_change_pct is None else round(reference_change_pct, 4)
+        short_stable_box = (
+            sample_count >= 2
+            and stable_window_range_pct > 0
+            and stable_window_range_pct <= MarketTrendClassifier.BOX_THRESHOLD_PCT
+            and abs(recent_window_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT
+            and (reference is None or abs(reference) <= MarketTrendClassifier.STABLE_BOX_RANGE_PCT)
+        )
+        established_stable_box = (
+            sample_count >= MarketTrendClassifier.STABLE_BOX_MIN_POINTS
+            and stable_window_range_pct <= MarketTrendClassifier.STABLE_BOX_RANGE_PCT
+            and abs(recent_window_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT * 1.5
+            and abs(medium_window_change_pct) <= MarketTrendClassifier.STABLE_BOX_RANGE_PCT
+        )
+        if short_stable_box:
+            return recent_change_pct, "price_history"
+        if established_stable_box:
+            return 0.0, "stable_price_box"
         if (
             reference is not None
             and reference <= MarketTrendClassifier.BEAR_REFERENCE_THRESHOLD_PCT
@@ -241,6 +269,26 @@ class MarketTrendClassifier:
         if start_price <= 0:
             return 0.0
         return round((current_price - start_price) / start_price, 4)
+
+    @staticmethod
+    def _window_range_pct(
+        *,
+        current_price: float,
+        history: list[MarketPriceSnapshot],
+        points: int,
+    ) -> float:
+        prices = [item.price for item in history if item.price > 0]
+        if current_price > 0 and (not prices or prices[-1] != current_price):
+            prices.append(current_price)
+        if len(prices) < 2:
+            return 0.0
+        window = prices[-max(points, 2) :]
+        low = min(window)
+        high = max(window)
+        midpoint = (low + high) / 2
+        if midpoint <= 0:
+            return 0.0
+        return round((high - low) / midpoint, 6)
 
     @staticmethod
     def _market_state(*, recent_change_pct: float) -> str:
