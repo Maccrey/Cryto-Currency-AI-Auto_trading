@@ -97,6 +97,8 @@ def _build_service(
     live_enabled: bool = False,
     telegram_notifier=None,
     execution_ledger: ExecutionLedger | None = None,
+    initial_warmup_seconds: int = 0,
+    initial_warmup_min_samples: int = 0,
 ) -> AutoTradingService:
     learning_service = LearningService(log_dir=tmp_path)
     position_store = CurrentPositionStore()
@@ -174,6 +176,8 @@ def _build_service(
             live_enabled=live_enabled,
             interval_sec=1,
             min_history=min_history,
+            initial_observation_warmup_seconds=initial_warmup_seconds,
+            initial_observation_min_samples=initial_warmup_min_samples,
         ),
         telegram_notifier=telegram_notifier,
         execution_ledger=execution_ledger,
@@ -251,6 +255,43 @@ def test_auto_trading_service_records_waiting_until_history_is_ready(tmp_path: P
     assert result["reason"] == "MARKET_HISTORY_WARMING_UP"
     assert result["trading_profile"] == "scalping"
 
+
+
+
+def test_auto_trading_service_waits_for_initial_observation_warmup_when_no_existing_data(tmp_path: Path) -> None:
+    service = _build_service(
+        tmp_path,
+        [800.0, 806.0, 813.0, 824.0],
+        min_history=4,
+        initial_warmup_seconds=180,
+        initial_warmup_min_samples=6,
+    )
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["status"] == "waiting"
+    assert result["reason"] == "INITIAL_MARKET_OBSERVATION_WARMING_UP"
+    assert result["buy_amount"] == 0.0
+    assert result["initial_observation_samples"] == 4
+    assert result["initial_observation_required_samples"] == 6
+    assert result["initial_observation_time_ready"] is False
+
+
+def test_auto_trading_service_allows_entry_after_initial_observation_warmup(tmp_path: Path) -> None:
+    service = _build_service(
+        tmp_path,
+        [800.0, 806.0, 813.0, 824.0],
+        min_history=4,
+        initial_warmup_seconds=0,
+        initial_warmup_min_samples=4,
+    )
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["status"] == "filled"
+    assert result["buy_amount"] > 0
 
 def test_auto_trading_service_records_external_context_in_learning_cycle(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [800.0], min_history=4)
@@ -623,6 +664,8 @@ def test_auto_trading_service_blocks_relaxed_weak_entry_in_sideways_market(tmp_p
         no_trade_adaptive_enabled=True,
         no_trade_relax_after_cycles=100,
         no_trade_relax_min_score=0.18,
+        initial_observation_warmup_seconds=0,
+        initial_observation_min_samples=0,
     )
 
     for _ in range(4):
@@ -696,6 +739,8 @@ def test_auto_trading_service_does_not_run_live_without_explicit_live_flag(tmp_p
         live_enabled=False,
         interval_sec=1,
         min_history=2,
+        initial_observation_warmup_seconds=0,
+        initial_observation_min_samples=0,
     )
 
     assert service.should_run() is False

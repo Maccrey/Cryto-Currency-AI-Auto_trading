@@ -65,6 +65,8 @@ class AutoTradingConfig:
     historical_loss_guard_stop_loss_to_profit_ratio: float = 1.2
     historical_loss_guard_weak_buy_ratio: float = 0.7
     historical_loss_guard_box_entry_min_score: float = 0.30
+    initial_observation_warmup_seconds: int = 180
+    initial_observation_min_samples: int = 20
 
 
 class AutoTradingService:
@@ -116,8 +118,12 @@ class AutoTradingService:
         self._uptime_store = uptime_store
         self._execution_ledger = execution_ledger
         self._trend_classifier = MarketTrendClassifier()
-        self._prices: deque[float] = deque(maxlen=max(config.min_history, 2))
-        self._traded_values: deque[float] = deque(maxlen=max(config.min_history, 2))
+        history_size = max(config.min_history, config.initial_observation_min_samples, 2)
+        self._prices: deque[float] = deque(maxlen=history_size)
+        self._traded_values: deque[float] = deque(maxlen=history_size)
+        self._initial_market_history_count = len(market_price_store.list_history(market))
+        self._requires_initial_observation_warmup = self._initial_market_history_count <= 0
+        self._first_observation_at: datetime | None = None
         self._position_opened_at: datetime | None = None
         self._started_at: datetime | None = None
         self._task: asyncio.Task[None] | None = None
@@ -286,6 +292,8 @@ class AutoTradingService:
 
         self._last_ticker_reference_change_pct = snapshot.signed_change_rate
         self._market_price_store.save(market=self._market, price=snapshot.trade_price)
+        if self._first_observation_at is None:
+            self._first_observation_at = self._clock()
         self._prices.append(snapshot.trade_price)
         self._traded_values.append(self._traded_value(snapshot))
         self._record_market_observation(snapshot)
@@ -372,6 +380,13 @@ class AutoTradingService:
                 status="waiting",
                 reason="MARKET_HISTORY_WARMING_UP",
                 extra={"history_count": len(self._prices), "required_history": self._config.min_history},
+            )
+        initial_warmup = self._initial_observation_warmup_decision()
+        if initial_warmup is not None:
+            return self._record_cycle(
+                status="waiting",
+                reason="INITIAL_MARKET_OBSERVATION_WARMING_UP",
+                extra=initial_warmup,
             )
 
         if shock_decision is None:
@@ -1504,6 +1519,33 @@ class AutoTradingService:
         if self._config.min_history <= 0:
             return 1.0
         return round(min(len(self._prices) / self._config.min_history, 1.0), 3)
+
+    def _initial_observation_warmup_decision(self) -> dict[str, object] | None:
+        if not self._requires_initial_observation_warmup:
+            return None
+        required_samples = max(int(self._config.initial_observation_min_samples), 0)
+        required_seconds = max(int(self._config.initial_observation_warmup_seconds), 0)
+        if required_samples <= 0 and required_seconds <= 0:
+            return None
+        observed_samples = len(self._prices)
+        started_at = self._first_observation_at or self._clock()
+        observed_seconds = max(int((self._clock() - started_at).total_seconds()), 0)
+        samples_ready = observed_samples >= required_samples
+        time_ready = observed_seconds >= required_seconds
+        if samples_ready and time_ready:
+            return None
+        return {
+            "buy_amount": 0.0,
+            "history_count": observed_samples,
+            "required_history": self._config.min_history,
+            "initial_history_count": self._initial_market_history_count,
+            "initial_observation_samples": observed_samples,
+            "initial_observation_required_samples": required_samples,
+            "initial_observation_elapsed_seconds": observed_seconds,
+            "initial_observation_required_seconds": required_seconds,
+            "initial_observation_samples_ready": samples_ready,
+            "initial_observation_time_ready": time_ready,
+        }
 
     def _market_regime_payload(
         self,

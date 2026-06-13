@@ -1792,6 +1792,7 @@ function formatBlockedReason(value) {
   const labels = {
     AUTO_TRADING_DISABLED_OR_NOT_READY: "자동매매 비활성 또는 준비 안 됨",
     MARKET_HISTORY_WARMING_UP: "시세 이력 준비 중",
+    INITIAL_MARKET_OBSERVATION_WARMING_UP: "초기 시장 관측 데이터 축적 중",
     PRICE_PROVIDER_ERROR: "현재가 조회 오류",
     PRICE_SNAPSHOT_UNAVAILABLE: "현재가 데이터 없음",
     INVALID_PRICE_SNAPSHOT: "현재가 데이터 오류",

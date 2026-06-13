@@ -140,6 +140,8 @@ def test_trading_profile_applies_profile_defaults(
     assert settings.trading_profile == "mid_term"
     assert settings.auto_trading_interval_sec == 30.0
     assert settings.auto_trading_min_history == 20
+    assert settings.auto_trading_initial_warmup_seconds == 180
+    assert settings.auto_trading_initial_warmup_min_samples == 20
     assert settings.profile_min_net_edge_pct == 0.0060
     assert settings.validation_window_sec == 3600
     assert settings.fixed_stop_loss_pct == 0.050

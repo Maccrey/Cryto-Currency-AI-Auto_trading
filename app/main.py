@@ -450,6 +450,8 @@ def create_app(
             live_enabled=settings.auto_trading_live_enabled,
             interval_sec=settings.auto_trading_interval_sec,
             min_history=settings.auto_trading_min_history,
+            initial_observation_warmup_seconds=settings.auto_trading_initial_warmup_seconds,
+            initial_observation_min_samples=settings.auto_trading_initial_warmup_min_samples,
             trading_profile=settings.trading_profile,
             spread_bps=trading_profile.spread_bps,
             slippage_bps=trading_profile.slippage_bps,

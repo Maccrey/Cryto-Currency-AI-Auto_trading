@@ -112,6 +112,8 @@ class SettingsModel(BaseModel):
     auto_trading_live_enabled: bool = Field(default=False)
     auto_trading_interval_sec: float = Field(default=3.0)
     auto_trading_min_history: int = Field(default=6)
+    auto_trading_initial_warmup_seconds: int = Field(default=180)
+    auto_trading_initial_warmup_min_samples: int = Field(default=20)
     log_level: str = Field(default="INFO")
     log_format: str = Field(default="json")
     learning_log_dir: Path = Field(default=Path("./storage/logs/learning"))
@@ -298,6 +300,8 @@ class AppSettings:
     auto_trading_live_enabled: bool
     auto_trading_interval_sec: float
     auto_trading_min_history: int
+    auto_trading_initial_warmup_seconds: int
+    auto_trading_initial_warmup_min_samples: int
     log_level: str
     log_format: str
     learning_log_dir: Path
@@ -454,6 +458,12 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         ),
         "auto_trading_min_history": int(
             _setting("AUTO_TRADING_MIN_HISTORY", str(profile_spec.auto_min_history), env_values),
+        ),
+        "auto_trading_initial_warmup_seconds": int(
+            _setting("AUTO_TRADING_INITIAL_WARMUP_SECONDS", "180", env_values),
+        ),
+        "auto_trading_initial_warmup_min_samples": int(
+            _setting("AUTO_TRADING_INITIAL_WARMUP_MIN_SAMPLES", "20", env_values),
         ),
         "log_level": _setting("LOG_LEVEL", "INFO", env_values),
         "log_format": _setting("LOG_FORMAT", "json", env_values),

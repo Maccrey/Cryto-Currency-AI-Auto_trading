@@ -231,6 +231,7 @@ def test_dashboard_includes_no_trade_diagnostics_panel() -> None:
     assert 'MONITOR: "추가 관찰"' in DASHBOARD_HTML
     assert 'RELAX_ENTRY_RULES_FOR_DEMO: "데모 진입 규칙 완화 검토"' in DASHBOARD_HTML
     assert 'MARKET_HISTORY_WARMING_UP: "시세 이력 준비 중"' in DASHBOARD_HTML
+    assert 'INITIAL_MARKET_OBSERVATION_WARMING_UP: "초기 시장 관측 데이터 축적 중"' in DASHBOARD_HTML
     assert 'POSITION_HELD: "포지션 보유 중"' in DASHBOARD_HTML
     assert 'POSITION_EXIT_TRIGGERED: "포지션 청산 실행"' in DASHBOARD_HTML
     assert 'LIVE_ORDER_PENDING: "실거래 주문 처리 대기"' in DASHBOARD_HTML
