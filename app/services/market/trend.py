@@ -26,6 +26,8 @@ class MarketTrendClassifier:
     BEAR_REFERENCE_THRESHOLD_PCT = -0.01
     BEAR_MARKET_RECOVERY_THRESHOLD_PCT = 0.004
     MIN_BOX_WIDTH_PCT = 0.001
+    BOX_TOUCH_TOLERANCE_PCT = 0.0005
+    BOX_TOUCH_MIN_COUNT = 2
     RECENT_TREND_POINTS = 12
     MEDIUM_TREND_POINTS = 48
     BROAD_TREND_POINTS = 144
@@ -69,6 +71,7 @@ class MarketTrendClassifier:
             history=state_history,
             points=self.STATE_LOOKBACK_POINTS,
         )
+        confirmed_box = self._confirmed_box(state_history, current_price)
         state_change_pct, state_source = self._state_change_pct(
             recent_change_pct=recent_change_pct,
             recent_window_change_pct=recent_window_change_pct,
@@ -79,6 +82,19 @@ class MarketTrendClassifier:
             reference_change_pct=reference_change_pct,
         )
         price_market_state = self._market_state(recent_change_pct=state_change_pct)
+        if confirmed_box:
+            state_change_pct = 0.0
+            state_source = "confirmed_price_box"
+            price_market_state = "box"
+        elif price_market_state == "box":
+            state_change_pct, state_source = self._fallback_market_change_pct(
+                recent_change_pct=recent_change_pct,
+                recent_window_change_pct=recent_window_change_pct,
+                medium_window_change_pct=medium_window_change_pct,
+                broad_window_change_pct=broad_window_change_pct,
+                reference_change_pct=reference_change_pct,
+            )
+            price_market_state = self._market_state(recent_change_pct=state_change_pct)
         learned_state, learned_confidence, sample_count = self._learned_market_state(
             learning_events or [],
         )
@@ -121,7 +137,7 @@ class MarketTrendClassifier:
             return price_market_state, state_source
         if learned_state == price_market_state:
             return price_market_state, state_source
-        if state_source in {"price_history", "stable_price_box"}:
+        if state_source in {"price_history", "stable_price_box", "confirmed_price_box"}:
             return price_market_state, state_source
         if learned_state == "box" and learned_confidence >= MarketTrendClassifier.LEARNING_BOX_OVERRIDE_CONFIDENCE:
             if abs(recent_window_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT * 1.5:
@@ -292,9 +308,67 @@ class MarketTrendClassifier:
 
     @staticmethod
     def _market_state(*, recent_change_pct: float) -> str:
-        if abs(recent_change_pct) <= MarketTrendClassifier.BOX_THRESHOLD_PCT:
+        if abs(recent_change_pct) < MarketTrendClassifier.BOX_THRESHOLD_PCT:
             return "box"
         return "bull" if recent_change_pct > 0 else "bear"
+
+    @staticmethod
+    def _fallback_market_change_pct(
+        *,
+        recent_change_pct: float,
+        recent_window_change_pct: float,
+        medium_window_change_pct: float,
+        broad_window_change_pct: float,
+        reference_change_pct: float | None,
+    ) -> tuple[float, str]:
+        if abs(recent_window_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT:
+            return recent_window_change_pct, "price_history"
+        if abs(medium_window_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT * 2:
+            return medium_window_change_pct, "medium_price_history"
+        if abs(broad_window_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT * 3:
+            return broad_window_change_pct, "broad_price_history"
+        if abs(recent_change_pct) > MarketTrendClassifier.BOX_THRESHOLD_PCT:
+            return recent_change_pct, "price_history"
+        if reference_change_pct is not None:
+            if abs(reference_change_pct) > 0:
+                return reference_change_pct, "ticker_reference"
+        return MarketTrendClassifier.BOX_THRESHOLD_PCT, "price_history"
+
+    @classmethod
+    def _confirmed_box(
+        cls,
+        history: list[MarketPriceSnapshot],
+        current_price: float,
+    ) -> bool:
+        prices = [item.price for item in history if item.price > 0]
+        if current_price > 0 and (not prices or prices[-1] != current_price):
+            prices.append(current_price)
+        if len(prices) < 4:
+            return False
+        low = min(prices)
+        high = max(prices)
+        if high <= low:
+            return False
+        tolerance = max((high - low) * 0.1, current_price * cls.BOX_TOUCH_TOLERANCE_PCT)
+        tolerance = min(tolerance, (high - low) * 0.45)
+        if tolerance <= 0:
+            return False
+        upper_touches = cls._touch_cluster_count(prices=prices, target=high, tolerance=tolerance)
+        lower_touches = cls._touch_cluster_count(prices=prices, target=low, tolerance=tolerance)
+        return upper_touches >= cls.BOX_TOUCH_MIN_COUNT and lower_touches >= cls.BOX_TOUCH_MIN_COUNT
+
+    @staticmethod
+    def _touch_cluster_count(*, prices: list[float], target: float, tolerance: float) -> int:
+        count = 0
+        in_cluster = False
+        for price in prices:
+            if abs(price - target) <= tolerance:
+                if not in_cluster:
+                    count += 1
+                    in_cluster = True
+            else:
+                in_cluster = False
+        return count
 
     @staticmethod
     def _market_state_label(market_state: str) -> str:

@@ -3,7 +3,7 @@ from app.services.market.store import MarketPriceStore
 from app.services.market.trend import MarketTrendClassifier
 
 
-def test_market_trend_classifier_marks_small_moves_as_box_range() -> None:
+def test_market_trend_classifier_requires_confirmed_box_touches() -> None:
     store = MarketPriceStore()
     store.save(market="KRW-XRP", price=800.0)
     store.save(market="KRW-XRP", price=800.3)
@@ -14,11 +14,29 @@ def test_market_trend_classifier_marks_small_moves_as_box_range() -> None:
         history=store.list_history("KRW-XRP"),
     )
 
-    assert trend.recent_change_pct == 0.0008
+    assert trend.recent_change_pct == 0.001
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
+    assert trend.box_range_low is None
+    assert trend.box_range_high is None
+
+
+def test_market_trend_classifier_marks_confirmed_box_after_repeated_touches() -> None:
+    store = MarketPriceStore()
+    for price in [100.0, 102.0, 100.1, 101.9, 100.0, 102.1, 100.1, 100.0]:
+        store.save(market="KRW-XRP", price=price)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=100.0,
+        history=store.list_history("KRW-XRP"),
+    )
+
+    assert trend.recent_change_pct == 0.0
     assert trend.market_state == "box"
     assert trend.market_state_label == "박스권"
-    assert trend.box_range_low == 799.8997
-    assert trend.box_range_high == 800.7003
+    assert trend.box_range_low == 100.0
+    assert trend.box_range_high == 102.1
+    assert trend.source == "confirmed_price_box"
 
 
 def test_market_trend_classifier_reacts_to_modest_price_move() -> None:
@@ -39,7 +57,7 @@ def test_market_trend_classifier_reacts_to_modest_price_move() -> None:
     assert trend.box_range_high is None
 
 
-def test_market_trend_classifier_expands_too_narrow_box_range() -> None:
+def test_market_trend_classifier_does_not_call_two_points_a_box() -> None:
     store = MarketPriceStore()
     store.save(market="KRW-XRP", price=2108.0)
     store.save(market="KRW-XRP", price=2110.0)
@@ -49,9 +67,9 @@ def test_market_trend_classifier_expands_too_narrow_box_range() -> None:
         history=store.list_history("KRW-XRP"),
     )
 
-    assert trend.market_state == "box"
-    assert trend.box_range_low == 2107.945
-    assert trend.box_range_high == 2110.055
+    assert trend.market_state == "bull"
+    assert trend.box_range_low is None
+    assert trend.box_range_high is None
 
 
 def test_market_trend_classifier_uses_reference_change_for_state() -> None:
@@ -117,8 +135,8 @@ def test_market_trend_classifier_does_not_let_learning_data_override_current_pri
         learning_events=learning_events,
     )
 
-    assert trend.market_state == "box"
-    assert trend.market_state_label == "박스권"
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
     assert trend.learning_sample_count == 6
     assert trend.source == "price_history"
 
@@ -158,7 +176,7 @@ def test_market_trend_classifier_uses_recent_drop_over_positive_reference() -> N
     assert trend.market_state_label == "하락장"
     assert trend.source == "price_history"
 
-def test_market_trend_classifier_treats_weak_rebound_inside_bear_reference_as_box() -> None:
+def test_market_trend_classifier_treats_weak_rebound_inside_bear_reference_as_bull() -> None:
     store = MarketPriceStore()
     for price in [1912.0, 1913.0, 1914.0, 1915.0, 1916.0]:
         store.save(market="KRW-XRP", price=price)
@@ -169,10 +187,9 @@ def test_market_trend_classifier_treats_weak_rebound_inside_bear_reference_as_bo
         reference_change_pct=-0.024,
     )
 
-    assert trend.recent_change_pct == 0.0
-    assert trend.market_state == "box"
-    assert trend.market_state_label == "박스권"
-    assert trend.source == "bear_reference_box"
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
+    assert trend.source == "price_history"
 
 
 def test_market_trend_classifier_allows_strong_recovery_over_bear_reference() -> None:
@@ -251,17 +268,16 @@ def test_market_trend_classifier_keeps_stable_recent_range_as_box_over_learning_
         current_price=1711.0,
         history=store.list_history("KRW-XRP"),
         learning_events=learning_events,
-        reference_change_pct=0.0012,
     )
 
     assert trend.market_state == "box"
     assert trend.market_state_label == "박스권"
-    assert trend.source == "stable_price_box"
+    assert trend.source == "confirmed_price_box"
     assert trend.box_range_low is not None
     assert trend.box_range_high is not None
 
 
-def test_market_trend_classifier_keeps_short_stable_runtime_window_as_box() -> None:
+def test_market_trend_classifier_keeps_short_stable_runtime_window_as_bull_without_box_touches() -> None:
     store = MarketPriceStore()
     for price in [1711.0, 1710.0, 1710.0, 1711.0, 1710.0, 1711.0]:
         store.save(market="KRW-XRP", price=price)
@@ -279,14 +295,14 @@ def test_market_trend_classifier_keeps_short_stable_runtime_window_as_box() -> N
         current_price=1711.0,
         history=store.list_history("KRW-XRP"),
         learning_events=learning_events,
-        reference_change_pct=0.0012,
     )
 
     assert trend.market_state == "box"
-    assert trend.source == "price_history"
+    assert trend.market_state_label == "박스권"
+    assert trend.source == "confirmed_price_box"
 
 
-def test_market_trend_classifier_keeps_short_two_point_stable_move_as_box_over_ticker() -> None:
+def test_market_trend_classifier_keeps_short_two_point_stable_move_as_bull_over_ticker() -> None:
     store = MarketPriceStore()
     store.save(market="KRW-XRP", price=1710.0)
     store.save(market="KRW-XRP", price=1711.0)
@@ -294,10 +310,9 @@ def test_market_trend_classifier_keeps_short_two_point_stable_move_as_box_over_t
     trend = MarketTrendClassifier().classify(
         current_price=1711.0,
         history=store.list_history("KRW-XRP"),
-        reference_change_pct=0.0012,
     )
 
-    assert trend.recent_change_pct == 0.0006
-    assert trend.market_state == "box"
-    assert trend.market_state_label == "박스권"
+    assert trend.recent_change_pct == 0.001
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
     assert trend.source == "price_history"

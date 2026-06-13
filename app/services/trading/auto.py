@@ -226,6 +226,23 @@ class AutoTradingService:
             "asset_balance": round(self._demo_asset_balance, 8),
         }
 
+    def reset_runtime_market_data(self) -> dict[str, object]:
+        self._prices.clear()
+        self._traded_values.clear()
+        self._market_price_store.clear(self._market)
+        self._initial_market_history_count = 0
+        self._requires_initial_observation_warmup = True
+        self._first_observation_at = None
+        self._last_cycle = None
+        self._last_ticker_reference_change_pct = None
+        self._consecutive_entry_blocks = 0
+        self._last_market_shock_alert_at.clear()
+        return {
+            "reset": True,
+            "market": self._market,
+            "price_history_count": 0,
+        }
+
     def reset_demo_portfolio(self, portfolio: PortfolioState | None = None) -> dict[str, object]:
         if self._trading_mode != "demo":
             return {

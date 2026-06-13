@@ -4,6 +4,7 @@ from app.main import create_app
 from app.services.execution.demo import FillResult
 from app.services.execution.ledger import ExecutionLedger
 from app.services.learning.service import LearningEvent
+from app.services.market.store import MarketPriceStore
 from app.services.portfolio.sync import PortfolioState
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
@@ -1705,6 +1706,9 @@ def test_settings_data_purge_deletes_learning_and_demo_data_without_archive(
     position_store.save(position)
     position_lifecycle_ledger = PositionLifecycleLedger()
     position_lifecycle_ledger.record(event_type="opened", position=position)
+    market_price_store = MarketPriceStore()
+    market_price_store.save(market="KRW-XRP", price=800.0)
+    market_price_store.save(market="KRW-XRP", price=810.0)
     uptime_path = tmp_path / "learning" / "scalping" / "runtime-state" / "trading-uptime.json"
     uptime_path.parent.mkdir(parents=True)
     uptime_path.write_text('{"accumulated_sec": 3600, "running_since": null}', encoding="utf-8")
@@ -1715,8 +1719,13 @@ def test_settings_data_purge_deletes_learning_and_demo_data_without_archive(
             execution_ledger=execution_ledger,
             position_store=position_store,
             position_lifecycle_ledger=position_lifecycle_ledger,
+            market_price_store=market_price_store,
         ),
     )
+    app = client.app
+    app.state.auto_trading_service._prices.extend([800.0, 810.0])
+    app.state.auto_trading_service._traded_values.extend([10_000.0, 12_000.0])
+    app.state.auto_trading_service._last_cycle = {"status": "old_cycle"}
 
     response = client.post("/settings/data/purge")
 
@@ -1731,6 +1740,16 @@ def test_settings_data_purge_deletes_learning_and_demo_data_without_archive(
     assert execution_ledger.list_records() == []
     assert position_lifecycle_ledger.list_records() == []
     assert position_store.get() is None
+    assert market_price_store.get("KRW-XRP") is None
+    assert market_price_store.list_history("KRW-XRP") == []
+    assert app.state.auto_trading_service.last_cycle() is None
+    assert list(app.state.auto_trading_service._prices) == []
+    assert list(app.state.auto_trading_service._traded_values) == []
+    assert payload["market_runtime"] == {
+        "reset": True,
+        "market": "KRW-XRP",
+        "price_history_count": 0,
+    }
     assert not uptime_path.exists()
 
 

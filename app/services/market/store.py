@@ -62,6 +62,14 @@ class MarketPriceStore:
         snapshot = self.get(market)
         return None if snapshot is None else snapshot.price
 
+    def clear(self, market: str | None = None) -> None:
+        if market is None:
+            self._prices.clear()
+            self._history.clear()
+            return
+        self._prices.pop(market, None)
+        self._history.pop(market, None)
+
     @staticmethod
     def to_payload(snapshot: MarketPriceSnapshot) -> dict[str, object]:
         return asdict(snapshot)

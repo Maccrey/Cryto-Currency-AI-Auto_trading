@@ -745,6 +745,8 @@ def create_app(
         execution_ledger.clear()
         position_lifecycle_ledger.clear()
         position_store.clear()
+        market_price_store.clear(settings.trade_market)
+        market_runtime_result = auto_trading_service.reset_runtime_market_data()
         portfolio = demo_initial_portfolio()
         set_boot_portfolio_state(portfolio)
         demo_result = auto_trading_service.reset_demo_portfolio(portfolio)
@@ -764,6 +766,7 @@ def create_app(
             "learning_log_path": learning_result.log_path,
             "archive_path": None,
             "deleted_paths": deleted_paths,
+            "market_runtime": market_runtime_result,
             "demo_trading": demo_result,
         }
 

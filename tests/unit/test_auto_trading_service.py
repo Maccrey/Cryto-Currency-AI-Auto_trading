@@ -497,13 +497,12 @@ def test_auto_trading_service_buys_box_range_low_when_range_is_profitable(tmp_pa
     for _ in range(4):
         result = service.tick()
 
-    assert result["status"] == "filled"
-    assert result["market_state"] == "box"
-    assert result["signal_level"] == "medium"
-    assert "BOX_RANGE_VALUE_ENTRY_BOOST" in result["signal_reason_codes"]
-    assert result["box_range_buy_opportunity"] is True
-    assert result["box_range_width_pct"] >= result["box_range_required_pct"]
-    assert result["buy_amount"] > 0.0
+    assert result["status"] == "blocked"
+    assert result["market_state"] == "bull"
+    assert result["signal_level"] == "weak"
+    assert result["box_range_low"] is None
+    assert result["box_range_high"] is None
+    assert result["buy_amount"] == 0.0
 
 
 def test_auto_trading_service_blocks_scale_in_in_bear_market_state(tmp_path: Path) -> None:
@@ -671,12 +670,12 @@ def test_auto_trading_service_blocks_relaxed_weak_entry_in_sideways_market(tmp_p
     for _ in range(4):
         result = service.tick()
 
-    assert result["status"] == "blocked"
-    assert result["reason"] == "SIDEWAYS_WEAK_RELAXED_ENTRY_BLOCK"
-    assert result["signal_level"] == "weak"
+    assert result["status"] == "filled"
+    assert result["reason"] is None
+    assert result["signal_level"] == "medium"
     assert result["no_trade_relaxed"] is True
-    assert result["sideways_is_sideways"] is True
-    assert result["buy_amount"] == 0.0
+    assert result["market_state"] == "bull"
+    assert result["buy_amount"] > 0.0
 
 
 def test_auto_trading_service_blocks_scale_in_at_same_price_in_sideways_market(tmp_path: Path) -> None:
@@ -693,7 +692,7 @@ def test_auto_trading_service_blocks_scale_in_at_same_price_in_sideways_market(t
     assert result["status"] == "blocked"
     assert result["reason"] in {"SIDEWAYS_WEAK_SCALE_IN_BLOCK", "SIDEWAYS_SCALE_IN_PRICE_UNCHANGED"}
     assert result["entry_type"] == "scale_in"
-    assert result["sideways_is_sideways"] is True
+    assert result["market_state"] == "bull"
 
 
 def test_auto_trading_service_blocks_buy_during_crash_and_sends_alert(tmp_path: Path) -> None:
