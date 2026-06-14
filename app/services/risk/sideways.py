@@ -10,6 +10,11 @@ class SidewaysRiskConfig:
     traded_value_range_pct: float = 0.003
     max_avg_abs_return_pct: float = 0.001
     scale_in_min_discount_pct: float = 0.003
+    # Minimum tradeable box width as a fraction of the current price.
+    # Ranges narrower than this are considered "noise", not actionable sideways
+    # markets, and sideways-blocking is therefore skipped.
+    # 0.003 == 0.3% of current price (e.g. 300 KRW on a 100,000 KRW coin).
+    min_tradeable_range_pct: float = 0.003
 
 
 @dataclass(frozen=True)
@@ -24,7 +29,16 @@ class SidewaysRiskDecision:
 
 
 class SidewaysMarketRiskGuard:
-    """Block low-edge entries while price and traded value are stagnant."""
+    """Block low-edge entries while price and traded value are stagnant.
+
+    Improvement over the legacy guard:
+    - A new ``min_tradeable_range_pct`` threshold ensures that extremely narrow
+      price ranges (e.g. < 10 KRW on a coin priced at several thousand KRW) are
+      treated as *noise* rather than as actionable sideways markets.  When the
+      absolute price range is below this threshold the guard does **not** block,
+      because there is no meaningful box to trade within — the market is simply
+      flat and may resume trending at any moment.
+    """
 
     def __init__(self, config: SidewaysRiskConfig | None = None) -> None:
         self._config = config or SidewaysRiskConfig()
@@ -40,7 +54,7 @@ class SidewaysMarketRiskGuard:
         position_entry_price: float | None = None,
     ) -> SidewaysRiskDecision:
         metrics = self._metrics(prices=prices, traded_values=traded_values)
-        is_sideways = self._is_sideways(metrics)
+        is_sideways = self._is_sideways(metrics, current_price=current_price)
         base = {
             "is_sideways": is_sideways,
             "price_range_pct": metrics["price_range_pct"],
@@ -75,12 +89,31 @@ class SidewaysMarketRiskGuard:
 
         return SidewaysRiskDecision(allowed=True, reason_code=None, **base)
 
-    def _is_sideways(self, metrics: dict[str, float]) -> bool:
-        return (
+    def _is_sideways(self, metrics: dict[str, float], *, current_price: float) -> bool:
+        """Return True only if the market is both statistically flat AND the
+        observed price range is wide enough to be meaningful.
+
+        A range below ``min_tradeable_range_pct`` of the current price is
+        treated as noise rather than as a sideways market, so the guard does
+        not block entries on such micro-ranges.
+        """
+        statistically_flat = (
             metrics["price_range_pct"] <= self._config.price_range_pct
             and metrics["traded_value_range_pct"] <= self._config.traded_value_range_pct
             and metrics["avg_abs_return_pct"] <= self._config.max_avg_abs_return_pct
         )
+        if not statistically_flat:
+            return False
+
+        # Skip blocking when the absolute range is negligibly small — it means
+        # the market is not actually *trading* sideways in any meaningful band.
+        if current_price > 0 and self._config.min_tradeable_range_pct > 0:
+            absolute_range = metrics["price_range_pct"] * current_price
+            min_absolute_range = current_price * self._config.min_tradeable_range_pct
+            if absolute_range < min_absolute_range:
+                return False
+
+        return True
 
     @staticmethod
     def _metrics(*, prices: list[float], traded_values: list[float]) -> dict[str, float]:

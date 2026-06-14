@@ -36,6 +36,11 @@ class MarketTrendClassifier:
     STABLE_BOX_MIN_POINTS = 6
     LEARNING_BOX_OVERRIDE_CONFIDENCE = 0.65
     LEARNING_TREND_OVERRIDE_CONFIDENCE = 0.82
+    # Minimum tradeable box range expressed as a fraction of current price.
+    # Boxes narrower than this cannot yield net profit after round-trip fees
+    # (0.05% * 2 = 0.1%) plus a meaningful edge (≥0.4%), so they are not
+    # classified as actionable box markets.
+    MIN_TRADEABLE_BOX_WIDTH_PCT = 0.005  # 0.5%
 
     def classify(
         self,
@@ -349,6 +354,11 @@ class MarketTrendClassifier:
         high = max(prices)
         if high <= low:
             return False
+        # Require a minimum tradeable width before recognising a box.
+        # A range that is too narrow (e.g. < 0.5% of current price) cannot
+        # yield a net profit after round-trip fees; classify it as noise.
+        if current_price > 0 and (high - low) < current_price * cls.MIN_TRADEABLE_BOX_WIDTH_PCT:
+            return False
         tolerance = max((high - low) * 0.1, current_price * cls.BOX_TOUCH_TOLERANCE_PCT)
         tolerance = min(tolerance, (high - low) * 0.45)
         if tolerance <= 0:
@@ -400,6 +410,11 @@ class MarketTrendClassifier:
                 half_width = min_width / 2
                 low = midpoint - half_width
                 high = midpoint + half_width
+        # Do not publish a box range that is too narrow to be tradeable.
+        # Callers rely on box_range_low/high to decide entry/exit; a range
+        # below the minimum tradeable width would trigger false buy/sell signals.
+        if current_price > 0 and (high - low) < current_price * MarketTrendClassifier.MIN_TRADEABLE_BOX_WIDTH_PCT:
+            return None, None
         return round(low, 4), round(high, 4)
 
     @staticmethod

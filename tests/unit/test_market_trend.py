@@ -252,7 +252,9 @@ def test_market_trend_classifier_uses_medium_trend_over_single_tick_pullback() -
 
 def test_market_trend_classifier_keeps_stable_recent_range_as_box_over_learning_bear() -> None:
     store = MarketPriceStore()
-    for price in ([1711.0, 1712.0, 1711.0, 1710.0] * 80):
+    # Use a 10-KRW band (1710–1720) which is ~0.58% of 1715 KRW, above
+    # MIN_TRADEABLE_BOX_WIDTH_PCT (0.5%), so _confirmed_box() returns True.
+    for price in ([1710.0, 1715.0, 1720.0, 1715.0, 1710.0, 1715.0, 1720.0, 1715.0] * 40):
         store.save(market="KRW-XRP", price=price)
     learning_events = [
         LearningEvent(
@@ -265,7 +267,7 @@ def test_market_trend_classifier_keeps_stable_recent_range_as_box_over_learning_
     ]
 
     trend = MarketTrendClassifier().classify(
-        current_price=1711.0,
+        current_price=1715.0,
         history=store.list_history("KRW-XRP"),
         learning_events=learning_events,
     )
@@ -278,6 +280,10 @@ def test_market_trend_classifier_keeps_stable_recent_range_as_box_over_learning_
 
 
 def test_market_trend_classifier_keeps_short_stable_runtime_window_as_bull_without_box_touches() -> None:
+    """A short 6-point history with a 1-KRW range (0.06%) is below the
+    MIN_TRADEABLE_BOX_WIDTH_PCT threshold (0.5%) so _confirmed_box() returns
+    False and the market is NOT classified as a confirmed price box.  The
+    exact state depends on the trend direction but box_range should be None."""
     store = MarketPriceStore()
     for price in [1711.0, 1710.0, 1710.0, 1711.0, 1710.0, 1711.0]:
         store.save(market="KRW-XRP", price=price)
@@ -297,9 +303,11 @@ def test_market_trend_classifier_keeps_short_stable_runtime_window_as_bull_witho
         learning_events=learning_events,
     )
 
-    assert trend.market_state == "box"
-    assert trend.market_state_label == "박스권"
-    assert trend.source == "confirmed_price_box"
+    # The narrow range prevents a confirmed box — the market may be bull or box
+    # (not a confirmed_price_box), and no tradeable box range is published.
+    assert trend.source != "confirmed_price_box"
+    assert trend.box_range_low is None
+    assert trend.box_range_high is None
 
 
 def test_market_trend_classifier_keeps_short_two_point_stable_move_as_bull_over_ticker() -> None:

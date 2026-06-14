@@ -22,7 +22,7 @@ from app.services.trading.post_fill import PostFillService
 from app.services.trading.variants import DemoRuleVariantShadowTester
 from app.services.position.exit import PositionExitService
 from app.services.risk.market_shock import MarketShockConfig, MarketShockRiskGuard
-from app.services.risk.reentry import ReentryBlocker
+from app.services.risk.reentry import AdaptiveCooldownReentryPolicy, ReentryBlocker
 from app.services.risk.sideways import SidewaysMarketRiskGuard, SidewaysRiskConfig
 from app.services.runtime.uptime import TradingUptimeStore
 
@@ -44,7 +44,12 @@ class AutoTradingConfig:
     scale_in_max_price_premium_pct: float = 0.0
     scale_in_max_entries: int = 2
     scale_in_max_position_multiplier: float = 0.55
-    reentry_block_seconds: int = 180
+    # Legacy single cooldown kept for backward compatibility.
+    # When non-zero the adaptive policy below is ignored.
+    reentry_block_seconds: int = 0
+    # Adaptive reentry cooldowns: shorter after profit, longer after loss.
+    reentry_block_seconds_profit: int = 60
+    reentry_block_seconds_loss: int = 120
     sideways_risk_guard_enabled: bool = True
     sideways_price_range_pct: float = 0.002
     sideways_traded_value_range_pct: float = 0.003
@@ -135,7 +140,22 @@ class AutoTradingService:
         self._demo_asset_balance = 0.0 if portfolio is None else portfolio.asset_balance
         self._demo_avg_buy_price = 0.0 if portfolio is None else portfolio.avg_buy_price
         self._consecutive_entry_blocks = 0
-        self._reentry_blocker = ReentryBlocker(block_seconds=config.reentry_block_seconds)
+        self._reentry_blocker = ReentryBlocker(
+            cooldown_policy=(
+                AdaptiveCooldownReentryPolicy(
+                    profit_block_seconds=config.reentry_block_seconds_profit,
+                    loss_block_seconds=config.reentry_block_seconds_loss,
+                )
+                if config.reentry_block_seconds == 0
+                else None
+            ),
+            block_seconds=config.reentry_block_seconds if config.reentry_block_seconds > 0 else None,
+        ) if config.reentry_block_seconds > 0 else ReentryBlocker(
+            cooldown_policy=AdaptiveCooldownReentryPolicy(
+                profit_block_seconds=config.reentry_block_seconds_profit,
+                loss_block_seconds=config.reentry_block_seconds_loss,
+            ),
+        )
         self._sideways_risk_guard = SidewaysMarketRiskGuard(
             SidewaysRiskConfig(
                 enabled=config.sideways_risk_guard_enabled,
@@ -1048,23 +1068,46 @@ class AutoTradingService:
         min_reentry_edge_pct = max((self._config.trading_fee_rate * 2) + 0.001, 0.0015)
         required_pullback_price = round(last_exit_price * (1 - min_reentry_edge_pct), 4)
         required_breakout_price = round(last_exit_price * (1 + self._config.market_recovery_change_pct), 4)
+        # Legacy: requires at least market_recovery_confirmation_ticks of confirmed bull.
         required_confirmation_count = max(
             self._config.market_recovery_confirmation_ticks,
             self._config.market_state_transition_confirmation_ticks,
             1,
         )
         strong_signal = decision.signal.level in {"strong", "very_strong"} and decision.signal.score >= 0.65
-        confirmed_bull = (
+        # [B] Relax: medium signal is also sufficient if the market is already
+        # in a confirmed uptrend (bull >= 1 tick) and the price is not retreating.
+        medium_signal = decision.signal.level == "medium" and decision.signal.score >= 0.4
+        confirmed_bull_strict = (
             market_state_entry.current_market_state == "bull"
             and market_state_entry.current_state_count >= required_confirmation_count
         )
+        # [E] Aggressive reentry in a sustained bull: relax confirmation to 1
+        # tick for medium-or-better signals riding a continuing uptrend.
+        confirmed_bull_relaxed = (
+            market_state_entry.current_market_state == "bull"
+            and market_state_entry.current_state_count >= 1
+        )
         cheaper_reentry = current_price <= required_pullback_price
-        confirmed_breakout = confirmed_bull and strong_signal and current_price >= required_breakout_price
-        if cheaper_reentry or confirmed_breakout:
+        confirmed_breakout = confirmed_bull_strict and strong_signal and current_price >= required_breakout_price
+        # [E] Uptrend continuation: medium+ signal + bull confirmed (relaxed) +
+        # price is above or at last exit (we are not chasing a falling knife).
+        uptrend_continuation = (
+            (strong_signal or medium_signal)
+            and confirmed_bull_relaxed
+            and current_price >= last_exit_price
+        )
+        if cheaper_reentry or confirmed_breakout or uptrend_continuation:
+            if cheaper_reentry:
+                mode = "pullback"
+            elif uptrend_continuation and not confirmed_breakout:
+                mode = "uptrend_continuation"
+            else:
+                mode = "confirmed_bull_breakout"
             return {
                 "allowed": True,
                 "post_sell_reentry_edge_confirmed": True,
-                "post_sell_reentry_mode": "pullback" if cheaper_reentry else "confirmed_bull_breakout",
+                "post_sell_reentry_mode": mode,
                 "post_sell_last_exit_reason_code": reentry_decision.last_exit_reason_code,
                 "post_sell_last_exit_price": last_exit_price,
                 "post_sell_required_pullback_price": required_pullback_price,
@@ -1079,8 +1122,10 @@ class AutoTradingService:
             "post_sell_required_pullback_price": required_pullback_price,
             "post_sell_required_breakout_price": required_breakout_price,
             "post_sell_min_reentry_edge_pct": round(min_reentry_edge_pct, 6),
-            "post_sell_confirmed_bull": confirmed_bull,
+            "post_sell_confirmed_bull": confirmed_bull_strict,
+            "post_sell_confirmed_bull_relaxed": confirmed_bull_relaxed,
             "post_sell_strong_signal": strong_signal,
+            "post_sell_medium_signal": medium_signal,
         }
 
     def _post_stop_loss_reentry_confirmation(
@@ -1109,10 +1154,12 @@ class AutoTradingService:
         strong_signal = decision.signal.level in {"strong", "very_strong"} and decision.signal.score >= 0.65
         sizing = getattr(decision, "sizing", None)
         sizing_allowed = True if sizing is None else bool(getattr(sizing, "allowed", False))
+        # [B] Relax medium recovery threshold from 4x to 2x market_recovery_change_pct
+        # so a moderate bounce (≥ 0.6%) is enough for medium signals to re-enter.
         strong_recovery_price = (
             None
             if last_exit_price is None or last_exit_price <= 0
-            else round(last_exit_price * (1 + max(self._config.market_recovery_change_pct * 4, 0.012)), 4)
+            else round(last_exit_price * (1 + max(self._config.market_recovery_change_pct * 2, 0.006)), 4)
         )
         medium_recovery_signal = (
             decision.signal.level == "medium"
@@ -1121,18 +1168,38 @@ class AutoTradingService:
             and strong_recovery_price is not None
             and current_price >= strong_recovery_price
         )
-        confirmed_bull = (
+        confirmed_bull_strict = (
             entry_type == "initial"
             and market_state_entry.current_market_state == "bull"
             and market_state_entry.current_state_count >= required_confirmation_count
         )
+        # [E] For medium recovery: relax bull confirmation to 1 tick so a
+        # rapid bounce after stop-loss can be captured before the window closes.
+        confirmed_bull_relaxed = (
+            entry_type == "initial"
+            and market_state_entry.current_market_state == "bull"
+            and market_state_entry.current_state_count >= 1
+        )
         recovered_price = required_recovery_price is None or current_price >= required_recovery_price
-        if confirmed_bull and recovered_price and (strong_signal or medium_recovery_signal):
+        # Strong signal: original strict confirmation still required.
+        if confirmed_bull_strict and recovered_price and strong_signal:
             return {
                 "allowed": True,
                 "post_stop_loss_reentry_confirmed": True,
-                "post_stop_loss_reentry_mode": "strong_signal" if strong_signal else "medium_strong_recovery",
+                "post_stop_loss_reentry_mode": "strong_signal",
                 "post_stop_loss_required_confirmation_count": required_confirmation_count,
+                "post_stop_loss_required_recovery_price": required_recovery_price,
+                "post_stop_loss_strong_recovery_price": strong_recovery_price,
+                "post_stop_loss_last_exit_reason_code": reason_code,
+                "post_stop_loss_last_exit_price": last_exit_price,
+            }
+        # Medium signal: relaxed confirmation (1 tick) + moderate price recovery.
+        if confirmed_bull_relaxed and recovered_price and medium_recovery_signal:
+            return {
+                "allowed": True,
+                "post_stop_loss_reentry_confirmed": True,
+                "post_stop_loss_reentry_mode": "medium_strong_recovery",
+                "post_stop_loss_required_confirmation_count": 1,
                 "post_stop_loss_required_recovery_price": required_recovery_price,
                 "post_stop_loss_strong_recovery_price": strong_recovery_price,
                 "post_stop_loss_last_exit_reason_code": reason_code,
@@ -1147,7 +1214,8 @@ class AutoTradingService:
             "post_stop_loss_strong_recovery_price": strong_recovery_price,
             "post_stop_loss_last_exit_reason_code": reason_code,
             "post_stop_loss_last_exit_price": last_exit_price,
-            "post_stop_loss_confirmed_bull": confirmed_bull,
+            "post_stop_loss_confirmed_bull": confirmed_bull_strict,
+            "post_stop_loss_confirmed_bull_relaxed": confirmed_bull_relaxed,
             "post_stop_loss_strong_signal": strong_signal,
             "post_stop_loss_medium_recovery_signal": medium_recovery_signal,
             "post_stop_loss_recovered_price": recovered_price,
@@ -1323,12 +1391,26 @@ class AutoTradingService:
             return {"allowed": False}
         box_width = box_range_high - box_range_low
         box_width_pct = box_width / box_range_low
-        min_required_pct = (self._config.trading_fee_rate * 2) + 0.003
+        # Minimum required width: round-trip fee + minimum net profit edge.
+        # Raised from 0.3% to 0.5% to filter out narrow ranges (e.g. < 10 KRW)
+        # that cannot yield a meaningful profit after fees.
+        min_required_pct = (self._config.trading_fee_rate * 2) + 0.005
         if box_width_pct < min_required_pct:
             return {
                 "allowed": False,
                 "box_range_width_pct": round(box_width_pct, 6),
                 "box_range_required_pct": round(min_required_pct, 6),
+                "box_range_too_narrow": True,
+            }
+        # Also enforce an absolute minimum width in KRW terms: the range must
+        # be at least 0.5% of the current price to be actionable.
+        min_absolute_width = current_price * 0.005
+        if box_width < min_absolute_width:
+            return {
+                "allowed": False,
+                "box_range_width_pct": round(box_width_pct, 6),
+                "box_range_required_pct": round(min_required_pct, 6),
+                "box_range_absolute_too_narrow": True,
             }
         buy_zone_high = box_range_low + (box_width * 0.25)
         return {

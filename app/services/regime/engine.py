@@ -131,12 +131,30 @@ class RegimeEngine:
 
     @staticmethod
     def _market_state(features: FeatureSnapshot) -> str:
-        if abs(features.ret_30s) <= 0.0025 and abs(features.orderbook_imbalance) <= 0.08:
-            return "box"
-        if features.ret_30s < -0.004 or features.orderbook_imbalance < -0.18:
+        """Classify market state using multi-factor composite rules.
+
+        Changes vs legacy single-indicator approach:
+        - Bear requires BOTH a significant negative momentum AND negative
+          orderbook imbalance so short-lived micro-dips in an uptrend are not
+          misclassified as a bear market.
+        - Bull only requires either strong momentum OR concurrent momentum +
+          orderbook support so low-volume surges are not over-counted.
+        - Box (sideways) is the fall-through when neither bear nor bull
+          conditions are firmly met.
+        """
+        # --- Bear: both momentum and order-flow must be negative ---
+        bear_momentum = features.ret_30s < -0.006
+        bear_orderbook = features.orderbook_imbalance < -0.15
+        if bear_momentum and bear_orderbook:
             return "bear"
-        if features.ret_30s > 0.004 or features.orderbook_imbalance > 0.18:
+
+        # --- Bull: strong momentum alone, or moderate momentum + buy pressure ---
+        strong_bull = features.ret_30s > 0.005
+        moderate_bull = features.ret_30s > 0.002 and features.orderbook_imbalance > 0.12
+        if strong_bull or moderate_bull:
             return "bull"
+
+        # --- Sideways / box: neither firmly bull nor firmly bear ---
         return "box"
 
     @staticmethod
