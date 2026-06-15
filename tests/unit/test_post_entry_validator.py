@@ -101,6 +101,37 @@ def test_post_entry_validator_reduces_after_confirmed_adverse_momentum() -> None
     )
 
 
+def test_post_entry_validator_triggers_earlier_near_one_percent_net_loss() -> None:
+    validator = PostEntryValidator()
+    position = PositionSnapshot(
+        market="KRW-XRP",
+        signal_level="strong",
+        entry_price=820.0,
+        quantity=190.5,
+        stop_loss_price=805.24,
+        stop_loss_pct=0.018,
+        validation_window_sec=180,
+        min_expected_return_pct=0.004,
+        stop_loss_reason=None,
+    )
+
+    decision = validator.evaluate(
+        position=position,
+        current_price=813.4,
+        elapsed_sec=181,
+        momentum_score=0.2,
+        orderbook_imbalance=-0.12,
+    )
+
+    assert decision == PostEntryDecision(
+        triggered=True,
+        order_side="sell",
+        exit_ratio=0.5,
+        reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
+        unrealized_return_pct=-0.008,
+    )
+
+
 def test_post_entry_validator_does_not_trigger_before_validation_window() -> None:
     validator = PostEntryValidator()
     position = PositionSnapshot(

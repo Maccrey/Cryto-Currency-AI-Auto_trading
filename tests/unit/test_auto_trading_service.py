@@ -974,3 +974,39 @@ def test_auto_trading_service_blocks_medium_reentry_after_stop_loss_even_on_larg
     assert result["reason_code"] == "POST_STOP_LOSS_REENTRY_CONFIRMATION_REQUIRED"
     assert result["post_stop_loss_strong_signal"] is False
     assert result["post_stop_loss_strong_recovery_price"] == 1657.959
+
+
+def test_auto_trading_service_allows_medium_reentry_after_confirmed_bear_to_bull_reversal(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [1712.0])
+    service._config = replace(
+        service._config,
+        market_recovery_confirmation_ticks=3,
+        market_state_transition_confirmation_ticks=2,
+        market_recovery_change_pct=0.003,
+    )
+    reentry_decision = SimpleNamespace(
+        last_exit_reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
+        last_exit_price=1653.0,
+    )
+    medium_decision = SimpleNamespace(
+        signal=SimpleNamespace(level="medium", score=0.4),
+        sizing=SimpleNamespace(allowed=True),
+    )
+    market_state_entry = SimpleNamespace(
+        current_market_state="bull",
+        current_state_count=3,
+        transition="bear->bull",
+    )
+
+    result = service._post_stop_loss_reentry_confirmation(
+        reentry_decision=reentry_decision,
+        decision=medium_decision,
+        market_state_entry=market_state_entry,
+        current_price=1712.0,
+        entry_type="initial",
+    )
+
+    assert result["allowed"] is True
+    assert result["post_stop_loss_reentry_mode"] == "confirmed_bear_to_bull_reversal"
+    assert result["post_stop_loss_confirmed_bear_to_bull_reversal"] is True
+    assert result["post_stop_loss_required_recovery_price"] == 1657.959

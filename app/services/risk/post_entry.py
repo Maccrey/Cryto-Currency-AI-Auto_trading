@@ -20,7 +20,7 @@ class PostEntryExpectationRuleset:
 
     momentum_reversal_threshold: float = 0.35
     liquidity_dropped_threshold: float = -0.2
-    min_adverse_exit_pct: float = 0.01
+    min_adverse_exit_pct: float = 0.008
 
     def evaluate(
         self,

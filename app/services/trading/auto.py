@@ -1147,6 +1147,8 @@ class AutoTradingService:
             else round(last_exit_price * (1 + self._config.market_recovery_change_pct), 4)
         )
         strong_signal = decision.signal.level in {"strong", "very_strong"} and decision.signal.score >= 0.65
+        sizing = getattr(decision, "sizing", None)
+        sizing_allowed = True if sizing is None else bool(getattr(sizing, "allowed", False))
         strong_recovery_price = (
             None
             if last_exit_price is None or last_exit_price <= 0
@@ -1156,6 +1158,17 @@ class AutoTradingService:
             entry_type == "initial"
             and market_state_entry.current_market_state == "bull"
             and market_state_entry.current_state_count >= required_confirmation_count
+        )
+        confirmed_bear_to_bull_reversal = (
+            entry_type == "initial"
+            and getattr(market_state_entry, "transition", None) == "bear->bull"
+            and market_state_entry.current_market_state == "bull"
+            and market_state_entry.current_state_count >= required_confirmation_count
+        )
+        medium_reversal_signal = (
+            decision.signal.level == "medium"
+            and decision.signal.score >= 0.4
+            and sizing_allowed
         )
         recovered_price = required_recovery_price is None or current_price >= required_recovery_price
         if confirmed_bull_strict and recovered_price and strong_signal:
@@ -1169,6 +1182,18 @@ class AutoTradingService:
                 "post_stop_loss_last_exit_reason_code": reason_code,
                 "post_stop_loss_last_exit_price": last_exit_price,
             }
+        if confirmed_bear_to_bull_reversal and recovered_price and medium_reversal_signal:
+            return {
+                "allowed": True,
+                "post_stop_loss_reentry_confirmed": True,
+                "post_stop_loss_reentry_mode": "confirmed_bear_to_bull_reversal",
+                "post_stop_loss_required_confirmation_count": required_confirmation_count,
+                "post_stop_loss_required_recovery_price": required_recovery_price,
+                "post_stop_loss_strong_recovery_price": strong_recovery_price,
+                "post_stop_loss_last_exit_reason_code": reason_code,
+                "post_stop_loss_last_exit_price": last_exit_price,
+                "post_stop_loss_confirmed_bear_to_bull_reversal": True,
+            }
         return {
             "allowed": False,
             "reason_code": "POST_STOP_LOSS_REENTRY_CONFIRMATION_REQUIRED",
@@ -1179,7 +1204,9 @@ class AutoTradingService:
             "post_stop_loss_last_exit_reason_code": reason_code,
             "post_stop_loss_last_exit_price": last_exit_price,
             "post_stop_loss_confirmed_bull": confirmed_bull_strict,
+            "post_stop_loss_confirmed_bear_to_bull_reversal": confirmed_bear_to_bull_reversal,
             "post_stop_loss_strong_signal": strong_signal,
+            "post_stop_loss_medium_reversal_signal": medium_reversal_signal,
             "post_stop_loss_recovered_price": recovered_price,
         }
 

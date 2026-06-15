@@ -614,7 +614,7 @@ class PositionExitService:
         position,
         reason_code: str | None,
     ) -> bool:
-        return position.signal_level == "weak" and str(reason_code or "").startswith("STOP_LOSS_")
+        return str(reason_code or "").startswith("STOP_LOSS_")
 
     def _profit_protected_position(
         self,

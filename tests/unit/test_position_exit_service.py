@@ -126,7 +126,7 @@ def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
     assert records[0].reason_code == "STOP_LOSS_PRICE_HIT"
 
 
-def test_position_exit_service_updates_position_after_partial_post_entry_exit() -> None:
+def test_position_exit_service_full_exits_on_post_entry_stop_loss() -> None:
     store = CurrentPositionStore()
     lifecycle_ledger = PositionLifecycleLedger(
         timestamp_provider=lambda: "2026-04-19T21:31:00+09:00",
@@ -164,15 +164,14 @@ def test_position_exit_service_updates_position_after_partial_post_entry_exit() 
     assert result["trigger"] == {
         "type": "post_entry",
         "reason_code": "STOP_LOSS_MOMENTUM_REVERSAL",
-        "exit_ratio": 0.55,
+        "exit_ratio": 1.0,
     }
-    assert result["execution"]["filled_quantity"] == 55.0
-    assert result["position"]["quantity"] == 45.0
-    assert store.get() is not None
-    assert store.get().quantity == 45.0
+    assert result["execution"]["filled_quantity"] == 100.0
+    assert result["position"] is None
+    assert store.get() is None
     records = lifecycle_ledger.list_records()
     assert len(records) == 1
-    assert records[0].event_type == "reduced"
+    assert records[0].event_type == "closed"
 
 
 def test_position_exit_service_full_exits_when_partial_would_leave_dust() -> None:
