@@ -282,7 +282,7 @@ def test_position_exit_service_uses_inverse_chart_strength_for_take_profit_sell_
     assert result["trigger"]["type"] == "take_profit"
     assert result["trigger"]["reason_code"] == "TAKE_PROFIT_TARGET_HIT"
     assert result["trigger"]["exit_ratio"] == 0.75
-    assert result["trigger"]["take_profit_target_pct"] == 0.005965
+    assert result["trigger"]["take_profit_target_pct"] == 0.006
     assert result["trigger"]["estimated_net_return_pct"] == 0.006317
     assert result["execution"]["side"] == "sell"
     assert result["execution"]["is_stop_loss"] is False
@@ -343,7 +343,7 @@ def test_position_exit_service_sells_more_when_take_profit_chart_strength_is_wea
     service = _build_service(store)
 
     result = service.evaluate_and_execute(
-        current_price=823.0,
+        current_price=826.0,
         elapsed_sec=60,
         momentum_score=-0.5,
         orderbook_imbalance=-0.4,

@@ -941,7 +941,7 @@ def test_auto_trading_service_allows_regular_sell_reentry_after_pullback(tmp_pat
     assert result["post_sell_reentry_mode"] == "pullback"
 
 
-def test_auto_trading_service_allows_medium_reentry_after_stop_loss_on_large_confirmed_recovery(tmp_path: Path) -> None:
+def test_auto_trading_service_blocks_medium_reentry_after_stop_loss_even_on_large_recovery(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [1712.0])
     service._config = replace(
         service._config,
@@ -970,8 +970,7 @@ def test_auto_trading_service_allows_medium_reentry_after_stop_loss_on_large_con
         entry_type="initial",
     )
 
-    assert result["allowed"] is True
-    assert result["post_stop_loss_reentry_mode"] == "medium_strong_recovery"
-    # strong_recovery_price is now 2x market_recovery_change_pct (0.3%*2=0.6%):
-    # 1653.0 * (1 + 0.006) = 1662.918
-    assert result["post_stop_loss_strong_recovery_price"] == 1662.918
+    assert result["allowed"] is False
+    assert result["reason_code"] == "POST_STOP_LOSS_REENTRY_CONFIRMATION_REQUIRED"
+    assert result["post_stop_loss_strong_signal"] is False
+    assert result["post_stop_loss_strong_recovery_price"] == 1657.959
