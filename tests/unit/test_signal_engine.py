@@ -117,3 +117,48 @@ def test_signal_engine_accepts_reason_code_generator() -> None:
         "VALUE_ACCELERATION",
         "ORDERBOOK_SUPPORT",
     ]
+
+
+def test_signal_engine_logs_low_rebound_confirmation_reason() -> None:
+    engine = SignalEngine(reason_code_generator=SignalReasonCodeGenerator())
+    features = FeatureSnapshot(
+        ret_1s=0.003,
+        ret_5s=0.008,
+        ret_30s=0.008,
+        volume_multiple=1.1,
+        traded_value_multiple=1.1,
+        spread_bps=8.0,
+        orderbook_imbalance=0.03,
+        short_volatility=0.008,
+        regime_score=0.7,
+        liquidity_score=0.9,
+        rebound_from_low_20=0.009,
+        trend_efficiency_20=0.16,
+    )
+
+    decision = engine.evaluate(features)
+
+    assert "LOW_REBOUND_CONFIRMATION" in decision.reason_codes
+
+
+def test_signal_engine_blocks_high_position_reversal() -> None:
+    engine = SignalEngine(reason_code_generator=SignalReasonCodeGenerator())
+    features = FeatureSnapshot(
+        ret_1s=-0.001,
+        ret_5s=0.006,
+        ret_30s=0.006,
+        volume_multiple=1.1,
+        traded_value_multiple=1.1,
+        spread_bps=8.0,
+        orderbook_imbalance=0.02,
+        short_volatility=0.004,
+        regime_score=0.7,
+        liquidity_score=0.9,
+        price_position_20=0.94,
+        trend_efficiency_20=0.2,
+    )
+
+    decision = engine.evaluate(features)
+
+    assert decision.blocked is True
+    assert "HIGH_POSITION_REVERSAL_BLOCKED" in decision.reason_codes

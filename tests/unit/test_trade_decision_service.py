@@ -180,7 +180,7 @@ def test_trade_decision_service_promotes_supported_bull_weak_signal_to_medium() 
 
     result = service.evaluate(
         TradeDecisionRequest(
-            prices=[1000.0, 999.9, 1000.2, 1000.1, 1000.4, 1000.3, 1000.6],
+            prices=[1000.0, 1000.5, 1001.2, 1000.8, 1001.4, 1001.0, 1001.1],
             traded_values=[1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0],
             spread_bps=8.0,
             orderbook_imbalance=0.02,
@@ -221,7 +221,7 @@ def test_trade_decision_service_allows_confirmed_bear_rebound_participation() ->
 
     result = service.evaluate(
         TradeDecisionRequest(
-            prices=[1000.0, 999.0, 1000.2, 999.4, 1000.4, 999.6, 1000.6],
+            prices=[990.0, 995.0, 1010.0, 989.0, 992.0, 995.0, 998.0],
             traded_values=[1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0],
             spread_bps=8.0,
             orderbook_imbalance=0.01,
@@ -244,6 +244,6 @@ def test_trade_decision_service_allows_confirmed_bear_rebound_participation() ->
 
     assert result.regime.market_state == "bear"
     assert result.signal.level == "medium"
-    assert "BEAR_REBOUND_PARTICIPATION" in result.signal.reason_codes
+    assert "LOW_REBOUND_CONFIRMATION" in result.signal.reason_codes
     assert result.regime.entry_allowed is True
     assert result.sizing.allowed is True

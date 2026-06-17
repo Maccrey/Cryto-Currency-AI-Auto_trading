@@ -1139,8 +1139,14 @@ class RuleReviewService:
             "avg_bollinger_position": 0.5,
             "avg_ma_trend": 0.0,
             "avg_stochastic_k": 50.0,
+            "avg_price_position_20": 0.5,
+            "avg_drawdown_from_high_20": 0.0,
+            "avg_rebound_from_low_20": 0.0,
+            "avg_trend_efficiency_20": 0.0,
             "overbought_count": 0,
             "oversold_count": 0,
+            "low_rebound_confirmation_count": 0,
+            "high_position_reversal_risk_count": 0,
             "bullish_momentum_count": 0,
             "bearish_momentum_count": 0,
         }
@@ -1208,6 +1214,10 @@ class RuleReviewService:
         bollinger_values = RuleReviewService._float_values(samples, "bollinger_position")
         ma_values = RuleReviewService._float_values(samples, "ma_trend")
         stochastic_values = RuleReviewService._float_values(samples, "stochastic_k")
+        price_position_values = RuleReviewService._float_values(samples, "price_position_20")
+        drawdown_values = RuleReviewService._float_values(samples, "drawdown_from_high_20")
+        rebound_values = RuleReviewService._float_values(samples, "rebound_from_low_20")
+        trend_efficiency_values = RuleReviewService._float_values(samples, "trend_efficiency_20")
         return {
             "sample_count": len(samples),
             "avg_rsi_14": RuleReviewService._average(rsi_values, 50.0),
@@ -1215,6 +1225,10 @@ class RuleReviewService:
             "avg_bollinger_position": RuleReviewService._average(bollinger_values, 0.5),
             "avg_ma_trend": RuleReviewService._average(ma_values, 0.0),
             "avg_stochastic_k": RuleReviewService._average(stochastic_values, 50.0),
+            "avg_price_position_20": RuleReviewService._average(price_position_values, 0.5),
+            "avg_drawdown_from_high_20": RuleReviewService._average(drawdown_values, 0.0),
+            "avg_rebound_from_low_20": RuleReviewService._average(rebound_values, 0.0),
+            "avg_trend_efficiency_20": RuleReviewService._average(trend_efficiency_values, 0.0),
             "overbought_count": sum(
                 1
                 for sample in samples
@@ -1226,6 +1240,18 @@ class RuleReviewService:
                 for sample in samples
                 if RuleReviewService._float(sample.get("rsi_14"), 50.0) <= 35.0
                 and RuleReviewService._float(sample.get("stochastic_k"), 50.0) <= 30.0
+            ),
+            "low_rebound_confirmation_count": sum(
+                1
+                for sample in samples
+                if RuleReviewService._float(sample.get("rebound_from_low_20"), 0.0) >= 0.003
+                and RuleReviewService._float(sample.get("trend_efficiency_20"), 0.0) >= 0.15
+            ),
+            "high_position_reversal_risk_count": sum(
+                1
+                for sample in samples
+                if RuleReviewService._float(sample.get("price_position_20"), 0.5) >= 0.92
+                and RuleReviewService._float(sample.get("trend_efficiency_20"), 0.0) < 0.35
             ),
             "bullish_momentum_count": sum(
                 1

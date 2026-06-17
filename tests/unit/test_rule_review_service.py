@@ -205,6 +205,10 @@ def test_rule_review_uses_technical_indicators_in_codex_prompt_and_changes(tmp_p
                                 "bollinger_position": 0.62,
                                 "ma_trend": 0.012,
                                 "stochastic_k": 58.0,
+                                "price_position_20": 0.42,
+                                "drawdown_from_high_20": -0.012,
+                                "rebound_from_low_20": 0.006,
+                                "trend_efficiency_20": 0.22,
                             },
                         },
                     },
@@ -220,6 +224,10 @@ def test_rule_review_uses_technical_indicators_in_codex_prompt_and_changes(tmp_p
                                 "bollinger_position": 0.68,
                                 "ma_trend": 0.011,
                                 "stochastic_k": 61.0,
+                                "price_position_20": 0.55,
+                                "drawdown_from_high_20": -0.01,
+                                "rebound_from_low_20": 0.008,
+                                "trend_efficiency_20": 0.25,
                             },
                         },
                     },
@@ -235,6 +243,10 @@ def test_rule_review_uses_technical_indicators_in_codex_prompt_and_changes(tmp_p
                                 "bollinger_position": 0.71,
                                 "ma_trend": 0.009,
                                 "stochastic_k": 65.0,
+                                "price_position_20": 0.94,
+                                "drawdown_from_high_20": -0.002,
+                                "rebound_from_low_20": 0.004,
+                                "trend_efficiency_20": 0.2,
                             },
                         },
                     },
@@ -264,6 +276,8 @@ def test_rule_review_uses_technical_indicators_in_codex_prompt_and_changes(tmp_p
     proposal = service.create_proposal(review_id=str(review["id"]))["proposal"]
 
     assert review["technical_indicator_summary"]["bullish_momentum_count"] == 3
+    assert review["technical_indicator_summary"]["low_rebound_confirmation_count"] == 3
+    assert review["technical_indicator_summary"]["high_position_reversal_risk_count"] == 1
     assert "전문 보조지표" in review["codex_rule_prompt"]
     assert proposal["technical_indicator_summary"]["sample_count"] == 3
     assert proposal["codex_suggested_changes"][0]["parameter"] == "TECHNICAL_TREND_CONFIRMATION"

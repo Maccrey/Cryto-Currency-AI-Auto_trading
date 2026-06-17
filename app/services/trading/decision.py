@@ -165,8 +165,13 @@ class TradeDecisionService:
             and features.ma_trend >= -0.0005
             and features.rsi_14 <= 78.0
             and features.bollinger_position <= 0.95
+            and features.price_position_20 <= 0.92
         )
-        flow_support = features.ret_5s >= 0.0 or features.orderbook_imbalance >= -0.08
+        flow_support = (
+            features.ret_5s >= 0.0
+            or features.orderbook_imbalance >= -0.08
+            or features.trend_efficiency_20 >= 0.15
+        )
         return technical_support and flow_support
 
     @staticmethod
@@ -183,9 +188,11 @@ class TradeDecisionService:
     def _bear_rebound_signal(features: FeatureSnapshot) -> bool:
         return (
             features.ret_5s > 0.0
-            and features.ret_30s > 0.0
+            and features.rebound_from_low_20 >= 0.004
+            and features.trend_efficiency_20 >= 0.15
+            and features.price_position_20 <= 0.72
             and features.orderbook_imbalance >= -0.05
-            and features.rsi_14 <= 68.0
+            and features.rsi_14 <= 60.0
             and features.bollinger_position <= 0.88
         )
 

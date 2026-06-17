@@ -27,6 +27,12 @@ class SignalReasonCodeGenerator:
             reason_codes.append("EXCESSIVE_SHORT_VOLATILITY_BLOCKED")
         if features.rsi_14 >= 82 and features.bollinger_position >= 0.96:
             reason_codes.append("TECHNICAL_OVERBOUGHT_BLOCKED")
+        if (
+            features.price_position_20 >= 0.92
+            and features.ret_1s <= 0
+            and features.trend_efficiency_20 < 0.35
+        ):
+            reason_codes.append("HIGH_POSITION_REVERSAL_BLOCKED")
         return reason_codes
 
     def generated(self, features: FeatureSnapshot) -> list[str]:
@@ -43,6 +49,12 @@ class SignalReasonCodeGenerator:
             reason_codes.append("RSI_STOCHASTIC_ENTRY_WINDOW")
         if features.bollinger_position <= 0.22 and features.rsi_14 >= 35:
             reason_codes.append("BOLLINGER_PULLBACK_ENTRY")
+        if (
+            features.rebound_from_low_20 >= 0.003
+            and features.trend_efficiency_20 >= 0.15
+            and features.ret_5s > 0
+        ):
+            reason_codes.append("LOW_REBOUND_CONFIRMATION")
         return reason_codes
 
 
@@ -159,6 +171,10 @@ class SignalEngine:
                         "bollinger_position": features.bollinger_position,
                         "ma_trend": features.ma_trend,
                         "stochastic_k": features.stochastic_k,
+                        "price_position_20": features.price_position_20,
+                        "drawdown_from_high_20": features.drawdown_from_high_20,
+                        "rebound_from_low_20": features.rebound_from_low_20,
+                        "trend_efficiency_20": features.trend_efficiency_20,
                     },
                 },
             ),

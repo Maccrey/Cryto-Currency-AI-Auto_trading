@@ -30,3 +30,7 @@ def test_feature_calculator_computes_market_features() -> None:
     assert 0.0 <= snapshot.bollinger_position <= 1.0
     assert snapshot.ma_trend >= 0.0
     assert 0.0 <= snapshot.stochastic_k <= 100.0
+    assert 0.0 <= snapshot.price_position_20 <= 1.0
+    assert snapshot.drawdown_from_high_20 <= 0.0
+    assert snapshot.rebound_from_low_20 >= 0.0
+    assert -1.0 <= snapshot.trend_efficiency_20 <= 1.0

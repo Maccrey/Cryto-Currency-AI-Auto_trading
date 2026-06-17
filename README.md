@@ -217,6 +217,13 @@ BTC로 바꾸려면 설정 화면에서 코인을 `BTC`로 저장한다. 기본 
 
 ## 최근 업데이트
 
+- **[2026-06-17] 가격/매매 로그 기반 보조지표 확장과 전환 매수 룰 정교화**
+  - 가격 로그와 매매 로그를 함께 분석한 결과, 수익은 익절 구간에서 발생했지만 소수의 손절이 전체 손익을 크게 훼손했고, 하락→상승 전환 중에도 진입 품질을 구분할 위치 지표가 부족했다.
+  - `price_position_20`, `drawdown_from_high_20`, `rebound_from_low_20`, `trend_efficiency_20` 보조지표를 추가해 현재가가 최근 범위의 저점 반등인지, 고점 추격인지, 추세 전환이 효율적인지를 기록한다.
+  - 신호 로그의 `technical_indicators`와 `market_features`에 새 보조지표를 저장하고, 룰 리뷰 요약에도 평균값과 저점 반등/고점 반전 위험 카운트를 포함한다.
+  - 저점 반등 확인(`LOW_REBOUND_CONFIRMATION`)은 반등폭과 추세 효율이 함께 충족될 때만 기록하고, 고점 부근에서 단기 후퇴가 감지되면 `HIGH_POSITION_REVERSAL_BLOCKED`로 추격 매수를 차단한다.
+  - 하락장 반등 참여 조건은 단순 양봉이 아니라 저점 대비 반등, 추세 효율, 가격 위치, RSI를 함께 확인하도록 강화했다.
+
 - **[2026-06-16] 하락→상승 전환 확인 매수 개선**
   - 매매 로그에서 `bear->bull` 전환이 141회 확인됐지만, 손절 후 재진입 가드가 medium 신호를 계속 `POST_STOP_LOSS_REENTRY_CONFIRMATION_REQUIRED`로 차단하는 패턴을 확인했다.
   - 손절 후에는 일반 medium 신호 재진입은 계속 차단하되, `bear->bull` 전환이 확정되고 회복 가격을 넘었으며 sizing이 허용된 medium 이상 신호일 때만 `confirmed_bear_to_bull_reversal` 모드로 매수를 허용한다.

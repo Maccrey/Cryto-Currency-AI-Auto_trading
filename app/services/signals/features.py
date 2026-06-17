@@ -21,6 +21,10 @@ class FeatureSnapshot:
     bollinger_position: float = 0.5
     ma_trend: float = 0.0
     stochastic_k: float = 50.0
+    price_position_20: float = 0.5
+    drawdown_from_high_20: float = 0.0
+    rebound_from_low_20: float = 0.0
+    trend_efficiency_20: float = 0.0
 
 
 class MarketFeatureCalculator:
@@ -55,6 +59,10 @@ class MarketFeatureCalculator:
         bollinger_position = _bollinger_position(prices, period=20)
         ma_trend = _moving_average_trend(prices, short_period=5, long_period=20)
         stochastic_k = _stochastic_k(prices, period=14)
+        price_position_20 = _price_position(prices, period=20)
+        drawdown_from_high_20 = _drawdown_from_high(prices, period=20)
+        rebound_from_low_20 = _rebound_from_low(prices, period=20)
+        trend_efficiency_20 = _trend_efficiency(prices, period=20)
 
         return FeatureSnapshot(
             ret_1s=ret_1s,
@@ -72,6 +80,10 @@ class MarketFeatureCalculator:
             bollinger_position=bollinger_position,
             ma_trend=ma_trend,
             stochastic_k=stochastic_k,
+            price_position_20=price_position_20,
+            drawdown_from_high_20=drawdown_from_high_20,
+            rebound_from_low_20=rebound_from_low_20,
+            trend_efficiency_20=trend_efficiency_20,
         )
 
 
@@ -152,3 +164,39 @@ def _stochastic_k(prices: list[float], *, period: int) -> float:
     if high <= low:
         return 50.0
     return round(((prices[-1] - low) / (high - low)) * 100, 2)
+
+
+def _price_position(prices: list[float], *, period: int) -> float:
+    window = prices[-period:]
+    low = min(window)
+    high = max(window)
+    if high <= low:
+        return 0.5
+    return round(max(min((prices[-1] - low) / (high - low), 1.0), 0.0), 4)
+
+
+def _drawdown_from_high(prices: list[float], *, period: int) -> float:
+    window = prices[-period:]
+    high = max(window)
+    if high <= 0:
+        return 0.0
+    return round(min((prices[-1] - high) / high, 0.0), 6)
+
+
+def _rebound_from_low(prices: list[float], *, period: int) -> float:
+    window = prices[-period:]
+    low = min(window)
+    if low <= 0:
+        return 0.0
+    return round(max((prices[-1] - low) / low, 0.0), 6)
+
+
+def _trend_efficiency(prices: list[float], *, period: int) -> float:
+    window = prices[-period:]
+    if len(window) < 2 or window[0] <= 0:
+        return 0.0
+    path = sum(abs(_return(a, b)) for a, b in zip(window[:-1], window[1:]))
+    if path <= 0:
+        return 0.0
+    direct = _return(window[0], window[-1])
+    return round(max(min(direct / path, 1.0), -1.0), 6)
