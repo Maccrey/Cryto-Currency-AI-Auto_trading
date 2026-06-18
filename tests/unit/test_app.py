@@ -921,11 +921,15 @@ class TelegramNotifierStub:
         self.fills = []
         self.reason_codes = []
         self.entry_prices = []
+        self.market_shocks = []
 
     def notify_fill(self, fill, *, reason_code=None, entry_price=None, total_asset_value=None, **kwargs) -> None:
         self.fills.append(fill)
         self.reason_codes.append(reason_code)
         self.entry_prices.append(entry_price)
+
+    def notify_market_shock(self, **kwargs) -> None:
+        self.market_shocks.append(kwargs)
 
 
 class TradeDecisionServiceStub:
@@ -2080,12 +2084,11 @@ def test_decision_execute_notifies_buy_fill(monkeypatch) -> None:
     monkeypatch.setenv("LEARNING_ENABLED", "true")
     trade_fill_notifier = TelegramNotifierStub()
 
-    client = TestClient(
-        create_app(
-            recovery_orchestrator=SuccessfulBootOrchestrator(),
-            trade_fill_notifier=trade_fill_notifier,
-        ),
+    app = create_app(
+        recovery_orchestrator=SuccessfulBootOrchestrator(),
+        trade_fill_notifier=trade_fill_notifier,
     )
+    client = TestClient(app)
 
     response = client.post(
         "/decision/execute",
@@ -2113,6 +2116,7 @@ def test_decision_execute_notifies_buy_fill(monkeypatch) -> None:
     assert len(trade_fill_notifier.fills) == 1
     assert trade_fill_notifier.fills[0].side == "buy"
     assert trade_fill_notifier.fills[0].is_stop_loss is False
+    assert app.state.auto_trading_service._telegram_notifier is trade_fill_notifier
 
 
 def test_position_endpoints_return_saved_position_and_overlay(monkeypatch) -> None:
@@ -3186,7 +3190,7 @@ def test_health_endpoint_reports_hard_stop_state(monkeypatch) -> None:
     }
 
 
-def test_create_app_does_not_dispatch_boot_notification_when_boot_enters_hard_stop(monkeypatch) -> None:
+def test_create_app_dispatches_boot_notification_when_boot_enters_hard_stop(monkeypatch) -> None:
     class HardStopBootOrchestrator:
         def boot(self):
             class BootState:
@@ -3213,10 +3217,16 @@ def test_create_app_does_not_dispatch_boot_notification_when_boot_enters_hard_st
         timestamp_provider=lambda: "2026-04-18T12:30:00+09:00",
     )
 
-    assert dispatcher.calls == []
+    assert len(dispatcher.calls) == 1
+    assert dispatcher.calls[0]["app_name"] == "upbit-auto-trader"
+    assert dispatcher.calls[0]["market"] == "KRW-XRP"
+    assert dispatcher.calls[0]["triggered_at"] == "2026-04-18T12:30:00+09:00"
+    assert dispatcher.calls[0]["cause"] == "process_restart"
+    assert dispatcher.calls[0]["boot_state"].hard_stop is True
+    assert dispatcher.calls[0]["boot_state"].failure_stage == "hard_stop"
 
 
-def test_create_app_does_not_dispatch_boot_notification_when_boot_is_normal(monkeypatch) -> None:
+def test_create_app_dispatches_boot_notification_when_boot_is_normal(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -3239,12 +3249,14 @@ def test_create_app_does_not_dispatch_boot_notification_when_boot_is_normal(monk
         timestamp_provider=lambda: "2026-04-18T12:35:00+09:00",
     )
 
-    assert dispatcher.calls == []
+    assert len(dispatcher.calls) == 1
+    assert dispatcher.calls[0]["cause"] == "process_restart"
+    assert dispatcher.calls[0]["boot_state"].hard_stop is False
 
 
 
 
-def test_create_app_does_not_dispatch_boot_notification_with_demo_ledger(monkeypatch) -> None:
+def test_create_app_boot_notification_uses_demo_ledger_portfolio(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -3288,10 +3300,13 @@ def test_create_app_does_not_dispatch_boot_notification_with_demo_ledger(monkeyp
         timestamp_provider=lambda: "2026-04-18T12:45:00+09:00",
     )
 
-    assert dispatcher.calls == []
+    portfolio = dispatcher.calls[0]["boot_state"].portfolio_state
+    assert portfolio.cash_balance == 899950.0
+    assert portfolio.asset_balance == 100.0
+    assert portfolio.avg_buy_price == 1000.5
 
 
-def test_create_app_does_not_send_telegram_boot_notification_when_registered(monkeypatch, tmp_path) -> None:
+def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch, tmp_path) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -3339,7 +3354,16 @@ def test_create_app_does_not_send_telegram_boot_notification_when_registered(mon
     )
 
     assert len(StubTelegramGateway.instances) == 1
-    assert StubTelegramGateway.instances[0].messages == []
+    message = StubTelegramGateway.instances[0].messages[0]
+    assert message.startswith("자동매매 앱 서버가 시작되었습니다.\n")
+    assert "앱 이름은 upbit-auto-trader이고 시작 시각은 2026-05-01T10:00:00+09:00입니다." in message
+    assert "거래 시장은 KRW-XRP이고 거래 모드는 demo입니다." in message
+    assert "자동 트레이딩은 아직 시작되지 않았습니다." in message
+    assert "트레이딩 준비 상태는 정상" in message
+    assert "대시보드는 브라우저에서 http://" in message
+    assert "/dashboard 주소로 열 수 있습니다." in message
+    assert "설정 화면은 브라우저에서 http://" in message
+    assert "/settings 주소로 열 수 있습니다." in message
 
 
 def test_create_app_respects_restart_notify_disabled(monkeypatch, tmp_path) -> None:

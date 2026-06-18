@@ -8,6 +8,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -164,6 +165,18 @@ def create_app(
             trade_fill_notifier = TelegramNotifier(
                 gateway=telegram_gateway,
                 server_name_provider=current_server_name,
+            )
+        if restart_notifier is None and settings.restart_notify:
+            restart_notifier = RestartNotifier(gateway=telegram_gateway)
+        if hard_stop_notifier is None:
+            hard_stop_notifier = HardStopNotifier(gateway=telegram_gateway)
+        if boot_notification_dispatcher is None and settings.restart_notify:
+            boot_notification_dispatcher = BootNotificationDispatcher(
+                restart_notifier=restart_notifier,
+                hard_stop_notifier=hard_stop_notifier,
+                dashboard_url=browser_urls["dashboard_url"],
+                settings_url=browser_urls["settings_url"],
+                dedupe_store_path=settings.restart_state_path.parent / "boot-notification-state.json",
             )
 
     notification_services = build_notification_services(
@@ -322,6 +335,7 @@ def create_app(
         )
 
     demo_portfolio_state = None
+    notification_boot_state = current_boot_state()
     boot_portfolio_state = current_boot_portfolio_state()
     if (
         settings.trading_mode == "demo"
@@ -332,6 +346,19 @@ def create_app(
             initial_cash=float(env_file_service.demo_initial_capital(fallback=settings.demo_initial_capital)),
             asset_currency=boot_portfolio_state.asset_currency,
         )
+        current_state = current_boot_state()
+        try:
+            notification_boot_state = replace(current_state, portfolio_state=demo_portfolio_state)
+        except TypeError:
+            notification_boot_state = SimpleNamespace(
+                safe_mode=getattr(current_state, "safe_mode", False),
+                hard_stop=getattr(current_state, "hard_stop", False),
+                trading_ready=getattr(current_state, "trading_ready", False),
+                failure_stage=getattr(current_state, "failure_stage", None),
+                portfolio_state=demo_portfolio_state,
+                reconcile_result=getattr(current_state, "reconcile_result", None),
+            )
+    runtime_services.runtime_service.dispatch_boot_notification(boot_state=notification_boot_state)
     live_rest_client = UpbitRestClient(
         base_url=settings.upbit_base_url,
         auth_signer=UpbitAuthSigner(
@@ -498,7 +525,7 @@ def create_app(
         external_context_provider=external_context_service,
         demo_portfolio_state=demo_portfolio_state,
         live_portfolio_sync_service=live_portfolio_sync_service,
-        telegram_notifier=None,
+        telegram_notifier=trade_fill_notifier,
         uptime_store=TradingUptimeStore(path=runtime_state_dir / "trading-uptime.json"),
         execution_ledger=execution_ledger,
     )
