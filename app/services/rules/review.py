@@ -49,6 +49,7 @@ class RuleReviewService:
         learning_log_dir: Path,
         config: RuleReviewConfig,
         telegram_gateway: Any | None = None,
+        demo_rule_reset_callback: Any | None = None,
     ) -> None:
         self._market = market
         self._trade_coin = (trade_coin or market.split("-")[-1]).upper()
@@ -56,6 +57,7 @@ class RuleReviewService:
         self._learning_log_dir = learning_log_dir
         self._config = config
         self._telegram_gateway = telegram_gateway
+        self._demo_rule_reset_callback = demo_rule_reset_callback
         self._state_path = self._learning_log_dir / "rule-review-state.json"
         self._history_path = self._learning_log_dir / "rule-change-history.jsonl"
         self._learning_md_path = self._learning_log_dir / "rule-improvement-learning.md"
@@ -332,6 +334,8 @@ class RuleReviewService:
         passed = (
             signal_count > 0
             and blocked_count < signal_count
+            and replay_summary.trade_count > 0
+            and replay_summary.final_profit_rate > 0.0
             and replay_summary.profit_guard_status == "passed"
         )
         proposal["replay_result"] = {
@@ -373,6 +377,17 @@ class RuleReviewService:
             reasons.add("replay_required")
         elif proposal["replay_result"].get("status") != "passed":
             reasons.add("replay_failed")
+        elif float(proposal["replay_result"].get("final_profit_rate") or 0.0) <= 0.0:
+            reasons.add("replay_non_positive_profit")
+        elif int(proposal["replay_result"].get("trade_count") or 0) <= 0:
+            reasons.add("replay_no_trades")
+        shadow_summary = proposal.get("rule_variant_shadow_summary")
+        if (
+            isinstance(shadow_summary, dict)
+            and int(shadow_summary.get("sample_count") or 0) > 0
+            and not shadow_summary.get("best_positive_variant_key")
+        ):
+            reasons.add("shadow_no_positive_variant")
         if proposal["status"] == "blocked":
             reasons.add("proposal_blocked")
         proposal["rejection_reasons"] = sorted(reasons)
@@ -380,6 +395,9 @@ class RuleReviewService:
         if proposal["demo_applied"]:
             proposal["status"] = "demo_applied"
             proposal["demo_applied_at"] = datetime.now(UTC).isoformat()
+            if self._demo_rule_reset_callback is not None:
+                self._demo_rule_reset_callback()
+                proposal["rule_variant_shadow_reset"] = True
         self._save_state()
         self._append_history_event(
             event_type="demo_applied" if proposal["demo_applied"] else "demo_apply_rejected",
@@ -795,9 +813,14 @@ class RuleReviewService:
             logger.exception("telegram_rule_improvement_notification_failed")
 
     def _collect_metrics(self) -> dict[str, object]:
-        trade_count = 0
-        stop_loss_count = 0
+        fill_trade_count = 0
+        exit_trade_count = 0
+        fill_stop_loss_count = 0
+        exit_stop_loss_count = 0
+        triggered_stop_loss_count = 0
         cause_counts: dict[str, int] = {}
+        exit_cause_counts: dict[str, int] = {}
+        triggered_cause_counts: dict[str, int] = {}
         blocked_reasons: Counter[str] = Counter()
         sizing_blocked_reasons: Counter[str] = Counter()
         sample_limit = 5000
@@ -809,7 +832,9 @@ class RuleReviewService:
         latest_event_at: datetime | None = None
         last_trade_at: datetime | None = None
         completion_rates: list[float] = []
-        closed_trade_pnls: list[float] = []
+        fill_closed_trade_pnls: list[float] = []
+        exit_closed_trade_pnls: list[float] = []
+        last_fill_sell_pnl: float | None = None
         log_path = self._learning_log_dir / "learning.jsonl"
         if log_path.exists():
             for row in iter_jsonl_objects(log_path):
@@ -824,16 +849,37 @@ class RuleReviewService:
                     if recorded_at is not None and (last_trade_at is None or recorded_at > last_trade_at):
                         last_trade_at = recorded_at
                 if event_name in {"fill_result", "position_closed"}:
-                    trade_count += 1
                     if payload.get("side") == "sell" or event_name == "position_closed":
+                        fill_trade_count += 1
                         try:
-                            closed_trade_pnls.append(float(payload.get("pnl", payload.get("realized_pnl", 0.0))))
+                            last_fill_sell_pnl = float(payload.get("pnl", payload.get("realized_pnl", 0.0)))
+                            fill_closed_trade_pnls.append(last_fill_sell_pnl)
                         except (TypeError, ValueError):
                             pass
-                if event_name == "stop_loss_triggered" or payload.get("is_stop_loss"):
-                    stop_loss_count += 1
+                    if bool(payload.get("is_stop_loss")):
+                        fill_stop_loss_count += 1
+                if event_name == "position_exit_completed":
+                    exit_trade_count += 1
+                    pnl_value = payload.get("pnl")
+                    if pnl_value is None:
+                        pnl_value = payload.get("realized_pnl")
+                    if pnl_value is None:
+                        pnl_value = payload.get("unrealized_return_pct")
+                    if pnl_value is None:
+                        pnl_value = last_fill_sell_pnl or 0.0
+                    try:
+                        exit_closed_trade_pnls.append(float(pnl_value))
+                    except (TypeError, ValueError):
+                        pass
+                    last_fill_sell_pnl = None
+                    if bool(payload.get("is_stop_loss")):
+                        exit_stop_loss_count += 1
+                        reason = str(payload.get("reason_code") or payload.get("stop_loss_reason") or "unknown")
+                        exit_cause_counts[reason] = exit_cause_counts.get(reason, 0) + 1
+                elif event_name == "stop_loss_triggered":
+                    triggered_stop_loss_count += 1
                     reason = str(payload.get("reason_code") or payload.get("stop_loss_reason") or "unknown")
-                    cause_counts[reason] = cause_counts.get(reason, 0) + 1
+                    triggered_cause_counts[reason] = triggered_cause_counts.get(reason, 0) + 1
                 if event_name == "auto_trade_cycle":
                     try:
                         completion_rates.append(float(payload.get("learning_completion_rate", 0.0)))
@@ -858,6 +904,24 @@ class RuleReviewService:
                 context = payload.get("external_context") if event_name == "auto_trade_cycle" else payload
                 if event_name in {"auto_trade_cycle", "external_market_context_snapshot"} and isinstance(context, dict):
                     context_samples.append(context)
+        trade_count = exit_trade_count if exit_trade_count > 0 else fill_trade_count
+        stop_loss_count = (
+            exit_stop_loss_count
+            if exit_trade_count > 0
+            else triggered_stop_loss_count
+            if triggered_stop_loss_count > 0
+            else fill_stop_loss_count
+        )
+        cause_counts = (
+            exit_cause_counts
+            if exit_cause_counts
+            else triggered_cause_counts
+        )
+        closed_trade_pnls = (
+            exit_closed_trade_pnls
+            if exit_closed_trade_pnls
+            else fill_closed_trade_pnls
+        )
         causes = [
             {"reason": reason, "count": count}
             for reason, count in sorted(cause_counts.items(), key=lambda item: item[1], reverse=True)
@@ -1127,6 +1191,9 @@ class RuleReviewService:
             "best_variant_key": None,
             "best_variant_label": None,
             "avg_profit_rate_by_variant": {},
+            "best_positive_variant_key": None,
+            "best_positive_variant_label": None,
+            "positive_variant_keys": [],
             "latest_results": [],
         }
 
@@ -1298,12 +1365,33 @@ class RuleReviewService:
             if values
         }
         best_key = max(avg_profit, key=avg_profit.get) if avg_profit else None
+        positive_results = [
+            item
+            for item in latest_results
+            if bool(item.get("promotion_eligible"))
+            and float(item.get("profit_rate") or 0.0) > 0.0
+            and float(item.get("realized_pnl") or 0.0) > 0.0
+        ]
+        best_positive = (
+            max(
+                positive_results,
+                key=lambda item: (
+                    float(item.get("profit_rate") or 0.0),
+                    -float(item.get("max_drawdown_pct") or 0.0),
+                ),
+            )
+            if positive_results
+            else None
+        )
         return {
             "sample_count": len(samples),
             "leader_counts": dict(leader_counts),
             "best_variant_key": best_key,
             "best_variant_label": labels.get(best_key or "", best_key),
             "avg_profit_rate_by_variant": avg_profit,
+            "best_positive_variant_key": None if best_positive is None else best_positive.get("variant_key"),
+            "best_positive_variant_label": None if best_positive is None else best_positive.get("variant_label"),
+            "positive_variant_keys": [str(item.get("variant_key")) for item in positive_results],
             "latest_results": latest_results,
         }
 
@@ -1585,7 +1673,7 @@ class RuleReviewService:
         summary = review.get("rule_variant_shadow_summary")
         if not isinstance(summary, dict) or int(summary.get("sample_count") or 0) <= 0:
             return []
-        best_key = str(summary.get("best_variant_key") or "")
+        best_key = str(summary.get("best_positive_variant_key") or "")
         avg_profit = summary.get("avg_profit_rate_by_variant")
         if not best_key or not isinstance(avg_profit, dict):
             return []

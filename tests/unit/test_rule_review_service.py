@@ -154,9 +154,27 @@ def test_rule_review_uses_shadow_variant_results_in_codex_prompt_and_changes(tmp
                                 "leader_key": "B",
                                 "leader_label": "룰 B 추세형",
                                 "results": [
-                                    {"variant_key": "A", "variant_label": "룰 A 안정형", "profit_rate": 0.001},
-                                    {"variant_key": "B", "variant_label": "룰 B 추세형", "profit_rate": 0.004},
-                                    {"variant_key": "C", "variant_label": "룰 C 방어형", "profit_rate": -0.001},
+                                    {
+                                        "variant_key": "A",
+                                        "variant_label": "룰 A 안정형",
+                                        "profit_rate": 0.001,
+                                        "realized_pnl": 100.0,
+                                        "promotion_eligible": False,
+                                    },
+                                    {
+                                        "variant_key": "B",
+                                        "variant_label": "룰 B 추세형",
+                                        "profit_rate": 0.004,
+                                        "realized_pnl": 400.0,
+                                        "promotion_eligible": True,
+                                    },
+                                    {
+                                        "variant_key": "C",
+                                        "variant_label": "룰 C 방어형",
+                                        "profit_rate": -0.001,
+                                        "realized_pnl": -100.0,
+                                        "promotion_eligible": False,
+                                    },
                                 ],
                             },
                         },
@@ -187,6 +205,7 @@ def test_rule_review_uses_shadow_variant_results_in_codex_prompt_and_changes(tmp
     proposal = service.create_proposal(review_id=str(review["id"]))["proposal"]
 
     assert review["rule_variant_shadow_summary"]["best_variant_key"] == "B"
+    assert review["rule_variant_shadow_summary"]["best_positive_variant_key"] == "B"
     assert "A/B/C 동시 테스트" in review["codex_rule_prompt"]
     assert proposal["codex_suggested_changes"][0]["parameter"] == "TREND_MARKET_SIZE_MULTIPLIER"
 
@@ -525,6 +544,101 @@ def test_replay_verification_allows_demo_apply_for_valid_proposal(tmp_path: Path
     assert replay["proposal"]["replay_result"]["signal_count"] == 2
     assert result["proposal"]["demo_applied"] is True
     assert result["proposal"]["status"] == "demo_applied"
+
+
+def test_demo_apply_is_blocked_when_all_shadow_rules_are_negative(tmp_path: Path) -> None:
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+    proposal = service.create_proposal()["proposal"]
+    proposal["rule_variant_shadow_summary"] = {
+        "sample_count": 100,
+        "best_variant_key": "B",
+        "best_positive_variant_key": None,
+        "latest_results": [
+            {"variant_key": "B", "profit_rate": -0.001, "realized_pnl": -100.0},
+        ],
+    }
+
+    service.verify_replay(str(proposal["id"]), fixture_path=Path("fixtures/replay_ticks.json"))
+    result = service.apply_demo(str(proposal["id"]))["proposal"]
+
+    assert result["demo_applied"] is False
+    assert "shadow_no_positive_variant" in result["rejection_reasons"]
+
+
+def test_demo_apply_resets_shadow_results_after_positive_validation(tmp_path: Path) -> None:
+    reset_calls: list[bool] = []
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+        demo_rule_reset_callback=lambda: reset_calls.append(True),
+    )
+    proposal = service.create_proposal()["proposal"]
+    service.verify_replay(str(proposal["id"]), fixture_path=Path("fixtures/replay_ticks.json"))
+
+    result = service.apply_demo(str(proposal["id"]))["proposal"]
+
+    assert result["demo_applied"] is True
+    assert result["rule_variant_shadow_reset"] is True
+    assert reset_calls == [True]
+
+
+def test_rule_review_counts_completed_exits_without_fill_or_lifecycle_duplicates(tmp_path: Path) -> None:
+    (tmp_path / "learning.jsonl").write_text(
+        "\n".join(
+            [
+                '{"event_name":"fill_result","payload":{"side":"sell","pnl":100,"is_stop_loss":false}}',
+                '{"event_name":"position_exit_completed","payload":{"reason_code":"TAKE_PROFIT","is_stop_loss":false}}',
+                '{"event_name":"fill_result","payload":{"side":"sell","pnl":-80,"is_stop_loss":true}}',
+                '{"event_name":"position_lifecycle_updated","payload":{"is_stop_loss":true}}',
+                '{"event_name":"position_exit_completed","payload":{"reason_code":"STOP_LOSS_MOMENTUM_REVERSAL","is_stop_loss":true}}',
+            ],
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+    )
+
+    review = service.review()["review"]
+
+    assert review["trade_count"] == 2
+    assert review["stop_loss_count"] == 1
+    assert review["win_rate"] == 0.5
 
 
 def test_live_approval_requires_demo_apply_and_manual_approval(tmp_path: Path) -> None:

@@ -119,7 +119,9 @@ class ReplayHarness:
             max_signal_score=max((result.signal_score for result in results), default=0.0),
             profit_guard_status=(
                 "passed"
-                if final_profit_rate >= -0.003 and max_drawdown <= 0.02
+                if final_profit_rate > 0.0
+                and sum(1 for result in results if result.action in {"buy", "sell"}) > 0
+                and max_drawdown <= 0.02
                 else "failed"
             ),
         )

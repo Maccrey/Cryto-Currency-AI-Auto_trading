@@ -7,7 +7,6 @@ from datetime import datetime
 import json
 import logging
 import os
-from types import SimpleNamespace
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -73,11 +72,6 @@ from app.services.promotion.status import PromotionStatusStore
 from app.services.risk.hard_stop import HardStopMonitor
 from app.services.risk.post_entry import PostEntryValidator
 from app.services.recovery.orchestrator import RecoveryOrchestrator
-from app.services.reporting.telegram import (
-    TelegramTradingReportScheduler,
-    TelegramTradingReportService,
-    TradingReportContext,
-)
 from app.services.risk.stop_loss import StopLossInjector
 from app.services.rules.automation import AutoRuleUpdateService
 from app.services.rules.review import RuleReviewConfig, RuleReviewService
@@ -170,18 +164,6 @@ def create_app(
             trade_fill_notifier = TelegramNotifier(
                 gateway=telegram_gateway,
                 server_name_provider=current_server_name,
-            )
-        if restart_notifier is None and settings.restart_notify:
-            restart_notifier = RestartNotifier(gateway=telegram_gateway)
-        if hard_stop_notifier is None:
-            hard_stop_notifier = HardStopNotifier(gateway=telegram_gateway)
-        if boot_notification_dispatcher is None and settings.restart_notify:
-            boot_notification_dispatcher = BootNotificationDispatcher(
-                restart_notifier=restart_notifier,
-                hard_stop_notifier=hard_stop_notifier,
-                dashboard_url=browser_urls["dashboard_url"],
-                settings_url=browser_urls["settings_url"],
-                dedupe_store_path=settings.restart_state_path.parent / "boot-notification-state.json",
             )
 
     notification_services = build_notification_services(
@@ -340,7 +322,6 @@ def create_app(
         )
 
     demo_portfolio_state = None
-    notification_boot_state = current_boot_state()
     boot_portfolio_state = current_boot_portfolio_state()
     if (
         settings.trading_mode == "demo"
@@ -351,19 +332,6 @@ def create_app(
             initial_cash=float(env_file_service.demo_initial_capital(fallback=settings.demo_initial_capital)),
             asset_currency=boot_portfolio_state.asset_currency,
         )
-        current_state = current_boot_state()
-        try:
-            notification_boot_state = replace(current_state, portfolio_state=demo_portfolio_state)
-        except TypeError:
-            notification_boot_state = SimpleNamespace(
-                safe_mode=getattr(current_state, "safe_mode", False),
-                hard_stop=getattr(current_state, "hard_stop", False),
-                trading_ready=getattr(current_state, "trading_ready", False),
-                failure_stage=getattr(current_state, "failure_stage", None),
-                portfolio_state=demo_portfolio_state,
-                reconcile_result=getattr(current_state, "reconcile_result", None),
-            )
-    runtime_services.runtime_service.dispatch_boot_notification(boot_state=notification_boot_state)
     live_rest_client = UpbitRestClient(
         base_url=settings.upbit_base_url,
         auth_signer=UpbitAuthSigner(
@@ -530,7 +498,7 @@ def create_app(
         external_context_provider=external_context_service,
         demo_portfolio_state=demo_portfolio_state,
         live_portfolio_sync_service=live_portfolio_sync_service,
-        telegram_notifier=trade_fill_notifier,
+        telegram_notifier=None,
         uptime_store=TradingUptimeStore(path=runtime_state_dir / "trading-uptime.json"),
         execution_ledger=execution_ledger,
     )
@@ -582,7 +550,8 @@ def create_app(
             auto_update_min_learning_completion_rate=settings.auto_rule_update_min_learning_completion_rate,
             auto_update_win_rate_skip_threshold=settings.auto_rule_update_win_rate_skip_threshold,
         ),
-        telegram_gateway=telegram_gateway,
+        telegram_gateway=None,
+        demo_rule_reset_callback=auto_trading_service.reset_demo_rule_variants,
     )
     auto_trading_service._auto_rule_update_service = AutoRuleUpdateService(
         readiness_service=ModelTrainingReadinessService(log_dir=profile_learning_log_dir),
@@ -596,25 +565,10 @@ def create_app(
         await auto_trading_service.stop()
 
     def _send_telegram_lifecycle_message(lines: list[str]) -> dict[str, object]:
-        if telegram_gateway is None:
-            return {
-                "status": "not_configured",
-                "sent": False,
-                "message": "텔레그램 알림은 봇 토큰과 채팅 ID가 설정된 상태로 앱 서버를 재시작해야 전송됩니다.",
-            }
-        try:
-            telegram_gateway.send_message("\n".join(lines))
-        except Exception as exc:
-            logger.exception("telegram_trading_lifecycle_notification_failed")
-            return {
-                "status": "failed",
-                "sent": False,
-                "message": f"텔레그램 알림 전송 실패: {exc}",
-            }
         return {
-            "status": "sent",
-            "sent": True,
-            "message": "텔레그램 알림을 전송했습니다.",
+            "status": "disabled",
+            "sent": False,
+            "message": "체결이 아닌 자동 텔레그램 알림은 비활성화되어 있습니다.",
         }
 
     def _build_trading_response_message(base_message: str, notification: dict[str, object]) -> str:
@@ -798,34 +752,6 @@ def create_app(
             "sent": True,
             "message": "텔레그램 테스트 메시지를 전송했습니다.",
         }
-
-    if telegram_gateway is not None:
-        report_service = TelegramTradingReportService(
-            gateway=telegram_gateway,
-            context=TradingReportContext(
-                market=settings.trade_market,
-                trading_mode=settings.trading_mode,
-                learning_enabled=settings.learning_enabled,
-                boot_state=boot_state,
-                execution_ledger=execution_ledger,
-                learning_service=learning_service,
-                market_price_store=market_price_store,
-                position_store=position_store,
-            ),
-        )
-        report_scheduler = TelegramTradingReportScheduler(
-            report_service=report_service,
-            timezone=settings.app_timezone,
-        )
-        app.state.telegram_report_scheduler = report_scheduler
-
-        @app.on_event("startup")
-        async def start_telegram_report_scheduler() -> None:
-            report_scheduler.start()
-
-        @app.on_event("shutdown")
-        async def stop_telegram_report_scheduler() -> None:
-            await report_scheduler.stop()
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:

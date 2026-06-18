@@ -422,10 +422,18 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert portfolio.cash_balance < 1_000_000.0
     assert portfolio.asset_balance > 0.0
     assert portfolio.avg_buy_price > 0.0
-    assert result["rule_variant_leader_key"] in {"A", "B", "C"}
+    assert result["rule_variant_leader_key"] is None
+    assert result["rule_variant_shadow"]["candidate_leader_key"] in {"A", "B", "C", "D", "E", "F"}
     assert result["trade_logic_update_trace"]["version"] == "2026-06-07-loss-aware-weak-recovery-guard"
     assert "demo_realized_pnl" in result["trade_logic_update_trace"]["optimization_metric_keys"]
-    assert {item["variant_key"] for item in result["rule_variant_shadow"]["results"]} == {"A", "B", "C"}
+    assert {item["variant_key"] for item in result["rule_variant_shadow"]["results"]} == {
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+    }
     assert service.last_cycle()["rule_variant_leader_key"] == result["rule_variant_leader_key"]
     observation_rows = [
         json.loads(line)

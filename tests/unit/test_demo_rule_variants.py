@@ -72,9 +72,17 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
         ),
     )
 
-    assert {item["variant_key"] for item in report["results"]} == {"A", "B", "C"}
-    assert report["leader_key"] in {"A", "B", "C"}
-    assert all(item["last_action"] == "buy" for item in report["results"])
+    assert {item["variant_key"] for item in report["results"]} == {"A", "B", "C", "D", "E", "F"}
+    assert report["leader_key"] is None
+    assert report["promotion_eligible"] is False
+    assert report["candidate_leader_key"] in {"A", "B", "C", "D", "E", "F"}
+    assert {item["variant_key"] for item in report["results"] if item["last_action"] == "buy"} == {
+        "A",
+        "B",
+        "C",
+        "D",
+        "F",
+    }
     assert all("effective_buy_multiplier" in item for item in report["results"])
     assert report["market_state"] == "bull"
 
@@ -115,7 +123,8 @@ def test_demo_rule_variant_shadow_tester_compares_profit_rate_after_same_price_m
     results = {item["variant_key"]: item for item in report["results"]}
     assert results["B"]["profit_rate"] > results["A"]["profit_rate"]
     assert results["A"]["profit_rate"] > results["C"]["profit_rate"]
-    assert report["leader_key"] == "B"
+    assert report["leader_key"] is None
+    assert report["candidate_leader_key"] in {"B", "D"}
 
 
 def test_demo_rule_variant_defensive_rule_buys_only_near_box_low() -> None:
@@ -212,3 +221,24 @@ def test_demo_rule_variant_shadow_tester_explores_weak_bull_candidates() -> None
     assert results["C"]["last_action"] == "buy"
     assert results["B"]["effective_buy_multiplier"] > results["A"]["effective_buy_multiplier"]
     assert results["C"]["effective_stop_loss_pct"] < results["A"]["effective_stop_loss_pct"]
+    assert results["D"]["last_action"] == "hold"
+    assert results["E"]["last_action"] == "hold"
+    assert results["F"]["last_action"] == "hold"
+
+
+def test_demo_rule_variant_shadow_tester_resets_all_candidate_results() -> None:
+    tester = DemoRuleVariantShadowTester()
+    portfolio = PortfolioState(
+        cash_balance=1_000_000,
+        asset_currency="XRP",
+        asset_balance=0,
+        avg_buy_price=0,
+    )
+    tester.evaluate(decision=_decision(market_state="bull"), current_price=1_000, portfolio=portfolio)
+    tester.reset()
+
+    report = tester.evaluate(decision=_decision(market_state="bull"), current_price=1_000, portfolio=portfolio)
+
+    assert all(item["trade_count"] == 0 for item in report["results"])
+    assert all(item["profit_rate"] <= 0 for item in report["results"])
+    assert report["leader_key"] is None

@@ -264,6 +264,9 @@ class AutoTradingService:
             "price_history_count": 0,
         }
 
+    def reset_demo_rule_variants(self) -> None:
+        self._demo_rule_variant_shadow_tester.reset()
+
     def reset_demo_portfolio(self, portfolio: PortfolioState | None = None) -> dict[str, object]:
         if self._trading_mode != "demo":
             return {
@@ -285,6 +288,7 @@ class AutoTradingService:
         self._last_entry_signal_level = None
         self._last_entry_signal_score = None
         self._scale_in_count = 0
+        self.reset_demo_rule_variants()
         if self._uptime_store is not None:
             self._uptime_store.reset()
             if self.is_running():
@@ -294,6 +298,7 @@ class AutoTradingService:
             "cash_balance": round(self._demo_cash_balance, 2),
             "asset_currency": self._demo_asset_currency,
             "asset_balance": round(self._demo_asset_balance, 8),
+            "rule_variant_shadow_reset": True,
         }
 
     async def stop(self) -> None:

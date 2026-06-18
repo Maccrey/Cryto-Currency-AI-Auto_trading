@@ -44,13 +44,17 @@ class ShadowPortfolio:
     win_count: int = 0
     stop_loss_count: int = 0
     loss_count: int = 0
+    gross_profit: float = 0.0
+    gross_loss: float = 0.0
     peak_equity: float | None = None
     max_drawdown_pct: float = 0.0
     last_action: str = "hold"
 
 
 class DemoRuleVariantShadowTester:
-    """Run A/B/C rule candidates on the same live tick stream without touching real orders."""
+    """Run diversified rule candidates on the same tick stream without touching real orders."""
+
+    MIN_PROMOTION_TRADES = 20
 
     DEFAULT_VARIANTS = (
         DemoRuleVariant(
@@ -79,6 +83,33 @@ class DemoRuleVariantShadowTester:
             sell_multiplier=2.0,
             take_profit_pct=0.0032,
             stop_loss_pct=0.002,
+        ),
+        DemoRuleVariant(
+            key="D",
+            label="룰 D 돌파확인형",
+            description="상승장 돌파가 모멘텀과 호가로 확인될 때만 진입하고 추세를 길게 보유합니다.",
+            buy_multiplier=1.25,
+            sell_multiplier=0.7,
+            take_profit_pct=0.010,
+            stop_loss_pct=0.0045,
+        ),
+        DemoRuleVariant(
+            key="E",
+            label="룰 E 박스저점형",
+            description="박스권 하단의 반등 확인 구간만 거래하고 상단 접근 시 빠르게 청산합니다.",
+            buy_multiplier=0.72,
+            sell_multiplier=1.7,
+            take_profit_pct=0.0048,
+            stop_loss_pct=0.0028,
+        ),
+        DemoRuleVariant(
+            key="F",
+            label="룰 F 자본보전형",
+            description="강한 상승 신호에서만 작게 진입해 손절 빈도와 낙폭 억제를 우선합니다.",
+            buy_multiplier=0.32,
+            sell_multiplier=2.2,
+            take_profit_pct=0.0075,
+            stop_loss_pct=0.003,
         ),
     )
 
@@ -111,15 +142,28 @@ class DemoRuleVariantShadowTester:
             )
             for variant in self._variants
         ]
-        leader = max(results, key=self._leader_score)
+        candidate = max(results, key=self._leader_score)
+        promotable = [item for item in results if self._promotion_eligible(item)]
+        leader = max(promotable, key=self._leader_score) if promotable else None
         return {
-            "leader_key": leader["variant_key"],
-            "leader_label": leader["variant_label"],
-            "leader_reason": self._leader_reason(leader),
-            "market_state": leader["market_state"],
-            "market_state_label": leader["market_state_label"],
+            "leader_key": None if leader is None else leader["variant_key"],
+            "leader_label": None if leader is None else leader["variant_label"],
+            "leader_reason": (
+                self._leader_reason(leader)
+                if leader is not None
+                else self._no_positive_leader_reason(candidate)
+            ),
+            "candidate_leader_key": candidate["variant_key"],
+            "candidate_leader_label": candidate["variant_label"],
+            "promotion_eligible": leader is not None,
+            "market_state": candidate["market_state"],
+            "market_state_label": candidate["market_state_label"],
             "results": results,
         }
+
+    def reset(self) -> None:
+        self._portfolios.clear()
+        self._initial_equity = None
 
     def _ensure_started(self, *, portfolio: PortfolioState, current_price: float) -> None:
         if self._initial_equity is None:
@@ -171,6 +215,12 @@ class DemoRuleVariantShadowTester:
         self._update_drawdown(shadow=shadow, equity=equity)
         profit_rate = 0.0 if self._initial_equity is None else (equity - self._initial_equity) / self._initial_equity
         win_rate = None if shadow.trade_count <= 0 else shadow.win_count / shadow.trade_count
+        profit_factor = (
+            999.0
+            if shadow.gross_profit > 0 and shadow.gross_loss <= 0
+            else None if shadow.gross_loss <= 0 else shadow.gross_profit / shadow.gross_loss
+        )
+        stop_loss_rate = None if shadow.trade_count <= 0 else shadow.stop_loss_count / shadow.trade_count
         return {
             "variant_key": variant.key,
             "variant_label": variant.label,
@@ -185,6 +235,9 @@ class DemoRuleVariantShadowTester:
             "stop_loss_count": shadow.stop_loss_count,
             "loss_count": shadow.loss_count,
             "win_rate": None if win_rate is None else round(win_rate, 4),
+            "profit_factor": None if profit_factor is None else round(profit_factor, 4),
+            "stop_loss_rate": None if stop_loss_rate is None else round(stop_loss_rate, 4),
+            "promotion_eligible": False,
             "max_drawdown_pct": round(shadow.max_drawdown_pct, 6),
             "last_action": action,
             "action_reason": policy.action_reason,
@@ -280,6 +333,42 @@ class DemoRuleVariantShadowTester:
                 stop_loss_pct *= 0.72
                 action_reason = "bull_defensive_participation"
 
+        if variant.key == "D":
+            confirmed_breakout = (
+                market_state == "bull"
+                and market_pressure >= 0.20
+                and decision.signal.level in {"medium", "strong", "very_strong"}
+            )
+            entry_allowed = confirmed_breakout
+            buy_multiplier *= 1.0 + max(market_pressure, 0.0) * 0.35 if confirmed_breakout else 0.0
+            sell_multiplier *= 0.72 if confirmed_breakout else 1.8
+            take_profit_pct *= 1.18 if confirmed_breakout else 0.75
+            stop_loss_pct *= 0.9
+            action_reason = "bull_breakout_confirmed" if confirmed_breakout else "breakout_confirmation_required"
+
+        if variant.key == "E":
+            lower_zone = market_state == "box" and box_position is not None and box_position <= 0.25
+            rebound_confirmed = market_pressure >= -0.05 and decision.signal.level != "weak"
+            entry_allowed = lower_zone and rebound_confirmed
+            buy_multiplier *= 0.85 if entry_allowed else 0.0
+            sell_multiplier *= 1.35
+            take_profit_pct *= 0.9
+            stop_loss_pct *= 0.82
+            action_reason = "box_low_rebound_confirmed" if entry_allowed else "box_low_confirmation_required"
+
+        if variant.key == "F":
+            capital_preservation_entry = (
+                market_state == "bull"
+                and market_pressure >= 0.10
+                and decision.signal.level in {"strong", "very_strong"}
+            )
+            entry_allowed = capital_preservation_entry
+            buy_multiplier *= 0.75 if entry_allowed else 0.0
+            sell_multiplier *= 1.25
+            take_profit_pct *= 0.92
+            stop_loss_pct *= 0.75
+            action_reason = "capital_preservation_entry" if entry_allowed else "capital_preservation_hold"
+
         volatility_penalty = min(max(decision.features.short_volatility / 0.02, 0.0), 1.0)
         if volatility_penalty > 0.5:
             buy_multiplier *= 1.0 - ((volatility_penalty - 0.5) * 0.35)
@@ -292,6 +381,9 @@ class DemoRuleVariantShadowTester:
                 buy_multiplier *= 0.62
             elif variant.key == "C":
                 buy_multiplier *= 0.55
+            elif variant.key in {"D", "E", "F"}:
+                entry_allowed = False
+                buy_multiplier = 0.0
             else:
                 buy_multiplier *= 0.75
 
@@ -369,10 +461,12 @@ class DemoRuleVariantShadowTester:
         shadow.trade_count += 1
         if pnl < 0:
             shadow.loss_count += 1
+            shadow.gross_loss = round(shadow.gross_loss + abs(pnl), 2)
         if stop_loss_triggered:
             shadow.stop_loss_count += 1
         if pnl > 0:
             shadow.win_count += 1
+            shadow.gross_profit = round(shadow.gross_profit + pnl, 2)
         return "sell"
 
     @staticmethod
@@ -430,6 +524,21 @@ class DemoRuleVariantShadowTester:
         risk_adjusted_profit = profit_rate - risk_penalty
         return risk_adjusted_profit, suitability, trade_count
 
+    @classmethod
+    def _promotion_eligible(cls, item: dict[str, object]) -> bool:
+        profit_factor = item.get("profit_factor")
+        stop_loss_rate = item.get("stop_loss_rate")
+        eligible = (
+            float(item.get("profit_rate") or 0.0) > 0.0
+            and float(item.get("realized_pnl") or 0.0) > 0.0
+            and int(item.get("trade_count") or 0) >= cls.MIN_PROMOTION_TRADES
+            and profit_factor is not None
+            and float(profit_factor) > 1.0
+            and (stop_loss_rate is None or float(stop_loss_rate) <= 0.40)
+        )
+        item["promotion_eligible"] = eligible
+        return eligible
+
     @staticmethod
     def _leader_reason(leader: dict[str, object]) -> str:
         return (
@@ -438,12 +547,23 @@ class DemoRuleVariantShadowTester:
             f"적용 사유는 {leader['action_reason']}입니다."
         )
 
+    @classmethod
+    def _no_positive_leader_reason(cls, candidate: dict[str, object]) -> str:
+        return (
+            f"현재 양수 수익과 최소 {cls.MIN_PROMOTION_TRADES}회 청산 조건을 함께 충족한 룰이 없어 "
+            f"변경하지 않습니다. 참고 후보는 {candidate['variant_label']}이며 "
+            f"누적 수익률은 {float(candidate['profit_rate']):.2%}입니다."
+        )
+
     @staticmethod
     def _empty_report() -> dict[str, object]:
         return {
             "leader_key": None,
             "leader_label": None,
-            "leader_reason": "현재가가 없어 A/B/C 동시 테스트를 실행하지 못했습니다.",
+            "leader_reason": "현재가가 없어 다중 룰 동시 테스트를 실행하지 못했습니다.",
+            "candidate_leader_key": None,
+            "candidate_leader_label": None,
+            "promotion_eligible": False,
             "market_state": None,
             "market_state_label": None,
             "results": [],

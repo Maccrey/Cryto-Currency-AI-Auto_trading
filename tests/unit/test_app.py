@@ -1215,7 +1215,7 @@ def test_settings_page_and_api_allow_mode_switch_without_exposing_secret_keys(
     assert "TELEGRAM_BOT_TOKEN=telegram-token" in env_file.read_text(encoding="utf-8")
 
 
-def test_trading_start_endpoint_reports_telegram_notification(monkeypatch, tmp_path) -> None:
+def test_trading_start_endpoint_does_not_send_non_trade_telegram_notification(monkeypatch, tmp_path) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -1281,9 +1281,10 @@ def test_trading_start_endpoint_reports_telegram_notification(monkeypatch, tmp_p
     started = client.post("/settings/trading/start").json()
 
     assert started["status"] == "started"
-    assert started["telegram_notification"]["status"] == "sent"
+    assert started["telegram_notification"]["status"] == "disabled"
+    assert started["telegram_notification"]["sent"] is False
     assert len(StubTelegramGateway.instances) == 1
-    assert "자동매매 루프가 시작되었습니다." in StubTelegramGateway.instances[0].messages[0]
+    assert StubTelegramGateway.instances[0].messages == []
     env_file.write_text(env_file.read_text(encoding="utf-8") + "SERVER_NAME=서울-저장서버\n", encoding="utf-8")
     assert StubTelegramGateway.instances[0].server_name_provider() == "서울-저장서버"
 
@@ -3185,7 +3186,7 @@ def test_health_endpoint_reports_hard_stop_state(monkeypatch) -> None:
     }
 
 
-def test_create_app_dispatches_boot_notification_when_boot_enters_hard_stop(monkeypatch) -> None:
+def test_create_app_does_not_dispatch_boot_notification_when_boot_enters_hard_stop(monkeypatch) -> None:
     class HardStopBootOrchestrator:
         def boot(self):
             class BootState:
@@ -3212,16 +3213,10 @@ def test_create_app_dispatches_boot_notification_when_boot_enters_hard_stop(monk
         timestamp_provider=lambda: "2026-04-18T12:30:00+09:00",
     )
 
-    assert len(dispatcher.calls) == 1
-    assert dispatcher.calls[0]["app_name"] == "upbit-auto-trader"
-    assert dispatcher.calls[0]["market"] == "KRW-XRP"
-    assert dispatcher.calls[0]["triggered_at"] == "2026-04-18T12:30:00+09:00"
-    assert dispatcher.calls[0]["cause"] == "process_restart"
-    assert dispatcher.calls[0]["boot_state"].hard_stop is True
-    assert dispatcher.calls[0]["boot_state"].failure_stage == "hard_stop"
+    assert dispatcher.calls == []
 
 
-def test_create_app_dispatches_boot_notification_when_boot_is_normal(monkeypatch) -> None:
+def test_create_app_does_not_dispatch_boot_notification_when_boot_is_normal(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -3244,14 +3239,12 @@ def test_create_app_dispatches_boot_notification_when_boot_is_normal(monkeypatch
         timestamp_provider=lambda: "2026-04-18T12:35:00+09:00",
     )
 
-    assert len(dispatcher.calls) == 1
-    assert dispatcher.calls[0]["cause"] == "process_restart"
-    assert dispatcher.calls[0]["boot_state"].hard_stop is False
+    assert dispatcher.calls == []
 
 
 
 
-def test_create_app_boot_notification_uses_demo_ledger_portfolio(monkeypatch) -> None:
+def test_create_app_does_not_dispatch_boot_notification_with_demo_ledger(monkeypatch) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -3295,13 +3288,10 @@ def test_create_app_boot_notification_uses_demo_ledger_portfolio(monkeypatch) ->
         timestamp_provider=lambda: "2026-04-18T12:45:00+09:00",
     )
 
-    portfolio = dispatcher.calls[0]["boot_state"].portfolio_state
-    assert portfolio.cash_balance == 899950.0
-    assert portfolio.asset_balance == 100.0
-    assert portfolio.avg_buy_price == 1000.5
+    assert dispatcher.calls == []
 
 
-def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch, tmp_path) -> None:
+def test_create_app_does_not_send_telegram_boot_notification_when_registered(monkeypatch, tmp_path) -> None:
     class SuccessfulBootOrchestrator:
         def boot(self):
             class BootState:
@@ -3349,16 +3339,7 @@ def test_create_app_wires_telegram_boot_notification_when_registered(monkeypatch
     )
 
     assert len(StubTelegramGateway.instances) == 1
-    message = StubTelegramGateway.instances[0].messages[0]
-    assert message.startswith("자동매매 앱 서버가 시작되었습니다.\n")
-    assert "앱 이름은 upbit-auto-trader이고 시작 시각은 2026-05-01T10:00:00+09:00입니다." in message
-    assert "거래 시장은 KRW-XRP이고 거래 모드는 demo입니다." in message
-    assert "자동 트레이딩은 아직 시작되지 않았습니다." in message
-    assert "트레이딩 준비 상태는 정상" in message
-    assert "대시보드는 브라우저에서 http://" in message
-    assert "/dashboard 주소로 열 수 있습니다." in message
-    assert "설정 화면은 브라우저에서 http://" in message
-    assert "/settings 주소로 열 수 있습니다." in message
+    assert StubTelegramGateway.instances[0].messages == []
 
 
 def test_create_app_respects_restart_notify_disabled(monkeypatch, tmp_path) -> None:
