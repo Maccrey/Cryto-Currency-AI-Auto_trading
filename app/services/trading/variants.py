@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Iterable
 
 from app.services.portfolio.sync import PortfolioState
@@ -123,6 +123,7 @@ class DemoRuleVariantShadowTester:
         self._trading_fee_rate = trading_fee_rate
         self._portfolios: dict[str, ShadowPortfolio] = {}
         self._initial_equity: float | None = None
+        self._applied_variant_key: str | None = None
 
     def evaluate(
         self,
@@ -142,20 +143,31 @@ class DemoRuleVariantShadowTester:
             )
             for variant in self._variants
         ]
-        candidate = max(results, key=self._leader_score)
+        candidate = max(results, key=self._candidate_score)
         promotable = [item for item in results if self._promotion_eligible(item)]
         leader = max(promotable, key=self._leader_score) if promotable else None
+        selection_changed = leader is not None and leader["variant_key"] != self._applied_variant_key
+        if selection_changed:
+            self._applied_variant_key = str(leader["variant_key"])
+        applied = next(
+            (item for item in results if item["variant_key"] == self._applied_variant_key),
+            None,
+        )
         return {
-            "leader_key": None if leader is None else leader["variant_key"],
-            "leader_label": None if leader is None else leader["variant_label"],
+            "leader_key": None if applied is None else applied["variant_key"],
+            "leader_label": None if applied is None else applied["variant_label"],
             "leader_reason": (
                 self._leader_reason(leader)
                 if leader is not None
-                else self._no_positive_leader_reason(candidate)
+                else self._no_positive_leader_reason(candidate, applied)
             ),
             "candidate_leader_key": candidate["variant_key"],
             "candidate_leader_label": candidate["variant_label"],
-            "promotion_eligible": leader is not None,
+            "candidate_leader_profit_rate": candidate["profit_rate"],
+            "promotion_eligible": applied is not None,
+            "selection_changed": selection_changed,
+            "applied_variant_key": None if applied is None else applied["variant_key"],
+            "applied_variant_label": None if applied is None else applied["variant_label"],
             "market_state": candidate["market_state"],
             "market_state_label": candidate["market_state_label"],
             "results": results,
@@ -164,6 +176,51 @@ class DemoRuleVariantShadowTester:
     def reset(self) -> None:
         self._portfolios.clear()
         self._initial_equity = None
+        self._applied_variant_key = None
+
+    def apply_selected_variant(
+        self,
+        *,
+        decision: TradeDecisionResult,
+        current_price: float,
+    ) -> TradeDecisionResult:
+        variant = next(
+            (item for item in self._variants if item.key == self._applied_variant_key),
+            None,
+        )
+        if variant is None or current_price <= 0:
+            return decision
+        policy = self._market_sensitive_policy(
+            variant=variant,
+            decision=decision,
+            current_price=current_price,
+        )
+        if not policy.entry_allowed or policy.buy_multiplier <= 0:
+            return replace(
+                decision,
+                sizing=replace(
+                    decision.sizing,
+                    allowed=False,
+                    buy_ratio=0.0,
+                    buy_amount=0.0,
+                    buy_quantity=0.0,
+                    blocked_reason="RULE_VARIANT_ENTRY_BLOCK",
+                ),
+            )
+        sizing = decision.sizing
+        if not sizing.allowed or sizing.buy_amount <= 0:
+            return decision
+        buy_ratio = round(min(sizing.buy_ratio * policy.buy_multiplier, 1.0), 3)
+        buy_amount = round(sizing.buy_amount * policy.buy_multiplier, 1)
+        return replace(
+            decision,
+            sizing=replace(
+                sizing,
+                buy_ratio=buy_ratio,
+                buy_amount=buy_amount,
+                buy_quantity=round(buy_amount / current_price, 4),
+            ),
+        )
 
     def _ensure_started(self, *, portfolio: PortfolioState, current_price: float) -> None:
         if self._initial_equity is None:
@@ -505,24 +562,16 @@ class DemoRuleVariantShadowTester:
     def _leader_score(item: dict[str, object]) -> tuple[float, float, int]:
         profit_rate = float(item.get("profit_rate") or 0.0)
         trade_count = int(item.get("trade_count") or 0)
-        stop_loss_count = int(item.get("stop_loss_count") or 0)
-        loss_count = int(item.get("loss_count") or 0)
         max_drawdown_pct = float(item.get("max_drawdown_pct") or 0.0)
-        market_state = str(item.get("market_state") or "box")
-        market_pressure = float(item.get("market_pressure") or 0.0)
-        variant_key = str(item.get("variant_key") or "")
-        suitability = 0.0
-        if market_state == "bull":
-            suitability = {"B": 0.12, "A": 0.08, "C": 0.03}.get(variant_key, 0.0)
-            suitability += max(market_pressure, 0.0) * (0.08 if variant_key == "B" else 0.03)
-        elif market_state == "bear":
-            suitability = {"C": 0.12, "A": 0.05, "B": -0.04}.get(variant_key, 0.0)
-            suitability += abs(min(market_pressure, 0.0)) * (0.06 if variant_key == "C" else 0.02)
-        else:
-            suitability = {"C": 0.09, "A": 0.07, "B": -0.02}.get(variant_key, 0.0)
-        risk_penalty = (max_drawdown_pct * 0.75) + (stop_loss_count * 0.004) + (loss_count * 0.0015)
-        risk_adjusted_profit = profit_rate - risk_penalty
-        return risk_adjusted_profit, suitability, trade_count
+        return profit_rate, -max_drawdown_pct, trade_count
+
+    @staticmethod
+    def _candidate_score(item: dict[str, object]) -> tuple[float, float, int]:
+        return (
+            float(item.get("profit_rate") or 0.0),
+            -float(item.get("max_drawdown_pct") or 0.0),
+            int(item.get("trade_count") or 0),
+        )
 
     @classmethod
     def _promotion_eligible(cls, item: dict[str, object]) -> bool:
@@ -548,11 +597,20 @@ class DemoRuleVariantShadowTester:
         )
 
     @classmethod
-    def _no_positive_leader_reason(cls, candidate: dict[str, object]) -> str:
+    def _no_positive_leader_reason(
+        cls,
+        candidate: dict[str, object],
+        applied: dict[str, object] | None,
+    ) -> str:
+        applied_text = (
+            "기존 적용 룰은 없습니다."
+            if applied is None
+            else f"기존 적용 룰 {applied['variant_label']}을 유지합니다."
+        )
         return (
             f"현재 양수 수익과 최소 {cls.MIN_PROMOTION_TRADES}회 청산 조건을 함께 충족한 룰이 없어 "
-            f"변경하지 않습니다. 참고 후보는 {candidate['variant_label']}이며 "
-            f"누적 수익률은 {float(candidate['profit_rate']):.2%}입니다."
+            f"변경하지 않습니다. 수익률 기준 최고 후보는 {candidate['variant_label']}이며 "
+            f"누적 수익률은 {float(candidate['profit_rate']):.2%}입니다. {applied_text}"
         )
 
     @staticmethod
@@ -563,7 +621,11 @@ class DemoRuleVariantShadowTester:
             "leader_reason": "현재가가 없어 다중 룰 동시 테스트를 실행하지 못했습니다.",
             "candidate_leader_key": None,
             "candidate_leader_label": None,
+            "candidate_leader_profit_rate": None,
             "promotion_eligible": False,
+            "selection_changed": False,
+            "applied_variant_key": None,
+            "applied_variant_label": None,
             "market_state": None,
             "market_state_label": None,
             "results": [],

@@ -71,6 +71,11 @@ class MarketTrendClassifier:
             history=state_history,
             points=self.BROAD_TREND_POINTS,
         )
+        state_linear_trend_pct = self._linear_trend_pct(
+            current_price=current_price,
+            history=state_history,
+            points=self.STATE_LOOKBACK_POINTS,
+        )
         stable_window_range_pct = self._window_range_pct(
             current_price=current_price,
             history=state_history,
@@ -87,7 +92,21 @@ class MarketTrendClassifier:
             reference_change_pct=reference_change_pct,
         )
         price_market_state = self._market_state(recent_change_pct=state_change_pct)
-        if confirmed_box:
+        directional_trend = self._directional_trend_over_box(
+            current_price=current_price,
+            history=state_history,
+            medium_window_change_pct=medium_window_change_pct,
+            state_linear_trend_pct=state_linear_trend_pct,
+        )
+        if confirmed_box and directional_trend is not None:
+            state_change_pct = (
+                broad_window_change_pct
+                if abs(broad_window_change_pct) >= abs(medium_window_change_pct)
+                else medium_window_change_pct
+            )
+            state_source = "directional_price_history"
+            price_market_state = directional_trend
+        elif confirmed_box:
             state_change_pct = 0.0
             state_source = "confirmed_price_box"
             price_market_state = "box"
@@ -312,6 +331,30 @@ class MarketTrendClassifier:
         return round((high - low) / midpoint, 6)
 
     @staticmethod
+    def _linear_trend_pct(
+        *,
+        current_price: float,
+        history: list[MarketPriceSnapshot],
+        points: int,
+    ) -> float:
+        prices = [item.price for item in history if item.price > 0]
+        if current_price > 0 and (not prices or prices[-1] != current_price):
+            prices.append(current_price)
+        window = prices[-max(points, 2) :]
+        if len(window) < 3:
+            return 0.0
+        x_mid = (len(window) - 1) / 2
+        y_mid = sum(window) / len(window)
+        denominator = sum((index - x_mid) ** 2 for index in range(len(window)))
+        if denominator <= 0 or y_mid <= 0:
+            return 0.0
+        slope = sum(
+            (index - x_mid) * (price - y_mid)
+            for index, price in enumerate(window)
+        ) / denominator
+        return round((slope * len(window)) / y_mid, 6)
+
+    @staticmethod
     def _market_state(*, recent_change_pct: float) -> str:
         if abs(recent_change_pct) < MarketTrendClassifier.BOX_THRESHOLD_PCT:
             return "box"
@@ -366,6 +409,38 @@ class MarketTrendClassifier:
         upper_touches = cls._touch_cluster_count(prices=prices, target=high, tolerance=tolerance)
         lower_touches = cls._touch_cluster_count(prices=prices, target=low, tolerance=tolerance)
         return upper_touches >= cls.BOX_TOUCH_MIN_COUNT and lower_touches >= cls.BOX_TOUCH_MIN_COUNT
+
+    @classmethod
+    def _directional_trend_over_box(
+        cls,
+        *,
+        current_price: float,
+        history: list[MarketPriceSnapshot],
+        medium_window_change_pct: float,
+        state_linear_trend_pct: float,
+    ) -> str | None:
+        prices = [item.price for item in history if item.price > 0]
+        if current_price <= 0 or len(prices) < cls.MEDIUM_TREND_POINTS:
+            return None
+        low = min(prices)
+        high = max(prices)
+        if high <= low:
+            return None
+        position = (current_price - low) / (high - low)
+        directional_threshold = cls.BOX_THRESHOLD_PCT * 2
+        if (
+            state_linear_trend_pct >= directional_threshold
+            and medium_window_change_pct >= -cls.BOX_THRESHOLD_PCT * 1.5
+            and position >= 0.45
+        ):
+            return "bull"
+        if (
+            state_linear_trend_pct <= -directional_threshold
+            and medium_window_change_pct <= cls.BOX_THRESHOLD_PCT * 1.5
+            and position <= 0.55
+        ):
+            return "bear"
+        return None
 
     @staticmethod
     def _touch_cluster_count(*, prices: list[float], target: float, tolerance: float) -> int:

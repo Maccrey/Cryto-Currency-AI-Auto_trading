@@ -452,6 +452,11 @@ class AutoTradingService:
         request = self._build_decision_request(snapshot.trade_price)
         decision = self._trade_decision_service.evaluate(request)
         variant_payload = self._run_demo_rule_variant_shadow(decision=decision, current_price=snapshot.trade_price)
+        if variant_payload is not None:
+            decision = self._demo_rule_variant_shadow_tester.apply_selected_variant(
+                decision=decision,
+                current_price=snapshot.trade_price,
+            )
         box_range_opportunity = self._box_range_buy_opportunity(
             market_state=decision.regime.market_state,
             box_range_low=decision.regime.box_range_low,
@@ -641,6 +646,11 @@ class AutoTradingService:
                 self._build_decision_request(snapshot.trade_price, relax_fee_edge=True),
             )
             variant_payload = self._run_demo_rule_variant_shadow(decision=decision, current_price=snapshot.trade_price)
+            if variant_payload is not None:
+                decision = self._demo_rule_variant_shadow_tester.apply_selected_variant(
+                    decision=decision,
+                    current_price=snapshot.trade_price,
+                )
             box_range_opportunity = self._box_range_buy_opportunity(
                 market_state=decision.regime.market_state,
                 box_range_low=decision.regime.box_range_low,
@@ -990,6 +1000,8 @@ class AutoTradingService:
             "rule_variant_leader_key": variant_payload.get("leader_key"),
             "rule_variant_leader_label": variant_payload.get("leader_label"),
             "rule_variant_leader_reason": variant_payload.get("leader_reason"),
+            "rule_variant_selection_changed": variant_payload.get("selection_changed", False),
+            "rule_variant_candidate_key": variant_payload.get("candidate_leader_key"),
         }
 
     @staticmethod

@@ -6,7 +6,7 @@ from app.services.signals.engine import SignalDecision
 from app.services.signals.features import FeatureSnapshot
 from app.services.sizing.engine import SizingDecision
 from app.services.trading.decision import TradeDecisionResult
-from app.services.trading.variants import DemoRuleVariantShadowTester
+from app.services.trading.variants import DemoRuleVariantShadowTester, ShadowPortfolio
 
 
 def _decision(
@@ -242,3 +242,52 @@ def test_demo_rule_variant_shadow_tester_resets_all_candidate_results() -> None:
     assert all(item["trade_count"] == 0 for item in report["results"])
     assert all(item["profit_rate"] <= 0 for item in report["results"])
     assert report["leader_key"] is None
+
+
+def test_demo_rule_variant_candidate_uses_highest_profit_rate_even_when_all_negative() -> None:
+    candidate = max(
+        [
+            {"variant_key": "A", "profit_rate": -0.0077, "max_drawdown_pct": 0.008, "trade_count": 100},
+            {"variant_key": "B", "profit_rate": -0.0013, "max_drawdown_pct": 0.003, "trade_count": 80},
+            {"variant_key": "C", "profit_rate": -0.0068, "max_drawdown_pct": 0.007, "trade_count": 20},
+        ],
+        key=DemoRuleVariantShadowTester._candidate_score,
+    )
+
+    assert candidate["variant_key"] == "B"
+
+
+def test_demo_rule_variant_positive_leader_switches_applied_entry_policy() -> None:
+    tester = DemoRuleVariantShadowTester()
+    tester._initial_equity = 1_000_000.0
+    for variant in tester.DEFAULT_VARIANTS:
+        tester._portfolios[variant.key] = ShadowPortfolio(
+            cash_balance=1_000_000.0,
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+            trade_count=20,
+            win_count=12,
+            gross_profit=20_000.0,
+            gross_loss=10_000.0,
+            peak_equity=1_000_000.0,
+        )
+    tester._portfolios["B"].cash_balance = 1_020_000.0
+    tester._portfolios["B"].realized_pnl = 20_000.0
+    decision = _decision(market_state="bull", buy_amount=100_000)
+
+    report = tester.evaluate(
+        decision=decision,
+        current_price=1_000.0,
+        portfolio=PortfolioState(
+            cash_balance=1_000_000.0,
+            asset_currency="XRP",
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+        ),
+    )
+    applied = tester.apply_selected_variant(decision=decision, current_price=1_000.0)
+
+    assert report["leader_key"] == "B"
+    assert report["selection_changed"] is True
+    assert report["applied_variant_key"] == "B"
+    assert applied.sizing.buy_amount > decision.sizing.buy_amount

@@ -5,7 +5,7 @@ from app.api.routes.settings import SETTINGS_HTML
 def test_dashboard_price_card_labels_market_state_and_box_range() -> None:
     assert "market.market_state === \"box\"" in DASHBOARD_HTML
     assert "${market.market_state_label || \"박스권\"}" in DASHBOARD_HTML
-    assert "${price(market.box_range_low)}~${price(market.box_range_high)}" in DASHBOARD_HTML
+    assert "박스권 하단 ${price(market.box_range_low)} / 상단 ${price(market.box_range_high)}" in DASHBOARD_HTML
 
 
 def test_dashboard_includes_24h_profit_rate_chart() -> None:
@@ -41,12 +41,16 @@ def test_dashboard_includes_exchange_simulation_and_demo_rule_variants() -> None
     assert "AI-A" in DASHBOARD_HTML
     assert "AI-R" in DASHBOARD_HTML
     assert "AI-X" in DASHBOARD_HTML
-    assert "데모 룰 A/B/C 내부 테스트" in DASHBOARD_HTML
+    assert "데모 룰 A~F 내부 테스트" in DASHBOARD_HTML
     assert 'id="ruleVariantBoard"' in DASHBOARD_HTML
     assert "function renderExchangeSimulation" in DASHBOARD_HTML
     assert "tradingStatus.last_cycle" in DASHBOARD_HTML
-    assert "shadow.leader_key" in DASHBOARD_HTML
-    assert "같은 실시간 데이터를 기준으로 A/B/C 가상 포트폴리오를 동시에 테스트" in DASHBOARD_HTML
+    assert "shadow.applied_variant_key" in DASHBOARD_HTML
+    assert "shadow.candidate_leader_key" in DASHBOARD_HTML
+    assert "같은 실시간 데이터를 기준으로 A~F 가상 포트폴리오를 동시에 테스트" in DASHBOARD_HTML
+    assert "룰 D 돌파확인형" in DASHBOARD_HTML
+    assert "룰 E 박스저점형" in DASHBOARD_HTML
+    assert "룰 F 자본보전형" in DASHBOARD_HTML
     assert "formatKoreanLabel" in DASHBOARD_HTML
     assert "formatTradeAction(item.last_action)" in DASHBOARD_HTML
     assert 'AUTO_TRADING_DISABLED_OR_NOT_READY: "자동매매 비활성 또는 준비 안 됨"' in DASHBOARD_HTML
@@ -58,6 +62,11 @@ def test_dashboard_price_card_renders_change_on_separate_small_line() -> None:
     assert 'id="priceChange" class="price-change-line"' in DASHBOARD_HTML
     assert ".price-change-line { font-size: 11px;" in DASHBOARD_HTML
     assert 'setFlipTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));' in DASHBOARD_HTML
+
+
+def test_dashboard_shows_labeled_box_range_below_current_price() -> None:
+    assert "박스권 하단 ${price(market.box_range_low)} / 상단 ${price(market.box_range_high)}" in DASHBOARD_HTML
+    assert 'class="box-range-line"' in DASHBOARD_HTML
     assert "const upbitChangeRate = market.signed_change_rate ?? market.recent_change_pct;" in DASHBOARD_HTML
     assert 'setHtmlWithTitle("priceChange", `<span class="${changeClass(upbitChangeRate)}">${changeText}</span>`, priceText);' in DASHBOARD_HTML
     assert '`${price(market.current_price)} <span' not in DASHBOARD_HTML

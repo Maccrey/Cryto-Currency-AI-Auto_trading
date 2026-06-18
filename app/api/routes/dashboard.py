@@ -165,6 +165,7 @@ DASHBOARD_HTML = """
     .price-market { color: var(--muted); font-size: 14px; font-weight: 800; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .price-line { min-height: 30px; font-size: 24px; font-weight: 800; line-height: 30px; font-variant-numeric: tabular-nums; white-space: normal; overflow: visible; }
     .price-change-line { font-size: 11px; font-weight: 800; line-height: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .box-range-line { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; font-weight: 800; line-height: 1.35; font-variant-numeric: tabular-nums; }
     .price-trend-line { min-height: 26px; font-size: 13px; line-height: 1.35; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
     .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: var(--soft); color: var(--text); font-size: 12px; font-weight: 800; }
     .ok { background: #e8f6ed; color: #1f6b35; }
@@ -226,6 +227,8 @@ DASHBOARD_HTML = """
     .variant-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
     .variant-card { min-height: 142px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px; }
     .variant-card.active { border-color: #f97316; box-shadow: inset 0 0 0 2px rgba(249, 115, 22, 0.28); }
+    .variant-card.candidate { border-color: #2563eb; box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.24); }
+    .variant-card.active.candidate { border-color: #f97316; box-shadow: inset 0 0 0 2px rgba(249, 115, 22, 0.32); }
     .variant-title { font-size: 14px; font-weight: 900; }
     .variant-score { margin-top: 8px; font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; }
     .variant-desc { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.35; }
@@ -378,11 +381,14 @@ DASHBOARD_HTML = """
         </div>
       </div>
       <div class="variant-board">
-        <h2>데모 룰 A/B/C 내부 테스트</h2>
+        <h2>데모 룰 A~F 내부 테스트</h2>
         <div id="ruleVariantBoard" class="variant-grid">
           <div class="variant-card"><div class="variant-title">룰 A</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
           <div class="variant-card"><div class="variant-title">룰 B</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
           <div class="variant-card"><div class="variant-title">룰 C</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
+          <div class="variant-card"><div class="variant-title">룰 D</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
+          <div class="variant-card"><div class="variant-title">룰 E</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
+          <div class="variant-card"><div class="variant-title">룰 F</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
         </div>
         <div id="ruleVariantReason" class="variant-reason">데모 모드에서 매매 판단이 실행되면 최근 학습 테스트 점수와 선택 이유가 표시됩니다.</div>
       </div>
@@ -742,27 +748,32 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
     ? `신호 ${lastCycle.signal_level}, 점수 ${number(lastCycle.signal_score || 0, 3)}`
     : "가격, 거래량, 장세 데이터를 수집 중입니다.";
   document.getElementById("agentRisk").textContent = `장세 ${market.market_state_label || "-"}, 성공률 ${percent(winRate)}`;
-  document.getElementById("agentExecution").textContent = shadow.leader_label
-    ? `${shadow.leader_label} 수익률 우세, 실제 주문 룰은 변경하지 않음`
-    : "A/B/C 동시 테스트 결과를 기다리는 중입니다.";
+  document.getElementById("agentExecution").textContent = shadow.applied_variant_label
+    ? `${shadow.applied_variant_label} 적용 중${shadow.selection_changed ? ", 이번 주기에 신규 전환" : ""}`
+    : "A~F 동시 테스트 중이며 양수 검증 전에는 기존 룰을 유지합니다.";
 
   const fallback = [
     {variant_key: "A", variant_label: "룰 A 안정형", description: "기본 신호를 그대로 사용", profit_rate: null, last_action: "대기"},
     {variant_key: "B", variant_label: "룰 B 추세형", description: "상승 추세에서만 주문 크기 확대", profit_rate: null, last_action: "대기"},
-    {variant_key: "C", variant_label: "룰 C 방어형", description: "하락장과 박스권에서 방어", profit_rate: null, last_action: "대기"}
+    {variant_key: "C", variant_label: "룰 C 방어형", description: "하락장과 박스권에서 방어", profit_rate: null, last_action: "대기"},
+    {variant_key: "D", variant_label: "룰 D 돌파확인형", description: "상승 돌파 확인 후 추세 참여", profit_rate: null, last_action: "대기"},
+    {variant_key: "E", variant_label: "룰 E 박스저점형", description: "박스권 하단 반등 구간 참여", profit_rate: null, last_action: "대기"},
+    {variant_key: "F", variant_label: "룰 F 자본보전형", description: "강한 상승 신호에만 소규모 참여", profit_rate: null, last_action: "대기"}
   ];
   const rows = results.length ? results : fallback;
   document.getElementById("ruleVariantBoard").innerHTML = rows.map((item) => {
-    const active = item.variant_key && item.variant_key === shadow.leader_key ? " active" : "";
+    const active = item.variant_key && item.variant_key === shadow.applied_variant_key ? " active" : "";
+    const candidate = item.variant_key && item.variant_key === shadow.candidate_leader_key ? " candidate" : "";
     const scoreText = item.profit_rate === null || item.profit_rate === undefined ? "-" : percent(item.profit_rate);
     const actionText = item.last_action ? `최근 ${formatTradeAction(item.last_action)}` : "대기";
-    return `<div class="variant-card${active}">
+    const stateText = active ? "적용 룰" : candidate ? "수익률 최고 후보" : "";
+    return `<div class="variant-card${active}${candidate}">
       <div class="variant-title">${item.variant_label || "룰"}</div>
       <div class="variant-score">${scoreText}</div>
-      <div class="variant-desc">${actionText}<br>실현손익 ${number(item.realized_pnl || 0, 0)} KRW<br>${item.description || ""}</div>
+      <div class="variant-desc">${stateText ? stateText + "<br>" : ""}${actionText}<br>실현손익 ${number(item.realized_pnl || 0, 0)} KRW<br>${item.description || ""}</div>
     </div>`;
   }).join("");
-  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "데모 모드에서 같은 실시간 데이터를 기준으로 A/B/C 가상 포트폴리오를 동시에 테스트합니다.";
+  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "데모 모드에서 같은 실시간 데이터를 기준으로 A~F 가상 포트폴리오를 동시에 테스트합니다.";
 }
 
 function aiBadge(label, className) {
@@ -1890,9 +1901,11 @@ function renderDashboard(data) {
   const priceText = market.current_price === undefined ? "데이터 없음" : `${price(market.current_price)} (${percent(upbitChangeRate)})`;
   const changeText = market.current_price === undefined ? "-" : `(${percent(upbitChangeRate)})`;
   const rangeText = market.market_state === "box" && market.box_range_low !== null && market.box_range_high !== null
-    ? ` ${price(market.box_range_low)}~${price(market.box_range_high)}`
+    ? `<span class="box-range-line">박스권 하단 ${price(market.box_range_low)} / 상단 ${price(market.box_range_high)}</span>`
     : "";
-  const trendText = market.current_price === undefined ? "거래량 데이터가 아직 없습니다." : `${market.market_state_label || "박스권"}${rangeText}`;
+  const trendText = market.current_price === undefined
+    ? "거래량 데이터가 아직 없습니다."
+    : `${market.market_state_label || "박스권"}${market.market_state === "box" && market.box_range_low !== null && market.box_range_high !== null ? ` 하단 ${price(market.box_range_low)} / 상단 ${price(market.box_range_high)}` : ""}`;
   setTextWithTitle("priceMarket", marketLabel);
   setFlipTextWithTitle("priceMetric", market.current_price === undefined ? "데이터 없음" : price(market.current_price));
   setHtmlWithTitle("priceChange", `<span class="${changeClass(upbitChangeRate)}">${changeText}</span>`, priceText);

@@ -279,6 +279,29 @@ def test_market_trend_classifier_keeps_stable_recent_range_as_box_over_learning_
     assert trend.box_range_high is not None
 
 
+def test_market_trend_classifier_prefers_broad_rise_over_old_box_touches() -> None:
+    store = MarketPriceStore()
+    prices = [1770.0, 1780.0, 1771.0, 1779.0] * 8
+    remaining = 288 - len(prices)
+    prices.extend(
+        1771.0 + (6.0 * index / (remaining - 1))
+        for index in range(remaining)
+    )
+    for price in prices:
+        store.save(market="KRW-XRP", price=price)
+
+    trend = MarketTrendClassifier().classify(
+        current_price=1777.0,
+        history=store.list_history("KRW-XRP"),
+    )
+
+    assert trend.market_state == "bull"
+    assert trend.market_state_label == "상승장"
+    assert trend.source == "directional_price_history"
+    assert trend.box_range_low is None
+    assert trend.box_range_high is None
+
+
 def test_market_trend_classifier_keeps_short_stable_runtime_window_as_bull_without_box_touches() -> None:
     """A short 6-point history with a 1-KRW range (0.06%) is below the
     MIN_TRADEABLE_BOX_WIDTH_PCT threshold (0.5%) so _confirmed_box() returns
