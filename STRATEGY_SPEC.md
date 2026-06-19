@@ -1,7 +1,7 @@
 # STRATEGY_SPEC.md
 
 ## 1. 문서 목적
-이 문서는 전략 로직, 신호 생성, 국면 판정, 자산 기반 비중 계산, 손절, 재진입, 데모 승격 기준을 정의한다.
+이 문서는 전략 로직, 신호 생성, 국면 판정, 장세 전환 감지, 동적 박스권 범위 추적, 자산 기반 비중 계산, 손절, 재진입, 데모 룰 A~F 승격 기준을 정의한다.
 
 ---
 
@@ -14,6 +14,7 @@
 - 실거래 이전에 데모 기간을 충분히 확보
 - 모든 거래와 결정에서 학습 데이터 축적
 - 학습 로그를 중심으로 Codex가 룰을 분석·제안·테스트하고 demo 검증 후 승인받아 live에 반영
+- **하락장 → 상승장 / 상승장 → 하락장 전환 구간을 복합 기술지표로 정밀 감지해 진입·청산 타이밍 최적화**
 
 ---
 
@@ -29,6 +30,15 @@
 - orderbook_imbalance
 - short_volatility
 - regime_score
+- **rsi_14** (RSI 14기간)
+- **macd_histogram** (MACD 히스토그램, 가격 정규화)
+- **bollinger_position** (볼린저 밴드 위치 0~1)
+- **ma_trend** (단기·장기 이동평균 차이)
+- **stochastic_k** (스토캐스틱 K)
+- **price_position_20** (20틱 내 가격 위치)
+- **drawdown_from_high_20** (20틱 고점 대비 낙폭)
+- **rebound_from_low_20** (20틱 저점 대비 반등폭)
+- **trend_efficiency_20** (20틱 추세 효율성)
 
 ### 3.2 신호 레벨
 - weak
@@ -37,12 +47,10 @@
 - very_strong
 
 신호 점수 레벨 기준:
-- `score >= 0.70`: very_strong
-- `score >= 0.45`: strong
-- `score >= 0.18`: medium
+- `score >= 0.85`: very_strong
+- `score >= 0.65`: strong
+- `score >= 0.40`: medium
 - 그 외: weak
-
-최근 단타 학습 로그에서 대부분의 자동 운용 신호가 0.18~0.20 점수대에 머물러 `AUTO_MIN_SIGNAL_LEVEL`로 차단되는 문제가 확인되었다. 단타 demo 검증에서는 이 구간을 medium으로 인정해 실제 체결 데이터를 더 축적한다.
 
 ### 3.3 예시 룰
 #### 급등 신호
@@ -66,6 +74,15 @@ signal score는 단순 가격 변화가 아니라 아래 가중 조합으로 계
 - volatility normalization
 - liquidity quality
 
+### 3.5 시장 기회 부스트 (Market Opportunity Boost)
+신호 레벨이 `weak`이어도 아래 조건 충족 시 `score_floor`까지 점수를 끌어올린다.
+
+| 조건 | score_floor | 코드 |
+|---|---|---|
+| 상승장 + 기술지표 지지 | 0.40 | BULL_MARKET_PARTICIPATION_BOOST |
+| 박스권 하단 + 반등 신호 | 0.42 | BOX_RANGE_VALUE_ENTRY_BOOST |
+| 하락장 + 반등 확인 (전환 초입) | 0.45 | BEAR_REBOUND_PARTICIPATION |
+
 ---
 
 ## 4. 국면(regime) 규칙
@@ -75,12 +92,20 @@ signal score는 단순 가격 변화가 아니라 아래 가중 조합으로 계
 - neutral
 - risk_off
 
-### 4.2 국면 반영
+### 4.2 장세(market_state) 3분류
+
+| 장세 | 판정 기준 |
+|---|---|
+| **상승장(bull)** | `ret_30s > 0.005` 또는 (`ret_30s > 0.002` AND `orderbook_imbalance > 0.12`) |
+| **하락장(bear)** | `ret_30s < -0.006` AND `orderbook_imbalance < -0.15` |
+| **박스권(box)** | 상승장·하락장 조건 미충족 |
+
+### 4.3 국면 반영
 - risk_on: 진입 허용 폭 확대
 - neutral: 기본 규칙
 - risk_off: size 축소 또는 진입 차단
 
-### 4.3 강등 규칙
+### 4.4 강등 규칙
 strong 신호라도 아래 조건이면 medium 이하로 강등 가능
 - spread 과다
 - liquidity 부족
@@ -90,15 +115,93 @@ strong 신호라도 아래 조건이면 medium 이하로 강등 가능
 
 ---
 
-## 5. 자산 기반 비중 계산
+## 5. 장세 전환 감지 (MarketTransitionDetector)
 
-### 5.1 기본 비율
+> **파일:** `app/services/trading/market_transition.py`
+
+장세 전환을 단일 지표가 아니라 복합 지표로 감지해 전환 점수(0.0~1.0)를 산출한다.
+점수 **0.60 이상**이면 전환 확정(임계값 설정 가능).
+
+### 5.1 하락 → 상승 전환 점수 (bear_to_bull_score)
+
+| 구성 요소 | 가중치 | 조건 |
+|---|---|---|
+| RSI 과매도 회복 | 0.25 | 이전 RSI < 35 → 현재 RSI ≥ 35 (크로스) |
+| RSI 저점 상승 | 0.12 | RSI < 38 이고 이전 대비 상승 중 |
+| MACD 히스토그램 크로스업 | 0.20 | 음수 → 양수 전환 |
+| MACD 개선 중 | 0.10 | 여전히 음수이나 이전 대비 상승 |
+| MA trend 양전환 | 0.20 | ma_trend ≥ 0 |
+| MA trend 회복 중 | 0.10 | -0.001 ≤ ma_trend < 0 |
+| 강한 양수 모멘텀 | 0.20 | ret_30s > 0.002 |
+| 양수 모멘텀 | 0.10 | ret_30s > 0 |
+| 호가 매수 우위 | 0.15 | orderbook_imbalance ≥ 0.05 |
+| 호가 중립 | 0.07 | orderbook_imbalance ≥ -0.05 |
+| 저점 반등 보너스 | +0.08 | rebound_from_low_20 ≥ 0.005 |
+
+- 하락장에서 bollinger_position ≥ 0.6 → 패널티 × 0.75 (데드캣 반등 위험)
+
+### 5.2 상승 → 하락 전환 점수 (bull_to_bear_score)
+
+| 구성 요소 | 가중치 | 조건 |
+|---|---|---|
+| RSI 과매수 반전 | 0.25 | 이전 RSI > 65 → 현재 RSI ≤ 65 (크로스) |
+| RSI 고점 하락 | 0.12 | RSI > 60 이고 이전 대비 하락 중 |
+| MACD 히스토그램 크로스다운 | 0.20 | 양수 → 음수 전환 |
+| MACD 악화 중 | 0.10 | 여전히 양수이나 이전 대비 하락 |
+| MA trend 음전환 | 0.20 | ma_trend ≤ -0.001 |
+| MA trend 약화 중 | 0.10 | -0.001 < ma_trend ≤ 0 |
+| 강한 음수 모멘텀 | 0.20 | ret_30s < -0.003 |
+| 음수 모멘텀 | 0.10 | ret_30s < 0 |
+| 호가 매도 우위 | 0.15 | orderbook_imbalance ≤ -0.10 |
+| 호가 중립 약세 | 0.07 | orderbook_imbalance ≤ 0 |
+| 고점 낙폭 가속 보너스 | +0.08 | drawdown_from_high_20 ≤ -0.005 |
+
+- 상승장에서 bollinger_position ≤ 0.4 → 패널티 × 0.75 (단순 눌림목 위험)
+
+### 5.3 전환 감지 활용
+
+| 확정 여부 | 적용 내용 |
+|---|---|
+| 하락→상승 확정 (≥ 0.60) | 매수 배수 ×1.35 부스트, 하락장에서도 진입 허용 |
+| 하락→상승 부분 점수 (0.40~0.60) | 선형 보간으로 최대 ×1.60 부스트 |
+| 상승→하락 확정 (≥ 0.60) | 매도 배수 ×1.80, 강제 청산 플래그, 신규 진입 금지 |
+
+---
+
+## 6. 동적 박스권 범위 추적 (Dynamic Box Range)
+
+> **파일:** `app/services/regime/engine.py`
+
+### 6.1 기존 방식의 문제점
+단일 틱의 현재가 ± 변동성으로 계산하면 박스 범위가 너무 좁아 매 틱마다 상단·하단이 바뀌어 의미 없는 경계가 만들어진다.
+
+### 6.2 개선된 동적 박스 범위
+
+| 항목 | 값 |
+|---|---|
+| 가격 히스토리 버퍼 | 최대 200틱 (deque) |
+| 최소 수집 틱 수 | 20틱 이후부터 산출 |
+| 하단 기준 | 5th 백분위 가격 × (1 - 0.1%) |
+| 상단 기준 | 95th 백분위 가격 × (1 + 0.1%) |
+| 폴백 | 수집 틱 < 20 시 단일 틱 정적 범위 사용 |
+
+- `RegimeSnapshot`에 `dynamic_box_low` / `dynamic_box_high` 필드 추가
+- `reason_codes`에 `DYNAMIC_BOX_RANGE_ACTIVE` 코드 포함
+
+### 6.3 동적 박스 포지션 활용
+variants가 박스 포지션(0~1)을 계산할 때 동적 범위를 우선 사용하고, 없을 때만 정적 범위로 폴백한다.
+
+---
+
+## 7. 자산 기반 비중 계산
+
+### 7.1 기본 비율
 - weak: buy 0.08 / sell 0.12
 - medium: buy 0.18 / sell 0.28
 - strong: buy 0.35 / sell 0.45
 - very_strong: buy 0.55 / sell 0.70
 
-### 5.2 계산 요소
+### 7.2 계산 요소
 - cash_balance
 - asset_balance
 - min_cash_reserve
@@ -108,7 +211,7 @@ strong 신호라도 아래 조건이면 medium 이하로 강등 가능
 - liquidity_multiplier
 - risk_multiplier
 
-### 5.3 매수 계산 예시
+### 7.3 매수 계산 예시
 ```python
 investable_cash = max(cash_balance - min_cash_reserve, 0)
 final_buy_ratio = base_buy_ratio * regime_multiplier * liquidity_multiplier * risk_multiplier
@@ -116,14 +219,14 @@ buy_amount = investable_cash * final_buy_ratio
 buy_qty = buy_amount / current_price
 ```
 
-### 5.4 매도 계산 예시
+### 7.4 매도 계산 예시
 ```python
 final_sell_ratio = base_sell_ratio * exit_urgency_multiplier
 sell_qty = asset_balance * final_sell_ratio
 sell_amount = sell_qty * current_price
 ```
 
-### 5.5 진입 차단 조건
+### 7.5 진입 차단 조건
 - 예상 슬리피지 > 최대 허용치
 - spread > 최대 허용치
 - liquidity score 부족
@@ -133,9 +236,10 @@ sell_amount = sell_qty * current_price
 - 기대값 음수
 - weak 신호에서 예상 엣지가 왕복 수수료와 최소 순엣지를 넘지 못함
 - 현재가 카드 또는 최근 가격 흐름이 `하락장`이면 신호 강도나 반등 후보 코드와 무관하게 신규 매수와 추가매수를 차단
+  - 단, **하락→상승 전환 확정(bear_to_bull_confirmed=True)** 시 룰별 조건에 따라 진입 허용
 - 마지막 매도 체결가와 같은 가격대에서 재매수하려는 경우 가격 이점 또는 확정 상승 돌파가 확인될 때까지 차단
 
-### 5.6 단타 medium 진입 완화
+### 7.6 단타 medium 진입 완화
 단타 demo 운영에서는 medium 신호의 수수료 보정 엣지 버퍼를 기본 최소 순엣지의 25%로 완화한다.
 
 목적:
@@ -149,9 +253,9 @@ sell_amount = sell_qty * current_price
 
 ---
 
-## 6. 손절 전략
+## 8. 손절 전략
 
-## 6.1 매수 시 손절가 주입
+### 8.1 매수 시 손절가 주입
 모든 매수 체결은 아래 정보를 포지션에 저장해야 한다.
 - entry_price
 - stop_loss_price
@@ -160,7 +264,7 @@ sell_amount = sell_qty * current_price
 - min_expected_return_pct
 - stop_loss_reason = null
 
-### 투자성향별 고정 손절 비율
+#### 투자성향별 고정 손절 비율
 손절률은 신호 강도나 Codex 룰 변경으로 조정하지 않는다. 모든 신호 강도는 현재 투자성향의 고정 손절률을 동일하게 사용한다.
 
 | 투자성향 | 고정 손절 |
@@ -172,25 +276,21 @@ sell_amount = sell_qty * current_price
 
 `STOP_LOSS_*`, `stop_loss_pct`, `stop_loss_price`, `fixed_stop_loss_pct`는 룰 개선 파이프라인의 변경 대상이 아니다. Codex가 학습 로그를 분석하더라도 손절률 변경안은 생성하지 않고, 손절 관련 개선은 진입 조건, 사이징, 재진입 차단, 기대 검증 기준으로만 제안한다.
 
-### 계산 예시
+#### 계산 예시
 ```python
 stop_loss_price = entry_price * (1 - stop_loss_pct)
 ```
 
----
-
-## 6.2 하드 손절
-### 조건
+### 8.2 하드 손절
+#### 조건
 - `current_price <= stop_loss_price`
 
-### 조치
+#### 조치
 - 즉시 손절 매도
 - 사유: `STOP_LOSS_PRICE_HIT`
 
----
-
-## 6.3 소프트 손절
-### 조건
+### 8.3 소프트 손절
+#### 조건
 아래 조건 중 하나라도 만족하면 손절 또는 축소 청산
 - validation window 종료 후 최소 기대 수익률 미달
 - momentum score 하락
@@ -198,29 +298,25 @@ stop_loss_price = entry_price * (1 - stop_loss_pct)
 - 거래량 급감
 - 추세 지속 실패
 
-### 예시
+#### 예시
 ```python
 if elapsed_sec >= validation_window_sec and unrealized_return_pct < min_expected_return_pct:
     trigger_stop_loss("STOP_LOSS_EXPECTATION_FAILED")
 ```
 
-### 주요 사유 코드
+#### 주요 사유 코드
 - STOP_LOSS_PRICE_HIT
 - STOP_LOSS_EXPECTATION_FAILED
 - STOP_LOSS_MOMENTUM_REVERSAL
 - STOP_LOSS_LIQUIDITY_DROPPED
 - STOP_LOSS_RESTART_SAFE_MODE
 
----
-
-## 6.4 부분 손절
+### 8.4 부분 손절
 강한 신호에서 진입했지만 기대와 다르게 흐를 경우
 - 1차 50% 축소
 - 나머지 포지션은 더 타이트한 손절 적용
 
----
-
-## 6.5 손절 후 재진입 차단
+### 8.5 손절 후 재진입 차단
 - `REENTRY_BLOCK_SECONDS` 동안 동일 종목 재진입 금지
 - 쿨다운이 끝나도 마지막 손절 사유와 손절 체결가를 유지해 재진입 확인에 사용
 - 손절 후 재진입은 확정 상승장, strong 이상 신호, 손절 체결가 대비 회복 가격을 모두 만족할 때만 허용
@@ -230,12 +326,14 @@ if elapsed_sec >= validation_window_sec and unrealized_return_pct < min_expected
 
 ---
 
-## 7. 일반 청산 전략
+## 9. 일반 청산 전략
 
 ### 일반 매도
 - 목표 수익 도달
 - 국면 악화
 - 반대 신호 발생
+- **상승 → 하락 전환 확정(bull_to_bear_confirmed=True) 시 즉시 강제 청산 트리거**
+- **박스권 상단(동적 box_position ≥ 0.80) 도달 시 자동 익절**
 - 기본은 높은 비율 청산이며, 약한 신호 또는 약한 차트 흐름에서는 전량 청산
 - 일부 익절은 강한 추세 지속 근거가 있을 때만 잔여 포지션을 남긴다.
 
@@ -253,26 +351,94 @@ if elapsed_sec >= validation_window_sec and unrealized_return_pct < min_expected
 
 ---
 
-## 8. 실행 모드별 전략 적용
+## 10. 데모 룰 A~F 다중 변형 동시 테스트
 
-### demo
-- 실주문 금지
-- 가상 체결
-- 실제와 동일한 전략 로직
-- 승격용 성과 측정
+> **파일:** `app/services/trading/variants.py`
 
-### live
-- 실주문 허용
-- SAFE_MODE 해제 후에만 신규 주문
-- 항상 학습 로그 저장
+### 10.1 룰 목록 및 특성
+
+| 룰 | 명칭 | 핵심 특성 | buy_mult | sell_mult | TP% | SL% |
+|---|---|---|---|---|---|---|
+| A | 안정형 | 기본 신호 + 장세 민감 배수 + 전환 감지 | 1.00 | 1.00 | 0.60% | 0.40% |
+| B | 추세형 | 상승장·하락→상승 전환에만 크게 진입 | 1.85 | 0.45 | 1.40% | 0.65% |
+| C | 방어형 | 하락장 즉시 청산, 박스 하단(40%↓) + 전환 시 소량 진입 | 0.38 | 2.00 | 0.32% | 0.20% |
+| D | 돌파확인형 | 전환 확정 또는 상승장 모멘텀 돌파 확인 후 진입 | 1.25 | 0.70 | 1.00% | 0.45% |
+| E | 박스저점형 | 박스 하단(38%↓) 반등 또는 전환 구간 거래 | 0.72 | 1.70 | 0.48% | 0.28% |
+| F | 자본보전형 | 강한 신호·전환 구간에서만 소량 진입, 낙폭 억제 최우선 | 0.32 | 2.20 | 0.75% | 0.30% |
+
+### 10.2 장세별 룰 정책 요약
+
+#### 상승장(bull)
+- **A**: 매수 배수 × (1 + market_pressure × 0.30), 익절 폭 15% 확대
+- **B**: 매수 배수 × (1.30 + pressure × 0.48), 익절 폭 38% 확대
+- **C**: 소량 참여 (매수 배수 × 0.45), 방어적 청산
+- **D**: 모멘텀 ≥ 0.18 + medium 이상 신호 시 진입 (돌파 확인형)
+- **E**: 박스 하단 반등 조건 대기 (상승장 중 조건 불충족 → 대기)
+- **F**: market_pressure ≥ 0.08 + strong 이상 신호 시 소량 진입
+
+#### 하락장(bear) — 기본 진입 차단
+- **A**: 하락→상승 전환 확정 시 조건부 진입 허용 (매수 × 0.65)
+- **B**: 하락→상승 전환 확정 시 추세형 진입 (점수에 비례)
+- **C**: 하락→상승 전환 확정 시 방어형 소량 진입 (매수 × 0.48)
+- **D**: 전환 확정 + medium 이상 신호 시 진입
+- **E**: 조건 미충족 시 완전 차단
+- **F**: 전환 확정 + medium 이상 시 소량 진입
+
+#### 박스권(box) — 동적 범위 기반 상단/하단 판별
+| 룰 | 하단 기준 | 중간 | 상단 도달(≥80%) |
+|---|---|---|---|
+| A | ≤ 50% 진입 허용 | ≤ 68% 소량 허용 | 진입 차단 + 익절 트리거 |
+| B | 전환 확정 시만 허용 | 차단 | 차단 |
+| C | ≤ 40% 또는 전환+55% | 차단 | 차단 |
+| D | ≤ 35% + 모멘텀 ≥ 0.05 | 차단 | 차단 |
+| E | ≤ 38% + 반등 확인 | 차단 | 자동 익절 |
+| F | ≤ 32% + medium 이상 | 차단 | 차단 |
+
+### 10.3 전환 구간 공통 적용 규칙
+
+```
+하락→상승 전환 확정(bear_to_bull_confirmed=True):
+  - 매수 배수 × 1.35 공통 부스트 (전환 buy boost)
+  - 부분 점수(0.40~0.60): 선형 보간 최대 × 1.60
+
+상승→하락 전환 확정(bull_to_bear_confirmed=True):
+  - 매도 배수 × 1.80 (forced_sell)
+  - 익절 임계 × 0.55 (잔여 수익 빠르게 실현)
+  - 강제 청산 비율 최소 80%
+  - 신규 진입 금지
+```
+
+### 10.4 변동성 패널티 (공통)
+```python
+volatility_penalty = min(max(short_volatility / 0.02, 0), 1)
+if volatility_penalty > 0.5:
+    buy_multiplier  *= 1 - (volatility_penalty - 0.5) * 0.35
+    sell_multiplier *= 1 + (volatility_penalty - 0.5) * 0.28
+    stop_loss_pct   *= 0.88
+```
+
+### 10.5 약신호 가드 (공통)
+| 룰 | weak 신호 처리 |
+|---|---|
+| A | 매수 배수 × 0.72 |
+| B | 상승장 + pressure ≥ 0.12 아니면 차단 |
+| C | 매수 배수 × 0.55 |
+| D, E, F | 전환 확정 없으면 완전 차단 |
+
+### 10.6 승격 조건
+- 양수 수익률 + 양수 실현손익
+- 최소 20회 청산
+- Profit Factor > 1.0
+- 손절 비중 ≤ 40%
 
 ---
 
-## 9. 항상 켜진 학습 계층
+## 11. 항상 켜진 학습 계층
 
 ### 저장 이벤트
 - signal_generated
 - regime_snapshot
+- **transition_state** (전환 점수, 확정 여부, 동적 박스 범위)
 - sizing_decision
 - order_intent
 - fill_result
@@ -293,12 +459,12 @@ if elapsed_sec >= validation_window_sec and unrealized_return_pct < min_expected
 
 ---
 
-## 10. 승격 전략
+## 12. 승격 전략
 
-### 10.1 데모 운영 목표
+### 12.1 데모 운영 목표
 실거래 전 데모에서 충분한 표본과 안정성을 확보한다.
 
-### 10.2 평가 지표
+### 12.2 평가 지표
 - demo_days
 - total_trades
 - win_rate
@@ -308,7 +474,7 @@ if elapsed_sec >= validation_window_sec and unrealized_return_pct < min_expected
 - recovery_success_rate
 - telegram_success_rate
 
-### 10.3 기준 예시
+### 12.3 기준 예시
 - demo_days >= 14
 - total_trades >= 100
 - win_rate >= 0.52
@@ -316,7 +482,7 @@ if elapsed_sec >= validation_window_sec and unrealized_return_pct < min_expected
 - max_drawdown <= 0.08
 - stoploss_failures == 0
 
-### 10.4 평가 예시 코드
+### 12.4 평가 예시 코드
 ```python
 eligible_for_live = (
     demo_days >= DEMO_MIN_DAYS
@@ -328,14 +494,14 @@ eligible_for_live = (
 )
 ```
 
-### 10.5 권장 승격 정책
+### 12.5 권장 승격 정책
 - 기본은 수동 승인
 - 자동 승격 허용 시에도 SAFE_MODE로 시작
 - 초기 실거래는 size 축소 권장
 - 룰 변경이 발생하면 승격 평가를 다시 실행한다.
 
-### 10.6 데모 다중 룰 변경 게이트
-- A/B/C 외에 돌파확인형, 박스저점형, 자본보전형 후보를 같은 틱으로 함께 평가한다.
+### 12.6 데모 다중 룰 변경 게이트
+- A~F 6개 후보를 같은 틱으로 함께 평가한다.
 - 손실 후보는 상대 순위가 1위여도 적용하지 않는다.
 - 누적수익과 실현손익이 모두 양수이고, 최소 20회 청산, Profit Factor 1 초과, 손절 비중 40% 이하를 만족한 후보만 demo 룰 리더가 된다.
 - replay는 실제 거래가 1건 이상이고 최종 수익률이 0%를 초과해야 통과한다.
@@ -345,16 +511,16 @@ eligible_for_live = (
 - 참고 후보는 수익률을 최우선으로 비교하므로 `-0.13% > -0.68%`로 평가한다. 음수 후보는 실제 적용 룰을 변경하지 않는다.
 - 적용 가능한 양수 최고 룰이 바뀌면 해당 룰의 장세별 진입 허용 조건과 매수 배수를 다음 demo 진입 판단부터 사용한다.
 
-### 10.7 박스권과 방향성 추세 구분
+### 12.7 박스권과 방향성 추세 구분
 - 상단·하단 반복 접촉만으로 박스권을 확정하지 않는다.
 - 288개 가격 관측의 선형 기울기가 `±0.2%` 이상이고 중기 가격 흐름이 반대 방향으로 급격히 움직이지 않으면 방향성 추세를 우선한다.
-- 박스권으로 확정한 경우 관측 가격의 하단과 상단을 현재가 카드 아래에 함께 표시한다.
+- 박스권으로 확정한 경우 관측 가격의 **동적 하단과 상단**(5th/95th 백분위 기반)을 현재가 카드 아래에 함께 표시한다.
 - live 운영 중 룰 변경은 즉시 반영하지 않는다.
 - 룰 변경안은 먼저 demo에 적용하고 replay + demo 지표 통과 후 승인받는다.
 
 ---
 
-## 11. 전략 변경 절차
+## 13. 전략 변경 절차
 초기 전략 개선은 TensorFlow 직접 학습보다 **학습 로그 기반 Codex 룰 개선 루프**를 우선한다. TensorFlow 모델은 선택 의존성 `ml`의 오프라인 학습 파이프라인으로 후순위 처리하며, 규칙 기반 리스크 게이트를 우회할 수 없다. 오프라인 학습은 표본 수, train/validation/test 기간 분리, baseline 대비 성능을 통과해야 하며 결과는 먼저 shadow mode 리포트로만 저장한다.
 
 전략 변경 시 반드시 아래를 따른다.
@@ -373,7 +539,7 @@ eligible_for_live = (
 
 한 번에 바꾸는 파라미터 수는 `RULE_CHANGE_MAX_PARAMS_PER_RUN` 이하로 제한한다. `RULE_REVIEW_MIN_TRADES`와 `RULE_REVIEW_MIN_STOPLOSSES` 기준을 충족하지 못하면 해당 변경안은 생성하지 않는다.
 
-### 11.1 룰 변경 히스토리 정책
+### 13.1 룰 변경 히스토리 정책
 Codex가 학습 데이터를 바탕으로 매매룰을 새로 업데이트할 때는 기존 룰과 신규 룰의 차이를 장기 보관한다. 목표는 단순 변경 기록이 아니라, 시간이 지나도 변경 이유와 결과를 복기해 실수를 줄이고 더 우수한 트레이딩 의사결정으로 수렴하는 것이다.
 
 히스토리는 코인/투자성향별 `rule-change-history.jsonl`에 append-only로 저장한다. 각 이력은 다음 질문에 답해야 한다.
@@ -390,3 +556,4 @@ Codex가 학습 데이터를 바탕으로 매매룰을 새로 업데이트할 �
 ### 커밋 예시
 - `급등 신호 점수 가중치 조정과 replay 테스트 추가`
 - `기대 불일치 손절 기준 보강 및 손절 통계 반영`
+- `장세 전환 감지 및 동적 박스권 범위 추적으로 룰 A~F 개선`
