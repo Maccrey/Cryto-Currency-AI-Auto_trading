@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
+from typing import TYPE_CHECKING
 
 from app.services.portfolio.sync import PortfolioState
 from app.services.regime.engine import RegimeEngine, RegimeSnapshot
 from app.services.signals.engine import SignalDecision, SignalEngine
 from app.services.signals.features import FeatureSnapshot, MarketFeatureCalculator
 from app.services.sizing.engine import SizingDecision, SizingEngine
+
+if TYPE_CHECKING:
+    from app.services.trading.market_transition import TransitionState
 
 
 @dataclass(frozen=True)
@@ -37,6 +41,8 @@ class TradeDecisionResult:
     signal: SignalDecision
     regime: RegimeSnapshot
     sizing: SizingDecision
+    # Optional transition state (populated when MarketTransitionDetector is active)
+    transition_state: TransitionState | None = field(default=None)
 
 
 class TradeDecisionService:
@@ -137,13 +143,15 @@ class TradeDecisionService:
         score_floor = 0.0
         reason_code = None
         if regime.market_state == "bull" and TradeDecisionService._bull_participation_signal(features):
-            score_floor = 0.4
+            score_floor = 0.40
             reason_code = "BULL_MARKET_PARTICIPATION_BOOST"
         elif regime.market_state == "box" and TradeDecisionService._box_lower_range_signal(regime, features):
-            score_floor = 0.4
+            # Enhanced: use dynamic box range if available
+            score_floor = 0.42
             reason_code = "BOX_RANGE_VALUE_ENTRY_BOOST"
         elif regime.market_state == "bear" and TradeDecisionService._bear_rebound_signal(features):
-            score_floor = 0.4
+            # Bear rebound: stronger boost so transition entries get through
+            score_floor = 0.45
             reason_code = "BEAR_REBOUND_PARTICIPATION"
         if reason_code is None or signal.score >= score_floor:
             return signal
@@ -208,9 +216,13 @@ class TradeDecisionService:
 
     @staticmethod
     def to_payload(result: TradeDecisionResult) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "features": asdict(result.features),
             "signal": asdict(result.signal),
             "regime": asdict(result.regime),
             "sizing": asdict(result.sizing),
         }
+        if result.transition_state is not None:
+            from dataclasses import asdict as _asdict  # local import to avoid circular
+            payload["transition_state"] = _asdict(result.transition_state)
+        return payload

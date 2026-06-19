@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
+from typing import Deque
 
 from app.services.signals.features import FeatureSnapshot
 
@@ -16,6 +18,9 @@ class RegimeSnapshot:
     market_state_label: str = "보합"
     box_range_low: float | None = None
     box_range_high: float | None = None
+    # Dynamic box range computed from rolling price history (more stable)
+    dynamic_box_low: float | None = None
+    dynamic_box_high: float | None = None
 
 
 class RegimeScorer:
@@ -37,10 +42,27 @@ class RegimeScorer:
 
 
 class RegimeEngine:
-    """Evaluate market regime and convert it into execution constraints."""
+    """Evaluate market regime and convert it into execution constraints.
+
+    Enhancement: maintains a rolling price history buffer to compute
+    dynamic, stable box-range boundaries using the 5th/95th percentile
+    of recent prices instead of a ±volatility band around the current tick.
+    """
+
+    # Number of price ticks kept for dynamic box-range calculation
+    PRICE_HISTORY_SIZE = 200
+    # Min ticks needed before publishing a dynamic box range
+    MIN_HISTORY_FOR_BOX = 20
+    # Percentile indices used for range extraction
+    BOX_LOW_PERCENTILE = 0.05
+    BOX_HIGH_PERCENTILE = 0.95
+    # Small buffer added outside the percentile range so entries at the edge
+    # don't flip to 'outside box' on every tick
+    BOX_BUFFER_PCT = 0.001
 
     def __init__(self, *, scorer: RegimeScorer | None = None) -> None:
         self._scorer = scorer or RegimeScorer()
+        self._price_history: Deque[float] = deque(maxlen=self.PRICE_HISTORY_SIZE)
 
     def evaluate(
         self,
@@ -54,6 +76,10 @@ class RegimeEngine:
         observed_box_range_low: float | None = None,
         observed_box_range_high: float | None = None,
     ) -> RegimeSnapshot:
+        # Always update price history so the dynamic range grows over time
+        if current_price is not None and current_price > 0:
+            self._price_history.append(current_price)
+
         if safe_mode:
             return RegimeSnapshot(
                 label="risk_off",
@@ -68,6 +94,8 @@ class RegimeEngine:
         score = self._scorer.score(features, recent_loss_streak=recent_loss_streak)
         label = self._label(score)
         market_state = self._normalize_observed_market_state(observed_market_state) or self._market_state(features)
+
+        # ── Static box range (legacy / observed) ─────────────────────────────
         if observed_market_state is not None:
             box_low, box_high = (
                 (observed_box_range_low, observed_box_range_high)
@@ -76,9 +104,16 @@ class RegimeEngine:
             )
         else:
             box_low, box_high = self._box_range(features, current_price, market_state=market_state)
+
+        # ── Dynamic box range from rolling price history ───────────────────
+        dyn_low, dyn_high = self._dynamic_box_range()
+
         reason_codes = self._reason_codes(features)
         if observed_market_state is not None:
             reason_codes.append(f"PRICE_CARD_MARKET_STATE_{market_state.upper()}")
+        if dyn_low is not None:
+            reason_codes.append("DYNAMIC_BOX_RANGE_ACTIVE")
+
         size_multiplier = self._size_multiplier(label, recent_loss_streak=recent_loss_streak)
         entry_allowed = label != "risk_off"
         return RegimeSnapshot(
@@ -91,6 +126,8 @@ class RegimeEngine:
             market_state_label=observed_market_state_label or self._market_state_label(market_state),
             box_range_low=box_low,
             box_range_high=box_high,
+            dynamic_box_low=dyn_low,
+            dynamic_box_high=dyn_high,
         )
 
     @staticmethod
@@ -171,6 +208,32 @@ class RegimeEngine:
             "box": "박스권",
         }.get(market_state, "박스권")
 
+    def _dynamic_box_range(self) -> tuple[float | None, float | None]:
+        """Compute a stable box boundary from the rolling price-history buffer.
+
+        Uses the 5th and 95th price percentiles (to ignore spike outliers)
+        plus a small outward buffer so the box does not flip on every tick.
+        Returns (None, None) until enough ticks are collected.
+        """
+        prices = list(self._price_history)
+        if len(prices) < self.MIN_HISTORY_FOR_BOX:
+            return None, None
+
+        sorted_prices = sorted(prices)
+        n = len(sorted_prices)
+        low_idx = max(int(n * self.BOX_LOW_PERCENTILE), 0)
+        high_idx = min(int(n * self.BOX_HIGH_PERCENTILE), n - 1)
+        low_ref = sorted_prices[low_idx]
+        high_ref = sorted_prices[high_idx]
+
+        if high_ref <= low_ref:
+            return None, None
+
+        # Add a small outward buffer
+        box_low = round(low_ref * (1 - self.BOX_BUFFER_PCT), 4)
+        box_high = round(high_ref * (1 + self.BOX_BUFFER_PCT), 4)
+        return box_low, box_high
+
     @staticmethod
     def _box_range(
         features: FeatureSnapshot,
@@ -178,6 +241,13 @@ class RegimeEngine:
         *,
         market_state: str,
     ) -> tuple[float | None, float | None]:
+        """Legacy static box range (used when no history is available).
+
+        Width is based on short-term volatility — kept identical to the
+        original formula so existing tests remain green. The dynamic
+        history-based range (_dynamic_box_range) supersedes this
+        once enough price ticks have been collected.
+        """
         if market_state != "box" or current_price is None or current_price <= 0:
             return None, None
         width_pct = max(0.002, min(features.short_volatility * 2.0, 0.02))
