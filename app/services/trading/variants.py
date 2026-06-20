@@ -1,26 +1,29 @@
-"""Demo rule variants (A – F) with market-state-aware policies.
+"""Demo rule variants (A – L) with market-state-aware policies.
 
-Improvements over the previous version
----------------------------------------
-1. **Transition detection integrated**: Every variant now uses
-   ``TransitionState`` (bear→bull / bull→bear scores) to boost or
-   suppress entries at regime-change inflection points.
+12-variant simultaneous shadow portfolio testing system.
 
-2. **Dynamic box range**: Variants use ``regime.dynamic_box_low/high``
-   (computed from 100-200 tick history) rather than the single-tick
-   static range, so box-position signals are far more stable.
+Variant overview
+-----------------
+A  안정형    – 기본 신호 + 장세 민감 배수 + 전환 감지, 균형 추적
+B  추세형    – 상승장·전환 구간에서만 진입 크기 확대, 익절 폭 넓힘
+C  방어형    – 하락장 노출 최소화, 박스권 하단·전환 구간 소량 진입
+D  돌파확인형 – 돌파/전환 확인 시에만 진입, 추세 장기 보유
+E  박스저점형 – 박스권 하단 반등, 상단 접근 시 빠른 청산
+F  자본보전형 – 강한 신호·전환 구간 소량 진입, 낙폭 억제 최우선
+G  스캘핑형  – 매우 짧은 익절/손절, 강한 신호에만 소량 고빈도 진입
+H  모멘텀형  – 최강 상승 모멘텀 + 압력 공격 진입, 높은 TP 목표
+I  분할매수형 – 하락 지속 시 분할 진입, 반등 구간 분할 청산
+J  역추세형  – 과매도(box 하단) 반등 특화, 빠른 손절 + 중간 TP
+K  변동성형  – 변동성 급등 구간 소량 진입, 빠른 손절 보호
+L  하이브리드형– B(추세) + C(방어) 혼합, 장세별 비중 자동 조절
 
-3. **Forced sell on bull→bear**: When a confirmed bull→bear transition
-   is detected the sell multiplier is amplified and the take-profit
-   threshold is lowered so the position is exited quickly.
-
-4. **Per-variant box thresholds adjusted**:
-   - A: lower-zone threshold loosened to 50% (was 45%)
-   - C: lower-zone threshold loosened to 40% (was 30%)
-   - E: lower-zone threshold loosened to 38% (was 25%)
-
-5. **Transition-boosted buy multiplier**: bear→bull score ≥ 0.60 adds a
-   configurable boost (default ×1.35) to entry size across all variants.
+Shared mechanisms
+------------------
+1. Transition detection (bear→bull / bull→bear) integrated across all variants.
+2. Dynamic box range (100-200 tick history) preferred over static single-tick range.
+3. Forced sell on bull→bear confirmation; take-profit threshold lowered immediately.
+4. Global volatility penalty applied on top of per-variant logic.
+5. Bear-to-bull boost (×1.35) stacked on per-variant buy multiplier when confirmed.
 """
 from __future__ import annotations
 
@@ -93,7 +96,7 @@ class DemoRuleVariantShadowTester:
       forced exits.
     """
 
-    MIN_PROMOTION_TRADES = 20
+    MIN_PROMOTION_TRADES = 15
 
     # Bear-to-bull confirmed → buy multiplier is boosted by this factor
     BEAR_TO_BULL_BUY_BOOST = 1.35
@@ -154,6 +157,60 @@ class DemoRuleVariantShadowTester:
             sell_multiplier=2.2,
             take_profit_pct=0.0075,
             stop_loss_pct=0.003,
+        ),
+        DemoRuleVariant(
+            key="G",
+            label="룰 G 스캘핑형",
+            description="강한 신호에만 소량 진입하고 매우 빠른 익절·손절로 누적 소폭 수익을 노립니다.",
+            buy_multiplier=0.55,
+            sell_multiplier=1.50,
+            take_profit_pct=0.0030,
+            stop_loss_pct=0.0018,
+        ),
+        DemoRuleVariant(
+            key="H",
+            label="룰 H 모멘텀형",
+            description="최강 상승 모멘텀과 시장 압력이 동시에 높을 때 공격적으로 진입해 큰 추세 수익을 추구합니다.",
+            buy_multiplier=2.20,
+            sell_multiplier=0.35,
+            take_profit_pct=0.018,
+            stop_loss_pct=0.008,
+        ),
+        DemoRuleVariant(
+            key="I",
+            label="룰 I 분할매수형",
+            description="하락 지속 구간에서 분할 진입하고 반등·전환 시 분할 청산해 평균 단가를 낮춥니다.",
+            buy_multiplier=0.65,
+            sell_multiplier=1.35,
+            take_profit_pct=0.0055,
+            stop_loss_pct=0.0032,
+        ),
+        DemoRuleVariant(
+            key="J",
+            label="룰 J 역추세형",
+            description="과매도 박스 하단에서 강한 반등을 노리고 빠른 손절로 리스크를 제한합니다.",
+            buy_multiplier=0.90,
+            sell_multiplier=1.80,
+            take_profit_pct=0.0065,
+            stop_loss_pct=0.0022,
+        ),
+        DemoRuleVariant(
+            key="K",
+            label="룰 K 변동성형",
+            description="변동성 급등 구간에서 소량 역방향 진입 후 빠른 손절 보호로 수익을 추구합니다.",
+            buy_multiplier=0.48,
+            sell_multiplier=1.95,
+            take_profit_pct=0.0042,
+            stop_loss_pct=0.0025,
+        ),
+        DemoRuleVariant(
+            key="L",
+            label="룰 L 하이브리드형",
+            description="추세형(B)과 방어형(C)을 장세별로 자동 혼합해 상황에 따라 비중을 조절합니다.",
+            buy_multiplier=1.10,
+            sell_multiplier=1.15,
+            take_profit_pct=0.0085,
+            stop_loss_pct=0.0042,
         ),
     )
 
@@ -659,6 +716,241 @@ class DemoRuleVariantShadowTester:
                 buy_multiplier = 0.0
                 sell_multiplier *= 1.30
                 action_reason = "capital_preservation_hold"
+
+        # ════════════════════════════════════════════════════════════════════════
+        # Rule G – Scalping (고빈도 소량, 빠른 익절/손절)
+        # ════════════════════════════════════════════════════════════════════════
+        elif variant.key == "G":
+            strong_signal = decision.signal.level in {"strong", "very_strong"}
+            medium_signal = decision.signal.level == "medium"
+            bull_scalp = market_state == "bull" and strong_signal and market_pressure >= 0.10
+            box_scalp = (
+                market_state == "box"
+                and box_position is not None
+                and box_position <= 0.45
+                and (strong_signal or (medium_signal and market_pressure >= 0.08))
+            )
+            transition_scalp = b2b_confirmed and strong_signal
+            entry_allowed = bull_scalp or box_scalp or transition_scalp
+            if bull_scalp:
+                buy_multiplier *= 0.92
+                sell_multiplier *= 1.10
+                take_profit_pct *= 0.88  # 빠른 익절
+                stop_loss_pct *= 0.82
+                action_reason = "scalp_bull_entry"
+            elif box_scalp:
+                buy_multiplier *= 0.80
+                sell_multiplier *= 1.25
+                take_profit_pct *= 0.85
+                stop_loss_pct *= 0.78
+                action_reason = "scalp_box_entry"
+            elif transition_scalp:
+                buy_multiplier *= 0.85
+                sell_multiplier *= 1.15
+                take_profit_pct *= 0.90
+                stop_loss_pct *= 0.80
+                action_reason = "scalp_transition_entry"
+            else:
+                buy_multiplier = 0.0
+                sell_multiplier *= 1.40
+                action_reason = "scalp_no_signal"
+
+        # ════════════════════════════════════════════════════════════════════════
+        # Rule H – Momentum (최강 모멘텀 공격 추종)
+        # ════════════════════════════════════════════════════════════════════════
+        elif variant.key == "H":
+            high_pressure = market_pressure >= 0.22
+            very_strong = decision.signal.level == "very_strong"
+            strong_bull = market_state == "bull" and decision.signal.level in {"strong", "very_strong"}
+            momentum_entry = strong_bull and high_pressure
+            transition_momentum = b2b_confirmed and very_strong and market_pressure >= 0.15
+            entry_allowed = momentum_entry or transition_momentum
+            if momentum_entry:
+                # 압력·신호 강도에 비례한 공격적 배수
+                pressure_boost = 1.0 + max(market_pressure - 0.22, 0.0) * 1.80
+                buy_multiplier *= 1.30 * pressure_boost
+                sell_multiplier *= 0.45
+                take_profit_pct *= 1.50 + max(market_pressure - 0.22, 0.0) * 0.80
+                stop_loss_pct *= 1.30
+                action_reason = "momentum_bull_surge"
+            elif transition_momentum:
+                boost = 1.0 + (b2b - 0.60) * 1.20
+                buy_multiplier *= boost
+                sell_multiplier *= 0.55
+                take_profit_pct *= 1.30
+                stop_loss_pct *= 1.20
+                action_reason = "momentum_transition_surge"
+            else:
+                entry_allowed = False
+                buy_multiplier = 0.0
+                sell_multiplier *= 2.50 if market_state == "bear" else 1.80
+                take_profit_pct *= 0.55
+                stop_loss_pct *= 0.60
+                action_reason = f"{market_state}_momentum_hold"
+
+        # ════════════════════════════════════════════════════════════════════════
+        # Rule I – Scaling-in (분할매수, 반등 분할청산)
+        # ════════════════════════════════════════════════════════════════════════
+        elif variant.key == "I":
+            # 하락 지속 구간 진입: bear or box 하단
+            bear_scale = market_state == "bear" and b2b >= 0.30 and decision.signal.level != "weak"
+            box_scale = (
+                market_state == "box"
+                and box_position is not None
+                and box_position <= 0.48
+                and market_pressure >= -0.10
+                and decision.signal.level != "weak"
+            )
+            transition_scale = b2b_confirmed and box_position is not None and box_position <= 0.60
+            entry_allowed = bear_scale or box_scale or transition_scale
+            if bear_scale:
+                buy_multiplier *= 0.75  # 분할 소량
+                sell_multiplier *= 1.20
+                take_profit_pct *= 0.88
+                stop_loss_pct *= 0.85
+                action_reason = "scale_in_bear"
+            elif box_scale:
+                buy_multiplier *= 0.85
+                sell_multiplier *= 1.28
+                take_profit_pct *= 0.92
+                stop_loss_pct *= 0.88
+                action_reason = "scale_in_box"
+            elif transition_scale:
+                buy_multiplier *= 0.90
+                sell_multiplier *= 1.15
+                take_profit_pct *= 1.00
+                stop_loss_pct *= 0.92
+                action_reason = "scale_in_transition"
+            else:
+                buy_multiplier = 0.0
+                sell_multiplier *= 1.50
+                action_reason = "scale_in_hold"
+
+        # ════════════════════════════════════════════════════════════════════════
+        # Rule J – Counter-trend (역추세, 과매도 반등 특화)
+        # ════════════════════════════════════════════════════════════════════════
+        elif variant.key == "J":
+            oversold_bounce = (
+                box_position is not None
+                and box_position <= 0.28
+                and market_pressure >= -0.05
+                and decision.signal.level in {"medium", "strong", "very_strong"}
+            )
+            bear_reversal = (
+                market_state == "bear"
+                and b2b >= 0.50
+                and decision.signal.level in {"medium", "strong", "very_strong"}
+            )
+            entry_allowed = oversold_bounce or bear_reversal or b2b_confirmed
+            if oversold_bounce:
+                buy_multiplier *= 1.05
+                sell_multiplier *= 1.55
+                take_profit_pct *= 0.95  # 중간 TP
+                stop_loss_pct *= 0.72  # 빠른 손절
+                action_reason = "counter_oversold_bounce"
+            elif bear_reversal:
+                buy_multiplier *= 0.85
+                sell_multiplier *= 1.45
+                take_profit_pct *= 0.90
+                stop_loss_pct *= 0.78
+                action_reason = "counter_bear_reversal"
+            elif b2b_confirmed:
+                buy_multiplier *= 0.78
+                sell_multiplier *= 1.30
+                take_profit_pct *= 0.88
+                stop_loss_pct *= 0.80
+                action_reason = "counter_transition_entry"
+            else:
+                buy_multiplier = 0.0
+                sell_multiplier *= 1.60
+                action_reason = "counter_trend_hold"
+
+        # ════════════════════════════════════════════════════════════════════════
+        # Rule K – Volatility (변동성 급등 구간 소량 진입)
+        # ════════════════════════════════════════════════════════════════════════
+        elif variant.key == "K":
+            high_vol = decision.features.short_volatility >= 0.012
+            very_high_vol = decision.features.short_volatility >= 0.020
+            vol_entry = (
+                high_vol
+                and market_state in {"bull", "box"}
+                and decision.signal.level in {"medium", "strong", "very_strong"}
+                and market_pressure >= 0.05
+            )
+            vol_transition = b2b_confirmed and high_vol and market_pressure >= 0.00
+            entry_allowed = vol_entry or vol_transition
+            if vol_entry:
+                # 변동성 클수록 진입 크기 축소, 손절 강화
+                vol_scale = 1.0 - min((decision.features.short_volatility - 0.012) / 0.020, 0.40)
+                buy_multiplier *= 0.70 * vol_scale
+                sell_multiplier *= 1.55
+                take_profit_pct *= 0.88  # 빠른 TP
+                stop_loss_pct *= 0.72  # 타이트 손절
+                action_reason = "volatility_spike_entry"
+            elif vol_transition:
+                vol_scale = 1.0 - min((decision.features.short_volatility - 0.012) / 0.025, 0.35)
+                buy_multiplier *= 0.62 * vol_scale
+                sell_multiplier *= 1.45
+                take_profit_pct *= 0.85
+                stop_loss_pct *= 0.70
+                action_reason = "volatility_transition_entry"
+            else:
+                buy_multiplier = 0.0
+                sell_multiplier *= 1.80 if very_high_vol else 1.40
+                action_reason = "volatility_hold"
+
+        # ════════════════════════════════════════════════════════════════════════
+        # Rule L – Hybrid (추세형 B + 방어형 C 자동 혼합)
+        # ════════════════════════════════════════════════════════════════════════
+        elif variant.key == "L":
+            if market_state == "bull":
+                # 상승장: 추세형에 가깝게
+                pressure_weight = max(market_pressure, 0.0)
+                buy_multiplier *= 1.20 + pressure_weight * 0.40
+                sell_multiplier *= 0.60
+                take_profit_pct *= 1.25 + pressure_weight * 0.20
+                stop_loss_pct *= 1.10
+                action_reason = "hybrid_bull_trend"
+            elif market_state == "bear":
+                if b2b_confirmed:
+                    buy_multiplier *= 0.55
+                    sell_multiplier *= 1.30
+                    take_profit_pct *= 0.85
+                    stop_loss_pct *= 0.75
+                    entry_allowed = True
+                    action_reason = "hybrid_bear_transition"
+                else:
+                    # 하락장: 방어형에 가깝게
+                    entry_allowed = b2b >= 0.35
+                    buy_multiplier *= 0.35 if b2b >= 0.35 else 0.0
+                    sell_multiplier *= 1.85
+                    take_profit_pct *= 0.72
+                    stop_loss_pct *= 0.68
+                    action_reason = "hybrid_bear_defense" if not entry_allowed else "hybrid_bear_watch"
+            else:  # box
+                # 박스권: 위치에 따라 추세/방어 비중 조절
+                lower_zone = box_position is None or box_position <= 0.45
+                mid_zone = box_position is not None and 0.45 < box_position <= 0.68
+                if lower_zone:
+                    buy_multiplier *= 0.85  # 방어형 쪽 비중
+                    sell_multiplier *= 1.20
+                    take_profit_pct *= 0.90
+                    stop_loss_pct *= 0.85
+                    action_reason = "hybrid_box_lower_balanced"
+                elif mid_zone:
+                    buy_multiplier *= 0.60
+                    sell_multiplier *= 1.30
+                    take_profit_pct *= 0.88
+                    stop_loss_pct *= 0.88
+                    action_reason = "hybrid_box_mid_balanced"
+                else:
+                    entry_allowed = False
+                    buy_multiplier = 0.0
+                    sell_multiplier *= 1.55
+                    action_reason = "hybrid_box_upper_block"
+                if b2b_confirmed and entry_allowed:
+                    buy_multiplier *= 1.15
+                    action_reason += "_transition_boost"
 
         # ── Global: volatility penalty ─────────────────────────────────────────
         volatility_penalty = min(max(decision.features.short_volatility / 0.02, 0.0), 1.0)
