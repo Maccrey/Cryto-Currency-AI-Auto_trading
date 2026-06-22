@@ -577,7 +577,7 @@ def create_app(
             auto_update_min_learning_completion_rate=settings.auto_rule_update_min_learning_completion_rate,
             auto_update_win_rate_skip_threshold=settings.auto_rule_update_win_rate_skip_threshold,
         ),
-        telegram_gateway=None,
+        telegram_gateway=telegram_gateway,
         demo_rule_reset_callback=auto_trading_service.reset_demo_rule_variants,
     )
     auto_trading_service._auto_rule_update_service = AutoRuleUpdateService(

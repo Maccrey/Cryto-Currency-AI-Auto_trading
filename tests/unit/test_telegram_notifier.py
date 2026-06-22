@@ -186,6 +186,31 @@ def test_telegram_notifier_sends_market_shock_message_with_server_name() -> None
     assert "신규 매수는 관망합니다." in gateway.messages[0]
 
 
+def test_telegram_notifier_explains_rule_variant_change() -> None:
+    gateway = StubTelegramGateway()
+    notifier = TelegramNotifier(gateway=gateway)
+
+    notifier.notify_rule_variant_changed(
+        market="KRW-XRP",
+        mode="demo",
+        previous_variant_label="룰 A 안정형",
+        previous_profit_rate=-0.0125,
+        applied_variant_label="룰 B 추세형",
+        applied_profit_rate=0.0184,
+        selection_type="stop_loss_forced_switch",
+        reason="룰 A 안정형에서 손절이 발생해 수익률이 가장 높은 룰로 전환했습니다.",
+    )
+
+    assert gateway.messages == [
+        "매매 룰이 변경되었습니다.\n"
+        "시장: KRW-XRP / 모드: 데모\n"
+        "변경 전: 룰 A 안정형 (누적 수익률 -1.25%)\n"
+        "변경 후: 룰 B 추세형 (누적 수익률 1.84%)\n"
+        "전환 유형: 적용 룰 손절 후 즉시 전환\n"
+        "변경 근거: 룰 A 안정형에서 손절이 발생해 수익률이 가장 높은 룰로 전환했습니다."
+    ]
+
+
 def test_telegram_notifier_includes_market_state_and_box_range() -> None:
     gateway = StubTelegramGateway()
     notifier = TelegramNotifier(gateway=gateway)

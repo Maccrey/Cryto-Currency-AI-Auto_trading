@@ -294,8 +294,7 @@ class DemoRuleVariantShadowTester:
             (item for item in results if item["variant_key"] == self._applied_variant_key),
             None,
         )
-
-
+        previous_applied = applied
         # ── 손절 시 즉시 리더 스위칭 (Bypass Promotion) ──
         applied_stop_loss = (
             applied is not None
@@ -329,6 +328,13 @@ class DemoRuleVariantShadowTester:
                 self._applied_variant_key = str(leader["variant_key"])
                 applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
 
+        selection_type = (
+            "stop_loss_forced_switch"
+            if forced_switch_active
+            else "performance_promotion"
+            if selection_changed
+            else None
+        )
         return {
             "leader_key": None if applied is None else applied["variant_key"],
             "leader_label": None if applied is None else applied["variant_label"],
@@ -344,8 +350,21 @@ class DemoRuleVariantShadowTester:
             "candidate_leader_profit_rate": candidate["profit_rate"],
             "promotion_eligible": applied is not None and not forced_switch_active,
             "selection_changed": selection_changed,
+            "selection_type": selection_type,
+            "previous_variant_key": (
+                None if previous_applied is None else previous_applied["variant_key"]
+            ),
+            "previous_variant_label": (
+                None if previous_applied is None else previous_applied["variant_label"]
+            ),
+            "previous_variant_profit_rate": (
+                None if previous_applied is None else previous_applied["profit_rate"]
+            ),
             "applied_variant_key": None if applied is None else applied["variant_key"],
             "applied_variant_label": None if applied is None else applied["variant_label"],
+            "applied_variant_profit_rate": (
+                None if applied is None else applied["profit_rate"]
+            ),
             "market_state": candidate["market_state"],
             "market_state_label": candidate["market_state_label"],
             "bear_to_bull_score": transition.bear_to_bull_score,
@@ -459,12 +478,23 @@ class DemoRuleVariantShadowTester:
             transition=transition,
         )
         action = "hold"
+        stop_loss_triggered_this_tick = False
         if shadow.asset_balance > 0:
+            stop_loss_triggered_this_tick = (
+                shadow.avg_buy_price > 0
+                and (
+                    (current_price - shadow.avg_buy_price) / shadow.avg_buy_price
+                    <= -policy.stop_loss_pct
+                )
+            )
             action = self._maybe_shadow_sell(
                 shadow=shadow,
                 policy=policy,
                 decision=decision,
                 current_price=current_price,
+            )
+            stop_loss_triggered_this_tick = (
+                action == "sell" and stop_loss_triggered_this_tick
             )
         elif decision.sizing.allowed:
             action = self._maybe_shadow_buy(
@@ -484,13 +514,6 @@ class DemoRuleVariantShadowTester:
             else None if shadow.gross_loss <= 0 else shadow.gross_profit / shadow.gross_loss
         )
         stop_loss_rate = None if shadow.trade_count <= 0 else shadow.stop_loss_count / shadow.trade_count
-        # 이번 틱 가격이 손절가 미만으로 하락했는지 확인
-        stop_loss_triggered_this_tick = False
-        if shadow.asset_balance > 0 and shadow.avg_buy_price > 0:
-            current_profit_pct = (current_price - shadow.avg_buy_price) / shadow.avg_buy_price
-            if current_profit_pct <= -policy.stop_loss_pct:
-                stop_loss_triggered_this_tick = True
-
         return {
             "variant_key": variant.key,
             "variant_label": variant.label,
@@ -1343,8 +1366,13 @@ class DemoRuleVariantShadowTester:
             "candidate_leader_profit_rate": None,
             "promotion_eligible": False,
             "selection_changed": False,
+            "selection_type": None,
+            "previous_variant_key": None,
+            "previous_variant_label": None,
+            "previous_variant_profit_rate": None,
             "applied_variant_key": None,
             "applied_variant_label": None,
+            "applied_variant_profit_rate": None,
             "market_state": None,
             "market_state_label": None,
             "bear_to_bull_score": 0.0,

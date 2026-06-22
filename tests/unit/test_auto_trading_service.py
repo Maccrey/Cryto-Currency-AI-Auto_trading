@@ -70,9 +70,13 @@ class PortfolioSyncStub:
 class TelegramNotifierStub:
     def __init__(self) -> None:
         self.market_shocks: list[dict[str, object]] = []
+        self.rule_changes: list[dict[str, object]] = []
 
     def notify_market_shock(self, **kwargs) -> None:
         self.market_shocks.append(kwargs)
+
+    def notify_rule_variant_changed(self, **kwargs) -> None:
+        self.rule_changes.append(kwargs)
 
 
 class SequenceTickerProvider:
@@ -258,6 +262,39 @@ def test_auto_trading_service_records_waiting_until_history_is_ready(tmp_path: P
     assert result["status"] == "waiting"
     assert result["reason"] == "MARKET_HISTORY_WARMING_UP"
     assert result["trading_profile"] == "scalping"
+
+
+def test_auto_trading_service_notifies_when_applied_rule_variant_changes(tmp_path: Path) -> None:
+    notifier = TelegramNotifierStub()
+    service = _build_service(
+        tmp_path,
+        [800.0],
+        telegram_notifier=notifier,
+    )
+    service._demo_rule_variant_shadow_tester.evaluate = lambda **kwargs: {
+        "selection_changed": True,
+        "selection_type": "performance_promotion",
+        "previous_variant_label": "룰 A 안정형",
+        "previous_variant_profit_rate": 0.004,
+        "applied_variant_label": "룰 B 추세형",
+        "applied_variant_profit_rate": 0.012,
+        "leader_reason": "룰 B 추세형의 검증 수익률이 더 높습니다.",
+    }
+
+    service._run_demo_rule_variant_shadow(decision=object(), current_price=800.0)
+
+    assert notifier.rule_changes == [
+        {
+            "market": "KRW-XRP",
+            "mode": "demo",
+            "previous_variant_label": "룰 A 안정형",
+            "previous_profit_rate": 0.004,
+            "applied_variant_label": "룰 B 추세형",
+            "applied_profit_rate": 0.012,
+            "selection_type": "performance_promotion",
+            "reason": "룰 B 추세형의 검증 수익률이 더 높습니다.",
+        }
+    ]
 
 
 

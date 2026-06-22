@@ -989,10 +989,40 @@ class AutoTradingService:
         return estimated_total_cost <= self._demo_cash_balance + 1e-6
 
     def _run_demo_rule_variant_shadow(self, *, decision, current_price: float) -> dict[str, object] | None:
-        return self._demo_rule_variant_shadow_tester.evaluate(
+        payload = self._demo_rule_variant_shadow_tester.evaluate(
             decision=decision,
             current_price=current_price,
             portfolio=self._portfolio_state(),
+        )
+        self._notify_rule_variant_change_if_needed(payload)
+        return payload
+
+    def _notify_rule_variant_change_if_needed(
+        self,
+        variant_payload: dict[str, object],
+    ) -> None:
+        if not variant_payload.get("selection_changed") or self._telegram_notifier is None:
+            return
+        notify_rule_changed = getattr(
+            self._telegram_notifier,
+            "notify_rule_variant_changed",
+            None,
+        )
+        if notify_rule_changed is None:
+            return
+        applied_label = variant_payload.get("applied_variant_label")
+        applied_profit_rate = variant_payload.get("applied_variant_profit_rate")
+        if not applied_label or applied_profit_rate is None:
+            return
+        notify_rule_changed(
+            market=self._market,
+            mode=self._trading_mode,
+            previous_variant_label=variant_payload.get("previous_variant_label"),
+            previous_profit_rate=variant_payload.get("previous_variant_profit_rate"),
+            applied_variant_label=str(applied_label),
+            applied_profit_rate=float(applied_profit_rate),
+            selection_type=variant_payload.get("selection_type"),
+            reason=str(variant_payload.get("leader_reason") or "성과 비교 결과"),
         )
 
     def _apply_variant_and_gate_entry(

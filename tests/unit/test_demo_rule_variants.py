@@ -364,6 +364,10 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
     # B가 양수(1%)이면서 실현 손익이 검증되었으므로 A에서 B로 강제 스위칭되어야 함
     assert report2["selection_changed"] is True
     assert report2["applied_variant_key"] == "B"
+    assert report2["selection_type"] == "stop_loss_forced_switch"
+    assert report2["previous_variant_label"] == "룰 A 안정형"
+    assert report2["previous_variant_profit_rate"] < 0
+    assert report2["applied_variant_profit_rate"] > 0
     assert "손절이 발생하여" in report2["leader_reason"]
 
     # ── 시나리오 3: 평가 수익률은 양수(1%)이지만 거래 미완료(trade_count=0)이거나 realized_pnl이 없는 경우 (스위칭 차단) ──
@@ -402,3 +406,29 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
     # 완결 거래(실현 손익)가 없으므로 B로 스위칭되지 않고 A 유지되어야 함
     assert report3["selection_changed"] is False
     assert report3["applied_variant_key"] == "A"
+
+
+def test_demo_rule_variant_detects_stop_loss_even_when_position_is_fully_sold() -> None:
+    tester = DemoRuleVariantShadowTester()
+    tester._initial_equity = 1_000_000.0
+    tester._portfolios["C"] = ShadowPortfolio(
+        cash_balance=0.0,
+        asset_balance=1000.0,
+        avg_buy_price=1000.0,
+        peak_equity=1_000_000.0,
+    )
+
+    report = tester.evaluate(
+        decision=_decision(market_state="bear", buy_amount=0),
+        current_price=900.0,
+        portfolio=PortfolioState(
+            cash_balance=1_000_000.0,
+            asset_currency="XRP",
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+        ),
+    )
+
+    result = next(item for item in report["results"] if item["variant_key"] == "C")
+    assert result["asset_balance"] == 0.0
+    assert result["stop_loss_triggered_this_tick"] is True

@@ -145,6 +145,51 @@ class TelegramNotifier:
                 },
             )
 
+    def notify_rule_variant_changed(
+        self,
+        *,
+        market: str,
+        mode: str,
+        previous_variant_label: str | None,
+        previous_profit_rate: float | None,
+        applied_variant_label: str,
+        applied_profit_rate: float,
+        selection_type: str | None,
+        reason: str,
+    ) -> None:
+        selection_label = (
+            "적용 룰 손절 후 즉시 전환"
+            if selection_type == "stop_loss_forced_switch"
+            else "성과 검증 통과 후 자동 승격"
+        )
+        previous_label = previous_variant_label or "기존 적용 룰 없음"
+        previous_rate_text = (
+            "수익률 집계 없음"
+            if previous_profit_rate is None
+            else f"누적 수익률 {previous_profit_rate * 100:,.2f}%"
+        )
+        message = "\n".join(
+            [
+                "매매 룰이 변경되었습니다.",
+                f"시장: {market} / 모드: {'데모' if mode == 'demo' else '실거래'}",
+                f"변경 전: {previous_label} ({previous_rate_text})",
+                f"변경 후: {applied_variant_label} (누적 수익률 {applied_profit_rate * 100:,.2f}%)",
+                f"전환 유형: {selection_label}",
+                f"변경 근거: {reason}",
+            ],
+        )
+        try:
+            self._gateway.send_message(self._format_message(message))
+        except Exception:
+            logger.exception(
+                "telegram_rule_variant_change_notification_failed",
+                extra={
+                    "market": market,
+                    "mode": mode,
+                    "selection_type": selection_type,
+                },
+            )
+
     def _format_message(self, message: str) -> str:
         server_name = self._current_server_name()
         if not server_name:

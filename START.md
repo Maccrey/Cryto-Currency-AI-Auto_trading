@@ -548,15 +548,15 @@ uv run pytest
 특정 테스트:
 
 ```bash
-pytest tests/unit/test_live_executor.py
-pytest tests/unit/test_recovery_orchestrator.py
-pytest tests/unit/test_sizing_engine.py
+.venv/bin/python -m pytest tests/unit/test_live_executor.py
+.venv/bin/python -m pytest tests/unit/test_recovery_orchestrator.py
+.venv/bin/python -m pytest tests/unit/test_sizing_engine.py
 ```
 
 커밋 전 권장 확인:
 
 ```bash
-pytest
+.venv/bin/python -m pytest -q
 pre-commit run --all-files
 ```
 
