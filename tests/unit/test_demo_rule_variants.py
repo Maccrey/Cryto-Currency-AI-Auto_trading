@@ -290,11 +290,11 @@ def test_demo_rule_variant_positive_leader_switches_applied_entry_policy() -> No
 
 
 def test_demo_rule_variant_stop_loss_forced_switch() -> None:
+    # ── 시나리오 1: 다른 룰들 중 양수(플러스) 수익률이 없는 경우 (스위칭 비활성) ──
     tester = DemoRuleVariantShadowTester()
     tester._applied_variant_key = "A"
     tester._initial_equity = 1_000_000.0
 
-    # A가 자산을 보유 중인 상태로 설정
     tester._portfolios["A"] = ShadowPortfolio(
         cash_balance=0.0,
         asset_balance=1000.0,
@@ -302,7 +302,7 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
         peak_equity=1_000_000.0,
         trade_count=1,
     )
-    # B는 거래를 아직 안 했지만 cash_balance가 그대로 있어 profit_rate가 0인 상태
+    # B는 수익률이 0% 상태
     tester._portfolios["B"] = ShadowPortfolio(
         cash_balance=1_000_000.0,
         asset_balance=0.0,
@@ -312,8 +312,6 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
     )
 
     decision = _decision(market_state="bear", buy_amount=0)
-
-    # 가격이 900으로 폭락하여 손절 유발 (-10% profit < -0.4% stop_loss)
     report = tester.evaluate(
         decision=decision,
         current_price=900.0,
@@ -325,7 +323,44 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
         ),
     )
 
-    # A는 손절이 났으므로 다른 룰(수익률 0.0%로 가장 우위인 B)로 스위칭되어야 함
-    assert report["selection_changed"] is True
-    assert report["applied_variant_key"] == "B"
-    assert "손절이 발생하여" in report["leader_reason"]
+    # 양수 수익률 룰이 없으므로 스위칭되지 않고 A 유지
+    assert report["selection_changed"] is False
+    assert report["applied_variant_key"] == "A"
+
+    # ── 시나리오 2: 다른 룰들 중 양수(플러스) 수익률이 존재하는 경우 (스위칭 활성) ──
+    tester2 = DemoRuleVariantShadowTester()
+    tester2._applied_variant_key = "A"
+    tester2._initial_equity = 1_000_000.0
+
+    tester2._portfolios["A"] = ShadowPortfolio(
+        cash_balance=0.0,
+        asset_balance=1000.0,
+        avg_buy_price=1000.0,
+        peak_equity=1_000_000.0,
+        trade_count=1,
+    )
+    # B는 수익률이 1% (1,010,000 KRW) 상태
+    tester2._portfolios["B"] = ShadowPortfolio(
+        cash_balance=1_010_000.0,
+        asset_balance=0.0,
+        avg_buy_price=0.0,
+        peak_equity=1_010_000.0,
+        trade_count=1,
+        win_count=1,
+    )
+
+    report2 = tester2.evaluate(
+        decision=decision,
+        current_price=900.0,
+        portfolio=PortfolioState(
+            cash_balance=1_000_000.0,
+            asset_currency="XRP",
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+        ),
+    )
+
+    # B가 양수(1%)이므로 A에서 B로 강제 스위칭되어야 함
+    assert report2["selection_changed"] is True
+    assert report2["applied_variant_key"] == "B"
+    assert "손절이 발생하여" in report2["leader_reason"]

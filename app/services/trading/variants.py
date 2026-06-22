@@ -305,9 +305,13 @@ class DemoRuleVariantShadowTester:
         old_variant_label = applied["variant_label"] if applied else ""
 
         if applied_stop_loss:
-            other_results = [r for r in results if r["variant_key"] != applied["variant_key"]]
-            if other_results:
-                new_leader = max(other_results, key=lambda x: float(x.get("profit_rate") or 0.0))
+            positive_other_results = [
+                r for r in results 
+                if r["variant_key"] != applied["variant_key"] 
+                and float(r.get("profit_rate") or 0.0) > 0.0
+            ]
+            if positive_other_results:
+                new_leader = max(positive_other_results, key=lambda x: float(x.get("profit_rate") or 0.0))
                 self._applied_variant_key = str(new_leader["variant_key"])
                 applied = new_leader
                 forced_switch_active = True
