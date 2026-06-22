@@ -679,7 +679,7 @@ class RuleReviewService:
             f"- Replay 결과: {json.dumps(replay_result, ensure_ascii=False, sort_keys=True) if replay_result else '없음'}",
             f"- Demo 적용 결과: {json.dumps(demo_result, ensure_ascii=False, sort_keys=True)}",
             f"- 차단/경고: {', '.join(str(item) for item in history.get('blocked_reason_summary', [])) or '없음'}",
-            f"- A/B/C 동시 테스트: {json.dumps(history.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
+            f"- A-O 15개 룰 동시 테스트: {json.dumps(history.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
             f"- 전문 보조지표 요약: {json.dumps(history.get('technical_indicator_summary', {}), ensure_ascii=False, sort_keys=True)}",
             f"- 시장 데이터 품질: {json.dumps(history.get('market_data_quality_summary', {}), ensure_ascii=False, sort_keys=True)}",
             "",
@@ -1677,7 +1677,10 @@ class RuleReviewService:
         avg_profit = summary.get("avg_profit_rate_by_variant")
         if not best_key or not isinstance(avg_profit, dict):
             return []
-        if best_key == "B":
+        
+        variant_label = summary.get("best_variant_label") or best_key
+        # 추세/모멘텀/돌파공격형 계열 (B, H, M, O)
+        if best_key in {"B", "H", "M", "O"}:
             return [
                 {
                     "file": "app/services/sizing/engine.py",
@@ -1685,12 +1688,13 @@ class RuleReviewService:
                     "current_value": "current_profile",
                     "proposed_value": "increase_when_bull_signal_strong",
                     "reason": (
-                        "A/B/C 동시 테스트에서 룰 B 추세형 평균 수익률이 우세해 "
-                        "상승장 강신호 구간의 진입 크기와 익절 보유 시간을 정교화합니다."
+                        f"다중 룰 동시 테스트에서 룰 {best_key} ({variant_label}) 평균 수익률이 우세해 "
+                        f"상승장 강신호 구간의 진입 크기와 익절 보유 시간을 정교화합니다."
                     ),
                 },
             ]
-        if best_key == "C":
+        # 방어/자본보전/역변동성형 계열 (C, F, N)
+        elif best_key in {"C", "F", "N"}:
             return [
                 {
                     "file": "app/services/sizing/engine.py",
@@ -1698,28 +1702,28 @@ class RuleReviewService:
                     "current_value": "current_profile",
                     "proposed_value": "reduce_when_box_or_bear",
                     "reason": (
-                        "A/B/C 동시 테스트에서 룰 C 방어형 평균 수익률이 우세해 "
-                        "박스권/하락장 진입 크기를 줄이고 매도 대응을 빠르게 합니다."
+                        f"다중 룰 동시 테스트에서 룰 {best_key} ({variant_label}) 평균 수익률이 우세해 "
+                        f"박스권/하락장 진입 크기를 줄이고 매도 대응을 빠르게 합니다."
                     ),
                 },
             ]
-        if best_key == "A":
+        # Baseline 및 기타 (A, D, E, G, I, J, K, L 등)
+        else:
             return [
                 {
                     "file": "STRATEGY_SPEC.md",
                     "parameter": "BASELINE_RULE_PREFERENCE",
                     "current_value": "unknown",
                     "proposed_value": "keep_baseline_and_reduce_extra_bias",
-                    "reason": "A/B/C 동시 테스트에서 안정형 룰 A가 우세해 과도한 추세/방어 편향을 줄이는 방향을 우선합니다.",
+                    "reason": f"다중 룰 동시 테스트에서 {variant_label}가 우세해 과도한 추세/방어 편향을 줄이고 기본 매수/매도 균형을 조율합니다.",
                 },
             ]
-        return []
 
     def _build_codex_rule_prompt(self, metrics: dict[str, object]) -> str:
         return "\n".join(
             [
                 "너는 이 자동매매 시스템의 매매룰 개선 에이전트다.",
-                "최근 학습 로그, 체결 결과, 차단 사유, 전문 보조지표, 온체인/ETF 컨텍스트, A/B/C 동시 섀도 테스트 결과를 함께 사용한다.",
+                "최근 학습 로그, 체결 결과, 차단 사유, 전문 보조지표, 온체인/ETF 컨텍스트, A-O 15개 룰 다중 동시 테스트 결과를 함께 사용한다.",
                 "목표는 하루 0.5% 수익을 무리하게 강제하는 것이 아니라, 손실 제한을 유지하면서 기대수익이 가장 높은 룰을 제안하는 것이다.",
                 "고정 손절 파라미터와 안전장치는 임의로 완화하지 않는다.",
                 f"거래 수: {metrics.get('trade_count', 0)}, 손절 수: {metrics.get('stop_loss_count', 0)}, 승률: {metrics.get('win_rate', 0.0)}",
@@ -1729,7 +1733,7 @@ class RuleReviewService:
                 f"가격/거래량 데이터 품질: {json.dumps(metrics.get('market_data_quality_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 f"거래 공백: {json.dumps(metrics.get('trade_staleness_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 f"외부 컨텍스트: {json.dumps(metrics.get('external_context_summary', {}), ensure_ascii=False, sort_keys=True)}",
-                f"A/B/C 동시 테스트: {json.dumps(metrics.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
+                f"A-O 15개 룰 동시 테스트: {json.dumps(metrics.get('rule_variant_shadow_summary', {}), ensure_ascii=False, sort_keys=True)}",
                 "제안은 최대 변경 수 제한을 지키고, 변경 이유/기대효과/리스크/replay 검증 기준을 함께 남긴다.",
             ],
         )

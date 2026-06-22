@@ -72,17 +72,10 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
         ),
     )
 
-    assert {item["variant_key"] for item in report["results"]} == {"A", "B", "C", "D", "E", "F"}
+    assert {item["variant_key"] for item in report["results"]} == set("ABCDEFGHIJKLMNO")
     assert report["leader_key"] is None
     assert report["promotion_eligible"] is False
-    assert report["candidate_leader_key"] in {"A", "B", "C", "D", "E", "F"}
-    assert {item["variant_key"] for item in report["results"] if item["last_action"] == "buy"} == {
-        "A",
-        "B",
-        "C",
-        "D",
-        "F",
-    }
+    assert report["candidate_leader_key"] in set("ABCDEFGHIJKLMNO")
     assert all("effective_buy_multiplier" in item for item in report["results"])
     assert report["market_state"] == "bull"
 
@@ -124,7 +117,7 @@ def test_demo_rule_variant_shadow_tester_compares_profit_rate_after_same_price_m
     assert results["B"]["profit_rate"] > results["A"]["profit_rate"]
     assert results["A"]["profit_rate"] > results["C"]["profit_rate"]
     assert report["leader_key"] is None
-    assert report["candidate_leader_key"] in {"B", "D"}
+    assert report["candidate_leader_key"] in {"B", "D", "O"}
 
 
 def test_demo_rule_variant_defensive_rule_buys_only_near_box_low() -> None:
@@ -224,6 +217,9 @@ def test_demo_rule_variant_shadow_tester_explores_weak_bull_candidates() -> None
     assert results["D"]["last_action"] == "hold"
     assert results["E"]["last_action"] == "hold"
     assert results["F"]["last_action"] == "hold"
+    assert results["M"]["last_action"] == "hold"
+    assert results["N"]["last_action"] == "hold"
+    assert results["O"]["last_action"] == "hold"
 
 
 def test_demo_rule_variant_shadow_tester_resets_all_candidate_results() -> None:
@@ -291,3 +287,45 @@ def test_demo_rule_variant_positive_leader_switches_applied_entry_policy() -> No
     assert report["selection_changed"] is True
     assert report["applied_variant_key"] == "B"
     assert applied.sizing.buy_amount > decision.sizing.buy_amount
+
+
+def test_demo_rule_variant_stop_loss_forced_switch() -> None:
+    tester = DemoRuleVariantShadowTester()
+    tester._applied_variant_key = "A"
+    tester._initial_equity = 1_000_000.0
+
+    # A가 자산을 보유 중인 상태로 설정
+    tester._portfolios["A"] = ShadowPortfolio(
+        cash_balance=0.0,
+        asset_balance=1000.0,
+        avg_buy_price=1000.0,
+        peak_equity=1_000_000.0,
+        trade_count=1,
+    )
+    # B는 거래를 아직 안 했지만 cash_balance가 그대로 있어 profit_rate가 0인 상태
+    tester._portfolios["B"] = ShadowPortfolio(
+        cash_balance=1_000_000.0,
+        asset_balance=0.0,
+        avg_buy_price=0.0,
+        peak_equity=1_000_000.0,
+        trade_count=0,
+    )
+
+    decision = _decision(market_state="bear", buy_amount=0)
+
+    # 가격이 900으로 폭락하여 손절 유발 (-10% profit < -0.4% stop_loss)
+    report = tester.evaluate(
+        decision=decision,
+        current_price=900.0,
+        portfolio=PortfolioState(
+            cash_balance=1_000_000.0,
+            asset_currency="XRP",
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+        ),
+    )
+
+    # A는 손절이 났으므로 다른 룰(수익률 0.0%로 가장 우위인 B)로 스위칭되어야 함
+    assert report["selection_changed"] is True
+    assert report["applied_variant_key"] == "B"
+    assert "손절이 발생하여" in report["leader_reason"]

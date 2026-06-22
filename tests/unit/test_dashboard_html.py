@@ -41,13 +41,13 @@ def test_dashboard_includes_exchange_simulation_and_demo_rule_variants() -> None
     assert "AI-A" in DASHBOARD_HTML
     assert "AI-R" in DASHBOARD_HTML
     assert "AI-X" in DASHBOARD_HTML
-    assert "데모 룰 A~F 내부 테스트" in DASHBOARD_HTML
+    assert "데모 룰 A~O 내부 테스트" in DASHBOARD_HTML
     assert 'id="ruleVariantBoard"' in DASHBOARD_HTML
     assert "function renderExchangeSimulation" in DASHBOARD_HTML
     assert "tradingStatus.last_cycle" in DASHBOARD_HTML
     assert "shadow.applied_variant_key" in DASHBOARD_HTML
     assert "shadow.candidate_leader_key" in DASHBOARD_HTML
-    assert "같은 실시간 데이터를 기준으로 A~F 가상 포트폴리오를 동시에 테스트" in DASHBOARD_HTML
+    assert "같은 실시간 데이터를 기준으로 A~O 15개 가상 포트폴리오를 동시에 테스트" in DASHBOARD_HTML
     assert "룰 D 돌파확인형" in DASHBOARD_HTML
     assert "룰 E 박스저점형" in DASHBOARD_HTML
     assert "룰 F 자본보전형" in DASHBOARD_HTML

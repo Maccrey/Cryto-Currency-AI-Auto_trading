@@ -224,7 +224,7 @@ DASHBOARD_HTML = """
     .agent-title { font-size: 13px; font-weight: 900; }
     .agent-status { color: var(--muted); font-size: 12px; line-height: 1.35; }
     .variant-board { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 14px; }
-    .variant-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .variant-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
     .variant-card { min-height: 142px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px; }
     .variant-card.active { border-color: #f97316; box-shadow: inset 0 0 0 2px rgba(249, 115, 22, 0.28); }
     .variant-card.candidate { border-color: #2563eb; box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.24); }
@@ -369,7 +369,7 @@ DASHBOARD_HTML = """
     <h2>코인거래소 시뮬레이션</h2>
     <div class="exchange-sim">
       <div class="variant-board">
-        <h2>데모 룰 A~L 내부 테스트</h2>
+        <h2>데모 룰 A~O 내부 테스트</h2>
         <div id="ruleVariantBoard" class="variant-grid">
           <div class="variant-card"><div class="variant-title">룰 A</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
           <div class="variant-card"><div class="variant-title">룰 B</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
@@ -383,6 +383,9 @@ DASHBOARD_HTML = """
           <div class="variant-card"><div class="variant-title">룰 J</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
           <div class="variant-card"><div class="variant-title">룰 K</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
           <div class="variant-card"><div class="variant-title">룰 L</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
+          <div class="variant-card"><div class="variant-title">룰 M</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
+          <div class="variant-card"><div class="variant-title">룰 N</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
+          <div class="variant-card"><div class="variant-title">룰 O</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
         </div>
         <div id="ruleVariantReason" class="variant-reason">데모 모드에서 매매 판단이 실행되면 최근 학습 테스트 점수와 선택 이유가 표시됩니다.</div>
       </div>
@@ -756,7 +759,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
   document.getElementById("agentRisk").textContent = `장세 ${market.market_state_label || "-"}, 성공률 ${percent(winRate)}`;
   document.getElementById("agentExecution").textContent = shadow.applied_variant_label
     ? `${shadow.applied_variant_label} 적용 중${shadow.selection_changed ? ", 이번 주기에 신규 전환" : ""}`
-    : "A~L 12개 동시 테스트 중이며 양수 검증 전에는 기존 룰을 유지합니다.";
+    : "A~O 15개 동시 테스트 및 손절 시 실시간 스위칭 기능 작동 중이며 양수 검증 전에는 기존 룰을 유지합니다.";
 
   const fallback = [
     {variant_key: "A", variant_label: "룰 A 안정형", description: "기본 신호 장세 균형 추적", profit_rate: null, last_action: "대기"},
@@ -770,7 +773,10 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
     {variant_key: "I", variant_label: "룰 I 분할매수형", description: "하락 분할 진입, 반등 분할 청산", profit_rate: null, last_action: "대기"},
     {variant_key: "J", variant_label: "룰 J 역추세형", description: "과매도 하단 반등 특화", profit_rate: null, last_action: "대기"},
     {variant_key: "K", variant_label: "룰 K 변동성형", description: "변동성 급등 구간 소량 진입", profit_rate: null, last_action: "대기"},
-    {variant_key: "L", variant_label: "룰 L 하이브리드형", description: "B(추세)+C(방어) 자동 장세별 혼합", profit_rate: null, last_action: "대기"}
+    {variant_key: "L", variant_label: "룰 L 하이브리드형", description: "B(추세)+C(방어) 자동 장세별 혼합", profit_rate: null, last_action: "대기"},
+    {variant_key: "M", variant_label: "룰 M 돌파추격형", description: "강력 모멘텀 확인 시 빠르게 진입", profit_rate: null, last_action: "대기"},
+    {variant_key: "N", variant_label: "룰 N 역변동성형", description: "박스권 극단 영역 역추세 반등 진입", profit_rate: null, last_action: "대기"},
+    {variant_key: "O", variant_label: "룰 O 공격추세형", description: "상승 확정 시 최대 비중 진입", profit_rate: null, last_action: "대기"}
   ];
   const rows = results.length ? results : fallback;
   document.getElementById("ruleVariantBoard").innerHTML = rows.map((item) => {
@@ -785,7 +791,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
       <div class="variant-desc">${stateText ? stateText + "<br>" : ""}${actionText}<br>실현손익 ${number(item.realized_pnl || 0, 0)} KRW<br>${item.description || ""}</div>
     </div>`;
   }).join("");
-  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "데모 모드에서 같은 실시간 데이터를 기준으로 A~L 12개 가상 포트폴리오를 동시에 테스트합니다.";
+  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "데모 모드에서 같은 실시간 데이터를 기준으로 A~O 15개 가상 포트폴리오를 동시에 테스트하고, 손절 발생 시 즉각 리더를 동적 스위칭합니다.";
 }
 
 function aiBadge(label, className) {

@@ -212,6 +212,33 @@ class DemoRuleVariantShadowTester:
             take_profit_pct=0.0085,
             stop_loss_pct=0.0042,
         ),
+        DemoRuleVariant(
+            key="M",
+            label="룰 M 돌파추격형",
+            description="상승장 강력 모멘텀 확인 시 빠르게 진입하여 단기 상승 추세 수익을 극대화합니다.",
+            buy_multiplier=1.50,
+            sell_multiplier=0.80,
+            take_profit_pct=0.0120,
+            stop_loss_pct=0.0050,
+        ),
+        DemoRuleVariant(
+            key="N",
+            label="룰 N 역변동성형",
+            description="변동성이 높고 가격이 박스권 극단 영역에 도달했을 때 단기 역추세 반등을 노립니다.",
+            buy_multiplier=0.60,
+            sell_multiplier=1.50,
+            take_profit_pct=0.0050,
+            stop_loss_pct=0.0030,
+        ),
+        DemoRuleVariant(
+            key="O",
+            label="룰 O 공격추세형",
+            description="상승 확정 구간에서 가중치를 대폭 늘려 진입하고, 하락 전환 시 강력하게 빠져나옵니다.",
+            buy_multiplier=2.00,
+            sell_multiplier=0.40,
+            take_profit_pct=0.0200,
+            stop_loss_pct=0.0070,
+        ),
     )
 
     def __init__(
@@ -262,25 +289,54 @@ class DemoRuleVariantShadowTester:
         candidate = max(results, key=self._candidate_score)
         promotable = [item for item in results if self._promotion_eligible(item)]
         leader = max(promotable, key=self._leader_score) if promotable else None
-        selection_changed = leader is not None and leader["variant_key"] != self._applied_variant_key
-        if selection_changed:
-            self._applied_variant_key = str(leader["variant_key"])
+        
         applied = next(
             (item for item in results if item["variant_key"] == self._applied_variant_key),
             None,
         )
+
+        # ── 손절 시 즉시 리더 스위칭 (Bypass Promotion) ──
+        applied_stop_loss = (
+            applied is not None
+            and applied.get("last_action") == "sell"
+            and applied.get("stop_loss_triggered_this_tick") is True
+        )
+        forced_switch_active = False
+        old_variant_label = applied["variant_label"] if applied else ""
+
+        if applied_stop_loss:
+            other_results = [r for r in results if r["variant_key"] != applied["variant_key"]]
+            if other_results:
+                new_leader = max(other_results, key=lambda x: float(x.get("profit_rate") or 0.0))
+                self._applied_variant_key = str(new_leader["variant_key"])
+                applied = new_leader
+                forced_switch_active = True
+                selection_changed = True
+            else:
+                selection_changed = leader is not None and leader["variant_key"] != self._applied_variant_key
+                if selection_changed:
+                    self._applied_variant_key = str(leader["variant_key"])
+                    applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
+        else:
+            selection_changed = leader is not None and leader["variant_key"] != self._applied_variant_key
+            if selection_changed:
+                self._applied_variant_key = str(leader["variant_key"])
+                applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
+
         return {
             "leader_key": None if applied is None else applied["variant_key"],
             "leader_label": None if applied is None else applied["variant_label"],
             "leader_reason": (
-                self._leader_reason(leader)
+                f"기존 적용 룰 {old_variant_label}에서 손절이 발생하여, 현재 수익률 {applied['profit_rate']:.2%}로 가장 우수한 {applied['variant_label']}로 즉시 강제 전환(스위칭)되었습니다."
+                if forced_switch_active and applied is not None
+                else self._leader_reason(leader)
                 if leader is not None
                 else self._no_positive_leader_reason(candidate, applied)
             ),
             "candidate_leader_key": candidate["variant_key"],
             "candidate_leader_label": candidate["variant_label"],
             "candidate_leader_profit_rate": candidate["profit_rate"],
-            "promotion_eligible": applied is not None,
+            "promotion_eligible": applied is not None and not forced_switch_active,
             "selection_changed": selection_changed,
             "applied_variant_key": None if applied is None else applied["variant_key"],
             "applied_variant_label": None if applied is None else applied["variant_label"],
@@ -416,6 +472,13 @@ class DemoRuleVariantShadowTester:
             else None if shadow.gross_loss <= 0 else shadow.gross_profit / shadow.gross_loss
         )
         stop_loss_rate = None if shadow.trade_count <= 0 else shadow.stop_loss_count / shadow.trade_count
+        # 이번 틱 가격이 손절가 미만으로 하락했는지 확인
+        stop_loss_triggered_this_tick = False
+        if shadow.asset_balance > 0 and shadow.avg_buy_price > 0:
+            current_profit_pct = (current_price - shadow.avg_buy_price) / shadow.avg_buy_price
+            if current_profit_pct <= -policy.stop_loss_pct:
+                stop_loss_triggered_this_tick = True
+
         return {
             "variant_key": variant.key,
             "variant_label": variant.label,
@@ -453,6 +516,7 @@ class DemoRuleVariantShadowTester:
             "bull_to_bear_score": policy.bull_to_bear_score,
             "transition_buy_boost": policy.transition_buy_boost,
             "forced_sell": policy.forced_sell,
+            "stop_loss_triggered_this_tick": stop_loss_triggered_this_tick,
         }
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -952,6 +1016,61 @@ class DemoRuleVariantShadowTester:
                     buy_multiplier *= 1.15
                     action_reason += "_transition_boost"
 
+        # ════════════════════════════════════════════════════════════════════════
+        # Rule M – Breakout Chaser (돌파추격형)
+        # ════════════════════════════════════════════════════════════════════════
+        elif variant.key == "M":
+            strong_momentum = market_state == "bull" and market_pressure >= 0.15 and decision.signal.level in {"strong", "very_strong"}
+            entry_allowed = strong_momentum
+            if strong_momentum:
+                pressure_boost = 1.0 + (market_pressure - 0.15) * 1.20
+                buy_multiplier *= 1.25 * pressure_boost
+                sell_multiplier *= 0.80
+                take_profit_pct *= 1.15
+                stop_loss_pct *= 1.05
+                action_reason = "breakout_chase_surge"
+            else:
+                buy_multiplier = 0.0
+                sell_multiplier *= 1.50
+                action_reason = "breakout_chase_hold"
+
+        # ════════════════════════════════════════════════════════════════════════
+        # Rule N – Contrarian Volatility (역변동성형)
+        # ════════════════════════════════════════════════════════════════════════
+        elif variant.key == "N":
+            high_vol = decision.features.short_volatility >= 0.010
+            extreme_position = box_position is not None and (box_position <= 0.18 or box_position >= 0.82)
+            entry_allowed = market_state == "box" and high_vol and extreme_position and decision.signal.level != "weak"
+            if entry_allowed:
+                is_bottom = box_position <= 0.18
+                buy_multiplier *= 0.85 if is_bottom else 0.40
+                sell_multiplier *= 1.35 if is_bottom else 1.65
+                take_profit_pct *= 0.90
+                stop_loss_pct *= 0.80
+                action_reason = "contrarian_vol_bottom" if is_bottom else "contrarian_vol_top"
+            else:
+                buy_multiplier = 0.0
+                sell_multiplier *= 1.50
+                action_reason = "contrarian_vol_hold"
+
+        # ════════════════════════════════════════════════════════════════════════
+        # Rule O – Aggressive Trend (공격추세형)
+        # ════════════════════════════════════════════════════════════════════════
+        elif variant.key == "O":
+            strong_bull = market_state == "bull" and decision.signal.level in {"medium", "strong", "very_strong"}
+            entry_allowed = strong_bull and market_pressure >= 0.10
+            if entry_allowed:
+                pressure_boost = 1.0 + max(market_pressure - 0.10, 0.0) * 1.50
+                buy_multiplier *= 1.45 * pressure_boost
+                sell_multiplier *= 0.40
+                take_profit_pct *= 1.30
+                stop_loss_pct *= 1.10
+                action_reason = "aggressive_trend_bull"
+            else:
+                buy_multiplier = 0.0
+                sell_multiplier *= 2.00
+                action_reason = "aggressive_trend_hold"
+
         # ── Global: volatility penalty ─────────────────────────────────────────
         volatility_penalty = min(max(decision.features.short_volatility / 0.02, 0.0), 1.0)
         if volatility_penalty > 0.5:
@@ -979,7 +1098,10 @@ class DemoRuleVariantShadowTester:
 
         # ── Bull→bear forced sell: amplify sell multiplier ─────────────────────
         if forced_sell:
-            sell_multiplier *= self.BULL_TO_BEAR_SELL_BOOST
+            if variant.key == "O":
+                sell_multiplier *= 2.50
+            else:
+                sell_multiplier *= self.BULL_TO_BEAR_SELL_BOOST
             # Lower take-profit so any remaining profit is banked quickly
             take_profit_pct *= 0.55
             entry_allowed = False
