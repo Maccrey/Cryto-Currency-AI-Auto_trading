@@ -309,7 +309,8 @@ class DemoRuleVariantShadowTester:
             positive_other_results = [
                 r for r in results 
                 if r["variant_key"] != applied["variant_key"] 
-                and float(r.get("profit_rate") or 0.0) > 0.0
+                and int(r.get("trade_count") or 0) >= 1
+                and float(r.get("realized_pnl") or 0.0) > 0.0
             ]
             if positive_other_results:
                 new_leader = max(positive_other_results, key=lambda x: float(x.get("profit_rate") or 0.0))

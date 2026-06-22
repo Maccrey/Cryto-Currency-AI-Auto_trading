@@ -339,7 +339,7 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
         peak_equity=1_000_000.0,
         trade_count=1,
     )
-    # B는 수익률이 1% (1,010,000 KRW) 상태
+    # B는 수익률이 1% (1,010,000 KRW) 상태이며 실현 손익과 거래 횟수가 완결된 상태
     tester2._portfolios["B"] = ShadowPortfolio(
         cash_balance=1_010_000.0,
         asset_balance=0.0,
@@ -347,6 +347,7 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
         peak_equity=1_010_000.0,
         trade_count=1,
         win_count=1,
+        realized_pnl=10000.0,
     )
 
     report2 = tester2.evaluate(
@@ -360,7 +361,44 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
         ),
     )
 
-    # B가 양수(1%)이므로 A에서 B로 강제 스위칭되어야 함
+    # B가 양수(1%)이면서 실현 손익이 검증되었으므로 A에서 B로 강제 스위칭되어야 함
     assert report2["selection_changed"] is True
     assert report2["applied_variant_key"] == "B"
     assert "손절이 발생하여" in report2["leader_reason"]
+
+    # ── 시나리오 3: 평가 수익률은 양수(1%)이지만 거래 미완료(trade_count=0)이거나 realized_pnl이 없는 경우 (스위칭 차단) ──
+    tester3 = DemoRuleVariantShadowTester()
+    tester3._applied_variant_key = "A"
+    tester3._initial_equity = 1_000_000.0
+
+    tester3._portfolios["A"] = ShadowPortfolio(
+        cash_balance=0.0,
+        asset_balance=1000.0,
+        avg_buy_price=1000.0,
+        peak_equity=1_000_000.0,
+        trade_count=1,
+    )
+    # B는 미실현 평가 자산 상승으로 profit_rate는 1%이나 trade_count가 0인 상태
+    tester3._portfolios["B"] = ShadowPortfolio(
+        cash_balance=0.0,
+        asset_balance=1010.0,
+        avg_buy_price=1000.0,
+        peak_equity=1_010_000.0,
+        trade_count=0,
+        realized_pnl=0.0,
+    )
+
+    report3 = tester3.evaluate(
+        decision=decision,
+        current_price=900.0,
+        portfolio=PortfolioState(
+            cash_balance=1_000_000.0,
+            asset_currency="XRP",
+            asset_balance=0.0,
+            avg_buy_price=0.0,
+        ),
+    )
+
+    # 완결 거래(실현 손익)가 없으므로 B로 스위칭되지 않고 A 유지되어야 함
+    assert report3["selection_changed"] is False
+    assert report3["applied_variant_key"] == "A"

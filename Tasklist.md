@@ -417,3 +417,11 @@
 - [x] [Code] review.py 내 15개 룰 제안 로직 및 프롬프트 문자열 동기화
 - [x] [Code] dashboard.py HTML/CSS/JS 15개 룰 및 5열 그리드 UI 반영
 - [x] [Contract] STRATEGY_SPEC.md 에 15개 룰 및 손절 즉시 스위칭 시스템 사양 반영
+
+---
+
+## 16. Phase 12 - 실현 손익 검증 기반 플러스 룰 스위칭 및 대기 게이트 개선
+
+- [x] [Fail] 평가 손익 상승(0.01% 이상)만으로는 스위칭이 차단되고 완결 거래(trade_count >= 1, realized_pnl > 0)일 때만 스위칭되는 시나리오 검증
+- [x] [Code] variants.py 내 손절 스위칭 조건에 실현 손익 및 거래 횟수 검증 추가
+- [x] [Contract] STRATEGY_SPEC.md 에 실현 손익 검증 기반 스위칭 제약 사양 반영
