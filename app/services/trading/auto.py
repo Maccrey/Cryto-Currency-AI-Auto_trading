@@ -452,11 +452,14 @@ class AutoTradingService:
         request = self._build_decision_request(snapshot.trade_price)
         decision = self._trade_decision_service.evaluate(request)
         variant_payload = self._run_demo_rule_variant_shadow(decision=decision, current_price=snapshot.trade_price)
-        if variant_payload is not None:
-            decision = self._demo_rule_variant_shadow_tester.apply_selected_variant(
-                decision=decision,
-                current_price=snapshot.trade_price,
-            )
+        available_cash = self._demo_cash_balance if self._trading_mode == "demo" else portfolio.cash_balance
+        decision = self._apply_variant_and_gate_entry(
+            decision=decision,
+            variant_payload=variant_payload,
+            current_price=snapshot.trade_price,
+            position_exists=position is not None,
+            available_cash=available_cash,
+        )
         box_range_opportunity = self._box_range_buy_opportunity(
             market_state=decision.regime.market_state,
             box_range_low=decision.regime.box_range_low,
@@ -646,11 +649,14 @@ class AutoTradingService:
                 self._build_decision_request(snapshot.trade_price, relax_fee_edge=True),
             )
             variant_payload = self._run_demo_rule_variant_shadow(decision=decision, current_price=snapshot.trade_price)
-            if variant_payload is not None:
-                decision = self._demo_rule_variant_shadow_tester.apply_selected_variant(
-                    decision=decision,
-                    current_price=snapshot.trade_price,
-                )
+            available_cash = self._demo_cash_balance if self._trading_mode == "demo" else portfolio.cash_balance
+            decision = self._apply_variant_and_gate_entry(
+                decision=decision,
+                variant_payload=variant_payload,
+                current_price=snapshot.trade_price,
+                position_exists=position is not None,
+                available_cash=available_cash,
+            )
             box_range_opportunity = self._box_range_buy_opportunity(
                 market_state=decision.regime.market_state,
                 box_range_low=decision.regime.box_range_low,
@@ -740,7 +746,7 @@ class AutoTradingService:
                     **rule_variant,
                 },
             )
-        if self._trading_mode == "demo" and not self._can_afford_demo_buy(decision.sizing.buy_amount):
+        if self._trading_mode == "demo" and decision.sizing.allowed and decision.sizing.buy_amount > 0 and not self._can_afford_demo_buy(decision.sizing.buy_amount):
             rule_variant = self._variant_extra(variant_payload)
             return self._record_cycle(
                 status="blocked",
@@ -983,13 +989,46 @@ class AutoTradingService:
         return estimated_total_cost <= self._demo_cash_balance + 1e-6
 
     def _run_demo_rule_variant_shadow(self, *, decision, current_price: float) -> dict[str, object] | None:
-        if self._trading_mode != "demo":
-            return None
         return self._demo_rule_variant_shadow_tester.evaluate(
             decision=decision,
             current_price=current_price,
             portfolio=self._portfolio_state(),
         )
+
+    def _apply_variant_and_gate_entry(
+        self,
+        *,
+        decision: TradeDecisionResult,
+        variant_payload: dict[str, object] | None,
+        current_price: float,
+        position_exists: bool,
+        available_cash: float,
+    ) -> TradeDecisionResult:
+        has_applied_rule = False
+        if variant_payload is not None:
+            applied_key = variant_payload.get("leader_key")
+            if applied_key:
+                has_applied_rule = True
+                decision = self._demo_rule_variant_shadow_tester.apply_selected_variant(
+                    decision=decision,
+                    current_price=current_price,
+                    available_cash=available_cash,
+                )
+        
+        # 플러스 검증된 대표 룰이 적용되지 않은 상태에서 신규 매수 진입 시도인 경우 대기 및 차단
+        if not has_applied_rule and not position_exists:
+            decision = replace(
+                decision,
+                sizing=replace(
+                    decision.sizing,
+                    allowed=False,
+                    buy_ratio=0.0,
+                    buy_amount=0.0,
+                    buy_quantity=0.0,
+                    blocked_reason="NO_POSITIVE_RULE_LEADER_YET",
+                )
+            )
+        return decision
 
     @staticmethod
     def _variant_extra(variant_payload: dict[str, object] | None) -> dict[str, object]:

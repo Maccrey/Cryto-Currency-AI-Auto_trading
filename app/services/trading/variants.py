@@ -295,6 +295,7 @@ class DemoRuleVariantShadowTester:
             None,
         )
 
+
         # ── 손절 시 즉시 리더 스위칭 (Bypass Promotion) ──
         applied_stop_loss = (
             applied is not None
@@ -367,6 +368,7 @@ class DemoRuleVariantShadowTester:
         *,
         decision: TradeDecisionResult,
         current_price: float,
+        available_cash: float = 1_000_000.0,
     ) -> TradeDecisionResult:
         variant = next(
             (item for item in self._variants if item.key == self._applied_variant_key),
@@ -402,8 +404,13 @@ class DemoRuleVariantShadowTester:
         sizing = decision.sizing
         if not sizing.allowed or sizing.buy_amount <= 0:
             return decision
+        
+        # 룰 배수를 적용한 매수 금액 계산 후 가용 현금(수수료 감안)으로 캡핑
+        raw_buy_amount = sizing.buy_amount * policy.buy_multiplier
+        max_allowed = available_cash / (1 + self._trading_fee_rate)
+        buy_amount = round(min(raw_buy_amount, max_allowed), 1)
+
         buy_ratio = round(min(sizing.buy_ratio * policy.buy_multiplier, 1.0), 3)
-        buy_amount = round(sizing.buy_amount * policy.buy_multiplier, 1)
         return replace(
             decision,
             sizing=replace(

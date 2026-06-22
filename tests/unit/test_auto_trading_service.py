@@ -99,6 +99,7 @@ def _build_service(
     execution_ledger: ExecutionLedger | None = None,
     initial_warmup_seconds: int = 0,
     initial_warmup_min_samples: int = 0,
+    mock_applied_variant_key: str | None = "A",
 ) -> AutoTradingService:
     learning_service = LearningService(log_dir=tmp_path)
     position_store = CurrentPositionStore()
@@ -108,7 +109,7 @@ def _build_service(
     )
     execution_ledger = execution_ledger or ExecutionLedger()
     lifecycle_ledger = PositionLifecycleLedger()
-    return AutoTradingService(
+    service = AutoTradingService(
         market="KRW-XRP",
         trading_mode=trading_mode,
         boot_state=BootState(
@@ -182,6 +183,9 @@ def _build_service(
         telegram_notifier=telegram_notifier,
         execution_ledger=execution_ledger,
     )
+    if mock_applied_variant_key is not None:
+        service._demo_rule_variant_shadow_tester._applied_variant_key = mock_applied_variant_key
+    return service
 
 
 class ExternalContextProviderStub:
@@ -422,7 +426,7 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert portfolio.cash_balance < 1_000_000.0
     assert portfolio.asset_balance > 0.0
     assert portfolio.avg_buy_price > 0.0
-    assert result["rule_variant_leader_key"] is None
+    assert result["rule_variant_leader_key"] == "A"
     assert result["rule_variant_shadow"]["candidate_leader_key"] in set("ABCDEFGHIJKLMNO")
     assert result["trade_logic_update_trace"]["version"] == "2026-06-07-loss-aware-weak-recovery-guard"
     assert "demo_realized_pnl" in result["trade_logic_update_trace"]["optimization_metric_keys"]
@@ -434,6 +438,17 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     ]
     assert observation_rows[-1]["market_state"] == "bull"
     assert observation_rows[-1]["market_state_label"] == "상승장"
+
+
+def test_auto_trading_service_waits_for_positive_rule_leader(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0, 806.0, 813.0, 824.0], min_history=4, mock_applied_variant_key=None)
+    assert service._demo_rule_variant_shadow_tester._applied_variant_key is None
+
+    for _ in range(4):
+        result = service.tick()
+
+    assert result["status"] == "blocked"
+    assert result["reason"] == "NO_POSITIVE_RULE_LEADER_YET"
 
 
 def test_auto_trading_service_blocks_weak_bear_market_state_entry(tmp_path: Path) -> None:
@@ -570,7 +585,6 @@ def test_auto_trading_service_submits_live_buy_after_signal_when_live_enabled(tm
     assert gateway.order_calls[0]["market"] == "KRW-XRP"
     assert gateway.order_calls[0]["side"] == "buy"
     assert gateway.order_calls[0]["order_type"] == "market"
-    assert "rule_variant_shadow" not in result
 
 
 def test_auto_trading_service_blocks_live_repeat_order_while_order_is_pending(tmp_path: Path) -> None:
