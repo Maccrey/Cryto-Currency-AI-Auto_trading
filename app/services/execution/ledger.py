@@ -200,6 +200,39 @@ class ExecutionLedger:
             recent_stop_loss_reason=recent_stop_loss_reason,
         )
 
+    def recent_loss_streak(self) -> int:
+        """Return consecutive losing sell fills from the latest execution history."""
+        streak = 0
+        open_quantity = 0.0
+        average_cost = 0.0
+
+        for record in self._records:
+            fill = record.fill
+            if fill.status != "filled":
+                continue
+            if fill.side == "buy":
+                total_cost = (
+                    (average_cost * open_quantity)
+                    + (fill.filled_price * fill.filled_quantity)
+                    + fill.fee
+                )
+                open_quantity += fill.filled_quantity
+                average_cost = 0.0 if open_quantity <= 0 else total_cost / open_quantity
+                continue
+
+            matched_quantity = min(open_quantity, fill.filled_quantity)
+            if matched_quantity <= 0:
+                continue
+            proceeds = (fill.filled_price * matched_quantity) - fill.fee
+            pnl = proceeds - (average_cost * matched_quantity)
+            streak = streak + 1 if pnl < 0 else 0
+            open_quantity = round(open_quantity - matched_quantity, 8)
+            if open_quantity <= 0:
+                open_quantity = 0.0
+                average_cost = 0.0
+
+        return streak
+
     def portfolio_state(
         self,
         *,

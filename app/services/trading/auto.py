@@ -833,7 +833,11 @@ class AutoTradingService:
             slippage_bps=self._config.slippage_bps,
             portfolio=self._portfolio_state(),
             safe_mode=self._boot_state.safe_mode,
-            recent_loss_streak=0,
+            recent_loss_streak=(
+                0
+                if self._execution_ledger is None
+                else self._execution_ledger.recent_loss_streak()
+            ),
             relax_fee_edge=relax_fee_edge,
             external_context_weight=self._external_context_weight(external_context),
             observed_market_state=trend.market_state,

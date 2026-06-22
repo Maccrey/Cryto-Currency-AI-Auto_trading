@@ -297,6 +297,46 @@ def test_auto_trading_service_notifies_when_applied_rule_variant_changes(tmp_pat
     ]
 
 
+def test_auto_trading_service_passes_recent_loss_streak_to_regime_engine(tmp_path: Path) -> None:
+    ledger = ExecutionLedger()
+    for buy_price, sell_price in ((1000.0, 980.0), (990.0, 970.0)):
+        ledger.record_fill(
+            FillResult(
+                market="KRW-XRP",
+                side="buy",
+                filled_price=buy_price,
+                filled_quantity=10.0,
+                fee=5.0,
+                status="filled",
+                mode="demo",
+                is_virtual=True,
+                is_stop_loss=False,
+            ),
+        )
+        ledger.record_fill(
+            FillResult(
+                market="KRW-XRP",
+                side="sell",
+                filled_price=sell_price,
+                filled_quantity=10.0,
+                fee=4.9,
+                status="filled",
+                mode="demo",
+                is_virtual=True,
+                is_stop_loss=True,
+            ),
+        )
+    service = _build_service(
+        tmp_path,
+        [800.0],
+        execution_ledger=ledger,
+    )
+
+    request = service._build_decision_request(800.0)
+
+    assert request.recent_loss_streak == 2
+
+
 
 
 def test_auto_trading_service_waits_for_initial_observation_warmup_when_no_existing_data(tmp_path: Path) -> None:

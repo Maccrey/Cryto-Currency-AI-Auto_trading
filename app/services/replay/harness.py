@@ -34,10 +34,16 @@ class ReplaySummary:
 class ReplayHarness:
     """Replay historical ticks through feature and signal services."""
 
-    def __init__(self, *, initial_cash: float = 1_000_000.0) -> None:
+    def __init__(
+        self,
+        *,
+        initial_cash: float = 1_000_000.0,
+        trading_fee_rate: float = 0.0005,
+    ) -> None:
         self._feature_calculator = MarketFeatureCalculator()
         self._signal_engine = SignalEngine()
         self._initial_cash = initial_cash
+        self._trading_fee_rate = max(float(trading_fee_rate), 0.0)
 
     def run(self, ticks: list[ReplayTick]) -> list[ReplayResult]:
         results: list[ReplayResult] = []
@@ -63,16 +69,20 @@ class ReplayHarness:
             decision = self._signal_engine.evaluate(features)
             action = "hold"
             if not decision.blocked and decision.score >= 0.4 and cash > 0:
-                buy_amount = cash * min(max(decision.score, 0.0), 1.0) * 0.2
+                available_notional = cash / (1 + self._trading_fee_rate)
+                buy_amount = available_notional * min(max(decision.score, 0.0), 1.0) * 0.2
                 if buy_amount > 0 and tick.price > 0:
+                    buy_fee = buy_amount * self._trading_fee_rate
                     quantity += buy_amount / tick.price
-                    cash -= buy_amount
+                    cash -= buy_amount + buy_fee
                     action = "buy"
             elif (decision.blocked or decision.score < 0.25) and quantity > 0 and tick.price > 0:
-                cash += quantity * tick.price
+                sell_notional = quantity * tick.price
+                cash += sell_notional - (sell_notional * self._trading_fee_rate)
                 quantity = 0.0
                 action = "sell"
-            equity = cash + (quantity * tick.price)
+            liquidation_value = quantity * tick.price * (1 - self._trading_fee_rate)
+            equity = cash + liquidation_value
             results.append(
                 ReplayResult(
                     timestamp=tick.timestamp,

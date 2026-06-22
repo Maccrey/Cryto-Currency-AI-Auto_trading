@@ -96,7 +96,7 @@ class DemoRuleVariantShadowTester:
       forced exits.
     """
 
-    MIN_PROMOTION_TRADES = 15
+    MIN_PROMOTION_TRADES = 20
 
     # Bear-to-bull confirmed → buy multiplier is boosted by this factor
     BEAR_TO_BULL_BUY_BOOST = 1.35

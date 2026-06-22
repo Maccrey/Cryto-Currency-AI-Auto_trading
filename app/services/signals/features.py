@@ -46,7 +46,10 @@ class MarketFeatureCalculator:
             raise ValueError("At least two traded_values are required")
 
         ret_1s = _return(prices[-2], prices[-1])
-        ret_5s = _return(prices[0], prices[-1])
+        # 기본 자동매매 주기가 3초이므로 최근 3개 관측치는 약 5~6초
+        # 모멘텀을 나타낸다. 전체 관측 구간과 분리해 동일 수익률이
+        # 단기·장기 점수에 이중 반영되는 것을 방지한다.
+        ret_5s = _return(prices[-min(len(prices), 3)], prices[-1])
         ret_30s = _return(prices[0], prices[-1])
         comparison_window = traded_values[-3:-1] if len(traded_values) >= 3 else traded_values[:-1]
         volume_multiple = traded_values[-1] / (sum(comparison_window) / len(comparison_window))

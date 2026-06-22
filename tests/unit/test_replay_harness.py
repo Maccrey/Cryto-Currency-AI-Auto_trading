@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from app.services.replay.harness import ReplayHarness
-from app.services.replay.loader import ReplayFixtureLoader
+from app.services.replay.loader import ReplayFixtureLoader, ReplayTick
 
 
 def test_replay_harness_replays_fixture_and_produces_signal_results() -> None:
@@ -35,6 +35,33 @@ def test_replay_fixture_loader_reads_ticks_from_json() -> None:
     assert len(ticks) == 4
     assert ticks[0].price == 800.0
     assert ticks[-1].orderbook_imbalance == 0.38
+
+
+def test_replay_harness_deducts_round_trip_fees() -> None:
+    ticks = [
+        ReplayTick(
+            timestamp=f"2026-01-01T00:00:0{index}+09:00",
+            price=price,
+            traded_value=1_000_000.0,
+            spread_bps=5.0,
+            orderbook_imbalance=0.3,
+            liquidity_score=0.9,
+            regime_score=0.8,
+        )
+        for index, price in enumerate((100.0, 101.0, 102.0, 102.0))
+    ]
+
+    fee_results = ReplayHarness(
+        initial_cash=100_000.0,
+        trading_fee_rate=0.0005,
+    ).run(ticks)
+    zero_fee_results = ReplayHarness(
+        initial_cash=100_000.0,
+        trading_fee_rate=0.0,
+    ).run(ticks)
+
+    assert fee_results
+    assert fee_results[-1].equity < zero_fee_results[-1].equity
 
 
 def test_replay_loader_reads_market_observation_jsonl(tmp_path: Path) -> None:

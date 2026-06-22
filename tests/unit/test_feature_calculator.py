@@ -16,7 +16,7 @@ def test_feature_calculator_computes_market_features() -> None:
     )
 
     assert round(snapshot.ret_1s, 4) == 0.0074
-    assert round(snapshot.ret_5s, 4) == 0.0186
+    assert round(snapshot.ret_5s, 4) == 0.0136
     assert round(snapshot.ret_30s, 4) == 0.0186
     assert round(snapshot.volume_multiple, 4) == 1.8182
     assert round(snapshot.traded_value_multiple, 4) == 1.8182
@@ -34,3 +34,17 @@ def test_feature_calculator_computes_market_features() -> None:
     assert snapshot.drawdown_from_high_20 <= 0.0
     assert snapshot.rebound_from_low_20 >= 0.0
     assert -1.0 <= snapshot.trend_efficiency_20 <= 1.0
+
+
+def test_feature_calculator_separates_short_and_long_momentum_windows() -> None:
+    snapshot = MarketFeatureCalculator().calculate(
+        prices=[100.0, 110.0, 109.0, 108.0],
+        traded_values=[100.0, 100.0, 100.0, 100.0],
+        spread_bps=5.0,
+        orderbook_imbalance=0.0,
+        liquidity_score=1.0,
+        regime_score=0.5,
+    )
+
+    assert snapshot.ret_5s < 0.0
+    assert snapshot.ret_30s > 0.0

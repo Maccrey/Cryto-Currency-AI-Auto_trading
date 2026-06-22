@@ -253,6 +253,21 @@ def test_demo_rule_variant_candidate_uses_highest_profit_rate_even_when_all_nega
     assert candidate["variant_key"] == "B"
 
 
+def test_demo_rule_variant_requires_twenty_closed_trades_for_normal_promotion() -> None:
+    candidate = {
+        "profit_rate": 0.02,
+        "realized_pnl": 20_000.0,
+        "trade_count": 19,
+        "profit_factor": 2.0,
+        "stop_loss_rate": 0.1,
+    }
+
+    assert DemoRuleVariantShadowTester._promotion_eligible(candidate) is False
+
+    candidate["trade_count"] = 20
+    assert DemoRuleVariantShadowTester._promotion_eligible(candidate) is True
+
+
 def test_demo_rule_variant_positive_leader_switches_applied_entry_policy() -> None:
     tester = DemoRuleVariantShadowTester()
     tester._initial_equity = 1_000_000.0

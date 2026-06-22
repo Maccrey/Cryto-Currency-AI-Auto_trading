@@ -133,6 +133,68 @@ def test_execution_ledger_portfolio_state_ignores_buys_that_exceed_cash() -> Non
     assert portfolio.asset_balance == 187.8049
 
 
+def test_execution_ledger_tracks_consecutive_losing_exits() -> None:
+    ledger = ExecutionLedger()
+    for buy_price, sell_price in ((1000.0, 980.0), (990.0, 970.0)):
+        ledger.record_fill(
+            FillResult(
+                market="KRW-XRP",
+                side="buy",
+                filled_price=buy_price,
+                filled_quantity=10.0,
+                fee=5.0,
+                status="filled",
+                mode="demo",
+                is_virtual=True,
+                is_stop_loss=False,
+            ),
+        )
+        ledger.record_fill(
+            FillResult(
+                market="KRW-XRP",
+                side="sell",
+                filled_price=sell_price,
+                filled_quantity=10.0,
+                fee=4.9,
+                status="filled",
+                mode="demo",
+                is_virtual=True,
+                is_stop_loss=True,
+            ),
+        )
+
+    assert ledger.recent_loss_streak() == 2
+
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="buy",
+            filled_price=970.0,
+            filled_quantity=10.0,
+            fee=4.85,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP",
+            side="sell",
+            filled_price=1000.0,
+            filled_quantity=10.0,
+            fee=5.0,
+            status="filled",
+            mode="demo",
+            is_virtual=True,
+            is_stop_loss=False,
+        ),
+    )
+
+    assert ledger.recent_loss_streak() == 0
+
+
 def test_execution_ledger_persists_records(tmp_path) -> None:
     storage_path = tmp_path / "execution-ledger.json"
     ledger = ExecutionLedger(storage_path=storage_path)
