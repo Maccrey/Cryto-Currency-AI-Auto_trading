@@ -206,7 +206,7 @@ def test_rule_review_uses_shadow_variant_results_in_codex_prompt_and_changes(tmp
 
     assert review["rule_variant_shadow_summary"]["best_variant_key"] == "B"
     assert review["rule_variant_shadow_summary"]["best_positive_variant_key"] == "B"
-    assert "A-O 15개 룰 동시 테스트" in review["codex_rule_prompt"]
+    assert "A-R 18개 룰 동시 테스트" in review["codex_rule_prompt"]
     assert proposal["codex_suggested_changes"][0]["parameter"] == "TREND_MARKET_SIZE_MULTIPLIER"
 
 
