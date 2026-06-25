@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import datetime
+
 from app.services.risk.reentry import (
     FixedCooldownReentryPolicy,
     ReentryBlockDecision,
     ReentryBlocker,
 )
+
+_TS_1000 = datetime.datetime.fromtimestamp(1_000, tz=datetime.timezone.utc)
 
 
 def test_reentry_blocker_rejects_entry_within_block_window() -> None:
@@ -17,6 +21,7 @@ def test_reentry_blocker_rejects_entry_within_block_window() -> None:
         allowed=False,
         remaining_seconds=60,
         reason_code="REENTRY_BLOCK_ACTIVE",
+        last_exit_time=_TS_1000,
     )
 
 
@@ -30,6 +35,7 @@ def test_reentry_blocker_allows_entry_after_block_window_expires() -> None:
         allowed=True,
         remaining_seconds=0,
         reason_code=None,
+        last_exit_time=_TS_1000,
     )
 
 
@@ -58,6 +64,7 @@ def test_reentry_blocker_accepts_custom_cooldown_policy() -> None:
         allowed=False,
         remaining_seconds=180,
         reason_code="REENTRY_BLOCK_ACTIVE",
+        last_exit_time=_TS_1000,
     )
 
 

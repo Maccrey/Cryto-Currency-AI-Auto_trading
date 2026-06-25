@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import datetime
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -10,6 +11,7 @@ class ReentryBlockDecision:
     reason_code: str | None
     last_exit_reason_code: str | None = None
     last_exit_price: float | None = None
+    last_exit_time: datetime.datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +130,11 @@ class ReentryBlocker:
             if last_exit is None or last_exit.get("price") is None
             else float(last_exit["price"])
         )
+        last_exit_time = (
+            None
+            if last_triggered_at is None
+            else datetime.datetime.fromtimestamp(last_triggered_at, tz=datetime.timezone.utc)
+        )
 
         if remaining > 0:
             return ReentryBlockDecision(
@@ -136,6 +143,7 @@ class ReentryBlocker:
                 reason_code="REENTRY_BLOCK_AFTER_SELL" if last_exit is not None else "REENTRY_BLOCK_ACTIVE",
                 last_exit_reason_code=last_exit_reason_code,
                 last_exit_price=last_exit_price,
+                last_exit_time=last_exit_time,
             )
 
         return ReentryBlockDecision(
@@ -144,4 +152,5 @@ class ReentryBlocker:
             reason_code=None,
             last_exit_reason_code=last_exit_reason_code,
             last_exit_price=last_exit_price,
+            last_exit_time=last_exit_time,
         )

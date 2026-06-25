@@ -912,6 +912,7 @@ def test_auto_trading_service_requires_confirmed_bull_strong_signal_after_stop_l
     reentry_decision = SimpleNamespace(
         last_exit_reason_code="STOP_LOSS_PRICE_HIT",
         last_exit_price=795.0,
+        last_exit_time=None,
     )
     # Signal is medium (not strong) — would normally qualify for relaxed reentry,
     # but current_price (793.0) is below required_recovery_price (797.385) so
@@ -949,6 +950,7 @@ def test_auto_trading_service_allows_reentry_after_stop_loss_only_on_confirmed_b
     reentry_decision = SimpleNamespace(
         last_exit_reason_code="STOP_LOSS_PRICE_HIT",
         last_exit_price=795.0,
+        last_exit_time=None,
     )
     strong_decision = SimpleNamespace(
         signal=SimpleNamespace(level="strong", score=0.7),
@@ -1044,6 +1046,7 @@ def test_auto_trading_service_blocks_medium_reentry_after_stop_loss_even_on_larg
     reentry_decision = SimpleNamespace(
         last_exit_reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
         last_exit_price=1653.0,
+        last_exit_time=None,
     )
     medium_decision = SimpleNamespace(
         signal=SimpleNamespace(level="medium", score=0.4),
@@ -1079,6 +1082,7 @@ def test_auto_trading_service_allows_medium_reentry_after_confirmed_bear_to_bull
     reentry_decision = SimpleNamespace(
         last_exit_reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
         last_exit_price=1653.0,
+        last_exit_time=None,
     )
     medium_decision = SimpleNamespace(
         signal=SimpleNamespace(level="medium", score=0.4),

@@ -73,6 +73,7 @@ class AutoTradingConfig:
     historical_loss_guard_box_entry_min_score: float = 0.30
     initial_observation_warmup_seconds: int = 180
     initial_observation_min_samples: int = 20
+    post_stop_loss_max_block_hours: float = 12.0  # 손절 후 재진입 최대 차단 시간(시간). 이 시간 이후는 자동 해제.
 
 
 class AutoTradingService:
@@ -1225,24 +1226,59 @@ class AutoTradingService:
         reason_code = reentry_decision.last_exit_reason_code
         if reason_code is None or not str(reason_code).startswith("STOP_LOSS"):
             return {"allowed": True}
+
+        # ── 손절 이후 최대 차단 시간 초과 시 자동 해제 ───────────────────────────────────
+        last_exit_time = reentry_decision.last_exit_time
+        if last_exit_time is not None and self._config.post_stop_loss_max_block_hours > 0:
+            import datetime
+            now = datetime.datetime.now(datetime.timezone.utc)
+            try:
+                if isinstance(last_exit_time, str):
+                    last_exit_time = datetime.datetime.fromisoformat(last_exit_time)
+                elapsed_hours = (now - last_exit_time).total_seconds() / 3600
+                if elapsed_hours >= self._config.post_stop_loss_max_block_hours:
+                    return {
+                        "allowed": True,
+                        "post_stop_loss_reentry_confirmed": True,
+                        "post_stop_loss_reentry_mode": "max_block_hours_expired",
+                        "post_stop_loss_elapsed_hours": round(elapsed_hours, 2),
+                        "post_stop_loss_last_exit_reason_code": reason_code,
+                    }
+            except Exception:
+                pass  # 시간 파싱 실패 시 타 조건으로 판단
+        # ───────────────────────────────────────────────────────────────────────────
         required_confirmation_count = max(
             self._config.market_recovery_confirmation_ticks,
             self._config.market_state_transition_confirmation_ticks,
             1,
         )
         last_exit_price = reentry_decision.last_exit_price
+
+        # ── 가격 회복 기준 개선 ──────────────────────────────────────────────────
+        # 현재가감 손절가보다 낙은 경우, 손절가 기준으로 회복함을 요구하면
+        # 영구 차단되므로 현재가 기준으로 계산
+        if last_exit_price is not None and last_exit_price > 0:
+            if current_price < last_exit_price:
+                # 손절가보다 난 아래에 있음: 현재가에서 조세한 상승만 확인
+                base_price = current_price
+            else:
+                # 손절가 이상: 손절가에서 조세한 상승 확인
+                base_price = last_exit_price
+        else:
+            base_price = None
+
         required_recovery_price = (
             None
-            if last_exit_price is None or last_exit_price <= 0
-            else round(last_exit_price * (1 + self._config.market_recovery_change_pct), 4)
+            if base_price is None
+            else round(base_price * (1 + self._config.market_recovery_change_pct), 4)
         )
         strong_signal = decision.signal.level in {"strong", "very_strong"} and decision.signal.score >= 0.65
         sizing = getattr(decision, "sizing", None)
         sizing_allowed = True if sizing is None else bool(getattr(sizing, "allowed", False))
         strong_recovery_price = (
             None
-            if last_exit_price is None or last_exit_price <= 0
-            else round(last_exit_price * (1 + max(self._config.market_recovery_change_pct, 0.003)), 4)
+            if base_price is None
+            else round(base_price * (1 + max(self._config.market_recovery_change_pct, 0.003)), 4)
         )
         confirmed_bull_strict = (
             entry_type == "initial"

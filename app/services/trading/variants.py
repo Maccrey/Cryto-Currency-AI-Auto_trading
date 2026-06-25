@@ -368,6 +368,12 @@ class DemoRuleVariantShadowTester:
             if selection_changed:
                 self._applied_variant_key = str(leader["variant_key"])
                 applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
+            elif applied is None and leader is not None:
+                # ── 버그 픽스: leader가 존재하는데 applied가 None이면 즉시 leader를 설정 ──
+                # (서버 재기동 후 조기 승격이 안 됐거나, 최초 설정 후 리셋된 경우)
+                self._applied_variant_key = str(leader["variant_key"])
+                applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
+                selection_changed = True
 
         selection_type = (
             "stop_loss_forced_switch"
