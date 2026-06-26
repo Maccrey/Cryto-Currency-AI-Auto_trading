@@ -154,7 +154,7 @@ def test_position_exit_service_full_exits_on_post_entry_stop_loss() -> None:
     )
 
     result = service.evaluate_and_execute(
-        current_price=811.0,
+        current_price=808.0,  # 820 기준 손실 약 -1.46% → 1.2% 기준 초과
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=0.1,
@@ -192,7 +192,7 @@ def test_position_exit_service_full_exits_when_partial_would_leave_dust() -> Non
     service = _build_service(store)
 
     result = service.evaluate_and_execute(
-        current_price=811.0,
+        current_price=808.0,  # 820 기준 손실 약 -1.46% → 1.2% 기준 초과
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=0.1,
@@ -231,7 +231,7 @@ def test_position_exit_service_blocks_sell_below_upbit_minimum_order_amount() ->
     )
 
     result = service.evaluate_and_execute(
-        current_price=811.0,
+        current_price=808.0,  # 820 기준 손실 약 -1.46% → 1.2% 기준 초과
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=0.1,
@@ -372,7 +372,7 @@ def test_position_exit_service_full_exits_weak_post_entry_stop() -> None:
     service = _build_service(store)
 
     result = service.evaluate_and_execute(
-        current_price=811.0,
+        current_price=808.0,  # 820 기준 손실 약 -1.46% → 1.2% 기준 초과
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=0.1,

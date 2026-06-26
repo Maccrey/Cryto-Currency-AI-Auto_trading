@@ -16,11 +16,23 @@ class PostEntryDecision:
 
 @dataclass(frozen=True)
 class PostEntryExpectationRuleset:
-    """Decide how to exit when a new position misses post-entry expectations."""
+    """Decide how to exit when a new position misses post-entry expectations.
 
-    momentum_reversal_threshold: float = 0.35
+    Tuning notes
+    ------------
+    * ``min_adverse_exit_pct`` – 포지션 손실이 이 값을 초과해야 손절 발동.
+      너무 작으면 단기 휩소에 의해 과민 손절 (loss loop) 발생.
+      기본값 0.012 (1.2%) — 수수료 0.05% × 2 + 여유 마진 포함.
+    * ``momentum_reversal_threshold`` – 모멘텀 점수가 이 값 미만이어야
+      STOP_LOSS_MOMENTUM_REVERSAL 발동. 너무 높으면 정상적인 횡보 구간에서도
+      과민 손절. 기본값 0.25.
+    * ``liquidity_dropped_threshold`` – 호가 불균형이 이 값보다 낮을 때
+      유동성 소멸 손절 발동. 기본값 -0.2.
+    """
+
+    momentum_reversal_threshold: float = 0.25   # 완화: 0.35 → 0.25
     liquidity_dropped_threshold: float = -0.2
-    min_adverse_exit_pct: float = 0.008
+    min_adverse_exit_pct: float = 0.012          # 완화: 0.8% → 1.2%
 
     def evaluate(
         self,
@@ -37,10 +49,11 @@ class PostEntryExpectationRuleset:
             return None
 
         if momentum_score < self.momentum_reversal_threshold:
-            return (0.5, "STOP_LOSS_MOMENTUM_REVERSAL")
+            # 전량 손절(1.0): 부분 손절(0.5) 시 잔량이 계속 손실을 누적하는 문제 해결
+            return (1.0, "STOP_LOSS_MOMENTUM_REVERSAL")
 
         if orderbook_imbalance < self.liquidity_dropped_threshold:
-            return (0.5, "STOP_LOSS_LIQUIDITY_DROPPED")
+            return (1.0, "STOP_LOSS_LIQUIDITY_DROPPED")
 
         return None
 

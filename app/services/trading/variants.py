@@ -111,6 +111,12 @@ class DemoRuleVariantShadowTester:
     # Bull-to-bear confirmed → sell multiplier is boosted by this factor
     BULL_TO_BEAR_SELL_BOOST = 1.80
 
+    # 비상 전환 발동 기준: 현재 룰의 손절 횟수가 이 값 이상이고
+    # 정상 승격 후보가 없을 때, 최저 낙폭/손절율 룰로 긴급 전환
+    EMERGENCY_FALLBACK_STOP_LOSS_COUNT = 3
+    # 비상 전환 시 현재 룰보다 낙폭이 이 배율 이하인 룰만 후보로 고려
+    EMERGENCY_FALLBACK_MAX_DRAWDOWN_RATIO = 0.80
+
     DEFAULT_VARIANTS = (
         DemoRuleVariant(
             key="A",
@@ -374,10 +380,46 @@ class DemoRuleVariantShadowTester:
                 self._applied_variant_key = str(leader["variant_key"])
                 applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
                 selection_changed = True
+        emergency_fallback_active = False
+        # ── 비상 전환 (Emergency Fallback) ────────────────────────────────────────
+        # 정상 승격 룰 없음 + 현재 룰 손절 과다 → 최저 낙폭 방어 룰로 강제 이탈
+        if (
+            not selection_changed
+            and not forced_switch_active
+            and applied is not None
+            and not promotable  # 정상 승격 후보가 전혀 없음
+            and int(applied.get("stop_loss_count") or 0) >= self.EMERGENCY_FALLBACK_STOP_LOSS_COUNT
+        ):
+            current_drawdown = float(applied.get("max_drawdown_pct") or 0.0)
+            current_sl_rate = float(applied.get("stop_loss_rate") or 0.0)
+            # 현재 룰보다 낙폭+손절율이 낮은 룰 중 최적 선택
+            safer_candidates = [
+                r for r in results
+                if r["variant_key"] != applied["variant_key"]
+                and float(r.get("max_drawdown_pct") or 0.0) <= current_drawdown * self.EMERGENCY_FALLBACK_MAX_DRAWDOWN_RATIO
+                and (r.get("stop_loss_rate") is None or float(r.get("stop_loss_rate") or 0.0) <= current_sl_rate)
+            ]
+            if safer_candidates:
+                # 낙폭 최소 + 손절율 최소 + 수익률 최고 순으로 정렬
+                safest = min(
+                    safer_candidates,
+                    key=lambda r: (
+                        float(r.get("max_drawdown_pct") or 0.0),
+                        float(r.get("stop_loss_rate") or 0.0),
+                        -float(r.get("profit_rate") or 0.0),
+                    ),
+                )
+                old_variant_label = applied["variant_label"]
+                self._applied_variant_key = str(safest["variant_key"])
+                applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
+                selection_changed = True
+                emergency_fallback_active = True
 
         selection_type = (
             "stop_loss_forced_switch"
             if forced_switch_active
+            else "emergency_fallback"
+            if emergency_fallback_active
             else "performance_promotion"
             if selection_changed
             else None
@@ -388,9 +430,14 @@ class DemoRuleVariantShadowTester:
             "leader_reason": (
                 f"기존 적용 룰 {old_variant_label}에서 손절이 발생하여, 현재 수익률 {applied['profit_rate']:.2%}로 가장 우수한 {applied['variant_label']}로 즉시 강제 전환(스위칭)되었습니다."
                 if forced_switch_active and applied is not None
-                else self._leader_reason(leader)
-                if leader is not None
-                else self._no_positive_leader_reason(candidate, applied)
+                else (
+                    f"비상 전환(Emergency Fallback): {old_variant_label}에서 손절 과다 발생. "
+                    f"최저 낙폭 방어 룰 {applied['variant_label']}(낙폭 {float(applied.get('max_drawdown_pct', 0)):.2%})으로 긴급 전환."
+                    if emergency_fallback_active and applied is not None
+                    else self._leader_reason(leader)
+                    if leader is not None
+                    else self._no_positive_leader_reason(candidate, applied)
+                )
             ),
             "candidate_leader_key": candidate["variant_key"],
             "candidate_leader_label": candidate["variant_label"],

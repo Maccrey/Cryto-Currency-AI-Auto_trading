@@ -71,6 +71,7 @@ def test_post_entry_validator_holds_small_loss_after_validation_window() -> None
 
 
 def test_post_entry_validator_reduces_after_confirmed_adverse_momentum() -> None:
+    """1.2% 이상 손실 + 낮은 모멘텀 → 전량 손절 발동."""
     validator = PostEntryValidator()
     position = PositionSnapshot(
         market="KRW-XRP",
@@ -84,9 +85,10 @@ def test_post_entry_validator_reduces_after_confirmed_adverse_momentum() -> None
         stop_loss_reason=None,
     )
 
+    # 820 * (1 - 0.013) = 809.34 → 손실 1.3% > 새 기준 1.2%
     decision = validator.evaluate(
         position=position,
-        current_price=811.0,
+        current_price=809.0,
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=-0.12,
@@ -95,13 +97,14 @@ def test_post_entry_validator_reduces_after_confirmed_adverse_momentum() -> None
     assert decision == PostEntryDecision(
         triggered=True,
         order_side="sell",
-        exit_ratio=0.5,
+        exit_ratio=1.0,
         reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
-        unrealized_return_pct=-0.011,
+        unrealized_return_pct=-0.0134,
     )
 
 
 def test_post_entry_validator_triggers_earlier_near_one_percent_net_loss() -> None:
+    """경계값 테스트: 정확히 1.2% 이상 손실 시 손절 발동."""
     validator = PostEntryValidator()
     position = PositionSnapshot(
         market="KRW-XRP",
@@ -115,9 +118,11 @@ def test_post_entry_validator_triggers_earlier_near_one_percent_net_loss() -> No
         stop_loss_reason=None,
     )
 
+    # 820 * (1 - 0.012) = 810.16 → 손실 정확히 1.2%
+    # 809.8 사용 → 손실 약 1.24% (발동 조건 충족)
     decision = validator.evaluate(
         position=position,
-        current_price=813.4,
+        current_price=809.8,
         elapsed_sec=181,
         momentum_score=0.2,
         orderbook_imbalance=-0.12,
@@ -126,9 +131,9 @@ def test_post_entry_validator_triggers_earlier_near_one_percent_net_loss() -> No
     assert decision == PostEntryDecision(
         triggered=True,
         order_side="sell",
-        exit_ratio=0.5,
+        exit_ratio=1.0,
         reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
-        unrealized_return_pct=-0.008,
+        unrealized_return_pct=-0.0124,
     )
 
 
@@ -195,10 +200,12 @@ def test_post_entry_validator_takes_profit_when_target_is_hit_before_validation_
 
 
 def test_post_entry_validator_accepts_custom_expectation_ruleset() -> None:
+    """커스텀 ruleset 사용 시 설정값이 적용되는지 확인."""
     validator = PostEntryValidator(
         expectation_ruleset=PostEntryExpectationRuleset(
             momentum_reversal_threshold=0.45,
             liquidity_dropped_threshold=-0.2,
+            min_adverse_exit_pct=0.010,  # 커스텀: 1.0% 기준
         ),
     )
     position = PositionSnapshot(
@@ -213,6 +220,7 @@ def test_post_entry_validator_accepts_custom_expectation_ruleset() -> None:
         stop_loss_reason=None,
     )
 
+    # 820 → 811: 손실 -1.1% > 커스텀 기준 1.0% → 발동 (모멘텀 0.44 < 임계값 0.45)
     decision = validator.evaluate(
         position=position,
         current_price=811.0,
@@ -224,7 +232,7 @@ def test_post_entry_validator_accepts_custom_expectation_ruleset() -> None:
     assert decision == PostEntryDecision(
         triggered=True,
         order_side="sell",
-        exit_ratio=0.5,
+        exit_ratio=1.0,
         reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
         unrealized_return_pct=-0.011,
     )
