@@ -248,6 +248,17 @@ class AutoTradingService:
             "asset_balance": round(self._demo_asset_balance, 8),
         }
 
+    def current_demo_portfolio_state(self) -> PortfolioState | None:
+        """현재 데모 포트폴리오 상태를 반환합니다. 데모 모드가 아닌 경우 None 반환."""
+        if self._trading_mode != "demo":
+            return None
+        return PortfolioState(
+            cash_balance=self._demo_cash_balance,
+            asset_currency=self._demo_asset_currency,
+            asset_balance=self._demo_asset_balance,
+            avg_buy_price=self._demo_avg_buy_price,
+        )
+
     def reset_runtime_market_data(self) -> dict[str, object]:
         self._prices.clear()
         self._traded_values.clear()

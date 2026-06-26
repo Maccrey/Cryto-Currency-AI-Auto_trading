@@ -86,6 +86,7 @@ from app.services.trading.auto import AutoTradingConfig, AutoTradingService
 from app.services.trading.decision import TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
+from app.services.reporting.daily_report import DailyReportService
 
 
 logger = logging.getLogger(__name__)
@@ -590,7 +591,36 @@ def create_app(
     @app.on_event("shutdown")
     async def stop_auto_trading_service() -> None:
         await auto_trading_service.stop()
+        daily_report_service.stop()
 
+    # ── 일일 리포트 서비스 설정 ────────────────────────────────────────────
+    def _get_demo_portfolio_state():
+        """Auto trading service에서 현재 데모 포트폴리오 상태를 반환합니다."""
+        try:
+            return auto_trading_service.current_demo_portfolio_state()
+        except Exception:
+            return None
+
+    daily_report_service = DailyReportService(
+        execution_ledger=execution_ledger,
+        telegram_gateway=telegram_gateway,
+        market=settings.trade_market,
+        trading_mode=settings.trading_mode,
+        report_hour_kst=8,
+        portfolio_state_provider=_get_demo_portfolio_state if settings.trading_mode == "demo" else None,
+    )
+
+    @app.on_event("startup")
+    async def start_daily_report_scheduler() -> None:
+        if telegram_gateway is not None:
+            daily_report_service.start()
+            logger.info(
+                "daily_report_scheduler_registered",
+                extra={"report_hour_kst": 8, "market": settings.trade_market},
+            )
+        else:
+            logger.info("daily_report_scheduler_skipped_no_telegram")
+    # ───────────────────────────────────────────────────────────────
     def _send_telegram_lifecycle_message(lines: list[str]) -> dict[str, object]:
         return {
             "status": "disabled",
