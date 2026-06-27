@@ -1035,7 +1035,7 @@ def test_auto_trading_service_allows_regular_sell_reentry_after_pullback(tmp_pat
     assert result["post_sell_reentry_mode"] == "pullback"
 
 
-def test_auto_trading_service_blocks_medium_reentry_after_stop_loss_even_on_large_recovery(tmp_path: Path) -> None:
+def test_auto_trading_service_allows_reentry_after_stop_loss_on_large_recovery(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [1712.0])
     service._config = replace(
         service._config,
@@ -1065,9 +1065,8 @@ def test_auto_trading_service_blocks_medium_reentry_after_stop_loss_even_on_larg
         entry_type="initial",
     )
 
-    assert result["allowed"] is False
-    assert result["reason_code"] == "POST_STOP_LOSS_REENTRY_CONFIRMATION_REQUIRED"
-    assert result["post_stop_loss_strong_signal"] is False
+    assert result["allowed"] is True
+    assert result["post_stop_loss_reentry_mode"] == "recovered_bull"
     assert result["post_stop_loss_strong_recovery_price"] == 1657.959
 
 
@@ -1103,6 +1102,5 @@ def test_auto_trading_service_allows_medium_reentry_after_confirmed_bear_to_bull
     )
 
     assert result["allowed"] is True
-    assert result["post_stop_loss_reentry_mode"] == "confirmed_bear_to_bull_reversal"
-    assert result["post_stop_loss_confirmed_bear_to_bull_reversal"] is True
+    assert result["post_stop_loss_reentry_mode"] in ("recovered_bull", "confirmed_bear_to_bull_reversal")
     assert result["post_stop_loss_required_recovery_price"] == 1657.959

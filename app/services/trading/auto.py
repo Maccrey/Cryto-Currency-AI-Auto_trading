@@ -1308,11 +1308,15 @@ class AutoTradingService:
             and sizing_allowed
         )
         recovered_price = required_recovery_price is None or current_price >= required_recovery_price
-        if confirmed_bull_strict and recovered_price and strong_signal:
+        
+        # 상승장(bull)이면서 손절가 위로 가격이 완전히 회복되었다면, 
+        # 무리하게 강한 신호(strong_signal)를 요구하지 않고 
+        # 룰이 허용한 일반 진입 신호(sizing_allowed)만으로도 재진입을 허용합니다.
+        if confirmed_bull_strict and recovered_price and sizing_allowed:
             return {
                 "allowed": True,
                 "post_stop_loss_reentry_confirmed": True,
-                "post_stop_loss_reentry_mode": "strong_signal",
+                "post_stop_loss_reentry_mode": "recovered_bull",
                 "post_stop_loss_required_confirmation_count": required_confirmation_count,
                 "post_stop_loss_required_recovery_price": required_recovery_price,
                 "post_stop_loss_strong_recovery_price": strong_recovery_price,
@@ -1345,6 +1349,7 @@ class AutoTradingService:
             "post_stop_loss_strong_signal": strong_signal,
             "post_stop_loss_medium_reversal_signal": medium_reversal_signal,
             "post_stop_loss_recovered_price": recovered_price,
+            "post_stop_loss_sizing_allowed": sizing_allowed,
         }
 
     def _log_backed_bull_weak_recovery(
