@@ -183,6 +183,7 @@ def _build_service(
             min_history=min_history,
             initial_observation_warmup_seconds=initial_warmup_seconds,
             initial_observation_min_samples=initial_warmup_min_samples,
+            market_state_transition_confirmation_ticks=1,
         ),
         telegram_notifier=telegram_notifier,
         execution_ledger=execution_ledger,

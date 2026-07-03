@@ -81,6 +81,18 @@ class MarketStateEntryGuard:
                 current_state_count=current_count,
                 transition=transition,
             )
+        # 초기 진입 시 시장 상태가 최소 confirmation_ticks 동안 지속 확인되었는지 체크
+        if entry_type == "initial" and current_state in {"bull", "box"}:
+            if current_count < self._confirmation_ticks:
+                return MarketStateEntryDecision(
+                    allowed=False,
+                    reason_code="MARKET_STATE_NOT_CONFIRMED",
+                    transition_boost=False,
+                    previous_market_state=previous_state,
+                    current_market_state=current_state,
+                    current_state_count=current_count,
+                    transition=transition,
+                )
         return MarketStateEntryDecision(
             allowed=True,
             reason_code=None,

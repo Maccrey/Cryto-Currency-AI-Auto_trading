@@ -1191,7 +1191,7 @@ class AutoTradingService:
         confirmed_breakout = confirmed_bull_strict and strong_signal and current_price >= required_breakout_price
         uptrend_continuation = (
             (strong_signal or medium_signal)
-            and confirmed_bull_relaxed
+            and confirmed_bull_strict
             and current_price >= last_exit_price
         )
         if cheaper_reentry or confirmed_breakout or uptrend_continuation:
