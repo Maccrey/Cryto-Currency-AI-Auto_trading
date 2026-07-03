@@ -28,9 +28,9 @@ class SignalReasonCodeGenerator:
         if features.rsi_14 >= 82 and features.bollinger_position >= 0.96:
             reason_codes.append("TECHNICAL_OVERBOUGHT_BLOCKED")
         if (
-            features.price_position_20 >= 0.92
+            features.price_position_20 >= 0.97  # 완화: 0.92→0.97 (과도한 차단 방지)
             and features.ret_1s <= 0
-            and features.trend_efficiency_20 < 0.35
+            and features.trend_efficiency_20 < 0.25  # 완화: 0.35→0.25 (추세 약화 기준 완화)
         ):
             reason_codes.append("HIGH_POSITION_REVERSAL_BLOCKED")
         return reason_codes
@@ -99,13 +99,14 @@ class SignalEngine:
         return decision
 
     def _score(self, features: FeatureSnapshot) -> float:
-        momentum_component = min(max(features.ret_30s / 0.035, 0.0), 1.0) * 0.3
-        short_momentum_component = min(max(features.ret_5s / 0.012, 0.0), 1.0) * 0.15
-        value_component = min(features.traded_value_multiple / 2.5, 1.0) * 0.2
-        imbalance_component = min(max(features.orderbook_imbalance, 0.0), 1.0) * 0.2
-        regime_component = min(max(features.regime_score, 0.0), 1.0) * 0.1
+        # 상승 모멘텀에 더 민감하도록 ret_30s, ret_5s 가중치 상향
+        momentum_component = min(max(features.ret_30s / 0.025, 0.0), 1.0) * 0.35  # 0.035→0.025, 0.3→0.35
+        short_momentum_component = min(max(features.ret_5s / 0.010, 0.0), 1.0) * 0.18  # 0.012→0.010, 0.15→0.18
+        value_component = min(features.traded_value_multiple / 2.5, 1.0) * 0.18
+        imbalance_component = min(max(features.orderbook_imbalance, 0.0), 1.0) * 0.17
+        regime_component = min(max(features.regime_score, 0.0), 1.0) * 0.07
         volatility_component = max(0.0, 1.0 - min(features.short_volatility / 0.02, 1.0)) * 0.05
-        technical_component = (self._technical_score(features) - 0.5) * 0.15
+        technical_component = (self._technical_score(features) - 0.5) * 0.10
         return (
             momentum_component
             + short_momentum_component

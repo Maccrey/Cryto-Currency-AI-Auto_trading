@@ -23,7 +23,7 @@ def test_signal_engine_generates_strong_signal_for_momentum_breakout() -> None:
 
     assert decision == SignalDecision(
         level="strong",
-        score=0.74,
+        score=0.82,  # 업데이트된 스코어 공식에 맞게 수정
         blocked=False,
         reason_codes=["MOMENTUM_BREAKOUT", "VALUE_ACCELERATION", "ORDERBOOK_SUPPORT"],
     )
@@ -154,8 +154,8 @@ def test_signal_engine_blocks_high_position_reversal() -> None:
         short_volatility=0.004,
         regime_score=0.7,
         liquidity_score=0.9,
-        price_position_20=0.94,
-        trend_efficiency_20=0.2,
+        price_position_20=0.98,  # 완화된 임계값 0.97 초과
+        trend_efficiency_20=0.15,  # 0.25 미만 조건 충족
     )
 
     decision = engine.evaluate(features)

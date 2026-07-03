@@ -30,9 +30,9 @@ class PostEntryExpectationRuleset:
       유동성 소멸 손절 발동. 기본값 -0.2.
     """
 
-    momentum_reversal_threshold: float = 0.25   # 완화: 0.35 → 0.25
+    momentum_reversal_threshold: float = 0.20   # 강화: 0.35→0.25→0.20 (횡보 오발동 방지)
     liquidity_dropped_threshold: float = -0.2
-    min_adverse_exit_pct: float = 0.012          # 완화: 0.8% → 1.2%
+    min_adverse_exit_pct: float = 0.015          # 강화: 0.8%→1.2%→1.5% (단기 휩소 손절 방지)
 
     def evaluate(
         self,

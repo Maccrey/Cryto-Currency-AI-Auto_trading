@@ -85,12 +85,12 @@ def test_post_entry_validator_reduces_after_confirmed_adverse_momentum() -> None
         stop_loss_reason=None,
     )
 
-    # 820 * (1 - 0.013) = 809.34 → 손실 1.3% > 새 기준 1.2%
+    # 820 * (1 - 0.015) = 807.70 → 손실 1.5% 초과를 위해 807.0 사용
     decision = validator.evaluate(
         position=position,
-        current_price=809.0,
+        current_price=807.0,
         elapsed_sec=181,
-        momentum_score=0.2,
+        momentum_score=0.15,
         orderbook_imbalance=-0.12,
     )
 
@@ -99,7 +99,7 @@ def test_post_entry_validator_reduces_after_confirmed_adverse_momentum() -> None
         order_side="sell",
         exit_ratio=1.0,
         reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
-        unrealized_return_pct=-0.0134,
+        unrealized_return_pct=-0.0159,
     )
 
 
@@ -118,13 +118,13 @@ def test_post_entry_validator_triggers_earlier_near_one_percent_net_loss() -> No
         stop_loss_reason=None,
     )
 
-    # 820 * (1 - 0.012) = 810.16 → 손실 정확히 1.2%
-    # 809.8 사용 → 손실 약 1.24% (발동 조건 충족)
+    # 820 * (1 - 0.015) = 807.70 → 손실 정확히 1.5% 초과
+    # 807.0 사용 → 손실 약 1.59% (발동 조건 충족)
     decision = validator.evaluate(
         position=position,
-        current_price=809.8,
+        current_price=807.0,
         elapsed_sec=181,
-        momentum_score=0.2,
+        momentum_score=0.15,
         orderbook_imbalance=-0.12,
     )
 
@@ -133,7 +133,7 @@ def test_post_entry_validator_triggers_earlier_near_one_percent_net_loss() -> No
         order_side="sell",
         exit_ratio=1.0,
         reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
-        unrealized_return_pct=-0.0124,
+        unrealized_return_pct=-0.0159,
     )
 
 

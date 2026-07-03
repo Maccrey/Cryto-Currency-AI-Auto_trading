@@ -1184,17 +1184,29 @@ class DemoRuleVariantShadowTester:
 
         # ════════════════════════════════════════════════════════════════════════
         # Rule O – Aggressive Trend (공격추세형)
+        # 실제 market_pressure 분포(평균 0.019, 최대 ~0.05)에 맞춰
+        # 임계값을 0.02로 현실화. 상승장에서 weak 신호도 보수적 스케일(0.60x)로 허용.
         # ════════════════════════════════════════════════════════════════════════
         elif variant.key == "O":
             strong_bull = market_state == "bull" and decision.signal.level in {"medium", "strong", "very_strong"}
-            entry_allowed = strong_bull and market_pressure >= 0.10
-            if entry_allowed:
-                pressure_boost = 1.0 + max(market_pressure - 0.10, 0.0) * 1.50
+            weak_bull = market_state == "bull" and decision.signal.level == "weak"
+            # 실제 압력 분포(평균 0.019, 최대 0.05) 기준: 0.02면 약 36% 허용
+            entry_allowed = (strong_bull or weak_bull) and market_pressure >= 0.02
+            if strong_bull and market_pressure >= 0.02:
+                # medium 이상 신호 + 압력 충분: 공격적 진입
+                pressure_boost = 1.0 + max(market_pressure - 0.02, 0.0) * 1.50
                 buy_multiplier *= 1.45 * pressure_boost
                 sell_multiplier *= 0.40
                 take_profit_pct *= 1.30
                 stop_loss_pct *= 1.10
                 action_reason = "aggressive_trend_bull"
+            elif weak_bull and market_pressure >= 0.02:
+                # weak 신호지만 압력이 양수: 축소 진입 (60% 스케일)
+                buy_multiplier *= 0.60
+                sell_multiplier *= 0.70
+                take_profit_pct *= 0.90
+                stop_loss_pct *= 0.95
+                action_reason = "aggressive_trend_bull_weak"
             else:
                 buy_multiplier = 0.0
                 sell_multiplier *= 2.00

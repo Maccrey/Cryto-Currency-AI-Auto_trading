@@ -17,10 +17,10 @@ def test_replay_harness_replays_fixture_and_produces_signal_results() -> None:
     assert len(results) == 2
     assert results[0].timestamp == "2026-04-18T09:00:02+09:00"
     assert results[0].signal_level == "medium"
-    assert round(results[0].signal_score, 2) == 0.53
+    assert round(results[0].signal_score, 2) == 0.59  # 업데이트된 스코어 공식에 맞게 수정
     assert results[1].timestamp == "2026-04-18T09:00:03+09:00"
     assert results[1].signal_level == "strong"
-    assert round(results[1].signal_score, 2) == 0.71
+    assert round(results[1].signal_score, 2) == 0.83  # 업데이트된 스코어 공식에 맞게 수정
     summary = harness.summarize(results)
     assert summary.signal_count == 2
     assert summary.profit_guard_status == "passed"
