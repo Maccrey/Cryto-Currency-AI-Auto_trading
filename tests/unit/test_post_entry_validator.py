@@ -206,6 +206,7 @@ def test_post_entry_validator_accepts_custom_expectation_ruleset() -> None:
             momentum_reversal_threshold=0.45,
             liquidity_dropped_threshold=-0.2,
             min_adverse_exit_pct=0.010,  # 커스텀: 1.0% 기준
+            momentum_reversal_requires_imbalance=False,  # 단독 모멘텀 손절 허용
         ),
     )
     position = PositionSnapshot(
@@ -236,3 +237,145 @@ def test_post_entry_validator_accepts_custom_expectation_ruleset() -> None:
         reason_code="STOP_LOSS_MOMENTUM_REVERSAL",
         unrealized_return_pct=-0.011,
     )
+
+
+def test_post_entry_validator_triggers_trailing_stop_after_profit_peak() -> None:
+    """트레일링 스탑: +0.5% 수익 달성 후 +0.1% 이하로 하락하면 즉시 익절."""
+    validator = PostEntryValidator()
+    position = PositionSnapshot(
+        market="KRW-XRP",
+        signal_level="medium",
+        entry_price=1000.0,
+        quantity=100.0,
+        stop_loss_price=970.0,
+        stop_loss_pct=0.030,
+        validation_window_sec=180,
+        min_expected_return_pct=0.010,  # 1.0% 목표 (아직 안 도달)
+        stop_loss_reason=None,
+    )
+
+    # 첫 번째 틱: +0.6% 수익 달성 → peak 기록
+    validator.evaluate(
+        position=position,
+        current_price=1006.0,   # +0.6%
+        elapsed_sec=50,
+        momentum_score=0.60,
+        orderbook_imbalance=0.05,
+    )
+
+    # 두 번째 틱: +0.05% 수익으로 하락 → trailing stop floor(0.1%) 이하 → 발동
+    decision = validator.evaluate(
+        position=position,
+        current_price=1000.5,   # +0.05% (floor 0.1% 이하)
+        elapsed_sec=60,
+        momentum_score=0.40,
+        orderbook_imbalance=0.05,
+    )
+
+    assert decision.triggered is True
+    assert decision.reason_code == "TRAILING_STOP_TRIGGERED"
+    assert decision.exit_ratio == 1.0
+
+
+def test_post_entry_validator_does_not_trigger_trailing_stop_before_activation() -> None:
+    """트레일링 스탑 미활성화: 수익이 0.5% 미만이면 하락해도 트레일링 스탑 미발동."""
+    validator = PostEntryValidator()
+    position = PositionSnapshot(
+        market="KRW-XRP",
+        signal_level="medium",
+        entry_price=1000.0,
+        quantity=100.0,
+        stop_loss_price=970.0,
+        stop_loss_pct=0.030,
+        validation_window_sec=180,
+        min_expected_return_pct=0.010,
+        stop_loss_reason=None,
+    )
+
+    # +0.3% 수익 달성 (0.5% 미달 → 트레일링 스탑 미활성화)
+    validator.evaluate(
+        position=position,
+        current_price=1003.0,   # +0.3%
+        elapsed_sec=50,
+        momentum_score=0.60,
+        orderbook_imbalance=0.05,
+    )
+
+    # +0.0% 로 하락해도 trailing stop은 발동하지 않아야 함
+    decision = validator.evaluate(
+        position=position,
+        current_price=1000.0,   # 0% (원금)
+        elapsed_sec=60,
+        momentum_score=0.40,
+        orderbook_imbalance=0.05,
+    )
+
+    assert decision.triggered is False
+    assert decision.reason_code is None
+
+
+def test_post_entry_validator_reset_clears_peak_return() -> None:
+    """reset() 후 트레일링 스탑 상태가 초기화되어 새 포지션에 영향 없음."""
+    validator = PostEntryValidator()
+    position = PositionSnapshot(
+        market="KRW-XRP",
+        signal_level="medium",
+        entry_price=1000.0,
+        quantity=100.0,
+        stop_loss_price=970.0,
+        stop_loss_pct=0.030,
+        validation_window_sec=180,
+        min_expected_return_pct=0.010,
+        stop_loss_reason=None,
+    )
+
+    # 이전 포지션에서 +0.8% 달성
+    validator.evaluate(
+        position=position,
+        current_price=1008.0,
+        elapsed_sec=50,
+        momentum_score=0.60,
+        orderbook_imbalance=0.05,
+    )
+
+    # 포지션 청산 후 reset
+    validator.reset()
+
+    # 새 포지션에서 +0.05% → trailing stop 미발동 (reset 후 peak=None)
+    decision = validator.evaluate(
+        position=position,
+        current_price=1000.5,   # +0.05%
+        elapsed_sec=60,
+        momentum_score=0.40,
+        orderbook_imbalance=0.05,
+    )
+
+    assert decision.triggered is False
+
+
+def test_post_entry_validator_blocks_stop_loss_when_orderbook_is_healthy() -> None:
+    """손절 이중 조건: 모멘텀만 낮고 오더북이 양호하면 손절 차단."""
+    validator = PostEntryValidator()
+    position = PositionSnapshot(
+        market="KRW-XRP",
+        signal_level="strong",
+        entry_price=820.0,
+        quantity=100.0,
+        stop_loss_price=805.0,
+        stop_loss_pct=0.018,
+        validation_window_sec=180,
+        min_expected_return_pct=0.004,
+        stop_loss_reason=None,
+    )
+
+    # 손실 -1.59%, 모멘텀 낮음, 하지만 오더북은 양호
+    decision = validator.evaluate(
+        position=position,
+        current_price=807.0,
+        elapsed_sec=181,
+        momentum_score=0.15,
+        orderbook_imbalance=0.1,   # 양호 → 이중 조건 미충족 → 손절 차단
+    )
+
+    assert decision.triggered is False
+    assert decision.reason_code is None

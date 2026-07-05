@@ -157,7 +157,7 @@ def test_position_exit_service_full_exits_on_post_entry_stop_loss() -> None:
         current_price=807.0,  # 820 기준 손실 약 -1.59% → 1.5% 기준 초과
         elapsed_sec=181,
         momentum_score=0.15,
-        orderbook_imbalance=0.1,
+        orderbook_imbalance=-0.1,
     )
 
     assert result["status"] == "ok"
@@ -195,7 +195,7 @@ def test_position_exit_service_full_exits_when_partial_would_leave_dust() -> Non
         current_price=807.0,  # 820 기준 손실 약 -1.59% → 1.5% 기준 초과
         elapsed_sec=181,
         momentum_score=0.15,
-        orderbook_imbalance=0.1,
+        orderbook_imbalance=-0.1,
     )
 
     assert result["status"] == "ok"
@@ -234,7 +234,7 @@ def test_position_exit_service_blocks_sell_below_upbit_minimum_order_amount() ->
         current_price=807.0,  # 820 기준 손실 약 -1.59% → 1.5% 기준 초과
         elapsed_sec=181,
         momentum_score=0.15,
-        orderbook_imbalance=0.1,
+        orderbook_imbalance=-0.1,
     )
 
     assert result["status"] == "blocked"
@@ -375,7 +375,7 @@ def test_position_exit_service_full_exits_weak_post_entry_stop() -> None:
         current_price=807.0,  # 820 기준 손실 약 -1.59% → 1.5% 기준 초과
         elapsed_sec=181,
         momentum_score=0.15,
-        orderbook_imbalance=0.1,
+        orderbook_imbalance=-0.1,
     )
 
     assert result["status"] == "ok"

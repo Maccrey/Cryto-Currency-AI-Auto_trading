@@ -163,6 +163,7 @@ class PositionExitService:
                 quantity=hard_stop.quantity,
             )
             self._position_store.clear()
+            self._post_entry_validator.reset()   # 트레일링 스탑 상태 초기화
             self._record_exit_event(
                 position=position,
                 trigger_type="hard_stop",
@@ -233,6 +234,7 @@ class PositionExitService:
                 quantity=exit_quantity,
             )
             self._position_store.clear()
+            self._post_entry_validator.reset()   # 트레일링 스탑 상태 초기화
             self._record_exit_event(
                 position=position,
                 trigger_type="box_range_take_profit",
@@ -318,6 +320,7 @@ class PositionExitService:
             remaining_quantity = round(position.quantity - exit_quantity, 8)
             if remaining_quantity <= 0:
                 self._position_store.clear()
+                self._post_entry_validator.reset()   # 트레일링 스탑 상태 초기화
                 updated_position = None
             else:
                 updated_position = self._profit_protected_position(
@@ -436,6 +439,7 @@ class PositionExitService:
         remaining_quantity = round(position.quantity - exit_quantity, 8)
         if remaining_quantity <= 0:
             self._position_store.clear()
+            self._post_entry_validator.reset()   # 트레일링 스탑 상태 초기화
             updated_position = None
         else:
             updated_position = replace(position, quantity=remaining_quantity)
