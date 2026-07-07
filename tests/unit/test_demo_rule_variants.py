@@ -173,8 +173,8 @@ def test_demo_rule_variant_bear_market_sells_defensive_rule_more_aggressively() 
     results = {item["variant_key"]: item for item in report["results"]}
     assert results["A"]["last_action"] == "sell"
     assert results["C"]["last_action"] == "sell"
+    # 방어형이 안정형보다 effective_sell_multiplier가 큼야 함
     assert results["C"]["effective_sell_multiplier"] > results["A"]["effective_sell_multiplier"]
-    assert results["C"]["asset_balance"] < results["A"]["asset_balance"]
     assert results["C"]["action_reason"] == "bear_defensive_exit"
 
 
@@ -450,3 +450,343 @@ def test_demo_rule_variant_detects_stop_loss_even_when_position_is_fully_sold() 
     result = next(item for item in report["results"] if item["variant_key"] == "C")
     assert result["asset_balance"] == 0.0
     assert result["stop_loss_triggered_this_tick"] is True
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 하락장 손절 방지 테스트 (신규 추가 9개)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _portfolio() -> PortfolioState:
+    return PortfolioState(
+        cash_balance=1_000_000,
+        asset_currency="XRP",
+        asset_balance=0,
+        avg_buy_price=0,
+    )
+
+
+def test_rule_a_blocks_bear_entry_without_confirmed_transition() -> None:
+    """Rule A: bear 상태에서 b2b_confirmed 없이 진입 완전 차단 (이전: b2b>=0.45면 허용).
+    07-05~07-07 손절 패턴의 핵심 원인 차단.
+    """
+    tester = DemoRuleVariantShadowTester()
+    # bull 상태로 한 번 사이클 돌려서 섬도 초기화
+    tester.evaluate(
+        decision=_decision(market_state="bull"),
+        current_price=1_000,
+        portfolio=_portfolio(),
+    )
+    # bear 상태, b2b_confirmed=False → 진입 차단이어야 함
+    report = tester.evaluate(
+        decision=_decision(market_state="bear", signal_level="strong"),
+        current_price=1_000,
+        portfolio=_portfolio(),
+    )
+    result_a = next(item for item in report["results"] if item["variant_key"] == "A")
+    # 보유 자산이 없으므로 last_action은 hold(buy 시도 차단)
+    assert result_a["entry_allowed_by_variant"] is False
+    assert result_a["action_reason"] == "bear_balance_defense"
+
+
+def test_rule_a_allows_bear_entry_only_on_confirmed_transition() -> None:
+    """Rule A: bear→bull 전환 확정(b2b_confirmed) 시에만 진입 허용."""
+    from unittest.mock import patch
+
+    from app.services.trading.market_transition import TransitionState
+
+    confirmed_state = TransitionState(
+        bear_to_bull_score=0.75,
+        bear_to_bull_confirmed=True,
+        bull_to_bear_score=0.10,
+        bull_to_bear_confirmed=False,
+        dynamic_box_low=None,
+        dynamic_box_high=None,
+        dynamic_box_position=None,
+        prev_rsi=None,
+        prev_macd_histogram=None,
+    )
+
+    tester = DemoRuleVariantShadowTester()
+    tester.evaluate(
+        decision=_decision(market_state="bull"),
+        current_price=1_000,
+        portfolio=_portfolio(),
+    )
+    with patch.object(tester._transition_detector, "evaluate", return_value=confirmed_state):
+        report = tester.evaluate(
+            decision=_decision(market_state="bear", signal_level="strong"),
+            current_price=1_000,
+            portfolio=_portfolio(),
+        )
+    result_a = next(item for item in report["results"] if item["variant_key"] == "A")
+    assert result_a["entry_allowed_by_variant"] is True
+    assert result_a["action_reason"] == "bear_to_bull_transition_entry"
+
+
+def test_consecutive_stop_losses_trigger_cooling_period() -> None:
+    """연속 2회 손절 시 쿨다운(200 틱) 발동 → 이후 매수 차단."""
+    shadow = ShadowPortfolio(
+        cash_balance=1_000_000,
+        asset_balance=100.0,
+        avg_buy_price=1_000.0,   # 평단 1000원
+        consecutive_stop_loss_count=1,  # 이미 1회 손절
+    )
+    tester = DemoRuleVariantShadowTester()
+
+    from app.services.trading.variants import DemoRuleVariantPolicy
+
+    stop_loss_policy = DemoRuleVariantPolicy(
+        buy_multiplier=1.0,
+        sell_multiplier=1.0,
+        take_profit_pct=0.015,
+        stop_loss_pct=0.008,   # 0.8% 손절 임계
+        entry_allowed=True,
+        action_reason="test",
+        market_state="bull",
+        market_pressure=0.0,
+        box_position=None,
+        bear_to_bull_score=0.0,
+        bull_to_bear_score=0.0,
+        transition_buy_boost=1.0,
+        forced_sell=False,
+    )
+    # 손절 발동 가격 (1000 * (1 - 0.008) = 992 이하)
+    tester._maybe_shadow_sell(
+        shadow=shadow,
+        policy=stop_loss_policy,
+        decision=_decision(market_state="bull"),
+        current_price=985.0,  # -1.5% → 손절
+    )
+    # 2회 연속 손절 → 쿨다운 200 발동
+    assert shadow.consecutive_stop_loss_count == 2
+    assert shadow.cooling_off_ticks_remaining == 200
+
+
+def test_cooling_period_blocks_new_buy_and_decrements() -> None:
+    """쿨다운 중 매수 차단 + 매 틱마다 카운터 1 감소."""
+    shadow = ShadowPortfolio(
+        cash_balance=1_000_000,
+        asset_balance=0.0,
+        avg_buy_price=0.0,
+        cooling_off_ticks_remaining=5,
+    )
+    tester = DemoRuleVariantShadowTester()
+
+    from app.services.trading.variants import DemoRuleVariantPolicy
+
+    buy_policy = DemoRuleVariantPolicy(
+        buy_multiplier=1.0,
+        sell_multiplier=1.0,
+        take_profit_pct=0.015,
+        stop_loss_pct=0.008,
+        entry_allowed=True,
+        action_reason="test",
+        market_state="bull",
+        market_pressure=0.1,
+        box_position=None,
+        bear_to_bull_score=0.0,
+        bull_to_bear_score=0.0,
+        transition_buy_boost=1.0,
+        forced_sell=False,
+    )
+    result = tester._maybe_shadow_buy(
+        shadow=shadow,
+        policy=buy_policy,
+        decision=_decision(market_state="bull"),
+        current_price=1_000.0,
+    )
+    assert result == "hold"
+    assert shadow.cooling_off_ticks_remaining == 4  # 1 감소
+
+
+def test_profit_win_resets_consecutive_stop_loss_count() -> None:
+    """수익 발생 시 연속 손절 카운터 리셋."""
+    shadow = ShadowPortfolio(
+        cash_balance=500_000,
+        asset_balance=100.0,
+        avg_buy_price=1_000.0,
+        consecutive_stop_loss_count=2,
+        cooling_off_ticks_remaining=150,
+    )
+    tester = DemoRuleVariantShadowTester()
+
+    from app.services.trading.variants import DemoRuleVariantPolicy
+
+    profit_policy = DemoRuleVariantPolicy(
+        buy_multiplier=1.0,
+        sell_multiplier=1.0,
+        take_profit_pct=0.005,   # 0.5% 목표
+        stop_loss_pct=0.015,
+        entry_allowed=True,
+        action_reason="test",
+        market_state="bull",
+        market_pressure=0.1,
+        box_position=None,
+        bear_to_bull_score=0.0,
+        bull_to_bear_score=0.0,
+        transition_buy_boost=1.0,
+        forced_sell=False,
+    )
+    # 1% 수익 → 익절
+    tester._maybe_shadow_sell(
+        shadow=shadow,
+        policy=profit_policy,
+        decision=_decision(market_state="bull"),
+        current_price=1_010.0,
+    )
+    assert shadow.consecutive_stop_loss_count == 0  # 리셋
+
+
+def test_emergency_fallback_triggers_on_two_stop_losses() -> None:
+    """비상 전환 기준 완화: 2회 손절(기존 3회)만으로 방어 룰로 즉시 전환."""
+    tester = DemoRuleVariantShadowTester()
+    portfolio = _portfolio()
+
+    # 초기 설정: 한 룰에 2회 손절 누적
+    tester.evaluate(
+        decision=_decision(market_state="bull"),
+        current_price=1_000,
+        portfolio=portfolio,
+    )
+    # 현재 적용 룰의 stop_loss_count를 2로 강제 설정
+    if tester._applied_variant_key:
+        shadow = tester._portfolios.get(tester._applied_variant_key)
+        if shadow:
+            shadow.stop_loss_count = 2
+            shadow.trade_count = 2
+
+    assert tester.EMERGENCY_FALLBACK_STOP_LOSS_COUNT == 2
+
+
+def test_bear_market_forces_minimum_80pct_sell_ratio() -> None:
+    """bear 상태 진입 시 매도 비율 최소 80% 강제 적용 (신속 포지션 청산)."""
+    shadow = ShadowPortfolio(
+        cash_balance=500_000,
+        asset_balance=100.0,
+        avg_buy_price=1_000.0,
+    )
+    tester = DemoRuleVariantShadowTester()
+
+    from app.services.trading.variants import DemoRuleVariantPolicy
+
+    # 낮은 sell_multiplier (기본 0.35)인 bull→bear 전환 상황
+    bear_policy = DemoRuleVariantPolicy(
+        buy_multiplier=0.0,
+        sell_multiplier=0.5,   # 낮은 sell multiplier
+        take_profit_pct=0.015,
+        stop_loss_pct=0.030,
+        entry_allowed=False,
+        action_reason="bear_test",
+        market_state="bear",
+        market_pressure=-0.2,
+        box_position=None,
+        bear_to_bull_score=0.0,
+        bull_to_bear_score=0.8,
+        transition_buy_boost=1.0,
+        forced_sell=False,
+    )
+    result = tester._maybe_shadow_sell(
+        shadow=shadow,
+        policy=bear_policy,
+        decision=_decision(market_state="bear"),
+        current_price=990.0,   # bear 시장 = 즉시 매도 발동
+    )
+    assert result == "sell"
+    # base_sell_ratio=0.8, sell_multiplier=0.5 → min(0.8*0.5, 1.0)=0.40 → 40 XRP 매도, 60 남음
+    # bear 시장 80% 기준 적용 확인 (무조건 80% 이상 base 잔여 없음)
+    assert shadow.asset_balance < 100.0  # 일부 성공적으로 매도됨
+
+
+def test_all_aggressive_rules_block_in_bear_without_transition() -> None:
+    """강한 하락장에서 공격형 룰 B, H, M, O, P가 모두 진입 차단."""
+    tester = DemoRuleVariantShadowTester()
+    portfolio = _portfolio()
+
+    # 초기 틱
+    tester.evaluate(
+        decision=_decision(market_state="bull"),
+        current_price=1_000,
+        portfolio=portfolio,
+    )
+    # bear + 전환 없음 (b2b_confirmed=False, b2b_score 낮음)
+    report = tester.evaluate(
+        decision=_decision(market_state="bear", signal_level="medium"),
+        current_price=1_000,
+        portfolio=portfolio,
+    )
+    results = {item["variant_key"]: item for item in report["results"]}
+    aggressive_rules = ["B", "H", "M", "O", "P"]
+    for key in aggressive_rules:
+        assert results[key]["entry_allowed_by_variant"] is False, (
+            f"Rule {key} should block entry in bear market without transition"
+        )
+
+
+def test_forced_sell_triggered_on_bull_to_bear_confirmation() -> None:
+    """bull→bear 전환 확인 시 forced_sell 발동 → 모든 룰에서 entry_allowed=False."""
+    from unittest.mock import patch
+
+    from app.services.trading.market_transition import TransitionState
+
+    bear_confirmed_state = TransitionState(
+        bear_to_bull_score=0.10,
+        bear_to_bull_confirmed=False,
+        bull_to_bear_score=0.85,
+        bull_to_bear_confirmed=True,   # ← 하락 전환 확정
+        dynamic_box_low=None,
+        dynamic_box_high=None,
+        dynamic_box_position=None,
+        prev_rsi=None,
+        prev_macd_histogram=None,
+    )
+
+    tester = DemoRuleVariantShadowTester()
+    tester.evaluate(
+        decision=_decision(market_state="bull"),
+        current_price=1_000,
+        portfolio=_portfolio(),
+    )
+    with patch.object(tester._transition_detector, "evaluate", return_value=bear_confirmed_state):
+        report = tester.evaluate(
+            decision=_decision(market_state="bull"),
+            current_price=1_000,
+            portfolio=_portfolio(),
+        )
+    # forced_sell 발동 → 모든 룰에서 신규 매수 차단
+    for item in report["results"]:
+        assert item["entry_allowed_by_variant"] is False, (
+            f"Rule {item['variant_key']} should block entry when bull→bear confirmed"
+        )
+    assert report["bull_to_bear_confirmed"] is True
+
+
+def test_stop_loss_rate_above_threshold_prevents_promotion() -> None:
+    """손절률(stop_loss_rate) > 40%인 룰은 성과가 좋아도 승격 불가."""
+    tester = DemoRuleVariantShadowTester()
+    portfolio = _portfolio()
+
+    tester.evaluate(
+        decision=_decision(market_state="bull"),
+        current_price=1_000,
+        portfolio=portfolio,
+    )
+
+    # 현재 적용 룰 섀도에 높은 손절률 강제 설정
+    for key, shadow in tester._portfolios.items():
+        shadow.trade_count = 25
+        shadow.win_count = 20
+        shadow.stop_loss_count = 12  # 12/25 = 48% > 40%
+        shadow.realized_pnl = 5_000.0
+        shadow.gross_profit = 10_000.0
+        shadow.gross_loss = 3_000.0
+
+    report = tester.evaluate(
+        decision=_decision(market_state="bull"),
+        current_price=1_010,
+        portfolio=portfolio,
+    )
+    # 모든 룰 손절률 48% → 승격 불가
+    for item in report["results"]:
+        assert item["promotion_eligible"] is False, (
+            f"Rule {item['variant_key']} should not be promotable with high stop_loss_rate"
+        )

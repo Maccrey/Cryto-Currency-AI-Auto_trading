@@ -90,6 +90,9 @@ class ShadowPortfolio:
     peak_equity: float | None = None
     max_drawdown_pct: float = 0.0
     last_action: str = "hold"
+    # ── 연속 손절 쿨다운 ─────────────────────────────────────────────────
+    consecutive_stop_loss_count: int = 0   # 연속 손절 횟수 (수익 발생 시 리셋)
+    cooling_off_ticks_remaining: int = 0   # 남은 쿨다운 틱 수
 
 
 class DemoRuleVariantShadowTester:
@@ -113,9 +116,13 @@ class DemoRuleVariantShadowTester:
 
     # 비상 전환 발동 기준: 현재 룰의 손절 횟수가 이 값 이상이고
     # 정상 승격 후보가 없을 때, 최저 낙폭/손절율 룰로 긴급 전환
-    EMERGENCY_FALLBACK_STOP_LOSS_COUNT = 3
+    # ↓ 2회로 완화: 연속 3회→대형 손실(-50원+) 전에 2회만 되어도 방어 룰 즉시 전환
+    EMERGENCY_FALLBACK_STOP_LOSS_COUNT = 2
     # 비상 전환 시 현재 룰보다 낙폭이 이 배율 이하인 룰만 후보로 고려
     EMERGENCY_FALLBACK_MAX_DRAWDOWN_RATIO = 0.80
+    # 연속 손절 쿨다운: 연속 N회 손절 시 이 틱 수만큼 신규 매수를 차단
+    CONSECUTIVE_STOP_LOSS_COOLDOWN_TRIGGER = 2   # 2회 연속 손절 시 쿨다운 발동
+    CONSECUTIVE_STOP_LOSS_COOLDOWN_TICKS = 200   # 약 10분(3초 간격) 쿨다운
 
     DEFAULT_VARIANTS = (
         DemoRuleVariant(
@@ -715,8 +722,10 @@ class DemoRuleVariantShadowTester:
                     sell_multiplier *= 1.70
                     take_profit_pct *= 0.70
                     stop_loss_pct *= 0.65
-                    entry_allowed = b2b >= 0.45  # allow if transition building
-                    action_reason = "bear_balance_defense" if not entry_allowed else "bear_transition_watch"
+                    # 강화: 전환 확정(b2b_confirmed) 없이는 bear 진입 완전 차단
+                    # 이전: b2b >= 0.45 (기대만으로 진입) → 손절 반복 원인
+                    entry_allowed = False
+                    action_reason = "bear_balance_defense"
             else:  # box
                 # Loosened lower-zone threshold: 50% (was 45%)
                 lower_zone = box_position is None or box_position <= 0.50
@@ -1395,6 +1404,10 @@ class DemoRuleVariantShadowTester:
         decision: TradeDecisionResult,
         current_price: float,
     ) -> str:
+        # ── 연속 손절 쿨다운: 쿨다운 남아있으면 신규 매수 차단 ────────────
+        if shadow.cooling_off_ticks_remaining > 0:
+            shadow.cooling_off_ticks_remaining = max(shadow.cooling_off_ticks_remaining - 1, 0)
+            return "hold"
         if not policy.entry_allowed:
             return "hold"
         buy_amount = min(
@@ -1425,18 +1438,20 @@ class DemoRuleVariantShadowTester:
         stop_loss_triggered = profit_pct <= -policy.stop_loss_pct
         # High box position exit: use resolved box_position
         box_high_exit = self._resolved_box_high_exit(policy=policy)
+        # ── 하락장 즘시 전량 매도: bear 진입 시 최소 80% 이상 신속 철수 ─────
+        is_bear_market = decision.regime.market_state == "bear"
         should_exit = (
             profit_pct >= policy.take_profit_pct
             or stop_loss_triggered
-            or decision.regime.market_state == "bear"
+            or is_bear_market
             or box_high_exit
             or policy.forced_sell  # bull→bear transition forced exit
         )
         if not should_exit:
             return "hold"
         base_sell_ratio = decision.sizing.sell_ratio if decision.sizing.sell_ratio > 0 else 0.35
-        # Forced sell: use a higher sell ratio (80% minimum) to clear position
-        if policy.forced_sell:
+        # Forced sell / bear market: use a higher sell ratio (80% minimum) to clear position
+        if policy.forced_sell or is_bear_market:
             base_sell_ratio = max(base_sell_ratio, 0.80)
         sell_ratio = min(max(base_sell_ratio * policy.sell_multiplier, 0.1), 1.0)
         quantity = round(shadow.asset_balance * sell_ratio, 8)
@@ -1458,9 +1473,15 @@ class DemoRuleVariantShadowTester:
             shadow.gross_loss = round(shadow.gross_loss + abs(pnl), 2)
         if stop_loss_triggered:
             shadow.stop_loss_count += 1
+            # ── 연속 손절 카운터 업데이트 ─────────────────────────────────
+            shadow.consecutive_stop_loss_count += 1
+            if shadow.consecutive_stop_loss_count >= self.CONSECUTIVE_STOP_LOSS_COOLDOWN_TRIGGER:
+                shadow.cooling_off_ticks_remaining = self.CONSECUTIVE_STOP_LOSS_COOLDOWN_TICKS
         if pnl > 0:
             shadow.win_count += 1
             shadow.gross_profit = round(shadow.gross_profit + pnl, 2)
+            # ── 수익 발생 시 연속 손절 카운터 리셋 ──────────────────────
+            shadow.consecutive_stop_loss_count = 0
         return "sell"
 
     # ──────────────────────────────────────────────────────────────────────────
