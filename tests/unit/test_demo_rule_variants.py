@@ -73,8 +73,10 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
     )
 
     assert {item["variant_key"] for item in report["results"]} == set("ABCDEFGHIJKLMNOPQR")
-    assert report["leader_key"] is None
-    assert report["promotion_eligible"] is False
+    # Fallback Leader 즉시 선발: 초기 기동 시 leader_key가 None이 아닌 최소 낙폭 룰로 설정됨
+    assert report["leader_key"] is not None
+    assert report["is_fallback_leader"] is True
+    assert report["selection_type"] == "fallback_leader"
     assert report["candidate_leader_key"] in set("ABCDEFGHIJKLMNOPQR")
     assert all("effective_buy_multiplier" in item for item in report["results"])
     assert report["market_state"] == "bull"
@@ -240,7 +242,9 @@ def test_demo_rule_variant_shadow_tester_resets_all_candidate_results() -> None:
 
     assert all(item["trade_count"] == 0 for item in report["results"])
     assert all(item["profit_rate"] <= 0 for item in report["results"])
-    assert report["leader_key"] is None
+    # reset 후에도 Fallback Leader 즉시 선발 (is_initial_start=True)
+    assert report["leader_key"] is not None
+    assert report["is_fallback_leader"] is True
 
 
 def test_demo_rule_variant_candidate_uses_highest_profit_rate_even_when_all_negative() -> None:

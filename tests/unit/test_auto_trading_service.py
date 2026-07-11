@@ -518,15 +518,21 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert observation_rows[-1]["market_state_label"] == "상승장"
 
 
-def test_auto_trading_service_waits_for_positive_rule_leader(tmp_path: Path) -> None:
+def test_auto_trading_service_uses_fallback_leader_when_no_positive_rule(tmp_path: Path) -> None:
+    """Fallback Leader 모드 검증: 정상 승격 룰 없을 시 즉시 임시 리더 선발.
+
+    이전 동작: NO_POSITIVE_RULE_LEADER_YET 차단
+    변경 동작: fallback_leader 선발 → 50% 축소 크기로 거래 허용
+    """
     service = _build_service(tmp_path, [800.0, 806.0, 813.0, 824.0], min_history=4, mock_applied_variant_key=None)
     assert service._demo_rule_variant_shadow_tester._applied_variant_key is None
 
     for _ in range(4):
         result = service.tick()
 
-    assert result["status"] == "blocked"
-    assert result["reason"] == "NO_POSITIVE_RULE_LEADER_YET"
+    # Fallback Leader 모드: 초기 기동 시 즉시 임시 리더 선발 → 차단 없음
+    # (NO_POSITIVE_RULE_LEADER_YET 영구 정지 사태 해소)
+    assert result["reason"] != "NO_POSITIVE_RULE_LEADER_YET"
 
 
 def test_auto_trading_service_blocks_weak_bear_market_state_entry(tmp_path: Path) -> None:

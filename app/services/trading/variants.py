@@ -434,23 +434,40 @@ class DemoRuleVariantShadowTester:
         # promotable이 없고 applied도 없으면(또는 applied가 None이면) 임시 리더 선발.
         fallback_leader_active = False
         if not promotable and applied is None and not selection_changed:
-            # 조건: 최소 거래수 충족 + 손절률이 과도하지 않은 룰 중 profit_rate 최고
+            # 초기 기동(is_initial_start=True) 시: 섀도 포트폴리오가 모두 0거래
+            # → min_trades=0으로 완화하여 즉시 안전한 룰 선발
+            # 정상 운용 중: FALLBACK_LEADER_MIN_TRADES(3) 이상 거래한 룰만 후보
+            fallback_min_trades = 0 if is_initial_start else self.FALLBACK_LEADER_MIN_TRADES
             fallback_candidates = [
                 r for r in results
-                if int(r.get("trade_count") or 0) >= self.FALLBACK_LEADER_MIN_TRADES
+                if int(r.get("trade_count") or 0) >= fallback_min_trades
                 and (
                     r.get("stop_loss_rate") is None
                     or float(r.get("stop_loss_rate") or 0.0) <= self.FALLBACK_LEADER_MAX_SL_RATE
                 )
             ]
+            if not fallback_candidates:
+                # 모든 룰이 손절률 초과 시 손절률 조건 제외하고 재탐색
+                fallback_candidates = results  # 최후 수단: 전체 후보
             if fallback_candidates:
-                fallback_leader = max(
-                    fallback_candidates,
-                    key=lambda r: (
-                        float(r.get("profit_rate") or -999.0),   # 수익률 최고 우선
-                        -float(r.get("max_drawdown_pct") or 0.0),  # 낙폭 최소 차선
-                    ),
-                )
+                # 초기 기동 시: 낙폭 최소 + 손절률 최소 우선(안전한 룰)
+                # 정상 운용 시: 수익률 최고 + 낙폭 최소
+                if is_initial_start:
+                    fallback_leader = min(
+                        fallback_candidates,
+                        key=lambda r: (
+                            float(r.get("max_drawdown_pct") or 0.0),  # 낙폭 최소 우선
+                            float(r.get("stop_loss_rate") or 0.0),    # 손절률 최소 차선
+                        ),
+                    )
+                else:
+                    fallback_leader = max(
+                        fallback_candidates,
+                        key=lambda r: (
+                            float(r.get("profit_rate") or -999.0),   # 수익률 최고 우선
+                            -float(r.get("max_drawdown_pct") or 0.0),  # 낙폭 최소 차선
+                        ),
+                    )
                 self._applied_variant_key = str(fallback_leader["variant_key"])
                 applied = next(
                     (item for item in results if item["variant_key"] == self._applied_variant_key),
