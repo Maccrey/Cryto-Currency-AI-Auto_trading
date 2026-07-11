@@ -1051,16 +1051,37 @@ class AutoTradingService:
         available_cash: float,
     ) -> TradeDecisionResult:
         has_applied_rule = False
+        is_fallback_leader = False
         if variant_payload is not None:
             applied_key = variant_payload.get("leader_key")
             if applied_key:
                 has_applied_rule = True
+                is_fallback_leader = bool(variant_payload.get("is_fallback_leader", False))
                 decision = self._demo_rule_variant_shadow_tester.apply_selected_variant(
                     decision=decision,
                     current_price=current_price,
                     available_cash=available_cash,
                 )
-        
+                # ── Fallback Leader 모드: 매수 크기 50% 축소 ────────────────────────
+                # 정상 승격 룰이 없어 임시 리더를 사용 중. 손실 위험을 줄이기 위해
+                # 매수 금액을 절반으로 축소하여 보수적으로 운용한다.
+                if is_fallback_leader and not position_exists:
+                    from app.services.trading.variants import DemoRuleVariantShadowTester
+                    scale = DemoRuleVariantShadowTester.FALLBACK_LEADER_BUY_SCALE
+                    new_buy_amount = decision.sizing.buy_amount * scale
+                    new_buy_quantity = decision.sizing.buy_quantity * scale
+                    new_buy_ratio = decision.sizing.buy_ratio * scale
+                    decision = replace(
+                        decision,
+                        sizing=replace(
+                            decision.sizing,
+                            buy_amount=new_buy_amount,
+                            buy_quantity=new_buy_quantity,
+                            buy_ratio=new_buy_ratio,
+                            blocked_reason=None,  # 차단 해제
+                        ),
+                    )
+
         # 플러스 검증된 대표 룰이 적용되지 않은 상태에서 신규 매수 진입 시도인 경우 대기 및 차단
         if not has_applied_rule and not position_exists:
             decision = replace(

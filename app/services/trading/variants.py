@@ -107,7 +107,7 @@ class DemoRuleVariantShadowTester:
       forced exits.
     """
 
-    MIN_PROMOTION_TRADES = 20
+    MIN_PROMOTION_TRADES = 10  # 20→10: 하락장에서도 빠른 승격 가능
 
     # Bear-to-bull confirmed → buy multiplier is boosted by this factor
     BEAR_TO_BULL_BUY_BOOST = 1.35
@@ -123,6 +123,13 @@ class DemoRuleVariantShadowTester:
     # 연속 손절 쿨다운: 연속 N회 손절 시 이 틱 수만큼 신규 매수를 차단
     CONSECUTIVE_STOP_LOSS_COOLDOWN_TRIGGER = 2   # 2회 연속 손절 시 쿨다운 발동
     CONSECUTIVE_STOP_LOSS_COOLDOWN_TICKS = 200   # 약 10분(3초 간격) 쿨다운
+
+    # ── Fallback Leader (전체 음수 시 임시 리더) ────────────────────────────────
+    # 정상 승격 조건을 충족하는 룰이 없을 때 최고 성과 룰을 임시 리더로 사용.
+    # 이를 통해 NO_POSITIVE_RULE_LEADER_YET로 인한 영구 매매 정지를 방지한다.
+    FALLBACK_LEADER_MIN_TRADES = 3     # 최소 3거래 이상인 룰만 fallback 후보
+    FALLBACK_LEADER_MAX_SL_RATE = 0.60  # 손절률 60% 이하인 룰만 fallback 후보
+    FALLBACK_LEADER_BUY_SCALE = 0.50   # fallback 시 매수 크기 50% 축소 (보수적 운용)
 
     DEFAULT_VARIANTS = (
         DemoRuleVariant(
@@ -422,11 +429,43 @@ class DemoRuleVariantShadowTester:
                 selection_changed = True
                 emergency_fallback_active = True
 
+        # ── Fallback Leader: 정상 승격 불가 시 최고 성과 룰을 임시 리더로 ─────────
+        # NO_POSITIVE_RULE_LEADER_YET 영구 정지 방지.
+        # promotable이 없고 applied도 없으면(또는 applied가 None이면) 임시 리더 선발.
+        fallback_leader_active = False
+        if not promotable and applied is None and not selection_changed:
+            # 조건: 최소 거래수 충족 + 손절률이 과도하지 않은 룰 중 profit_rate 최고
+            fallback_candidates = [
+                r for r in results
+                if int(r.get("trade_count") or 0) >= self.FALLBACK_LEADER_MIN_TRADES
+                and (
+                    r.get("stop_loss_rate") is None
+                    or float(r.get("stop_loss_rate") or 0.0) <= self.FALLBACK_LEADER_MAX_SL_RATE
+                )
+            ]
+            if fallback_candidates:
+                fallback_leader = max(
+                    fallback_candidates,
+                    key=lambda r: (
+                        float(r.get("profit_rate") or -999.0),   # 수익률 최고 우선
+                        -float(r.get("max_drawdown_pct") or 0.0),  # 낙폭 최소 차선
+                    ),
+                )
+                self._applied_variant_key = str(fallback_leader["variant_key"])
+                applied = next(
+                    (item for item in results if item["variant_key"] == self._applied_variant_key),
+                    None,
+                )
+                selection_changed = True
+                fallback_leader_active = True
+
         selection_type = (
             "stop_loss_forced_switch"
             if forced_switch_active
             else "emergency_fallback"
             if emergency_fallback_active
+            else "fallback_leader"             # 신규: 전체 음수 시 임시 리더 모드
+            if fallback_leader_active
             else "performance_promotion"
             if selection_changed
             else None
@@ -441,9 +480,15 @@ class DemoRuleVariantShadowTester:
                     f"비상 전환(Emergency Fallback): {old_variant_label}에서 손절 과다 발생. "
                     f"최저 낙폭 방어 룰 {applied['variant_label']}(낙폭 {float(applied.get('max_drawdown_pct', 0)):.2%})으로 긴급 전환."
                     if emergency_fallback_active and applied is not None
-                    else self._leader_reason(leader)
-                    if leader is not None
-                    else self._no_positive_leader_reason(candidate, applied)
+                    else (
+                        f"임시 리더 모드(Fallback Leader): 정상 승격 가능 룰 없음. "
+                        f"가장 손실이 적은 {applied['variant_label']}(수익률 {float(applied.get('profit_rate', 0)):.2%})을 "
+                        f"임시 리더로 선발. 매수 크기 {int(self.FALLBACK_LEADER_BUY_SCALE*100)}% 축소 적용."
+                        if fallback_leader_active and applied is not None
+                        else self._leader_reason(leader)
+                        if leader is not None
+                        else self._no_positive_leader_reason(candidate, applied)
+                    )
                 )
             ),
             "candidate_leader_key": candidate["variant_key"],
@@ -452,6 +497,7 @@ class DemoRuleVariantShadowTester:
             "promotion_eligible": applied is not None and not forced_switch_active,
             "selection_changed": selection_changed,
             "selection_type": selection_type,
+            "is_fallback_leader": fallback_leader_active,   # 신규: fallback 모드 여부
             "previous_variant_key": (
                 None if previous_applied is None else previous_applied["variant_key"]
             ),
