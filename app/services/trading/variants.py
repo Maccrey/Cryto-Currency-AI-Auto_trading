@@ -487,7 +487,7 @@ class DemoRuleVariantShadowTester:
             if selection_changed
             else None
         )
-        return {
+        _report = {
             "leader_key": None if applied is None else applied["variant_key"],
             "leader_label": None if applied is None else applied["variant_label"],
             "leader_reason": (
@@ -540,6 +540,8 @@ class DemoRuleVariantShadowTester:
             "dynamic_box_position": transition.dynamic_box_position,
             "results": results,
         }
+        self._last_report = _report  # 일일 요약 등 외부 접근용 캐시
+        return _report
 
     def reset(self) -> None:
         self._portfolios.clear()

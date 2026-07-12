@@ -387,6 +387,25 @@ class AutoTradingService:
                         triggered_at=int(self._clock().timestamp()),
                         price=snapshot.trade_price,
                     )
+                # \u2500\u2500 4) stop_loss_triggered: \uc190\uc808 \ubc1c\uc0dd \uc2dc \ubcc4\ub3c4 \uc9c4\ub2e8 \uc774\ubca4\ud2b8 \uae30\ub85d \u2500\u2500\u2500\u2500\u2500\n                trigger = result.get(\"trigger\")
+                reason_code_str = str(trigger.get("reason_code") or "") if isinstance(trigger, dict) else ""
+                if "STOP_LOSS" in reason_code_str:
+                    self._learning_service.record(
+                        LearningEvent(
+                            event_name="stop_loss_triggered",
+                            market=self._market,
+                            mode=self._trading_mode,
+                            payload={
+                                "reason_code": reason_code_str,
+                                "exit_price": snapshot.trade_price,
+                                "trigger": trigger,
+                                "market_state": str(decision.regime.market_state) if hasattr(decision, "regime") else None,
+                                "signal_level": str(decision.signal.level) if hasattr(decision, "signal") else None,
+                                "signal_score": float(decision.signal.score) if hasattr(decision, "signal") else None,
+                                "position_result": result,
+                            },
+                        )
+                    )
                 return self._record_cycle(
                     status="position_checked",
                     reason="POSITION_EXIT_TRIGGERED",
@@ -1011,7 +1030,127 @@ class AutoTradingService:
             portfolio=self._portfolio_state(),
         )
         self._notify_rule_variant_change_if_needed(payload)
+        self._record_variant_diagnostic_events(payload)
         return payload
+
+    def _record_variant_diagnostic_events(self, payload: dict[str, object] | None) -> None:
+        """Fallback Leader 선발·시장 전환 등 진단에 유용한 섀도 평가 이벤트를 기록한다."""
+        if payload is None:
+            return
+        selection_type = payload.get("selection_type")
+        results = payload.get("results", [])
+
+        # ── 1) fallback_leader_selected: 임시 리더 선발 시 기록 ──────────────────
+        if selection_type == "fallback_leader" and payload.get("is_fallback_leader"):
+            self._learning_service.record(
+                LearningEvent(
+                    event_name="fallback_leader_selected",
+                    market=self._market,
+                    mode=self._trading_mode,
+                    payload={
+                        "leader_key": payload.get("leader_key"),
+                        "leader_label": payload.get("leader_label"),
+                        "leader_reason": payload.get("leader_reason"),
+                        "market_state": payload.get("market_state"),
+                        "market_state_label": payload.get("market_state_label"),
+                        # 전체 룰 현황 스냅샷 (왜 이 룰이 선발됐는지 맥락)
+                        "all_variants_summary": [
+                            {
+                                "key": r.get("variant_key"),
+                                "label": r.get("variant_label"),
+                                "profit_rate": r.get("profit_rate"),
+                                "stop_loss_rate": r.get("stop_loss_rate"),
+                                "stop_loss_count": r.get("stop_loss_count"),
+                                "trade_count": r.get("trade_count"),
+                                "profit_factor": r.get("profit_factor"),
+                                "promotion_eligible": r.get("promotion_eligible"),
+                                "max_drawdown_pct": r.get("max_drawdown_pct"),
+                            }
+                            for r in results
+                        ],
+                    },
+                )
+            )
+
+        # ── 2) variant_portfolio_snapshot: 매 평가마다 전 룰 포트폴리오 요약 기록 ──
+        # 너무 잦은 기록을 막기 위해 약 5분(100틱)에 1회만 기록
+        tick = getattr(self, "_variant_snapshot_tick_counter", 0) + 1
+        self._variant_snapshot_tick_counter = tick
+        if tick % 100 == 1:
+            self._learning_service.record(
+                LearningEvent(
+                    event_name="variant_portfolio_snapshot",
+                    market=self._market,
+                    mode=self._trading_mode,
+                    payload={
+                        "leader_key": payload.get("leader_key"),
+                        "is_fallback_leader": payload.get("is_fallback_leader", False),
+                        "selection_type": selection_type,
+                        "bear_to_bull_score": payload.get("bear_to_bull_score"),
+                        "bull_to_bear_score": payload.get("bull_to_bear_score"),
+                        "bear_to_bull_confirmed": payload.get("bear_to_bull_confirmed"),
+                        "bull_to_bear_confirmed": payload.get("bull_to_bear_confirmed"),
+                        "variants": [
+                            {
+                                "key": r.get("variant_key"),
+                                "profit_rate": r.get("profit_rate"),
+                                "realized_pnl": r.get("realized_pnl"),
+                                "trade_count": r.get("trade_count"),
+                                "stop_loss_count": r.get("stop_loss_count"),
+                                "profit_factor": r.get("profit_factor"),
+                                "promotion_eligible": r.get("promotion_eligible"),
+                            }
+                            for r in results
+                        ],
+                    },
+                )
+            )
+
+        # ── 3) market_transition_detected: 시장 전환 감지 시 기록 ──────────────────
+        b2b_confirmed = payload.get("bear_to_bull_confirmed", False)
+        bu2be_confirmed = payload.get("bull_to_bear_confirmed", False)
+        prev_b2b = getattr(self, "_last_bear_to_bull_confirmed", False)
+        prev_bu2be = getattr(self, "_last_bull_to_bear_confirmed", False)
+
+        if b2b_confirmed and not prev_b2b:
+            # bear→bull 전환 새로 감지
+            self._learning_service.record(
+                LearningEvent(
+                    event_name="market_transition_detected",
+                    market=self._market,
+                    mode=self._trading_mode,
+                    payload={
+                        "transition": "bear_to_bull",
+                        "bear_to_bull_score": payload.get("bear_to_bull_score"),
+                        "bull_to_bear_score": payload.get("bull_to_bear_score"),
+                        "market_state": payload.get("market_state"),
+                        "dynamic_box_low": payload.get("dynamic_box_low"),
+                        "dynamic_box_high": payload.get("dynamic_box_high"),
+                        "leader_key": payload.get("leader_key"),
+                    },
+                )
+            )
+        elif bu2be_confirmed and not prev_bu2be:
+            # bull→bear 전환 새로 감지
+            self._learning_service.record(
+                LearningEvent(
+                    event_name="market_transition_detected",
+                    market=self._market,
+                    mode=self._trading_mode,
+                    payload={
+                        "transition": "bull_to_bear",
+                        "bear_to_bull_score": payload.get("bear_to_bull_score"),
+                        "bull_to_bear_score": payload.get("bull_to_bear_score"),
+                        "market_state": payload.get("market_state"),
+                        "dynamic_box_low": payload.get("dynamic_box_low"),
+                        "dynamic_box_high": payload.get("dynamic_box_high"),
+                        "leader_key": payload.get("leader_key"),
+                    },
+                )
+            )
+        self._last_bear_to_bull_confirmed = b2b_confirmed
+        self._last_bull_to_bear_confirmed = bu2be_confirmed
+
 
     def _notify_rule_variant_change_if_needed(
         self,
@@ -1182,6 +1321,28 @@ class AutoTradingService:
             current_price=current_price,
             entry_type=entry_type,
         )
+        # ── 5) reentry_block_released: 손절 후 차단 해제 시 진단 이벤트 기록 ─────
+        if stop_loss_confirmation.get("post_stop_loss_reentry_confirmed"):
+            self._learning_service.record(
+                LearningEvent(
+                    event_name="reentry_block_released",
+                    market=self._market,
+                    mode=self._trading_mode,
+                    payload={
+                        "reentry_mode": stop_loss_confirmation.get("post_stop_loss_reentry_mode"),
+                        "last_exit_reason_code": stop_loss_confirmation.get("post_stop_loss_last_exit_reason_code"),
+                        "last_exit_price": stop_loss_confirmation.get("post_stop_loss_last_exit_price"),
+                        "current_price": current_price,
+                        "required_recovery_price": stop_loss_confirmation.get("post_stop_loss_required_recovery_price"),
+                        "market_state": market_state_entry.current_market_state,
+                        "market_state_count": market_state_entry.current_state_count,
+                        "signal_level": decision.signal.level,
+                        "signal_score": decision.signal.score,
+                        "entry_type": entry_type,
+                        "elapsed_hours": stop_loss_confirmation.get("post_stop_loss_elapsed_hours"),
+                    },
+                )
+            )
         if not stop_loss_confirmation.get("allowed", True) or stop_loss_confirmation.get("post_stop_loss_reentry_confirmed"):
             return stop_loss_confirmation
         if entry_type != "initial" or reentry_decision.last_exit_price is None:
@@ -1712,7 +1873,60 @@ class AutoTradingService:
                         payload=update_result,
                     ),
                 )
+        self._maybe_record_daily_rule_summary()
         return payload
+
+    def _maybe_record_daily_rule_summary(self) -> None:
+        """하루 1회 룰별 섀도 포트폴리오 성과 요약을 기록한다.
+
+        rule_performance_daily_summary 이벤트를 사용해 날별 성과 추이를 분석하고
+        어떤 룰이 어느 시점에 성과가 좋았는지 장기 패턴을 파악할 수 있다.
+        """
+        import datetime as _dt
+        today_str = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+        last_summary_date = getattr(self, "_last_daily_summary_date", None)
+        if last_summary_date == today_str:
+            return  # 오늘 이미 기록됨
+        self._last_daily_summary_date = today_str
+
+        # 섀도 포트폴리오 평가 결과 가져오기 (최신 캐시 사용)
+        variant_report = getattr(self._demo_rule_variant_shadow_tester, "_last_report", None)
+        if variant_report is None:
+            return
+        results = variant_report.get("results", [])
+        if not results:
+            return
+
+        self._learning_service.record(
+            LearningEvent(
+                event_name="rule_performance_daily_summary",
+                market=self._market,
+                mode=self._trading_mode,
+                payload={
+                    "summary_date": today_str,
+                    "leader_key": variant_report.get("leader_key"),
+                    "is_fallback_leader": variant_report.get("is_fallback_leader", False),
+                    "selection_type": variant_report.get("selection_type"),
+                    "market_state": variant_report.get("market_state"),
+                    "variants": [
+                        {
+                            "key": r.get("variant_key"),
+                            "label": r.get("variant_label"),
+                            "profit_rate": r.get("profit_rate"),
+                            "realized_pnl": r.get("realized_pnl"),
+                            "trade_count": r.get("trade_count"),
+                            "stop_loss_count": r.get("stop_loss_count"),
+                            "stop_loss_rate": r.get("stop_loss_rate"),
+                            "profit_factor": r.get("profit_factor"),
+                            "max_drawdown_pct": r.get("max_drawdown_pct"),
+                            "promotion_eligible": r.get("promotion_eligible"),
+                        }
+                        for r in results
+                    ],
+                },
+            )
+        )
+
 
     def _should_check_auto_rule_update(self) -> bool:
         now = int(self._clock().timestamp())
