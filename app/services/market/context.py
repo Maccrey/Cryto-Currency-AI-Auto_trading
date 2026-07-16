@@ -723,6 +723,7 @@ class ExternalMarketContextService:
     """Build a stable on-chain and ETF context snapshot for learning and dashboard use."""
 
     ETF_SUPPORTED_COINS = {"BTC", "ETH", "SOL", "XRP"}
+    ETF_MAX_DATA_AGE_SEC = 36 * 60 * 60
 
     def __init__(
         self,
@@ -762,27 +763,31 @@ class ExternalMarketContextService:
             onchain_payload.get("active_addresses_change_pct"),
             self._config.onchain_active_addresses_change_pct,
         )
+        etf_flow_date = self._string_value(etf_payload.get("flow_date"), "")
+        etf_data_stale = self._is_stale_flow_date(etf_flow_date, now=datetime.now(UTC))
         configured_etf_state = self._string_value(etf_payload.get("state"), self._config.etf_state)
         etf_applicable = coin in self.ETF_SUPPORTED_COINS or bool(etf_payload)
-        etf_state = configured_etf_state if etf_applicable else "not_applicable"
-        etf_flow_usd = self._float_value(etf_payload.get("flow_usd"), self._config.etf_flow_usd)
+        etf_state = "unknown" if etf_data_stale else configured_etf_state if etf_applicable else "not_applicable"
+        etf_flow_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("flow_usd"), self._config.etf_flow_usd)
         market_usd_price = self._float_value(market_payload.get("usd_price"), 0.0)
-        etf_inflow_usd = self._float_value(etf_payload.get("inflow_usd"), max(etf_flow_usd, 0.0))
-        etf_outflow_usd = self._float_value(etf_payload.get("outflow_usd"), abs(min(etf_flow_usd, 0.0)))
+        etf_inflow_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("inflow_usd"), max(etf_flow_usd, 0.0))
+        etf_outflow_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("outflow_usd"), abs(min(etf_flow_usd, 0.0)))
         etf_holding_change = self._float_value(
             etf_payload.get("holding_change_coin"),
             0.0 if market_usd_price <= 0 else etf_flow_usd / market_usd_price,
         )
-        etf_total_aum_usd = self._float_value(etf_payload.get("total_aum_usd"), 0.0)
-        etf_total_holding_coin = self._float_value(etf_payload.get("total_holding_coin"), 0.0)
-        etf_flow_change_usd = self._float_value(etf_payload.get("flow_usd_change"), 0.0)
-        etf_inflow_change_usd = self._float_value(etf_payload.get("inflow_usd_change"), 0.0)
-        etf_outflow_change_usd = self._float_value(etf_payload.get("outflow_usd_change"), 0.0)
-        etf_total_aum_change_usd = self._float_value(etf_payload.get("total_aum_usd_change"), 0.0)
+        etf_holding_change = 0.0 if etf_data_stale else etf_holding_change
+        etf_total_aum_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("total_aum_usd"), 0.0)
+        etf_total_holding_coin = 0.0 if etf_data_stale else self._float_value(etf_payload.get("total_holding_coin"), 0.0)
+        etf_flow_change_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("flow_usd_change"), 0.0)
+        etf_inflow_change_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("inflow_usd_change"), 0.0)
+        etf_outflow_change_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("outflow_usd_change"), 0.0)
+        etf_total_aum_change_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("total_aum_usd_change"), 0.0)
         etf_total_holding_change_coin = self._float_value(
             etf_payload.get("total_holding_coin_change"),
             etf_holding_change,
         )
+        etf_total_holding_change_coin = 0.0 if etf_data_stale else etf_total_holding_change_coin
         market_usd_change_pct = self._float_value(market_payload.get("usd_change_pct_24h"), 0.0)
         market_quote_volume_usd = self._float_value(market_payload.get("quote_volume_usd_24h"), 0.0)
         raw_whale_activity_state = onchain_payload.get("whale_activity_state")
@@ -826,8 +831,10 @@ class ExternalMarketContextService:
             "etf": {
                 "source": etf_source,
                 "metric": self._string_value(etf_payload.get("metric"), "manual_etf_context" if not etf_payload else "unknown"),
-                "data_status": "provider" if etf_payload else "fallback",
-                "flow_date": self._string_value(etf_payload.get("flow_date"), ""),
+                "data_status": "stale" if etf_data_stale else "provider" if etf_payload else "fallback",
+                "stale": etf_data_stale,
+                "stale_reason": "flow_date_older_than_36h" if etf_data_stale else "",
+                "flow_date": etf_flow_date,
                 "state": etf_state,
                 "flow_usd": etf_flow_usd if etf_applicable else 0.0,
                 "inflow_usd": etf_inflow_usd if etf_applicable else 0.0,
@@ -940,3 +947,13 @@ class ExternalMarketContextService:
             return float(value)
         except (TypeError, ValueError):
             return fallback
+
+    @classmethod
+    def _is_stale_flow_date(cls, value: str, *, now: datetime) -> bool:
+        if not value:
+            return False
+        parsed = PublicWebExternalMarketContextProvider._datetime_value(value)
+        if parsed is None:
+            return False
+        parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+        return (now.astimezone(UTC) - parsed).total_seconds() > cls.ETF_MAX_DATA_AGE_SEC

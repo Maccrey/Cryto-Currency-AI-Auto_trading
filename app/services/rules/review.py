@@ -10,6 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.services.learning.jsonl import iter_jsonl_objects
+from app.services.market.context import ExternalMarketContextService
 from app.services.replay.harness import ReplayHarness
 from app.services.replay.loader import ReplayFixtureLoader
 
@@ -1100,6 +1101,7 @@ class RuleReviewService:
         onchain_counts: Counter[str] = Counter()
         onchain_exchange_counts: Counter[str] = Counter()
         etf_counts: Counter[str] = Counter()
+        etf_stale_count = 0
         weights: list[float] = []
         etf_flows: list[float] = []
         etf_inflows: list[float] = []
@@ -1107,16 +1109,23 @@ class RuleReviewService:
         for sample in samples:
             onchain = sample.get("onchain") or {}
             etf = sample.get("etf") or {}
+            etf_stale = False
             if isinstance(onchain, dict):
                 onchain_counts.update([str(onchain.get("state") or "unknown")])
                 onchain_exchange_counts.update([str(onchain.get("exchange_netflow_state") or "unknown")])
             if isinstance(etf, dict):
-                etf_counts.update([str(etf.get("state") or "unknown")])
-                RuleReviewService._append_float(etf_flows, etf.get("flow_usd"))
-                RuleReviewService._append_float(etf_inflows, etf.get("inflow_usd"))
-                RuleReviewService._append_float(etf_outflows, etf.get("outflow_usd"))
+                etf_stale = ExternalMarketContextService._is_stale_flow_date(
+                    str(etf.get("flow_date") or ""),
+                    now=datetime.now(UTC),
+                ) or bool(etf.get("stale"))
+                etf_stale_count += 1 if etf_stale else 0
+                etf_counts.update(["unknown" if etf_stale else str(etf.get("state") or "unknown")])
+                if not etf_stale:
+                    RuleReviewService._append_float(etf_flows, etf.get("flow_usd"))
+                    RuleReviewService._append_float(etf_inflows, etf.get("inflow_usd"))
+                    RuleReviewService._append_float(etf_outflows, etf.get("outflow_usd"))
             try:
-                weights.append(float(sample.get("learning_weight", 1.0)))
+                weights.append(1.0 if etf_stale else float(sample.get("learning_weight", 1.0)))
             except (TypeError, ValueError):
                 pass
         return {
@@ -1124,6 +1133,7 @@ class RuleReviewService:
             "onchain_state_counts": dict(onchain_counts),
             "onchain_exchange_netflow_counts": dict(onchain_exchange_counts),
             "etf_state_counts": dict(etf_counts),
+            "etf_stale_count": etf_stale_count,
             "avg_learning_weight": round(sum(weights) / len(weights), 3) if weights else 1.0,
             "etf_flow_usd_total": round(sum(etf_flows), 2),
             "etf_inflow_usd_total": round(sum(etf_inflows), 2),
@@ -1177,6 +1187,7 @@ class RuleReviewService:
             "onchain_state_counts": {},
             "onchain_exchange_netflow_counts": {},
             "etf_state_counts": {},
+            "etf_stale_count": 0,
             "avg_learning_weight": 1.0,
             "etf_flow_usd_total": 0.0,
             "etf_inflow_usd_total": 0.0,

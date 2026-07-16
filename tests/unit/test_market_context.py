@@ -164,6 +164,39 @@ def test_external_market_context_displays_provider_etf_for_trade_coin_outside_de
     assert context["etf"]["data_status"] == "provider"
 
 
+def test_external_market_context_marks_stale_etf_flow_as_unknown() -> None:
+    class Provider:
+        def fetch(self, *, market: str, trade_coin: str) -> dict[str, dict[str, object]]:
+            return {
+                "etf": {
+                    "source": "web",
+                    "metric": "xrp_insights_etf_tracker",
+                    "state": "inflow",
+                    "flow_usd": 89_650_794,
+                    "inflow_usd": 89_650_794,
+                    "outflow_usd": 0,
+                    "holding_change_coin": 80_045_352,
+                    "total_aum_usd": 1_054_628_696,
+                    "total_holding_coin": 964_717_102,
+                    "flow_date": "2025-12-01T17:00:00.000Z",
+                }
+            }
+
+    context = ExternalMarketContextService(
+        config=ExternalMarketContextConfig(enabled=True),
+        provider=Provider(),
+    ).snapshot(market="KRW-XRP", trade_coin="XRP")
+
+    assert context["etf"]["data_status"] == "stale"
+    assert context["etf"]["stale"] is True
+    assert context["etf"]["state"] == "unknown"
+    assert context["etf"]["flow_usd"] == 0.0
+    assert context["etf"]["inflow_usd"] == 0.0
+    assert context["etf"]["holding_change_coin"] == 0.0
+    assert context["etf"]["total_aum_usd"] == 0.0
+    assert context["learning_weight"] == 1.0
+
+
 def test_external_market_context_falls_back_to_manual_when_http_provider_fails() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": "unavailable"})

@@ -1460,8 +1460,9 @@ function replayProfitClass(replay) {
 function formatRuleExternalContext(summary) {
   const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
   const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
+  const stale = summary.etf_stale_count ? ` / 오래된 ETF ${number(summary.etf_stale_count)}건 제외` : "";
   const flow = `ETF 순흐름 ${signedNumber(summary.etf_flow_usd_total || 0, 0)} USD`;
-  return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)} / ${flow}`;
+  return `표본 ${number(summary.sample_count || 0)}건 / 온체인 ${onchain} / ETF ${etf}${stale} / 평균 가중치 ${number(summary.avg_learning_weight || 1, 3)} / ${flow}`;
 }
 
 function formatRuleHistoryWarnings(warnings) {
@@ -1738,6 +1739,7 @@ function formatExternalContextStatus(onchain, etf) {
   if (onchain.fetch_error) errors.push("온체인 오류");
   if (etf.fetch_error) errors.push("ETF 오류");
   if (errors.length) return errors.join(" / ");
+  if (etf.stale || etf.data_status === "stale") return "ETF 지연";
   if (onchain.state === "disabled" || etf.state === "disabled") return "비활성";
   if (!onchain.state && !etf.state) return "대기 중";
   return "정상";
@@ -1755,7 +1757,8 @@ function formatContextSource(value) {
 function formatContextDataStatus(value) {
   const labels = {
     provider: "거래 코인 자료",
-    fallback: "기본값"
+    fallback: "기본값",
+    stale: "오래된 자료"
   };
   return labels[value] || value || "대기";
 }
@@ -1890,7 +1893,8 @@ function renderNoTradeDiagnostics(diagnostics) {
 function formatDiagnosticsExternalContext(summary) {
   const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
   const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${number(value)}건`).join(", ") || "없음";
-  return `표본 ${number(summary.sample_count || 0)}건\n온체인 ${onchain}\nETF ${etf}\n평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
+  const stale = summary.etf_stale_count ? `\n오래된 ETF ${number(summary.etf_stale_count)}건 제외` : "";
+  return `표본 ${number(summary.sample_count || 0)}건\n온체인 ${onchain}\nETF ${etf}${stale}\n평균 가중치 ${number(summary.avg_learning_weight || 1, 3)}`;
 }
 
 function formatBlockedReasons(diagnostics) {

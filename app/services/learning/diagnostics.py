@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from app.services.learning.jsonl import tail_jsonl_objects
+from app.services.market.context import ExternalMarketContextService
 
 
 class LearningLogDiagnostics:
@@ -97,22 +98,30 @@ class LearningLogDiagnostics:
             }
         onchain_counts: Counter[str] = Counter()
         etf_counts: Counter[str] = Counter()
+        etf_stale_count = 0
         weights: list[float] = []
         for sample in samples:
             onchain = sample.get("onchain") or {}
             etf = sample.get("etf") or {}
+            etf_stale = False
             if isinstance(onchain, dict):
                 onchain_counts.update([str(onchain.get("state") or "unknown")])
             if isinstance(etf, dict):
-                etf_counts.update([str(etf.get("state") or "unknown")])
+                etf_stale = ExternalMarketContextService._is_stale_flow_date(
+                    str(etf.get("flow_date") or ""),
+                    now=datetime.now(UTC),
+                ) or bool(etf.get("stale"))
+                etf_stale_count += 1 if etf_stale else 0
+                etf_counts.update(["unknown" if etf_stale else str(etf.get("state") or "unknown")])
             try:
-                weights.append(float(sample.get("learning_weight", 1.0)))
+                weights.append(1.0 if etf_stale else float(sample.get("learning_weight", 1.0)))
             except (TypeError, ValueError):
                 pass
         return {
             "sample_count": len(samples),
             "onchain_state_counts": dict(onchain_counts),
             "etf_state_counts": dict(etf_counts),
+            "etf_stale_count": etf_stale_count,
             "avg_learning_weight": round(sum(weights) / len(weights), 3) if weights else 1.0,
         }
 

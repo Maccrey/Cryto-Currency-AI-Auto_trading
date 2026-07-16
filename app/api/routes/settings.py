@@ -764,8 +764,9 @@ function renderRulePipeline(payload) {
 function formatRuleExternalContext(summary) {
   const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${value}건`).join(", ") || "없음";
   const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${value}건`).join(", ") || "없음";
+  const stale = summary.etf_stale_count ? ` / 오래된 ETF ${summary.etf_stale_count}건 제외` : "";
   const flow = `ETF 순흐름 ${signedNumber(summary.etf_flow_usd_total || 0, 0)} USD`;
-  return `표본 ${summary.sample_count || 0}건 / 온체인 ${onchain} / ETF ${etf} / 평균 가중치 ${summary.avg_learning_weight || 1} / ${flow}`;
+  return `표본 ${summary.sample_count || 0}건 / 온체인 ${onchain} / ETF ${etf}${stale} / 평균 가중치 ${summary.avg_learning_weight || 1} / ${flow}`;
 }
 function formatContextState(value) {
   const labels = {
