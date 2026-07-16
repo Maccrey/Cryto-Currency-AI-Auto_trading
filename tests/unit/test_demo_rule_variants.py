@@ -260,19 +260,19 @@ def test_demo_rule_variant_candidate_uses_highest_profit_rate_even_when_all_nega
     assert candidate["variant_key"] == "B"
 
 
-def test_demo_rule_variant_requires_ten_closed_trades_for_normal_promotion() -> None:
-    """MIN_PROMOTION_TRADES=10 기준 검증 (기존 20에서 완화됨)."""
+def test_demo_rule_variant_requires_five_closed_trades_for_normal_promotion() -> None:
+    """MIN_PROMOTION_TRADES=5 기준 검증 (20→10→5로 완화됨)."""
     candidate = {
         "profit_rate": 0.02,
         "realized_pnl": 20_000.0,
-        "trade_count": 9,  # 최소(10) 미만 → 승격 불가
+        "trade_count": 4,  # 최소(5) 미만 → 승격 불가
         "profit_factor": 2.0,
         "stop_loss_rate": 0.1,
     }
 
     assert DemoRuleVariantShadowTester._promotion_eligible(candidate) is False
 
-    candidate["trade_count"] = 10  # 정확히 MIN_PROMOTION_TRADES → 승격 가능
+    candidate["trade_count"] = 5  # 정확히 MIN_PROMOTION_TRADES → 승격 가능
     assert DemoRuleVariantShadowTester._promotion_eligible(candidate) is True
 
 

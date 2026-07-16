@@ -107,7 +107,7 @@ class DemoRuleVariantShadowTester:
       forced exits.
     """
 
-    MIN_PROMOTION_TRADES = 10  # 20→10: 하락장에서도 빠른 승격 가능
+    MIN_PROMOTION_TRADES = 5  # 20→10→5: 하락장에서도 더 빠른 승격 가능
 
     # Bear-to-bull confirmed → buy multiplier is boosted by this factor
     BEAR_TO_BULL_BUY_BOOST = 1.35
@@ -127,9 +127,9 @@ class DemoRuleVariantShadowTester:
     # ── Fallback Leader (전체 음수 시 임시 리더) ────────────────────────────────
     # 정상 승격 조건을 충족하는 룰이 없을 때 최고 성과 룰을 임시 리더로 사용.
     # 이를 통해 NO_POSITIVE_RULE_LEADER_YET로 인한 영구 매매 정지를 방지한다.
-    FALLBACK_LEADER_MIN_TRADES = 3     # 최소 3거래 이상인 룰만 fallback 후보
+    FALLBACK_LEADER_MIN_TRADES = 1     # 리셋 직후 1거래 이상이면 fallback 후보 (신속 선발)
     FALLBACK_LEADER_MAX_SL_RATE = 0.60  # 손절률 60% 이하인 룰만 fallback 후보
-    FALLBACK_LEADER_BUY_SCALE = 0.50   # fallback 시 매수 크기 50% 축소 (보수적 운용)
+    FALLBACK_LEADER_BUY_SCALE = 0.40   # fallback 시 매수 크기 40% 축소 (더 보수적 운용)
 
     DEFAULT_VARIANTS = (
         DemoRuleVariant(
@@ -189,11 +189,11 @@ class DemoRuleVariantShadowTester:
         DemoRuleVariant(
             key="G",
             label="룰 G 스캘핑형",
-            description="강한 신호에만 소량 진입하고 매우 빠른 익절·손절로 누적 소폭 수익을 노립니다.",
-            buy_multiplier=0.55,
+            description="중간 이상 신호에 소량 진입하고 수수료를 충분히 넘는 익절선·타이트 손절로 누적 소폭 수익을 노립니다.",
+            buy_multiplier=0.70,   # 0.55→0.70: 중간 신호에도 진입 가능하도록 상향
             sell_multiplier=1.50,
-            take_profit_pct=0.0080,
-            stop_loss_pct=0.0050,
+            take_profit_pct=0.0120,  # 0.8%→1.2%: 수수료 0.1% 포함 실질 수익 확보
+            stop_loss_pct=0.0040,   # 0.5%→0.4%: 더 타이트한 손절로 낙폭 제한
         ),
         DemoRuleVariant(
             key="H",
@@ -225,11 +225,11 @@ class DemoRuleVariantShadowTester:
         DemoRuleVariant(
             key="K",
             label="룰 K 변동성형",
-            description="변동성 급등 구간에서 소량 역방향 진입 후 빠른 손절 보호로 수익을 추구합니다.",
+            description="변동성 급등 구간에서 소량 역방향 진입 후 매우 타이트한 손절 보호로 수익을 추구합니다.",
             buy_multiplier=0.48,
             sell_multiplier=1.95,
             take_profit_pct=0.0110,
-            stop_loss_pct=0.0060,
+            stop_loss_pct=0.0040,   # 0.6%→0.4%: 변동성 구간 손절 더 타이트하게
         ),
         DemoRuleVariant(
             key="L",

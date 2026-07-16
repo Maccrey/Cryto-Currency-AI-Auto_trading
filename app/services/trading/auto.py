@@ -73,7 +73,7 @@ class AutoTradingConfig:
     historical_loss_guard_box_entry_min_score: float = 0.30
     initial_observation_warmup_seconds: int = 180
     initial_observation_min_samples: int = 20
-    post_stop_loss_max_block_hours: float = 12.0  # 손절 후 재진입 최대 차단 시간(시간). 이 시간 이후는 자동 해제.
+    post_stop_loss_max_block_hours: float = 8.0  # 손절 후 재진입 최대 차단 시간(시간). 12→8시간: 더 빠른 재진입 허용.
 
 
 class AutoTradingService:
@@ -193,6 +193,11 @@ class AutoTradingService:
         self._last_entry_signal_level: str | None = None
         self._last_entry_signal_score: float | None = None
         self._scale_in_count = 0
+        # ── 24시간 무거래 시 섀도 포트폴리오 자동 리셋 ────────────────────────────
+        # 시작 시각을 기준으로 초기화 (재시작 직후 즉시 리셋 방지)
+        _init_now = self._clock()
+        self._last_trade_filled_at: datetime = _init_now   # 마지막 매수 체결 시각
+        self._last_variant_reset_at: datetime = _init_now  # 마지막 섀도 리셋 시각
 
     def should_run(self) -> bool:
         if not self._config.enabled:
@@ -465,6 +470,8 @@ class AutoTradingService:
 
         if shock_decision is None:
             shock_decision = self._market_shock_guard.check(prices=list(self._prices))
+        # ── 24시간 무거래 자동 리셋 체크 ───────────────────────────────────────────
+        self._check_no_trade_auto_reset(position_exists=position is not None)
         if not shock_decision.allowed:
             self._consecutive_entry_blocks += 1
             return self._record_cycle(
@@ -802,6 +809,7 @@ class AutoTradingService:
         self._record_pending_live_order(execution_result.execution)
         if post_fill_result.position is not None:
             self._position_opened_at = self._clock()
+            self._last_trade_filled_at = self._clock()   # 24시간 무거래 추적용
             self._consecutive_entry_blocks = 0
             self._last_entry_signal_level = decision.signal.level
             self._last_entry_signal_score = decision.signal.score
@@ -1927,6 +1935,69 @@ class AutoTradingService:
             )
         )
 
+
+    # ── 24시간 무거래 시 섀도 포트폴리오 자동 리셋 ─────────────────────────────────────
+
+    # 무거래 리셋 트리거 시간 (시간 단위)
+    NO_TRADE_AUTO_RESET_HOURS = 24
+
+    def _check_no_trade_auto_reset(self, *, position_exists: bool) -> None:
+        """포지션이 없고 24시간 이상 매수 체결이 없으면 섀도 포트폴리오를 자동 리셋한다.
+
+        리셋 후 is_initial_start=True 상태가 되어 조기 승격 조건(min_trades=1)이 적용되므로
+        다음 사이클에서 빠르게 가장 좋은 룰을 선발하여 매매를 재개한다.
+
+        조건:
+          1. 포지션 없음 (포지션 보유 중 리셋하면 청산 로직이 꼬일 수 있음)
+          2. 마지막 매수 체결 이후 NO_TRADE_AUTO_RESET_HOURS(24h) 경과
+          3. 마지막 리셋 이후 NO_TRADE_AUTO_RESET_HOURS(24h) 경과 (반복 리셋 방지)
+        """
+        if position_exists:
+            return  # 포지션 보유 중에는 리셋 안 함
+
+        now = self._clock()
+        # timezone-aware 비교를 위해 통일
+        try:
+            last_filled = self._last_trade_filled_at
+            last_reset = self._last_variant_reset_at
+            # aware/naive 혼합 방지
+            if last_filled.tzinfo is None:
+                last_filled = last_filled.replace(tzinfo=__import__("datetime").timezone.utc)
+            if last_reset.tzinfo is None:
+                last_reset = last_reset.replace(tzinfo=__import__("datetime").timezone.utc)
+            if now.tzinfo is None:
+                now = now.replace(tzinfo=__import__("datetime").timezone.utc)
+        except Exception:
+            return
+
+        hours_since_filled = (now - last_filled).total_seconds() / 3600
+        hours_since_reset = (now - last_reset).total_seconds() / 3600
+
+        if hours_since_filled < self.NO_TRADE_AUTO_RESET_HOURS:
+            return  # 아직 24시간 미경과
+        if hours_since_reset < self.NO_TRADE_AUTO_RESET_HOURS:
+            return  # 최근에 이미 리셋했음
+
+        # ── 리셋 실행 ──────────────────────────────────────────────────────────
+        self._demo_rule_variant_shadow_tester.reset()
+        self._last_variant_reset_at = now
+        # _consecutive_entry_blocks도 리셋해 no_trade 릴렉스 카운터 초기화
+        self._consecutive_entry_blocks = 0
+
+        self._learning_service.record(
+            LearningEvent(
+                event_name="variant_shadow_auto_reset",
+                market=self._market,
+                mode=self._trading_mode,
+                payload={
+                    "reason": "no_trade_24h",
+                    "hours_since_last_filled": round(hours_since_filled, 1),
+                    "hours_since_last_reset": round(hours_since_reset, 1),
+                    "reset_threshold_hours": self.NO_TRADE_AUTO_RESET_HOURS,
+                    "triggered_at": now.isoformat(),
+                },
+            )
+        )
 
     def _should_check_auto_rule_update(self) -> bool:
         now = int(self._clock().timestamp())
