@@ -233,9 +233,10 @@ class PublicWebExternalMarketContextProvider:
             return self._fetch_coinglass_etf(coin)
         response = self._client.get(self.BTC_ETF_FLOW_URL)
         response.raise_for_status()
-        flow_musd = self._parse_farside_total_flow_musd(response.text)
-        if flow_musd is None:
+        parsed_flow = self._parse_farside_total_flow(response.text)
+        if parsed_flow is None:
             return self._fetch_coinglass_etf(coin)
+        flow_musd, flow_date = parsed_flow
         return {
             "source": "web",
             "state": "inflow" if flow_musd > 0 else "outflow" if flow_musd < 0 else "neutral",
@@ -243,6 +244,7 @@ class PublicWebExternalMarketContextProvider:
             "inflow_usd": round(max(flow_musd, 0.0) * 1_000_000, 2),
             "outflow_usd": round(abs(min(flow_musd, 0.0)) * 1_000_000, 2),
             "metric": "farside_btc_etf_total_flow",
+            "flow_date": flow_date,
         }
 
     def _fetch_coinglass_etf(self, coin: str) -> dict[str, object]:
@@ -288,7 +290,7 @@ class PublicWebExternalMarketContextProvider:
                 },
             )
         if flow_usd is not None:
-            payload["flow_date"] = overview.get("flow_date", "")
+            payload["flow_date"] = str(flow_metrics.get("flow_date") or overview.get("flow_date", ""))
         return payload
 
     def _fetch_xrp_insights_etf(self, coin: str) -> dict[str, object]:
@@ -350,7 +352,7 @@ class PublicWebExternalMarketContextProvider:
         metrics = self._fetch_coinglass_flow_metrics(coin)
         return None if metrics is None else metrics["flow_usd"]
 
-    def _fetch_coinglass_flow_metrics(self, coin: str) -> dict[str, float] | None:
+    def _fetch_coinglass_flow_metrics(self, coin: str) -> dict[str, object] | None:
         response = self._client.get(
             self.COINGLASS_ETF_FLOW_URL.format(coin=coin.lower()),
             params={"ticker": "all"},
@@ -361,28 +363,30 @@ class PublicWebExternalMarketContextProvider:
         data = self._coinglass_data(raw)
         if not isinstance(data, list):
             return None
-        latest: dict[str, float] | None = None
-        previous: dict[str, float] | None = None
-        for item in reversed(data):
+        entries: list[tuple[datetime | None, dict[str, float]]] = []
+        for item in data:
             if not isinstance(item, dict):
                 continue
             metrics = self._coinglass_flow_metrics(item)
             if metrics is None:
                 continue
-            if latest is None:
-                latest = metrics
-                continue
-            previous = metrics
-            break
-        if latest is None:
+            entries.append((self._coinglass_item_datetime(item), metrics))
+        if not entries:
             return None
+        dated_entries = [entry for entry in entries if entry[0] is not None]
+        ordered_entries = sorted(dated_entries, key=lambda entry: entry[0] or datetime.min) if dated_entries else entries
+        latest_datetime, latest = ordered_entries[-1]
+        previous = ordered_entries[-2][1] if len(ordered_entries) >= 2 else None
         previous = previous or {"flow_usd": 0.0, "inflow_usd": 0.0, "outflow_usd": 0.0}
-        return {
+        result = {
             **latest,
             "flow_usd_change": latest["flow_usd"] - previous["flow_usd"],
             "inflow_usd_change": latest["inflow_usd"] - previous["inflow_usd"],
             "outflow_usd_change": latest["outflow_usd"] - previous["outflow_usd"],
         }
+        if latest_datetime is not None:
+            result["flow_date"] = latest_datetime.date().isoformat()
+        return result
 
     def _fetch_coinglass_etf_overview(self, coin: str) -> dict[str, float]:
         response = self._client.get(
@@ -444,6 +448,12 @@ class PublicWebExternalMarketContextProvider:
 
     @staticmethod
     def _parse_farside_total_flow_musd(html: str) -> float | None:
+        parsed = PublicWebExternalMarketContextProvider._parse_farside_total_flow(html)
+        return None if parsed is None else parsed[0]
+
+    @staticmethod
+    def _parse_farside_total_flow(html: str) -> tuple[float, str] | None:
+        latest: tuple[datetime, float, str] | None = None
         rows = re.findall(r"<tr[^>]*>(.*?)</tr>", html, flags=re.IGNORECASE | re.DOTALL)
         for row in rows:
             cells = [
@@ -452,11 +462,17 @@ class PublicWebExternalMarketContextProvider:
             ]
             if not cells or not re.match(r"\d{1,2}\s+[A-Za-z]{3}\s+\d{4}", cells[0]):
                 continue
+            try:
+                flow_date = datetime.strptime(cells[0], "%d %b %Y")
+            except ValueError:
+                continue
             for cell in reversed(cells[1:]):
                 value = PublicWebExternalMarketContextProvider._parse_number_cell(cell)
                 if value is not None:
-                    return value
-        return None
+                    if latest is None or flow_date > latest[0]:
+                        latest = (flow_date, value, flow_date.date().isoformat())
+                    break
+        return None if latest is None else (latest[1], latest[2])
 
     @staticmethod
     def _clean_cell(value: str) -> str:
@@ -550,6 +566,38 @@ class PublicWebExternalMarketContextProvider:
                     "outflow_usd": abs(min(value, 0.0)),
                 }
         return None
+
+    @staticmethod
+    def _coinglass_item_datetime(item: dict[str, Any]) -> datetime | None:
+        for key in ("date", "time", "timestamp", "ts", "createTime", "createdAt", "updateTime", "updatedAt"):
+            raw_value = item.get(key)
+            parsed = PublicWebExternalMarketContextProvider._datetime_value(raw_value)
+            if parsed is not None:
+                return parsed
+        return None
+
+    @staticmethod
+    def _datetime_value(value: Any) -> datetime | None:
+        numeric = PublicWebExternalMarketContextProvider._optional_float(value)
+        if numeric is not None:
+            timestamp = numeric / 1000 if numeric > 10_000_000_000 else numeric
+            try:
+                return datetime.fromtimestamp(timestamp, UTC).replace(tzinfo=None)
+            except (OverflowError, OSError, ValueError):
+                return None
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        try:
+            return datetime.fromisoformat(normalized.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            pass
+        try:
+            return datetime.strptime(normalized[:11].strip(), "%d %b %Y")
+        except ValueError:
+            return None
 
     @staticmethod
     def _coinglass_explicit_flow_metrics(item: dict[str, Any]) -> dict[str, float] | None:
