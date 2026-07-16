@@ -562,6 +562,39 @@ def test_public_web_context_provider_falls_back_to_xrp_insights_etf_data() -> No
     assert payload["etf"]["metric"] == "xrp_insights_etf_tracker"
 
 
+def test_public_web_context_provider_prefers_live_xrp_insights_summary_when_agent_data_is_stale() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "capi.coinglass.com":
+            return httpx.Response(200, json={"code": "0", "msg": "success", "success": True})
+        return httpx.Response(
+            200,
+            text=(
+                "Total AUM $1054.63M 7 ETFs "
+                "XRP Locked 964.72M XRP in Vaults "
+                "Daily Volume Market Closed XRP ETFs Index Funds $13.42M XRP ETF Volume "
+                "As of July 16, 2026, 7 XRP spot ETFs are trading in the United States. "
+                r'\"agentData\":{\"totalNetAssets\":1119769130,\"totalTokenHoldings\":828326979,'
+                r'\"dailyNetInflow\":89650794,\"lastUpdated\":\"2025-12-01T17:00:00.000Z\"},'
+                r'\"xrpData\":{\"price\":1.12}'
+            ),
+        )
+
+    provider = PublicWebExternalMarketContextProvider(
+        transport=httpx.MockTransport(handler),
+    )
+
+    payload = provider.fetch(market="KRW-XRP", trade_coin="XRP")
+
+    assert payload["etf"]["source"] == "web"
+    assert payload["etf"]["state"] == "neutral"
+    assert payload["etf"]["flow_usd"] == 0.0
+    assert payload["etf"]["total_aum_usd"] == 1_054_630_000
+    assert payload["etf"]["total_holding_coin"] == 964_720_000
+    assert payload["etf"]["daily_volume_usd"] == 13_420_000
+    assert payload["etf"]["metric"] == "xrp_insights_live_summary"
+    assert payload["etf"]["flow_date"] == "2026-07-16"
+
+
 def test_public_web_context_provider_does_not_treat_missing_coinglass_flow_as_zero() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.host == "capi.coinglass.com":

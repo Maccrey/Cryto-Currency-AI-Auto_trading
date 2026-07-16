@@ -304,9 +304,12 @@ class PublicWebExternalMarketContextProvider:
             },
         )
         response.raise_for_status()
+        live_summary = self._parse_xrp_insights_live_summary(response.text)
         agent_data = self._extract_escaped_json(response.text, "agentData", "xrpData")
         if not isinstance(agent_data, dict):
-            return {}
+            return live_summary
+        if live_summary and self._is_stale_datetime_value(str(agent_data.get("lastUpdated") or "")):
+            return live_summary
         total_aum = self._optional_float(agent_data.get("totalNetAssets")) or 0.0
         total_holding = self._optional_float(agent_data.get("totalTokenHoldings")) or 0.0
         flow_metrics = self._xrp_insights_flow_metrics(agent_data)
@@ -600,6 +603,14 @@ class PublicWebExternalMarketContextProvider:
             return None
 
     @staticmethod
+    def _is_stale_datetime_value(value: str, *, max_age_sec: float = 36 * 60 * 60) -> bool:
+        parsed = PublicWebExternalMarketContextProvider._datetime_value(value)
+        if parsed is None:
+            return False
+        parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+        return (datetime.now(UTC) - parsed).total_seconds() > max_age_sec
+
+    @staticmethod
     def _coinglass_explicit_flow_metrics(item: dict[str, Any]) -> dict[str, float] | None:
         inflow = PublicWebExternalMarketContextProvider._first_optional_float(
             item,
@@ -656,6 +667,73 @@ class PublicWebExternalMarketContextProvider:
             "inflow_usd_change": 0.0,
             "outflow_usd_change": 0.0,
         }
+
+    @staticmethod
+    def _parse_xrp_insights_live_summary(html: str) -> dict[str, object]:
+        text = PublicWebExternalMarketContextProvider._clean_cell(html)
+        total_aum = PublicWebExternalMarketContextProvider._compact_money_after_label(text, "Total AUM")
+        total_holding = PublicWebExternalMarketContextProvider._compact_number_after_label(text, "XRP Locked")
+        daily_volume = PublicWebExternalMarketContextProvider._compact_money_after_label(text, "XRP ETF Volume")
+        if daily_volume is None:
+            daily_volume = PublicWebExternalMarketContextProvider._compact_money_after_label(text, "Daily Volume")
+        flow_date = PublicWebExternalMarketContextProvider._parse_xrp_insights_as_of_date(text)
+        if total_aum is None and total_holding is None and daily_volume is None:
+            return {}
+        return {
+            "source": "web",
+            "state": "neutral",
+            "flow_usd": 0.0,
+            "inflow_usd": 0.0,
+            "outflow_usd": 0.0,
+            "holding_change_coin": 0.0,
+            "total_aum_usd": round(total_aum or 0.0, 2),
+            "total_holding_coin": round(total_holding or 0.0, 6),
+            "flow_usd_change": 0.0,
+            "inflow_usd_change": 0.0,
+            "outflow_usd_change": 0.0,
+            "total_aum_usd_change": 0.0,
+            "total_holding_coin_change": 0.0,
+            "daily_volume_usd": round(daily_volume or 0.0, 2),
+            "metric": "xrp_insights_live_summary",
+            "flow_date": flow_date,
+            "update_interval_sec": 60,
+        }
+
+    @staticmethod
+    def _compact_money_after_label(text: str, label: str) -> float | None:
+        match = re.search(
+            rf"{re.escape(label)}(?:\s+[^\$]{{1,30}}?){{0,8}}\s+\$([0-9,.]+)\s*([KMB])?",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return None
+        return PublicWebExternalMarketContextProvider._compact_value(match.group(1), match.group(2))
+
+    @staticmethod
+    def _compact_number_after_label(text: str, label: str) -> float | None:
+        match = re.search(rf"{re.escape(label)}\s+([0-9,.]+)\s*([KMB])?", text, flags=re.IGNORECASE)
+        if not match:
+            return None
+        return PublicWebExternalMarketContextProvider._compact_value(match.group(1), match.group(2))
+
+    @staticmethod
+    def _compact_value(value: str, suffix: str | None) -> float | None:
+        parsed = PublicWebExternalMarketContextProvider._optional_float(value.replace(",", ""))
+        if parsed is None:
+            return None
+        multiplier = {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000}.get((suffix or "").upper(), 1)
+        return parsed * multiplier
+
+    @staticmethod
+    def _parse_xrp_insights_as_of_date(text: str) -> str:
+        match = re.search(r"As of ([A-Za-z]+ \d{1,2}, \d{4})", text)
+        if not match:
+            return ""
+        try:
+            return datetime.strptime(match.group(1), "%B %d, %Y").date().isoformat()
+        except ValueError:
+            return ""
 
     @staticmethod
     def _sum_xrp_insights_etf_flow_metrics(etfs: Any) -> dict[str, float]:
@@ -788,6 +866,7 @@ class ExternalMarketContextService:
             etf_holding_change,
         )
         etf_total_holding_change_coin = 0.0 if etf_data_stale else etf_total_holding_change_coin
+        etf_daily_volume_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("daily_volume_usd"), 0.0)
         market_usd_change_pct = self._float_value(market_payload.get("usd_change_pct_24h"), 0.0)
         market_quote_volume_usd = self._float_value(market_payload.get("quote_volume_usd_24h"), 0.0)
         raw_whale_activity_state = onchain_payload.get("whale_activity_state")
@@ -847,6 +926,7 @@ class ExternalMarketContextService:
                 "outflow_usd_change": etf_outflow_change_usd if etf_applicable else 0.0,
                 "total_aum_usd_change": etf_total_aum_change_usd if etf_applicable else 0.0,
                 "total_holding_coin_change": etf_total_holding_change_coin if etf_applicable else 0.0,
+                "daily_volume_usd": etf_daily_volume_usd if etf_applicable else 0.0,
             },
             "market_data": {
                 "source": self._string_value(market_payload.get("source"), "web") if market_payload else "manual",

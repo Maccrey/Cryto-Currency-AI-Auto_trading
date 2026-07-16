@@ -1696,7 +1696,8 @@ function renderExternalContext(context, market) {
     ...etfFlowLines,
     formatEtfMetricLine("보유수량 변화", holdingChange, `${tradeCoin}`, holdingChange, 0),
     etf.total_aum_usd ? formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0, false) : "",
-    etf.total_holding_coin ? formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0, false) : ""
+    etf.total_holding_coin ? formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0, false) : "",
+    etf.daily_volume_usd ? formatEtfMetricLine("일일 거래량", etf.daily_volume_usd, "USD", 0, 0, false) : ""
   ].filter(Boolean);
   document.getElementById("etfState").innerHTML = etfLines.join("<br>");
   document.getElementById("etfState").title = etfLines.map((line) => line.replace(/<[^>]*>/g, "")).join("\\n");
@@ -1769,6 +1770,7 @@ function formatContextMetric(value) {
     xrp_recent_ledger_tx_count: "XRP Ledger 거래 수",
     farside_btc_etf_total_flow: "BTC ETF 순흐름",
     xrp_insights_etf_tracker: "XRP ETF tracker",
+    xrp_insights_live_summary: "XRP ETF 실시간 요약",
     manual_onchain_context: "수동 온체인 설정",
     manual_etf_context: "수동 ETF 설정"
   };
