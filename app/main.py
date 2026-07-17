@@ -522,6 +522,7 @@ def create_app(
             market_recovery_change_pct=settings.market_recovery_change_pct,
             market_recovery_confirmation_ticks=settings.market_recovery_confirmation_ticks,
             market_shock_alert_cooldown_sec=settings.market_shock_alert_cooldown_sec,
+            rule_update_state_path=profile_learning_log_dir / "verified-rule-updates.json",
         ),
         external_context_provider=external_context_service,
         demo_portfolio_state=demo_portfolio_state,

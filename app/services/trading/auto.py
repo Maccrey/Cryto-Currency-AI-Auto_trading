@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import deque
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from app.services.learning.service import LearningEvent, LearningService
@@ -74,6 +76,7 @@ class AutoTradingConfig:
     initial_observation_warmup_seconds: int = 180
     initial_observation_min_samples: int = 20
     post_stop_loss_max_block_hours: float = 8.0  # 손절 후 재진입 최대 차단 시간(시간). 12→8시간: 더 빠른 재진입 허용.
+    rule_update_state_path: Path | None = None
 
 
 class AutoTradingService:
@@ -116,6 +119,7 @@ class AutoTradingService:
         self._position_exit_service = position_exit_service
         self._learning_service = learning_service
         self._config = config
+        self._rule_update_state_path = config.rule_update_state_path
         self._clock = clock or (lambda: datetime.now().astimezone())
         self._sleep = sleep or asyncio.sleep
         self._external_context_provider = external_context_provider
@@ -198,6 +202,7 @@ class AutoTradingService:
         _init_now = self._clock()
         self._last_trade_filled_at: datetime = _init_now   # 마지막 매수 체결 시각
         self._last_variant_reset_at: datetime = _init_now  # 마지막 섀도 리셋 시각
+        self._restore_verified_rule_updates()
 
     def should_run(self) -> bool:
         if not self._config.enabled:
@@ -285,9 +290,15 @@ class AutoTradingService:
         self._demo_rule_variant_shadow_tester.reset()
 
     def apply_demo_rule_update(self, changes: list[dict[str, Any]]) -> dict[str, object]:
-        """Apply only bounded, demo-safe learning updates to the running strategy."""
+        """Persist a verified demo rule so the matching live profile uses it too."""
         if self._trading_mode != "demo":
             return {"applied": False, "reason": "demo_mode_required", "parameters": []}
+        result = self._apply_verified_rule_updates(changes)
+        if result["applied"]:
+            self._persist_verified_rule_updates(changes)
+        return result
+
+    def _apply_verified_rule_updates(self, changes: list[dict[str, Any]]) -> dict[str, object]:
         parameters = {str(change.get("parameter")) for change in changes if isinstance(change, dict)}
         updates: dict[str, object] = {}
         if "NO_TRADE_RELAX_MIN_SCORE" in parameters:
@@ -306,6 +317,26 @@ class AutoTradingService:
         if decision_overrides and hasattr(self._trade_decision_service, "set_demo_rule_overrides"):
             updates.update(self._trade_decision_service.set_demo_rule_overrides(decision_overrides))
         return {"applied": bool(updates), "parameters": updates}
+
+    def _persist_verified_rule_updates(self, changes: list[dict[str, Any]]) -> None:
+        if self._rule_update_state_path is None:
+            return
+        self._rule_update_state_path.parent.mkdir(parents=True, exist_ok=True)
+        self._rule_update_state_path.write_text(
+            json.dumps({"changes": changes}, ensure_ascii=False, sort_keys=True),
+            encoding="utf-8",
+        )
+
+    def _restore_verified_rule_updates(self) -> None:
+        if self._rule_update_state_path is None or not self._rule_update_state_path.exists():
+            return
+        try:
+            payload = json.loads(self._rule_update_state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        changes = payload.get("changes") if isinstance(payload, dict) else None
+        if isinstance(changes, list):
+            self._apply_verified_rule_updates([change for change in changes if isinstance(change, dict)])
 
     def reset_demo_portfolio(self, portfolio: PortfolioState | None = None) -> dict[str, object]:
         if self._trading_mode != "demo":
@@ -1309,8 +1340,7 @@ class AutoTradingService:
             "purpose": "track_optimization_effect_for_future_rule_reviews",
             "applied": bool(log_backed_recovery),
             "candidate": bool(
-                self._trading_mode == "demo"
-                and entry_type == "initial"
+                entry_type == "initial"
                 and market_state == "bull"
                 and decision.signal.level == "weak"
                 and decision.signal.score >= 0.24
@@ -1573,8 +1603,6 @@ class AutoTradingService:
         entry_type: str,
         market_state: str,
     ) -> bool:
-        if self._trading_mode != "demo":
-            return False
         if entry_type != "initial" or market_state != "bull":
             return False
         if decision.signal.blocked:
@@ -2058,8 +2086,6 @@ class AutoTradingService:
             return 1.0
 
     def _should_relax_weak_signal(self, decision) -> bool:
-        if self._trading_mode != "demo":
-            return False
         if not self._config.no_trade_adaptive_enabled:
             return False
         if not self._config.allow_weak_no_trade_relax:

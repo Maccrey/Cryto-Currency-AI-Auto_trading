@@ -850,6 +850,39 @@ def test_auto_trading_service_does_not_run_live_without_explicit_live_flag(tmp_p
     assert service.should_run() is False
 
 
+def test_verified_demo_rule_updates_are_restored_for_live_strategy(tmp_path: Path) -> None:
+    state_path = tmp_path / "verified-rule-updates.json"
+    demo = _build_service(tmp_path / "demo", [800.0])
+    demo._rule_update_state_path = state_path
+
+    result = demo.apply_demo_rule_update(
+        [
+            {"parameter": "NO_TRADE_RELAX_MIN_SCORE"},
+            {"parameter": "BULL_BOX_BEAR_REBOUND_SIGNAL_BOOST"},
+            {"parameter": "TECHNICAL_TREND_CONFIRMATION"},
+            {"parameter": "TECHNICAL_BEARISH_SIZE_REDUCTION"},
+            {"parameter": "EXTERNAL_CONTEXT_BULLISH_BOOST"},
+        ]
+    )
+    live = _build_service(
+        tmp_path / "live",
+        [800.0],
+        trading_mode="live",
+        live_enabled=True,
+    )
+    live._rule_update_state_path = state_path
+    live._restore_verified_rule_updates()
+
+    assert result["applied"] is True
+    assert live._config.allow_weak_no_trade_relax is True
+    assert live._config.no_trade_relax_min_score == 0.18
+    assert live._trade_decision_service._runtime_rule_overrides == {
+        "technical_trend_confirmation_boost": 0.03,
+        "bearish_entry_score_multiplier": 0.9,
+        "external_context_bullish_multiplier": 1.002,
+    }
+
+
 
 def test_auto_trading_service_allows_log_backed_bull_b_leader_weak_recovery(tmp_path: Path) -> None:
     service = _build_service(tmp_path, [800.0])
