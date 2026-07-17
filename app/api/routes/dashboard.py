@@ -557,8 +557,10 @@ const DASHBOARD_REFRESH_INTERVAL_MS = 3000;
 const DASHBOARD_SLOW_REFRESH_INTERVAL_MS = 10000;
 const AUTO_RULE_READY_KEY = "cryptoDashboardAutoRuleImproveReady";
 let autoRuleImproveInFlight = false;
+let ruleAutomationCloseTimer = null;
 
 function openRuleAutomationModal() {
+  if (ruleAutomationCloseTimer) clearTimeout(ruleAutomationCloseTimer);
   document.getElementById("ruleAutomationModal").classList.add("visible");
   document.getElementById("ruleAutomationSteps").innerHTML = "";
   document.getElementById("ruleAutomationFinal").classList.add("hidden");
@@ -568,7 +570,14 @@ function openRuleAutomationModal() {
 }
 
 function closeRuleAutomationModal() {
+  if (ruleAutomationCloseTimer) clearTimeout(ruleAutomationCloseTimer);
+  ruleAutomationCloseTimer = null;
   document.getElementById("ruleAutomationModal").classList.remove("visible");
+}
+
+function scheduleRuleAutomationClose() {
+  if (ruleAutomationCloseTimer) clearTimeout(ruleAutomationCloseTimer);
+  ruleAutomationCloseTimer = setTimeout(closeRuleAutomationModal, 60 * 1000);
 }
 
 function appendRuleAutomationStep(name, status, message) {
@@ -600,6 +609,7 @@ function renderRuleAutomationResult(payload) {
   finalBox.classList.remove("hidden");
   document.getElementById("ruleAutomationClose").classList.remove("hidden");
   document.getElementById("ruleAutomationRetry").classList.toggle("hidden", !payload.can_retry);
+  scheduleRuleAutomationClose();
 }
 
 function applyTheme(theme) {
@@ -1514,6 +1524,7 @@ async function runCodexRuleAutomation(initialMessage = "학습 로그를 읽고 
     finalBox.classList.remove("hidden");
     document.getElementById("ruleAutomationRetry").classList.remove("hidden");
     document.getElementById("ruleAutomationClose").classList.remove("hidden");
+    scheduleRuleAutomationClose();
   } finally {
     autoRuleImproveInFlight = false;
   }

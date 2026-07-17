@@ -284,6 +284,29 @@ class AutoTradingService:
     def reset_demo_rule_variants(self) -> None:
         self._demo_rule_variant_shadow_tester.reset()
 
+    def apply_demo_rule_update(self, changes: list[dict[str, Any]]) -> dict[str, object]:
+        """Apply only bounded, demo-safe learning updates to the running strategy."""
+        if self._trading_mode != "demo":
+            return {"applied": False, "reason": "demo_mode_required", "parameters": []}
+        parameters = {str(change.get("parameter")) for change in changes if isinstance(change, dict)}
+        updates: dict[str, object] = {}
+        if "NO_TRADE_RELAX_MIN_SCORE" in parameters:
+            self._config = replace(self._config, no_trade_relax_min_score=0.18)
+            updates["NO_TRADE_RELAX_MIN_SCORE"] = 0.18
+        if "BULL_BOX_BEAR_REBOUND_SIGNAL_BOOST" in parameters:
+            self._config = replace(self._config, allow_weak_no_trade_relax=True)
+            updates["BULL_BOX_BEAR_REBOUND_SIGNAL_BOOST"] = "enabled_after_fee_edge_check"
+        decision_overrides: dict[str, float] = {}
+        if "TECHNICAL_TREND_CONFIRMATION" in parameters:
+            decision_overrides["technical_trend_confirmation_boost"] = 0.03
+        if "TECHNICAL_BEARISH_SIZE_REDUCTION" in parameters:
+            decision_overrides["bearish_entry_score_multiplier"] = 0.90
+        if "EXTERNAL_CONTEXT_BULLISH_BOOST" in parameters:
+            decision_overrides["external_context_bullish_multiplier"] = 1.002
+        if decision_overrides and hasattr(self._trade_decision_service, "set_demo_rule_overrides"):
+            updates.update(self._trade_decision_service.set_demo_rule_overrides(decision_overrides))
+        return {"applied": bool(updates), "parameters": updates}
+
     def reset_demo_portfolio(self, portfolio: PortfolioState | None = None) -> dict[str, object]:
         if self._trading_mode != "demo":
             return {

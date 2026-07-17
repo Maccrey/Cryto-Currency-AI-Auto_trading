@@ -577,9 +577,11 @@ def create_app(
             auto_update_enabled=settings.auto_rule_update_enabled,
             auto_update_min_learning_completion_rate=settings.auto_rule_update_min_learning_completion_rate,
             auto_update_win_rate_skip_threshold=settings.auto_rule_update_win_rate_skip_threshold,
+            trading_fee_rate=settings.trading_fee_rate,
         ),
         telegram_gateway=telegram_gateway,
         demo_rule_reset_callback=auto_trading_service.reset_demo_rule_variants,
+        demo_rule_apply_callback=auto_trading_service.apply_demo_rule_update,
     )
     auto_trading_service._auto_rule_update_service = AutoRuleUpdateService(
         readiness_service=ModelTrainingReadinessService(log_dir=profile_learning_log_dir),

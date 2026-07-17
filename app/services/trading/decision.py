@@ -60,6 +60,23 @@ class TradeDecisionService:
         self._signal_engine = signal_engine
         self._regime_engine = regime_engine
         self._sizing_engine = sizing_engine
+        self._runtime_rule_overrides: dict[str, float] = {}
+
+    def set_demo_rule_overrides(self, overrides: dict[str, float]) -> dict[str, float]:
+        """Store bounded in-memory overrides applied only by the demo runner."""
+        allowed = {
+            "technical_trend_confirmation_boost": (0.0, 0.05),
+            "bearish_entry_score_multiplier": (0.80, 1.0),
+            "external_context_bullish_multiplier": (1.0, 1.02),
+        }
+        applied: dict[str, float] = {}
+        for key, value in overrides.items():
+            if key not in allowed:
+                continue
+            lower, upper = allowed[key]
+            applied[key] = round(min(max(float(value), lower), upper), 4)
+        self._runtime_rule_overrides.update(applied)
+        return applied
 
     def evaluate(self, request: TradeDecisionRequest) -> TradeDecisionResult:
         features = self._feature_calculator.calculate(
@@ -71,6 +88,7 @@ class TradeDecisionService:
             regime_score=request.regime_score,
         )
         signal = self._signal_engine.evaluate(features)
+        signal = self._apply_technical_trend_confirmation(signal, features)
         signal = self._apply_external_context(signal, request.external_context_weight)
         signal = self._apply_daily_target(signal, request.target_daily_return_pct)
         regime = self._regime_engine.evaluate(
@@ -84,6 +102,7 @@ class TradeDecisionService:
             observed_box_range_high=request.observed_box_range_high,
         )
         signal = self._apply_market_opportunity(signal, regime, features)
+        signal = self._apply_bearish_size_reduction(signal, regime)
         sizing = self._sizing_engine.size_entry(
             request.portfolio,
             signal,
@@ -100,8 +119,33 @@ class TradeDecisionService:
             sizing=sizing,
         )
 
-    @staticmethod
-    def _apply_external_context(signal: SignalDecision, weight: float) -> SignalDecision:
+    def _apply_technical_trend_confirmation(
+        self,
+        signal: SignalDecision,
+        features: FeatureSnapshot,
+    ) -> SignalDecision:
+        boost = self._runtime_rule_overrides.get("technical_trend_confirmation_boost", 0.0)
+        if signal.blocked or boost <= 0 or features.macd_histogram <= 0 or features.ma_trend <= 0:
+            return signal
+        score = round(min(signal.score + boost, 1.0), 2)
+        reasons = list(signal.reason_codes)
+        if "TECHNICAL_TREND_CONFIRMATION_APPLIED" not in reasons:
+            reasons.append("TECHNICAL_TREND_CONFIRMATION_APPLIED")
+        return replace(signal, score=score, level=self._score_to_level(score), reason_codes=reasons)
+
+    def _apply_bearish_size_reduction(self, signal: SignalDecision, regime: RegimeSnapshot) -> SignalDecision:
+        multiplier = self._runtime_rule_overrides.get("bearish_entry_score_multiplier", 1.0)
+        if signal.blocked or regime.market_state != "bear" or multiplier >= 1.0:
+            return signal
+        score = round(signal.score * multiplier, 2)
+        reasons = list(signal.reason_codes)
+        if "TECHNICAL_BEARISH_SIZE_REDUCTION_APPLIED" not in reasons:
+            reasons.append("TECHNICAL_BEARISH_SIZE_REDUCTION_APPLIED")
+        return replace(signal, score=score, level=self._score_to_level(score), reason_codes=reasons)
+
+    def _apply_external_context(self, signal: SignalDecision, weight: float) -> SignalDecision:
+        if float(weight or 1.0) > 1.0:
+            weight = float(weight) * self._runtime_rule_overrides.get("external_context_bullish_multiplier", 1.0)
         normalized_weight = max(min(float(weight or 1.0), 1.25), 0.75)
         if normalized_weight == 1.0:
             return signal

@@ -141,6 +141,65 @@ def test_auto_improve_notifies_telegram_when_demo_rule_is_applied(tmp_path: Path
     assert "룰 개선 학습 기록" in markdown_text
 
 
+def test_auto_improve_notifies_telegram_when_replay_is_rejected(tmp_path: Path) -> None:
+    gateway = StubTelegramGateway()
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=100,
+            min_stoplosses=20,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=True,
+        ),
+        telegram_gateway=gateway,
+    )
+
+    service.auto_improve(fixture_path=Path("fixtures/replay_ticks.json"), force=True)
+
+    assert gateway.messages
+    assert "자동 룰 개선이 보류되었습니다." in gateway.messages[0]
+
+
+def test_demo_rule_apply_callback_receives_verified_changes(tmp_path: Path) -> None:
+    calls: list[list[dict[str, object]]] = []
+    service = RuleReviewService(
+        market="KRW-XRP",
+        trading_mode="demo",
+        learning_log_dir=tmp_path,
+        config=RuleReviewConfig(
+            enabled=True,
+            window_days=14,
+            min_trades=0,
+            min_stoplosses=0,
+            max_params_per_run=3,
+            apply_target="demo",
+            require_manual_approval=False,
+        ),
+        demo_rule_apply_callback=lambda changes: calls.append(changes) or {"applied": True},
+    )
+    proposal = service.create_proposal(
+        proposed_changes=[
+            {
+                "parameter": "NO_TRADE_RELAX_MIN_SCORE",
+                "proposed_value": 0.18,
+                "reason": "demo test",
+            }
+        ]
+    )["proposal"]
+
+    service.verify_replay(str(proposal["id"]), fixture_path=Path("fixtures/replay_ticks.json"))
+    applied = service.apply_demo(str(proposal["id"]))["proposal"]
+
+    assert applied["demo_applied"] is True
+    assert calls and calls[0][0]["parameter"] == "NO_TRADE_RELAX_MIN_SCORE"
+    assert applied["runtime_rule_update"] == {"applied": True}
+
+
 def test_rule_review_uses_shadow_variant_results_in_codex_prompt_and_changes(tmp_path: Path) -> None:
     (tmp_path / "learning.jsonl").write_text(
         "\n".join(

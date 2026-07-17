@@ -29,6 +29,7 @@ class RuleReviewConfig:
     auto_update_enabled: bool = False
     auto_update_min_learning_completion_rate: float = 1.0
     auto_update_win_rate_skip_threshold: float = 0.80
+    trading_fee_rate: float = 0.0005
 
 
 class RuleReviewService:
@@ -51,6 +52,7 @@ class RuleReviewService:
         config: RuleReviewConfig,
         telegram_gateway: Any | None = None,
         demo_rule_reset_callback: Any | None = None,
+        demo_rule_apply_callback: Any | None = None,
     ) -> None:
         self._market = market
         self._trade_coin = (trade_coin or market.split("-")[-1]).upper()
@@ -59,6 +61,7 @@ class RuleReviewService:
         self._config = config
         self._telegram_gateway = telegram_gateway
         self._demo_rule_reset_callback = demo_rule_reset_callback
+        self._demo_rule_apply_callback = demo_rule_apply_callback
         self._state_path = self._learning_log_dir / "rule-review-state.json"
         self._history_path = self._learning_log_dir / "rule-change-history.jsonl"
         self._learning_md_path = self._learning_log_dir / "rule-improvement-learning.md"
@@ -269,8 +272,8 @@ class RuleReviewService:
         )
 
         final_summary = self._automation_summary(proposal)
-        if bool(proposal.get("demo_applied")):
-            self._notify_rule_improved(proposal=proposal, final_summary=final_summary)
+        # 완료/보류 모두 운영자에게 알려야 실패한 replay가 조용히 묻히지 않는다.
+        self._notify_rule_improvement_result(proposal=proposal, final_summary=final_summary)
         return {
             "status": "blocked" if auto_gate_reasons else ("completed" if demo_applied else "needs_retry"),
             "codex_cli": {
@@ -327,7 +330,7 @@ class RuleReviewService:
         observation_ticks = loader.load_market_observations(self._learning_log_dir / "market-observations.jsonl")
         if len(observation_ticks) >= 4:
             ticks = observation_ticks
-        harness = ReplayHarness()
+        harness = ReplayHarness(trading_fee_rate=self._config.trading_fee_rate)
         results = harness.run(ticks)
         replay_summary = harness.summarize(results)
         blocked_count = replay_summary.blocked_count
@@ -396,6 +399,9 @@ class RuleReviewService:
         if proposal["demo_applied"]:
             proposal["status"] = "demo_applied"
             proposal["demo_applied_at"] = datetime.now(UTC).isoformat()
+            if self._demo_rule_apply_callback is not None:
+                applied = self._demo_rule_apply_callback(proposal.get("codex_suggested_changes") or [])
+                proposal["runtime_rule_update"] = applied
             if self._demo_rule_reset_callback is not None:
                 self._demo_rule_reset_callback()
                 proposal["rule_variant_shadow_reset"] = True
@@ -788,7 +794,7 @@ class RuleReviewService:
             "replay_result": proposal.get("replay_result"),
         }
 
-    def _notify_rule_improved(
+    def _notify_rule_improvement_result(
         self,
         *,
         proposal: dict[str, Any],
@@ -799,14 +805,20 @@ class RuleReviewService:
         try:
             changed_parameters = final_summary.get("changed_parameters") or []
             change_text = ", ".join(str(item) for item in changed_parameters) or "변경 항목 없음"
+            applied = bool(proposal.get("demo_applied"))
+            status = "적용되었습니다" if applied else "보류되었습니다"
+            reasons = ", ".join(str(reason) for reason in final_summary.get("rejection_reasons", [])) or "없음"
+            replay = final_summary.get("replay_result") or {}
             self._telegram_gateway.send_message(
                 "\n".join(
                     [
-                        "자동 룰 개선이 적용되었습니다.",
+                        f"자동 룰 개선이 {status}.",
                         f"거래 시장은 {self._market}이고 적용 대상은 {proposal.get('apply_target', 'demo')}입니다.",
                         f"변경 항목: {change_text}",
                         f"변경 사유: {final_summary.get('change_reason', '-')}",
-                        "새 룰은 즉시 다음 자동매매 판단부터 반영됩니다.",
+                        f"Replay: {replay.get('status', 'unknown')}, 수익률={replay.get('final_profit_rate', '-')}",
+                        f"보류 사유: {reasons}",
+                        "새 룰은 즉시 다음 자동매매 판단부터 반영됩니다." if applied else "손실 방지 규칙상 현재 룰을 유지합니다.",
                     ],
                 ),
             )
