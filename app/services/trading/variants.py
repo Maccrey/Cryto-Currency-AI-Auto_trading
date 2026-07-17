@@ -93,6 +93,7 @@ class ShadowPortfolio:
     # ── 연속 손절 쿨다운 ─────────────────────────────────────────────────
     consecutive_stop_loss_count: int = 0   # 연속 손절 횟수 (수익 발생 시 리셋)
     cooling_off_ticks_remaining: int = 0   # 남은 쿨다운 틱 수
+    holding_ticks: int = 0                 # 초단타 최대 보유 시간 관리
 
 
 class DemoRuleVariantShadowTester:
@@ -107,7 +108,12 @@ class DemoRuleVariantShadowTester:
       forced exits.
     """
 
-    MIN_PROMOTION_TRADES = 5  # 20→10→5: 하락장에서도 더 빠른 승격 가능
+    MIN_PROMOTION_TRADES = 5
+    # 업비트 기본 수수료 0.05%를 매수·매도 모두 반영한 뒤에도 남는 목표치다.
+    SCALPING_MIN_NET_TARGET_PCT = 0.0014
+    SCALPING_MAX_TAKE_PROFIT_PCT = 0.0045
+    SCALPING_MAX_STOP_LOSS_PCT = 0.0030
+    SCALPING_MAX_HOLD_TICKS = 40  # 3초 주기 기준 약 2분
 
     # Bear-to-bull confirmed → buy multiplier is boosted by this factor
     BEAR_TO_BULL_BUY_BOOST = 1.35
@@ -134,57 +140,57 @@ class DemoRuleVariantShadowTester:
     DEFAULT_VARIANTS = (
         DemoRuleVariant(
             key="A",
-            label="룰 A 안정형",
-            description="기본 신호에 장세 민감 배수와 전환 감지를 더해 균형 있게 추적합니다.",
+            label="룰 A 초단타 안정형",
+            description="수수료를 넘는 짧은 목표 수익만 추구하고 2분 이내 청산합니다.",
             buy_multiplier=1.0,
             sell_multiplier=1.0,
-            take_profit_pct=0.0150,
-            stop_loss_pct=0.0080,
+            take_profit_pct=0.0028,
+            stop_loss_pct=0.0020,
         ),
         DemoRuleVariant(
             key="B",
-            label="룰 B 추세형",
-            description="상승장 강도와 하락→상승 전환에만 진입을 키우고 추세 지속 시 익절 폭을 넓힙니다.",
+            label="룰 B 초단타 추세형",
+            description="상승 모멘텀이 확인된 짧은 구간만 거래하고 빠르게 이익을 실현합니다.",
             buy_multiplier=1.85,
             sell_multiplier=0.45,
-            take_profit_pct=0.0320,
-            stop_loss_pct=0.0120,
+            take_profit_pct=0.0038,
+            stop_loss_pct=0.0024,
         ),
         DemoRuleVariant(
             key="C",
-            label="룰 C 방어형",
+            label="룰 C 초단타 방어형",
             description="하락장 노출을 빠르게 줄이고 박스권 하단(40%이하)과 전환 구간에서만 작게 진입합니다.",
             buy_multiplier=0.38,
             sell_multiplier=2.0,
-            take_profit_pct=0.0100,
-            stop_loss_pct=0.0060,
+            take_profit_pct=0.0025,
+            stop_loss_pct=0.0016,
         ),
         DemoRuleVariant(
             key="D",
-            label="룰 D 돌파확인형",
+            label="룰 D 초단타 돌파확인형",
             description="전환 확인 또는 상승장 돌파가 모멘텀과 호가로 확인될 때만 진입하고 추세를 길게 보유합니다.",
             buy_multiplier=1.25,
             sell_multiplier=0.7,
-            take_profit_pct=0.0250,
-            stop_loss_pct=0.0100,
+            take_profit_pct=0.0036,
+            stop_loss_pct=0.0022,
         ),
         DemoRuleVariant(
             key="E",
-            label="룰 E 박스저점형",
+            label="룰 E 초단타 박스저점형",
             description="박스권 하단(38%이하) 반등 또는 전환 구간을 거래하고 상단 접근 시 빠르게 청산합니다.",
             buy_multiplier=0.72,
             sell_multiplier=1.7,
-            take_profit_pct=0.0120,
-            stop_loss_pct=0.0070,
+            take_profit_pct=0.0026,
+            stop_loss_pct=0.0018,
         ),
         DemoRuleVariant(
             key="F",
-            label="룰 F 자본보전형",
+            label="룰 F 초단타 자본보전형",
             description="강한 상승 신호·전환 구간에서만 작게 진입해 손절 빈도와 낙폭 억제를 우선합니다.",
             buy_multiplier=0.32,
             sell_multiplier=2.2,
-            take_profit_pct=0.0180,
-            stop_loss_pct=0.0080,
+            take_profit_pct=0.0030,
+            stop_loss_pct=0.0017,
         ),
         DemoRuleVariant(
             key="G",
@@ -192,107 +198,107 @@ class DemoRuleVariantShadowTester:
             description="중간 이상 신호에 소량 진입하고 수수료를 충분히 넘는 익절선·타이트 손절로 누적 소폭 수익을 노립니다.",
             buy_multiplier=0.70,   # 0.55→0.70: 중간 신호에도 진입 가능하도록 상향
             sell_multiplier=1.50,
-            take_profit_pct=0.0120,  # 0.8%→1.2%: 수수료 0.1% 포함 실질 수익 확보
-            stop_loss_pct=0.0040,   # 0.5%→0.4%: 더 타이트한 손절로 낙폭 제한
+            take_profit_pct=0.0025,
+            stop_loss_pct=0.0015,
         ),
         DemoRuleVariant(
             key="H",
-            label="룰 H 모멘텀형",
+            label="룰 H 초단타 모멘텀형",
             description="최강 상승 모멘텀과 시장 압력이 동시에 높을 때 공격적으로 진입해 큰 추세 수익을 추구합니다.",
             buy_multiplier=2.20,
             sell_multiplier=0.35,
-            take_profit_pct=0.0380,
-            stop_loss_pct=0.0140,
+            take_profit_pct=0.0042,
+            stop_loss_pct=0.0026,
         ),
         DemoRuleVariant(
             key="I",
-            label="룰 I 분할매수형",
+            label="룰 I 초단타 분할형",
             description="하락 지속 구간에서 분할 진입하고 반등·전환 시 분할 청산해 평균 단가를 낮춥니다.",
             buy_multiplier=0.65,
             sell_multiplier=1.35,
-            take_profit_pct=0.0140,
-            stop_loss_pct=0.0080,
+            take_profit_pct=0.0029,
+            stop_loss_pct=0.0020,
         ),
         DemoRuleVariant(
             key="J",
-            label="룰 J 역추세형",
+            label="룰 J 초단타 반등형",
             description="과매도 박스 하단에서 강한 반등을 노리고 빠른 손절로 리스크를 제한합니다.",
             buy_multiplier=0.90,
             sell_multiplier=1.80,
-            take_profit_pct=0.0160,
-            stop_loss_pct=0.0070,
+            take_profit_pct=0.0031,
+            stop_loss_pct=0.0020,
         ),
         DemoRuleVariant(
             key="K",
-            label="룰 K 변동성형",
+            label="룰 K 초단타 변동성형",
             description="변동성 급등 구간에서 소량 역방향 진입 후 매우 타이트한 손절 보호로 수익을 추구합니다.",
             buy_multiplier=0.48,
             sell_multiplier=1.95,
-            take_profit_pct=0.0110,
-            stop_loss_pct=0.0040,   # 0.6%→0.4%: 변동성 구간 손절 더 타이트하게
+            take_profit_pct=0.0034,
+            stop_loss_pct=0.0022,
         ),
         DemoRuleVariant(
             key="L",
-            label="룰 L 하이브리드형",
+            label="룰 L 초단타 하이브리드형",
             description="추세형(B)과 방어형(C)을 장세별로 자동 혼합해 상황에 따라 비중을 조절합니다.",
             buy_multiplier=1.10,
             sell_multiplier=1.15,
-            take_profit_pct=0.0200,
-            stop_loss_pct=0.0090,
+            take_profit_pct=0.0032,
+            stop_loss_pct=0.0021,
         ),
         DemoRuleVariant(
             key="M",
-            label="룰 M 돌파추격형",
+            label="룰 M 초단타 돌파형",
             description="상승장 강력 모멘텀 확인 시 빠르게 진입하여 단기 상승 추세 수익을 극대화합니다.",
             buy_multiplier=1.50,
             sell_multiplier=0.80,
-            take_profit_pct=0.0280,
-            stop_loss_pct=0.0110,
+            take_profit_pct=0.0039,
+            stop_loss_pct=0.0025,
         ),
         DemoRuleVariant(
             key="N",
-            label="룰 N 역변동성형",
+            label="룰 N 초단타 역변동성형",
             description="변동성이 높고 가격이 박스권 극단 영역에 도달했을 때 단기 역추세 반등을 노립니다.",
             buy_multiplier=0.60,
             sell_multiplier=1.50,
-            take_profit_pct=0.0130,
-            stop_loss_pct=0.0080,
+            take_profit_pct=0.0028,
+            stop_loss_pct=0.0019,
         ),
         DemoRuleVariant(
             key="O",
-            label="룰 O 공격추세형",
+            label="룰 O 초단타 공격추세형",
             description="상승 확정 구간에서 가중치를 대폭 늘려 진입하고, 하락 전환 시 강력하게 빠져나옵니다.",
             buy_multiplier=2.00,
             sell_multiplier=0.40,
-            take_profit_pct=0.0450,
-            stop_loss_pct=0.0160,
+            take_profit_pct=0.0044,
+            stop_loss_pct=0.0028,
         ),
         DemoRuleVariant(
             key="P",
-            label="룰 P 추세장기형",
+            label="룰 P 초단타 고강도형",
             description="상승 흐름을 넓은 손절선으로 견디며 큰 폭의 추세 이익을 길게 확보합니다.",
             buy_multiplier=2.20,
             sell_multiplier=0.30,
-            take_profit_pct=0.0550,
-            stop_loss_pct=0.0180,
+            take_profit_pct=0.0045,
+            stop_loss_pct=0.0030,
         ),
         DemoRuleVariant(
             key="Q",
-            label="룰 Q 변동적응형",
+            label="룰 Q 초단타 변동적응형",
             description="변동성 크기에 조율해 무리한 손절을 피하고 유연하게 진입 단가를 유지합니다.",
             buy_multiplier=0.85,
             sell_multiplier=1.20,
-            take_profit_pct=0.0260,
-            stop_loss_pct=0.0120,
+            take_profit_pct=0.0035,
+            stop_loss_pct=0.0023,
         ),
         DemoRuleVariant(
             key="R",
-            label="룰 R 반등돌파형",
+            label="룰 R 초단타 반등돌파형",
             description="하락세 진정 및 상승 반전 확정 초입에 강하게 진입해 큰 반등을 취합니다.",
             buy_multiplier=1.70,
             sell_multiplier=0.55,
-            take_profit_pct=0.0320,
-            stop_loss_pct=0.0100,
+            take_profit_pct=0.0037,
+            stop_loss_pct=0.0023,
         ),
     )
 
@@ -646,6 +652,7 @@ class DemoRuleVariantShadowTester:
         action = "hold"
         stop_loss_triggered_this_tick = False
         if shadow.asset_balance > 0:
+            shadow.holding_ticks += 1
             stop_loss_triggered_this_tick = (
                 shadow.avg_buy_price > 0
                 and (
@@ -699,6 +706,7 @@ class DemoRuleVariantShadowTester:
             "promotion_eligible": False,
             "max_drawdown_pct": round(shadow.max_drawdown_pct, 6),
             "last_action": action,
+            "holding_ticks": shadow.holding_ticks,
             "action_reason": policy.action_reason,
             "entry_allowed_by_variant": policy.entry_allowed,
             "market_state": policy.market_state,
@@ -1444,8 +1452,14 @@ class DemoRuleVariantShadowTester:
         return DemoRuleVariantPolicy(
             buy_multiplier=round(max(buy_multiplier, 0.0), 4),
             sell_multiplier=round(max(sell_multiplier, 0.0), 4),
-            take_profit_pct=round(max(take_profit_pct, self._trading_fee_rate * 2), 6),
-            stop_loss_pct=round(max(stop_loss_pct, self._trading_fee_rate * 2), 6),
+            take_profit_pct=round(
+                min(
+                    max(take_profit_pct, (self._trading_fee_rate * 2) + self.SCALPING_MIN_NET_TARGET_PCT),
+                    self.SCALPING_MAX_TAKE_PROFIT_PCT,
+                ),
+                6,
+            ),
+            stop_loss_pct=round(min(max(stop_loss_pct, 0.0012), self.SCALPING_MAX_STOP_LOSS_PCT), 6),
             entry_allowed=entry_allowed,
             action_reason=action_reason,
             market_state=market_state,
@@ -1487,6 +1501,7 @@ class DemoRuleVariantShadowTester:
         shadow.asset_balance = round(shadow.asset_balance + quantity, 8)
         shadow.cash_balance = round(shadow.cash_balance - buy_amount - fee, 2)
         shadow.avg_buy_price = 0.0 if shadow.asset_balance <= 0 else total_cost / shadow.asset_balance
+        shadow.holding_ticks = 0
         return "buy"
 
     def _maybe_shadow_sell(
@@ -1505,12 +1520,17 @@ class DemoRuleVariantShadowTester:
         box_high_exit = self._resolved_box_high_exit(policy=policy)
         # ── 하락장 즘시 전량 매도: bear 진입 시 최소 80% 이상 신속 철수 ─────
         is_bear_market = decision.regime.market_state == "bear"
+        time_exit = (
+            shadow.holding_ticks >= self.SCALPING_MAX_HOLD_TICKS
+            and profit_pct >= (self._trading_fee_rate * 2) + 0.0003
+        )
         should_exit = (
             profit_pct >= policy.take_profit_pct
             or stop_loss_triggered
             or is_bear_market
             or box_high_exit
             or policy.forced_sell  # bull→bear transition forced exit
+            or time_exit
         )
         if not should_exit:
             return "hold"
@@ -1531,6 +1551,7 @@ class DemoRuleVariantShadowTester:
         if shadow.asset_balance <= 0:
             shadow.asset_balance = 0.0
             shadow.avg_buy_price = 0.0
+            shadow.holding_ticks = 0
         shadow.realized_pnl = round(shadow.realized_pnl + pnl, 2)
         shadow.trade_count += 1
         if pnl < 0:

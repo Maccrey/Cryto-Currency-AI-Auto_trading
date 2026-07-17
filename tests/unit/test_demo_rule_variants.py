@@ -79,6 +79,8 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
     assert report["selection_type"] == "fallback_leader"
     assert report["candidate_leader_key"] in set("ABCDEFGHIJKLMNOPQR")
     assert all("effective_buy_multiplier" in item for item in report["results"])
+    assert all(0.0024 <= item["effective_take_profit_pct"] <= 0.0045 for item in report["results"])
+    assert all(0.0012 <= item["effective_stop_loss_pct"] <= 0.003 for item in report["results"])
     assert report["market_state"] == "bull"
 
 
@@ -196,6 +198,32 @@ def test_demo_rule_variant_shadow_tester_tracks_stop_loss_and_drawdown() -> None
     assert results["A"]["stop_loss_count"] == 1
     assert results["A"]["loss_count"] == 1
     assert results["A"]["max_drawdown_pct"] > 0
+
+
+def test_demo_rule_variant_time_exit_realizes_fee_adjusted_short_term_profit() -> None:
+    tester = DemoRuleVariantShadowTester()
+    tester._initial_equity = 1_000_000.0
+    tester._portfolios["A"] = ShadowPortfolio(
+        cash_balance=900_000.0,
+        asset_balance=100.0,
+        avg_buy_price=1_000.0,
+        holding_ticks=40,
+        peak_equity=1_000_000.0,
+    )
+
+    report = tester.evaluate(
+        decision=_decision(market_state="bull", buy_amount=0),
+        current_price=1_001.4,
+        portfolio=PortfolioState(
+            cash_balance=1_000_000,
+            asset_currency="XRP",
+            asset_balance=0,
+            avg_buy_price=0,
+        ),
+    )
+
+    result = {item["variant_key"]: item for item in report["results"]}["A"]
+    assert result["last_action"] == "sell"
 
 
 def test_demo_rule_variant_shadow_tester_explores_weak_bull_candidates() -> None:
@@ -388,7 +416,7 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
     assert report2["selection_changed"] is True
     assert report2["applied_variant_key"] == "B"
     assert report2["selection_type"] == "stop_loss_forced_switch"
-    assert report2["previous_variant_label"] == "룰 A 안정형"
+    assert report2["previous_variant_label"] == "룰 A 초단타 안정형"
     assert report2["previous_variant_profit_rate"] < 0
     assert report2["applied_variant_profit_rate"] > 0
     assert "손절이 발생하여" in report2["leader_reason"]
