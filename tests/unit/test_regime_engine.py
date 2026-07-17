@@ -17,6 +17,7 @@ def test_regime_engine_marks_risk_off_and_reduces_size() -> None:
         short_volatility=0.021,
         regime_score=0.18,
         liquidity_score=0.42,
+        ma_trend=-0.002,
     )
 
     snapshot = engine.evaluate(
@@ -49,6 +50,7 @@ def test_regime_engine_marks_risk_on_when_market_quality_is_good() -> None:
         short_volatility=0.008,
         regime_score=0.77,
         liquidity_score=0.86,
+        ma_trend=0.003,
     )
 
     snapshot = engine.evaluate(

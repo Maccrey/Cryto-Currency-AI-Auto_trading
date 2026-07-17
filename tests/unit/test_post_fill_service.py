@@ -53,8 +53,8 @@ def _build_execution_result(safe_mode: bool = False):
     )
     decision = decision_service.evaluate(
         TradeDecisionRequest(
-            prices=[800.0, 806.0, 813.0, 820.0],
-            traded_values=[800000.0, 850000.0, 1200000.0, 2100000.0],
+            prices=[800.0] * 15 + [820.0] * 5,
+            traded_values=[800000.0] * 15 + [2100000.0] * 5,
             spread_bps=8.0,
             orderbook_imbalance=0.24,
             liquidity_score=0.9,

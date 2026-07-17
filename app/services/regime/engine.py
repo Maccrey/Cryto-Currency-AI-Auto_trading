@@ -170,25 +170,24 @@ class RegimeEngine:
     def _market_state(features: FeatureSnapshot) -> str:
         """Classify market state using multi-factor composite rules.
 
-        Changes vs legacy single-indicator approach:
-        - Bear requires BOTH a significant negative momentum AND negative
-          orderbook imbalance so short-lived micro-dips in an uptrend are not
-          misclassified as a bear market.
-        - Bull only requires either strong momentum OR concurrent momentum +
-          orderbook support so low-volume surges are not over-counted.
+        Enhancements for broader scope:
+        - Bear requires BOTH a broader negative trend (ma_trend) AND negative
+          orderbook imbalance.
+        - Bull requires a positive broader trend (ma_trend) and either strong
+          trend alignment or moderate trend + buy pressure.
         - Box (sideways) is the fall-through when neither bear nor bull
           conditions are firmly met.
         """
-        # --- Bear: both momentum and order-flow must be negative ---
-        bear_momentum = features.ret_30s < -0.006
+        # --- Bear: both broad trend and order-flow must be negative ---
+        bear_trend = features.ma_trend < -0.0005
         bear_orderbook = features.orderbook_imbalance < -0.15
-        if bear_momentum and bear_orderbook:
+        if bear_trend and bear_orderbook:
             return "bear"
 
-        # --- Bull: strong momentum alone, or moderate momentum + buy pressure ---
-        strong_bull = features.ret_30s > 0.005
-        moderate_bull = features.ret_30s > 0.002 and features.orderbook_imbalance > 0.12
-        if strong_bull or moderate_bull:
+        # --- Bull: broad trend must be positive + momentum or buy pressure ---
+        strong_bull_trend = features.ma_trend > 0.002
+        moderate_bull_trend = features.ma_trend > 0.0005 and features.orderbook_imbalance > 0.12
+        if strong_bull_trend or moderate_bull_trend:
             return "bull"
 
         # --- Sideways / box: neither firmly bull nor firmly bear ---

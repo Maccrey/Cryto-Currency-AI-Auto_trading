@@ -46,7 +46,7 @@ class PostEntryExpectationRuleset:
     momentum_reversal_requires_imbalance: bool = True   # 모멘텀 + 오더북 이중 조건
     orderbook_confirm_threshold: float = -0.05          # 오더북 확인 기준 (-5% 이하)
     # ── 트레일링 스탑 ─────────────────────────────────────────────────────
-    trailing_stop_activation_pct: float = 0.005  # 0.5% 수익 달성 시 트레일링 스탑 활성화
+    trailing_stop_activation_pct: float = 0.003  # 0.3% 수익 달성 시 트레일링 스탑 활성화
     trailing_stop_floor_pct: float = 0.001        # 활성화 후 최소 +0.1% 수익 보장
 
     def evaluate(

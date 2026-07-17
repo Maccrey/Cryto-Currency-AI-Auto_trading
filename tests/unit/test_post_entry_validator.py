@@ -278,7 +278,7 @@ def test_post_entry_validator_triggers_trailing_stop_after_profit_peak() -> None
 
 
 def test_post_entry_validator_does_not_trigger_trailing_stop_before_activation() -> None:
-    """트레일링 스탑 미활성화: 수익이 0.5% 미만이면 하락해도 트레일링 스탑 미발동."""
+    """트레일링 스탑 미활성화: 수익이 0.3% 미만이면 하락해도 트레일링 스탑 미발동."""
     validator = PostEntryValidator()
     position = PositionSnapshot(
         market="KRW-XRP",
@@ -292,10 +292,10 @@ def test_post_entry_validator_does_not_trigger_trailing_stop_before_activation()
         stop_loss_reason=None,
     )
 
-    # +0.3% 수익 달성 (0.5% 미달 → 트레일링 스탑 미활성화)
+    # +0.2% 수익 달성 (0.3% 미달 → 트레일링 스탑 미활성화)
     validator.evaluate(
         position=position,
-        current_price=1003.0,   # +0.3%
+        current_price=1002.0,   # +0.2%
         elapsed_sec=50,
         momentum_score=0.60,
         orderbook_imbalance=0.05,
