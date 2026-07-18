@@ -190,6 +190,32 @@ class TelegramNotifier:
                 },
             )
 
+    def notify_etf_context_changed(
+        self,
+        *,
+        market: str,
+        mode: str,
+        previous: dict[str, object],
+        current: dict[str, object],
+        changed_fields: list[str],
+    ) -> None:
+        message = "\n".join(
+            [
+                "XRP ETF 상태가 변경되었습니다.",
+                f"시장: {market} / 모드: {'데모' if mode == 'demo' else '실거래'}",
+                f"변경 항목: {', '.join(changed_fields)}",
+                f"상태: {previous.get('state')} → {current.get('state')}",
+                f"순흐름: {float(previous.get('flow_usd') or 0):,.0f} → {float(current.get('flow_usd') or 0):,.0f} USD",
+                f"AUM: {float(previous.get('total_aum_usd') or 0):,.0f} → {float(current.get('total_aum_usd') or 0):,.0f} USD",
+                f"보유량: {float(previous.get('total_holding_coin') or 0):,.0f} → {float(current.get('total_holding_coin') or 0):,.0f} XRP",
+                f"기준일: {current.get('flow_date') or '-'} / 데이터 상태: {current.get('data_status')}",
+            ],
+        )
+        try:
+            self._gateway.send_message(self._format_message(message))
+        except Exception:
+            logger.exception("telegram_etf_context_change_notification_failed", extra={"market": market, "mode": mode})
+
     def _format_message(self, message: str) -> str:
         server_name = self._current_server_name()
         if not server_name:

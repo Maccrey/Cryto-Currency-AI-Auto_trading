@@ -55,6 +55,7 @@ from app.services.market.context import (
     HttpExternalMarketContextProvider,
     PublicWebExternalMarketContextProvider,
 )
+from app.services.market.etf_alert import EtfContextChangeMonitor
 from app.services.market.upbit_ticker import UpbitTickerPriceProvider
 from app.services.notification.factory import build_notification_services
 from app.services.portfolio.sync import PortfolioState, PortfolioSyncService
@@ -466,6 +467,8 @@ def create_app(
             position_lifecycle_ledger=position_lifecycle_ledger,
             order_rules=order_rules,
             trading_fee_rate=float(settings.trading_fee_rate),
+            take_profit_min_exit_ratio=0.50 if settings.trading_profile == "scalping" else 0.75,
+            weak_signal_take_profit_min_exit_ratio=0.75 if settings.trading_profile == "scalping" else 1.0,
         )
     if post_fill_service is None:
         post_fill_service = PostFillService(
@@ -484,6 +487,10 @@ def create_app(
         )
 
     app = FastAPI(title=settings.app_name)
+    etf_context_change_monitor = EtfContextChangeMonitor(
+        state_path=runtime_state_dir / "etf-context-baseline.json",
+        notifier=trade_fill_notifier,
+    )
     auto_trading_service = AutoTradingService(
         market=settings.trade_market,
         trading_mode=settings.trading_mode,
@@ -530,6 +537,7 @@ def create_app(
         telegram_notifier=trade_fill_notifier,
         uptime_store=TradingUptimeStore(path=runtime_state_dir / "trading-uptime.json"),
         execution_ledger=execution_ledger,
+        etf_context_change_monitor=etf_context_change_monitor,
     )
     app.state.auto_trading_service = auto_trading_service
     app.state.market_history_bootstrap_result = market_history_bootstrap_result

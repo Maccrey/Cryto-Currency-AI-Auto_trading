@@ -641,6 +641,20 @@ def test_auto_trading_service_holds_position_without_scale_in_when_price_is_abov
     assert held_portfolio.asset_balance == first_portfolio.asset_balance
 
 
+def test_auto_trading_service_allows_bull_breakout_scale_in_only_with_volume_confirmation(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0])
+    service._prices.extend([100.0, 101.0, 102.0])
+    service._traded_values.extend([1000.0, 1000.0, 1100.0])
+    service._classify_current_market_state = lambda _price: SimpleNamespace(market_state="bull")
+    position = SimpleNamespace(entry_price=101.7)
+
+    assert service._scale_in_allowed(position=position, current_price=102.0) is True
+
+    service._traded_values.clear()
+    service._traded_values.extend([1000.0, 1000.0, 1005.0])
+    assert service._scale_in_allowed(position=position, current_price=102.0) is False
+
+
 def test_auto_trading_service_submits_live_buy_after_signal_when_live_enabled(tmp_path: Path) -> None:
     gateway = RecordingLiveOrderGateway()
     executor = LiveExecutor(

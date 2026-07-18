@@ -47,6 +47,9 @@ class AutoTradingConfig:
     scale_in_max_price_premium_pct: float = 0.0
     scale_in_max_entries: int = 2
     scale_in_max_position_multiplier: float = 0.55
+    bull_scale_in_enabled: bool = True
+    bull_scale_in_max_price_premium_pct: float = 0.004
+    bull_scale_in_min_traded_value_multiple: float = 1.03
     # Legacy single cooldown kept for backward compatibility.
     # When non-zero the adaptive policy below is ignored.
     reentry_block_seconds: int = 0
@@ -106,6 +109,7 @@ class AutoTradingService:
         telegram_notifier: Any | None = None,
         uptime_store: TradingUptimeStore | None = None,
         execution_ledger: ExecutionLedger | None = None,
+        etf_context_change_monitor: Any | None = None,
     ) -> None:
         self._market = market
         self._trading_mode = trading_mode
@@ -128,6 +132,7 @@ class AutoTradingService:
         self._telegram_notifier = telegram_notifier
         self._uptime_store = uptime_store
         self._execution_ledger = execution_ledger
+        self._etf_context_change_monitor = etf_context_change_monitor
         self._trend_classifier = MarketTrendClassifier()
         history_size = max(config.min_history, config.initial_observation_min_samples, 2)
         self._prices: deque[float] = deque(maxlen=history_size)
@@ -1832,8 +1837,27 @@ class AutoTradingService:
             return False
         if current_price <= 0 or position.entry_price <= 0:
             return False
-        max_price = position.entry_price * (1 + self._config.scale_in_max_price_premium_pct)
-        return current_price <= max_price
+        # 기본은 평균 단가 이하의 pullback 분할매수다. 상승장에서는 가격·거래대금이
+        # 함께 늘고 단기 고점 갱신이 확인된 경우에만 작은 premium 추가매수를 허용한다.
+        pullback_limit = position.entry_price * (1 + self._config.scale_in_max_price_premium_pct)
+        if current_price <= pullback_limit:
+            return True
+        if not self._config.bull_scale_in_enabled:
+            return False
+        premium_limit = position.entry_price * (1 + self._config.bull_scale_in_max_price_premium_pct)
+        if current_price > premium_limit or len(self._prices) < 3 or len(self._traded_values) < 3:
+            return False
+        market_state = self._classify_current_market_state(current_price).market_state
+        previous_value_avg = sum(list(self._traded_values)[:-1]) / max(len(self._traded_values) - 1, 1)
+        traded_value_multiple = (
+            self._traded_values[-1] / previous_value_avg if previous_value_avg > 0 else 1.0
+        )
+        price_breakout_confirmed = current_price > self._prices[-2] and current_price > self._prices[-3]
+        return (
+            market_state == "bull"
+            and price_breakout_confirmed
+            and traded_value_multiple >= self._config.bull_scale_in_min_traded_value_multiple
+        )
 
     def _scale_in_signal_not_stronger(self, *, position, decision) -> bool:
         if position is None:
@@ -2066,6 +2090,12 @@ class AutoTradingService:
         )
         if not record:
             return snapshot
+        if self._etf_context_change_monitor is not None:
+            self._etf_context_change_monitor.observe(
+                market=self._market,
+                mode=self._trading_mode,
+                context=snapshot,
+            )
         self._learning_service.record(
             LearningEvent(
                 event_name="external_market_context_snapshot",
