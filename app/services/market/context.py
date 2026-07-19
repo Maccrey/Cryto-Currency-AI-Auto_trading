@@ -673,7 +673,23 @@ class PublicWebExternalMarketContextProvider:
         text = PublicWebExternalMarketContextProvider._clean_cell(html)
         total_aum = PublicWebExternalMarketContextProvider._compact_money_after_label(text, "Total AUM")
         total_holding = PublicWebExternalMarketContextProvider._compact_number_after_label(text, "XRP Locked")
-        daily_volume = PublicWebExternalMarketContextProvider._compact_money_after_label(text, "XRP ETF Volume")
+        # "XRP ETF Volume"은 전체 거래량 숫자 뒤에 오고, 그 뒤에는 개별 ETF
+        # 거래량(예: Bitwise $5.71M)이 이어진다. 단순 label→숫자 파싱은 그
+        # 첫 개별 값을 전체 값으로 잘못 읽을 수 있어 전체 Daily Volume 구간을
+        # 우선 파싱한다.
+        daily_volume_match = re.search(
+            r"Daily Volume(?:\s+[A-Za-z]+){0,8}\s+\$([0-9,.]+)\s*([KMB])?\s+XRP ETF Volume",
+            text,
+            flags=re.IGNORECASE,
+        )
+        daily_volume = (
+            PublicWebExternalMarketContextProvider._compact_value(
+                daily_volume_match.group(1),
+                daily_volume_match.group(2),
+            )
+            if daily_volume_match
+            else None
+        )
         if daily_volume is None:
             daily_volume = PublicWebExternalMarketContextProvider._compact_money_after_label(text, "Daily Volume")
         flow_date = PublicWebExternalMarketContextProvider._parse_xrp_insights_as_of_date(text)
@@ -693,6 +709,10 @@ class PublicWebExternalMarketContextProvider:
             "outflow_usd_change": 0.0,
             "total_aum_usd_change": 0.0,
             "total_holding_coin_change": 0.0,
+            # 라이브 요약은 AUM/보유/거래량만 제공한다. 0은 실제 무변동이 아닌
+            # 미제공 값임을 API와 화면이 구분할 수 있게 명시한다.
+            "flow_data_available": False,
+            "holding_change_available": False,
             "daily_volume_usd": round(daily_volume or 0.0, 2),
             "metric": "xrp_insights_live_summary",
             "flow_date": flow_date,
@@ -845,6 +865,8 @@ class ExternalMarketContextService:
         etf_data_stale = self._is_stale_flow_date(etf_flow_date, now=datetime.now(UTC))
         configured_etf_state = self._string_value(etf_payload.get("state"), self._config.etf_state)
         etf_applicable = coin in self.ETF_SUPPORTED_COINS or bool(etf_payload)
+        etf_flow_data_available = bool(etf_payload.get("flow_data_available", True)) and not etf_data_stale
+        etf_holding_change_available = bool(etf_payload.get("holding_change_available", True)) and not etf_data_stale
         etf_state = "unknown" if etf_data_stale else configured_etf_state if etf_applicable else "not_applicable"
         etf_flow_usd = 0.0 if etf_data_stale else self._float_value(etf_payload.get("flow_usd"), self._config.etf_flow_usd)
         market_usd_price = self._float_value(market_payload.get("usd_price"), 0.0)
@@ -914,6 +936,8 @@ class ExternalMarketContextService:
                 "stale": etf_data_stale,
                 "stale_reason": "flow_date_older_than_36h" if etf_data_stale else "",
                 "flow_date": etf_flow_date,
+                "flow_data_available": etf_flow_data_available if etf_applicable else False,
+                "holding_change_available": etf_holding_change_available if etf_applicable else False,
                 "state": etf_state,
                 "flow_usd": etf_flow_usd if etf_applicable else 0.0,
                 "inflow_usd": etf_inflow_usd if etf_applicable else 0.0,

@@ -1705,7 +1705,9 @@ function renderExternalContext(context, market) {
     `${formatContextState(etf.state)} / 출처 ${formatContextSource(etf.source)} (${formatContextDataStatus(etf.data_status)})`,
     etf.metric ? `지표 ${formatContextMetric(etf.metric)}${etf.flow_date ? ` / 기준일 ${etf.flow_date}` : ""}` : "",
     ...etfFlowLines,
-    formatEtfMetricLine("보유수량 변화", holdingChange, `${tradeCoin}`, holdingChange, 0),
+    etf.holding_change_available === false
+      ? "보유수량 변화 제공되지 않음"
+      : formatEtfMetricLine("보유수량 변화", holdingChange, `${tradeCoin}`, holdingChange, 0),
     etf.total_aum_usd ? formatEtfMetricLine("총 AUM", etf.total_aum_usd, "USD", etf.total_aum_usd_change, 0, false) : "",
     etf.total_holding_coin ? formatEtfMetricLine("총 보유", etf.total_holding_coin, tradeCoin, etf.total_holding_coin_change, 0, false) : "",
     etf.daily_volume_usd ? formatEtfMetricLine("일일 거래량", etf.daily_volume_usd, "USD", 0, 0, false) : ""
@@ -1718,6 +1720,7 @@ function renderExternalContext(context, market) {
 }
 
 function formatEtfFlowLine(etf) {
+  if (etf.flow_data_available === false) return "순흐름 제공되지 않음";
   const flow = Number(etf.flow_usd || 0);
   if (flow > 0) return `순유입 ${number(flow, 0)} USD`;
   if (flow < 0) return `순유출 ${number(Math.abs(flow), 0)} USD`;

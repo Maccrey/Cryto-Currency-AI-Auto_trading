@@ -591,6 +591,8 @@ def test_public_web_context_provider_prefers_live_xrp_insights_summary_when_agen
     assert payload["etf"]["total_aum_usd"] == 1_054_630_000
     assert payload["etf"]["total_holding_coin"] == 964_720_000
     assert payload["etf"]["daily_volume_usd"] == 13_420_000
+    assert payload["etf"]["flow_data_available"] is False
+    assert payload["etf"]["holding_change_available"] is False
     assert payload["etf"]["metric"] == "xrp_insights_live_summary"
     assert payload["etf"]["flow_date"] == "2026-07-16"
 
