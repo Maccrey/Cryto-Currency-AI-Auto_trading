@@ -35,8 +35,9 @@ class PostEntryExpectationRuleset:
       오더북 불균형 최대값. 기본값 -0.05.
     * ``trailing_stop_activation_pct`` – 이 값 이상 수익을 달성하면 트레일링 스탑
       활성화. 활성화 후 floor 이하로 내려오면 즉시 익절.
-    * ``trailing_stop_floor_pct`` – 트레일링 스탑 활성화 후 보장되는 최소 수익률.
-      0.001 (0.1%) = 수수료 이상 최소 수익 확보.
+    * ``trailing_stop_floor_pct`` – 트레일링 스탑 활성화 후 보장되는 최소 총수익률.
+      왕복 수수료와 순수익 여유를 함께 넘어야 한다. 수수료 0.05% × 2인
+      기본 환경에서는 0.12%로, 수수료만 남기고 청산되는 것을 막는다.
     """
 
     momentum_reversal_threshold: float = 0.20   # 강화: 0.35→0.25→0.20 (횡보 오발동 방지)
@@ -47,7 +48,8 @@ class PostEntryExpectationRuleset:
     orderbook_confirm_threshold: float = -0.05          # 오더북 확인 기준 (-5% 이하)
     # ── 트레일링 스탑 ─────────────────────────────────────────────────────
     trailing_stop_activation_pct: float = 0.003  # 0.3% 수익 달성 시 트레일링 스탑 활성화
-    trailing_stop_floor_pct: float = 0.001        # 활성화 후 최소 +0.1% 수익 보장
+    trailing_stop_floor_pct: float = 0.0012       # 왕복 수수료 0.10% + 순수익 0.02%
+    trailing_stop_min_retrace_pct: float = 0.0015 # 최고가에서 최소 0.15% 되밀림 확인
 
     def evaluate(
         self,
@@ -64,7 +66,10 @@ class PostEntryExpectationRuleset:
 
         # ── 2. 트레일링 스탑 (수익 구간 진입 후 원금 보호) ─────────────────
         if peak_return_pct is not None and peak_return_pct >= self.trailing_stop_activation_pct:
-            if unrealized_return_pct < self.trailing_stop_floor_pct:
+            if (
+                self.trailing_stop_floor_pct <= unrealized_return_pct
+                <= peak_return_pct - self.trailing_stop_min_retrace_pct
+            ):
                 return (1.0, "TRAILING_STOP_TRIGGERED")
 
         # ── 3. 손실이 임계값 이내이면 관망 ───────────────────────────────
@@ -137,7 +142,8 @@ class PostEntryValidator:
         if (
             self._peak_return_pct is not None
             and self._peak_return_pct >= ruleset.trailing_stop_activation_pct
-            and unrealized_return_pct < ruleset.trailing_stop_floor_pct
+            and ruleset.trailing_stop_floor_pct <= unrealized_return_pct
+            <= self._peak_return_pct - ruleset.trailing_stop_min_retrace_pct
         ):
             return PostEntryDecision(
                 triggered=True,

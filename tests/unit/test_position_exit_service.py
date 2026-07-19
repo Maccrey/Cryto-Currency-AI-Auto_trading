@@ -515,3 +515,39 @@ def test_regular_and_stop_loss_sell_executors_set_stop_loss_flag() -> None:
 
     assert executor.intents[0].is_stop_loss is False
     assert executor.intents[1].is_stop_loss is True
+
+
+def test_position_exit_service_records_fee_protected_trailing_exit_as_regular_sell() -> None:
+    """순수익을 남긴 추적청산은 손절 통계가 아닌 일반 매도로 기록한다."""
+    store = CurrentPositionStore()
+    store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="medium",
+            entry_price=1000.0,
+            quantity=100.0,
+            stop_loss_price=970.0,
+            stop_loss_pct=0.030,
+            validation_window_sec=180,
+            min_expected_return_pct=0.010,
+            stop_loss_reason=None,
+        ),
+    )
+    service = _build_service(store)
+
+    # +0.6% 최고가를 기록한다.
+    service.evaluate_and_execute(
+        current_price=1006.0,
+        elapsed_sec=60,
+        momentum_score=0.5,
+        orderbook_imbalance=0.1,
+    )
+    result = service.evaluate_and_execute(
+        current_price=1001.2,
+        elapsed_sec=61,
+        momentum_score=0.1,
+        orderbook_imbalance=-0.1,
+    )
+
+    assert result["trigger"]["reason_code"] == "TRAILING_STOP_TRIGGERED"
+    assert result["execution"]["is_stop_loss"] is False

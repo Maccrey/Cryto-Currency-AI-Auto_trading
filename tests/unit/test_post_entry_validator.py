@@ -239,8 +239,8 @@ def test_post_entry_validator_accepts_custom_expectation_ruleset() -> None:
     )
 
 
-def test_post_entry_validator_triggers_trailing_stop_after_profit_peak() -> None:
-    """트레일링 스탑: +0.5% 수익 달성 후 +0.1% 이하로 하락하면 즉시 익절."""
+def test_post_entry_validator_triggers_trailing_stop_after_fee_protected_profit_peak() -> None:
+    """트레일링 스탑은 왕복 수수료와 순수익 여유를 넘긴 뒤에만 청산한다."""
     validator = PostEntryValidator()
     position = PositionSnapshot(
         market="KRW-XRP",
@@ -263,11 +263,23 @@ def test_post_entry_validator_triggers_trailing_stop_after_profit_peak() -> None
         orderbook_imbalance=0.05,
     )
 
-    # 두 번째 틱: +0.05% 수익으로 하락 → trailing stop floor(0.1%) 이하 → 발동
+    # +0.11%는 왕복 수수료를 겨우 넘는 수준이라 청산하지 않는다.
     decision = validator.evaluate(
         position=position,
-        current_price=1000.5,   # +0.05% (floor 0.1% 이하)
+        current_price=1001.1,
         elapsed_sec=60,
+        momentum_score=0.40,
+        orderbook_imbalance=0.05,
+    )
+
+    assert decision.triggered is False
+
+    # +0.12%로 내려가면 fee-protected floor를 지키면서 큰 되밀림도
+    # 확인됐으므로 청산한다.
+    decision = validator.evaluate(
+        position=position,
+        current_price=1001.2,
+        elapsed_sec=61,
         momentum_score=0.40,
         orderbook_imbalance=0.05,
     )

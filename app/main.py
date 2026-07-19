@@ -72,7 +72,7 @@ from app.services.promotion.runner import PromotionRunner
 from app.services.promotion.state import PromotionStateService
 from app.services.promotion.status import PromotionStatusStore
 from app.services.risk.hard_stop import HardStopMonitor
-from app.services.risk.post_entry import PostEntryValidator
+from app.services.risk.post_entry import PostEntryExpectationRuleset, PostEntryValidator
 from app.services.recovery.orchestrator import RecoveryOrchestrator
 from app.services.risk.stop_loss import StopLossInjector
 from app.services.rules.automation import AutoRuleUpdateService
@@ -447,16 +447,21 @@ def create_app(
         dashboard_summary_service=dashboard_summary_service,
         dashboard_summary_facade=dashboard_summary_facade,
     )
+    # 추적청산은 설정된 왕복 수수료를 회수하고도 작은 순수익이 남을 때만
+    # 실행한다. 데모와 실거래가 동일한 settings를 사용하므로 기준도 같다.
+    post_entry_ruleset = PostEntryExpectationRuleset(
+        trailing_stop_floor_pct=(float(settings.trading_fee_rate) * 2) + 0.0002,
+    )
     position_risk_service = PositionRiskService(
         position_store=position_store,
         hard_stop_monitor=HardStopMonitor(),
-        post_entry_validator=PostEntryValidator(),
+        post_entry_validator=PostEntryValidator(expectation_ruleset=post_entry_ruleset),
     )
     if position_exit_service is None:
         position_exit_service = PositionExitService(
             position_store=position_store,
             hard_stop_monitor=HardStopMonitor(),
-            post_entry_validator=PostEntryValidator(),
+            post_entry_validator=PostEntryValidator(expectation_ruleset=post_entry_ruleset),
             executor=executor,
             trading_mode=settings.trading_mode,
             learning_service=learning_service,
