@@ -888,6 +888,17 @@ class DemoRuleVariantShadowTester:
                 and market_pressure >= 0.18  # relaxed from 0.20
                 and decision.signal.level in {"medium", "strong", "very_strong"}
             )
+            # 상승장이 이미 확인된 뒤의 짧은 눌림은 직전 30초 수익률·호가가
+            # 잠시 음수여도 발생한다. 기존에는 이 구간을 모두 돌파 실패로
+            # 처리해, medium 신호의 재진입을 장시간 막았다. 약한 눌림(-5%p
+            # 이하의 pressure)까지만 소액 진입을 허용하고, 약세/무신호에는
+            # 기존 차단을 유지한다.
+            bull_pullback_entry = (
+                market_state == "bull"
+                and decision.signal.level == "medium"
+                and market_pressure >= -0.05
+                and decision.features.traded_value_multiple >= 0.98
+            )
             transition_breakout = b2b_confirmed and decision.signal.level in {"medium", "strong", "very_strong"}
             box_bottom_entry = (
                 market_state == "box"
@@ -896,13 +907,19 @@ class DemoRuleVariantShadowTester:
                 and market_pressure >= 0.05
                 and decision.signal.level != "weak"
             )
-            entry_allowed = confirmed_breakout or transition_breakout or box_bottom_entry
+            entry_allowed = confirmed_breakout or bull_pullback_entry or transition_breakout or box_bottom_entry
             if confirmed_breakout:
                 buy_multiplier *= 1.0 + max(market_pressure, 0.0) * 0.38
                 sell_multiplier *= 0.70
                 take_profit_pct *= 1.20
                 stop_loss_pct *= 0.92
                 action_reason = "bull_breakout_confirmed"
+            elif bull_pullback_entry:
+                buy_multiplier *= 0.58
+                sell_multiplier *= 1.20
+                take_profit_pct *= 0.86
+                stop_loss_pct *= 0.76
+                action_reason = "bull_pullback_medium_entry"
             elif transition_breakout:
                 buy_multiplier *= 0.88 + (b2b - 0.60) * 0.60
                 sell_multiplier *= 0.85

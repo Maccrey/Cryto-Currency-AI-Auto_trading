@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from app.services.portfolio.sync import PortfolioState
 from app.services.regime.engine import RegimeSnapshot
 from app.services.signals.engine import SignalDecision
@@ -103,6 +105,36 @@ def test_demo_rule_variant_trend_rule_buys_only_in_bull_market() -> None:
         assert results["B"]["last_action"] == "hold"
         assert results["B"]["asset_balance"] == 0
         assert results["B"]["cash_balance"] == 1_000_000
+
+
+def test_rule_d_allows_small_bull_pullback_when_medium_signal_is_confirmed() -> None:
+    """상승장 미세 눌림에서 룰 D가 중간 신호를 영구 차단하지 않는다."""
+    tester = DemoRuleVariantShadowTester()
+    decision = _decision(market_state="bull", signal_level="medium")
+    decision = replace(
+        decision,
+        features=replace(
+            decision.features,
+            ret_30s=-0.0006,
+            orderbook_imbalance=-0.015,
+            traded_value_multiple=1.0,
+        ),
+    )
+
+    report = tester.evaluate(
+        decision=decision,
+        current_price=1_000,
+        portfolio=PortfolioState(
+            cash_balance=1_000_000,
+            asset_currency="XRP",
+            asset_balance=0,
+            avg_buy_price=0,
+        ),
+    )
+
+    result = {item["variant_key"]: item for item in report["results"]}["D"]
+    assert result["entry_allowed_by_variant"] is True
+    assert result["action_reason"] == "bull_pullback_medium_entry"
 
 
 def test_demo_rule_variant_shadow_tester_compares_profit_rate_after_same_price_move() -> None:
