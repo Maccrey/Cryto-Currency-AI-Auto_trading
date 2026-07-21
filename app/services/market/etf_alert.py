@@ -49,12 +49,15 @@ class EtfContextChangeMonitor:
     @staticmethod
     def _changed_fields(previous: dict[str, object], current: dict[str, object]) -> list[str]:
         changed: list[str] = []
-        for key in ("state", "flow_date", "data_status"):
+        # 기준일만 바뀌거나 장중 누적 거래량이 늘어나는 것은 매매 판단에 필요한
+        # ETF 자금 변화가 아니다. 이런 값은 60초 단위로 갱신되어 알림 폭주를
+        # 일으키므로, 상태/데이터 품질 변화와 실제 순흐름·AUM·보유량만 알린다.
+        for key in ("state", "data_status"):
             if previous.get(key) != current.get(key):
                 changed.append(key)
-        if abs(float(current["flow_usd"]) - float(previous.get("flow_usd") or 0.0)) >= 1.0:
+        if abs(float(current["flow_usd"]) - float(previous.get("flow_usd") or 0.0)) >= 100_000.0:
             changed.append("flow_usd")
-        for key in ("total_aum_usd", "total_holding_coin", "daily_volume_usd"):
+        for key in ("total_aum_usd", "total_holding_coin"):
             old = float(previous.get(key) or 0.0)
             new = float(current[key])
             if old == 0.0 and new != 0.0 or old != 0.0 and abs(new - old) / abs(old) >= 0.02:

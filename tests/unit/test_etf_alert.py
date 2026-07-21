@@ -35,3 +35,16 @@ def test_etf_context_monitor_baselines_then_notifies_meaningful_change(tmp_path:
 
     assert len(notifier.calls) == 1
     assert "state" in notifier.calls[0]["changed_fields"]
+
+
+def test_etf_context_monitor_ignores_flow_date_and_intraday_volume_only_changes(tmp_path: Path) -> None:
+    notifier = NotifierStub()
+    monitor = EtfContextChangeMonitor(state_path=tmp_path / "etf.json", notifier=notifier)
+
+    assert monitor.observe(market="KRW-XRP", mode="demo", context=_context()) is False
+    changed = _context()
+    changed["etf"]["flow_date"] = "2026-07-19"
+    changed["etf"]["daily_volume_usd"] = 12_000_000.0
+
+    assert monitor.observe(market="KRW-XRP", mode="demo", context=changed) is False
+    assert notifier.calls == []
