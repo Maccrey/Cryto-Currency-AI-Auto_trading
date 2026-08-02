@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.services.execution.demo import FillResult
 from app.services.execution.ledger import ExecutionLedger
 
@@ -193,6 +195,27 @@ def test_execution_ledger_tracks_consecutive_losing_exits() -> None:
     )
 
     assert ledger.recent_loss_streak() == 0
+
+
+def test_execution_ledger_calculates_daily_realized_pnl_using_cross_day_cost_basis() -> None:
+    ledger = ExecutionLedger()
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP", side="buy", filled_price=1000.0, filled_quantity=1000.0,
+            fee=500.0, status="filled", mode="demo", is_virtual=True, is_stop_loss=False,
+        ),
+        recorded_at="2026-08-01T23:50:00+09:00",
+    )
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP", side="sell", filled_price=800.0, filled_quantity=1000.0,
+            fee=400.0, status="filled", mode="demo", is_virtual=True, is_stop_loss=True,
+        ),
+        recorded_at="2026-08-02T00:10:00+09:00",
+    )
+
+    assert ledger.realized_pnl_for_date(date(2026, 8, 1)) == 0.0
+    assert ledger.realized_pnl_for_date(date(2026, 8, 2)) == -200900.0
 
 
 def test_execution_ledger_persists_records(tmp_path) -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,6 +19,7 @@ from app.services.regime.engine import RegimeEngine
 from app.services.risk.hard_stop import HardStopMonitor
 from app.services.risk.post_entry import PostEntryValidator
 from app.services.risk.stop_loss import StopLossInjector
+from app.services.risk.stop_loss import PositionSnapshot
 from app.services.signals.engine import SignalEngine
 from app.services.signals.features import MarketFeatureCalculator
 from app.services.sizing.engine import SizingEngine
@@ -639,6 +641,66 @@ def test_auto_trading_service_holds_position_without_scale_in_when_price_is_abov
     assert result["status"] == "position_checked"
     assert result["reason"] == "POSITION_HELD"
     assert held_portfolio.asset_balance == first_portfolio.asset_balance
+
+
+def test_auto_trading_service_records_stop_loss_without_entry_decision(tmp_path: Path) -> None:
+    """A protective exit happens before the tick creates an entry decision."""
+    service = _build_service(tmp_path, [800.0])
+    service._position_store.save(
+        PositionSnapshot(
+            market="KRW-XRP",
+            signal_level="medium",
+            entry_price=825.0,
+            quantity=100.0,
+            stop_loss_price=805.0,
+            stop_loss_pct=0.03,
+            validation_window_sec=180,
+            min_expected_return_pct=0.004,
+            stop_loss_reason=None,
+        ),
+    )
+    service._last_entry_signal_score = 0.47
+
+    result = service.tick()
+    stop_loss_events = [
+        event
+        for event in service._learning_service.recent_events()
+        if event.event_name == "stop_loss_triggered"
+    ]
+
+    assert result["status"] == "position_checked"
+    assert result["reason"] == "POSITION_EXIT_TRIGGERED"
+    assert len(stop_loss_events) == 1
+    assert stop_loss_events[0].payload["reason_code"] == "STOP_LOSS_PRICE_HIT"
+    assert stop_loss_events[0].payload["signal_level"] == "medium"
+    assert stop_loss_events[0].payload["signal_score"] == 0.47
+
+
+def test_auto_trading_service_blocks_entries_after_daily_loss_limit(tmp_path: Path) -> None:
+    ledger = ExecutionLedger()
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP", side="buy", filled_price=1000.0, filled_quantity=1000.0,
+            fee=500.0, status="filled", mode="demo", is_virtual=True, is_stop_loss=False,
+        ),
+        recorded_at="2026-08-02T09:00:00+09:00",
+    )
+    ledger.record_fill(
+        FillResult(
+            market="KRW-XRP", side="sell", filled_price=800.0, filled_quantity=1000.0,
+            fee=400.0, status="filled", mode="demo", is_virtual=True, is_stop_loss=True,
+        ),
+        recorded_at="2026-08-02T09:10:00+09:00",
+    )
+    service = _build_service(tmp_path, [800.0], execution_ledger=ledger)
+    service._clock = lambda: datetime.fromisoformat("2026-08-02T09:20:00+09:00")
+
+    result = service.tick()
+
+    assert result["status"] == "blocked"
+    assert result["reason"] == "DAILY_LOSS_LIMIT"
+    assert result["daily_realized_pnl"] == -200900.0
+    assert result["daily_loss_limit"] == 150000.0
 
 
 def test_auto_trading_service_allows_bull_breakout_scale_in_only_with_volume_confirmation(tmp_path: Path) -> None:

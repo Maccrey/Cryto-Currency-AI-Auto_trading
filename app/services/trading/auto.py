@@ -39,6 +39,7 @@ class AutoTradingConfig:
     spread_bps: float = 8.0
     slippage_bps: float = 12.0
     trading_fee_rate: float = 0.0005
+    max_daily_loss: float = 150_000.0
     no_trade_adaptive_enabled: bool = True
     no_trade_relax_after_cycles: int = 100
     no_trade_relax_min_score: float = 0.18
@@ -451,7 +452,10 @@ class AutoTradingService:
                         triggered_at=int(self._clock().timestamp()),
                         price=snapshot.trade_price,
                     )
-                # \u2500\u2500 4) stop_loss_triggered: \uc190\uc808 \ubc1c\uc0dd \uc2dc \ubcc4\ub3c4 \uc9c4\ub2e8 \uc774\ubca4\ud2b8 \uae30\ub85d \u2500\u2500\u2500\u2500\u2500\n                trigger = result.get(\"trigger\")
+                # Stop-losses are evaluated before an entry decision exists in this
+                # tick.  Use the position and exit-market context instead of the
+                # later ``decision`` local, so recording the diagnostic cannot stop
+                # the autonomous loop immediately after a protective exit.
                 reason_code_str = str(trigger.get("reason_code") or "") if isinstance(trigger, dict) else ""
                 if "STOP_LOSS" in reason_code_str:
                     self._learning_service.record(
@@ -463,9 +467,13 @@ class AutoTradingService:
                                 "reason_code": reason_code_str,
                                 "exit_price": snapshot.trade_price,
                                 "trigger": trigger,
-                                "market_state": str(decision.regime.market_state) if hasattr(decision, "regime") else None,
-                                "signal_level": str(decision.signal.level) if hasattr(decision, "signal") else None,
-                                "signal_score": float(decision.signal.score) if hasattr(decision, "signal") else None,
+                                "market_state": (
+                                    None
+                                    if position_market_trend is None
+                                    else str(position_market_trend.market_state)
+                                ),
+                                "signal_level": position.signal_level,
+                                "signal_score": self._last_entry_signal_score,
                                 "position_result": result,
                             },
                         )
@@ -490,6 +498,14 @@ class AutoTradingService:
                     reason="LIVE_ORDER_PENDING",
                     extra=pending_result,
                 )
+
+        daily_loss_guard = self._daily_loss_guard_decision()
+        if not daily_loss_guard["allowed"]:
+            return self._record_cycle(
+                status="blocked",
+                reason="DAILY_LOSS_LIMIT",
+                extra=daily_loss_guard,
+            )
 
         portfolio = self._portfolio_state()
         if self._trading_mode == "demo" and portfolio.asset_balance > 0 and position is None:
@@ -943,6 +959,26 @@ class AutoTradingService:
             observed_box_range_low=trend.box_range_low,
             observed_box_range_high=trend.box_range_high,
         )
+
+    def _daily_loss_guard_decision(self) -> dict[str, object]:
+        max_daily_loss = max(float(self._config.max_daily_loss), 0.0)
+        if max_daily_loss <= 0 or self._execution_ledger is None:
+            return {"allowed": True}
+        trading_date = self._clock().date()
+        realized_pnl = self._execution_ledger.realized_pnl_for_date(trading_date)
+        if realized_pnl > -max_daily_loss:
+            return {
+                "allowed": True,
+                "daily_realized_pnl": realized_pnl,
+                "daily_loss_limit": max_daily_loss,
+                "trading_date": trading_date.isoformat(),
+            }
+        return {
+            "allowed": False,
+            "daily_realized_pnl": realized_pnl,
+            "daily_loss_limit": max_daily_loss,
+            "trading_date": trading_date.isoformat(),
+        }
 
     def _classify_current_market_state(
         self,

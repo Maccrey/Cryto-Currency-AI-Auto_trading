@@ -194,7 +194,7 @@ DASHBOARD_PORT=8080
 | PROFILE_MIN_NET_EDGE_PCT | float | Y | 0.0008 | 왕복 수수료를 제외하고 현재 투자성향 진입에 요구하는 최소 순엣지 |
 | MIN_CASH_RESERVE | int | Y | 100000 | 최소 현금 보유 |
 | CAPITAL_RISK_PCT | float | Y | 0.018 | 투자 가능 현금 대비 1회 진입 손절 리스크 예산 비율 |
-| MAX_DAILY_LOSS | int | Y | 150000 | 일일 손실 한도 |
+| MAX_DAILY_LOSS | int | Y | 150000 | 일일 실현손실 한도. 도달 시 신규·추가 진입을 차단하며 보유 포지션 청산은 허용 |
 | MAX_SLIPPAGE_BPS | int | Y | 20 | 허용 슬리피지 상한 |
 | MAX_SPREAD_BPS | int | Y | 15 | 허용 spread 상한 |
 | COOLDOWN_SECONDS | int | Y | 60 | 신호 cooldown |

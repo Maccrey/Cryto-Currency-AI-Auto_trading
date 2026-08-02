@@ -519,6 +519,7 @@ def create_app(
             spread_bps=trading_profile.spread_bps,
             slippage_bps=trading_profile.slippage_bps,
             trading_fee_rate=float(settings.trading_fee_rate),
+            max_daily_loss=float(settings.max_daily_loss),
             no_trade_adaptive_enabled=settings.no_trade_adaptive_enabled,
             no_trade_relax_after_cycles=settings.no_trade_relax_after_cycles,
             no_trade_relax_min_score=settings.no_trade_relax_min_score,

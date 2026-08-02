@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from app.services.execution.demo import FillResult
@@ -132,6 +132,40 @@ class ExecutionLedger:
             stop_loss_count=stop_loss_count,
             recent_stop_loss_reason=recent_stop_loss_reason,
         )
+
+    def realized_pnl_for_date(self, target_date: date) -> float:
+        """Return realized PnL for sells recorded on one local calendar date.
+
+        Purchase cost is carried across dates, so an exit today is measured
+        correctly even if the position was opened before midnight.
+        """
+        realized_pnl = 0.0
+        open_quantity = 0.0
+        average_cost = 0.0
+
+        for record in self._records:
+            fill = record.fill
+            if fill.status != "filled":
+                continue
+            if fill.side == "buy":
+                total_cost = (average_cost * open_quantity) + (fill.filled_price * fill.filled_quantity) + fill.fee
+                open_quantity += fill.filled_quantity
+                average_cost = 0.0 if open_quantity <= 0 else total_cost / open_quantity
+                continue
+
+            matched_quantity = min(open_quantity, fill.filled_quantity)
+            if matched_quantity <= 0:
+                continue
+            proceeds = (fill.filled_price * matched_quantity) - fill.fee
+            pnl = proceeds - (average_cost * matched_quantity)
+            if self._recorded_date(record.recorded_at) == target_date:
+                realized_pnl += pnl
+            open_quantity = round(open_quantity - matched_quantity, 8)
+            if open_quantity <= 0:
+                open_quantity = 0.0
+                average_cost = 0.0
+
+        return round(realized_pnl, 2)
 
     def performance_profile(self) -> ExecutionPerformanceProfile:
         buy_count = 0
@@ -323,6 +357,15 @@ class ExecutionLedger:
         try:
             return float(value)
         except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _recorded_date(value: str | None) -> date | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value).date()
+        except ValueError:
             return None
 
     def _persist(self) -> None:
