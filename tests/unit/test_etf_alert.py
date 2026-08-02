@@ -48,3 +48,45 @@ def test_etf_context_monitor_ignores_flow_date_and_intraday_volume_only_changes(
 
     assert monitor.observe(market="KRW-XRP", mode="demo", context=changed) is False
     assert notifier.calls == []
+
+
+def test_etf_context_monitor_ignores_transient_fallback_without_rebaselining(tmp_path: Path) -> None:
+    notifier = NotifierStub()
+    monitor = EtfContextChangeMonitor(state_path=tmp_path / "etf.json", notifier=notifier)
+
+    assert monitor.observe(market="KRW-XRP", mode="demo", context=_context(state="neutral")) is False
+
+    fallback = _context(state="unknown")
+    fallback["etf"].update(
+        {
+            "flow_usd": 0.0,
+            "flow_date": "",
+            "total_aum_usd": 0.0,
+            "total_holding_coin": 0.0,
+            "daily_volume_usd": 0.0,
+            "data_status": "fallback",
+        }
+    )
+    assert monitor.observe(market="KRW-XRP", mode="demo", context=fallback) is False
+
+    recovered = _context(state="neutral")
+    assert monitor.observe(market="KRW-XRP", mode="demo", context=recovered) is False
+    assert notifier.calls == []
+
+
+def test_etf_context_monitor_compares_recovered_provider_data_to_last_provider_baseline(tmp_path: Path) -> None:
+    notifier = NotifierStub()
+    monitor = EtfContextChangeMonitor(state_path=tmp_path / "etf.json", notifier=notifier)
+
+    assert monitor.observe(market="KRW-XRP", mode="demo", context=_context(state="neutral")) is False
+
+    fallback = _context(state="unknown")
+    fallback["etf"]["data_status"] = "fallback"
+    assert monitor.observe(market="KRW-XRP", mode="demo", context=fallback) is False
+
+    recovered = _context(state="inflow")
+    assert monitor.observe(market="KRW-XRP", mode="demo", context=recovered) is True
+
+    assert len(notifier.calls) == 1
+    assert notifier.calls[0]["previous"]["state"] == "neutral"
+    assert notifier.calls[0]["current"]["state"] == "inflow"

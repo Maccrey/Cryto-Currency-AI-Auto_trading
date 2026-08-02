@@ -17,6 +17,8 @@ class EtfContextChangeMonitor:
         if not isinstance(etf, dict) or etf.get("state") in {None, "disabled", "not_applicable"}:
             return False
         current = self._snapshot(etf)
+        if not self._is_provider_snapshot(current):
+            return False
         previous = self._load()
         if previous is None:
             self._save(current)
@@ -45,6 +47,10 @@ class EtfContextChangeMonitor:
             "daily_volume_usd": float(etf.get("daily_volume_usd") or 0.0),
             "data_status": str(etf.get("data_status") or "unknown"),
         }
+
+    @staticmethod
+    def _is_provider_snapshot(snapshot: dict[str, object]) -> bool:
+        return str(snapshot.get("data_status") or "") in {"provider", "fresh"}
 
     @staticmethod
     def _changed_fields(previous: dict[str, object], current: dict[str, object]) -> list[str]:
