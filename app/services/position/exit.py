@@ -604,6 +604,10 @@ class PositionExitService:
         take_profit_min_exit_ratio: float = 0.75,
         weak_signal_take_profit_min_exit_ratio: float = 1.0,
     ) -> float:
+        # 분석 결과: weak 신호로 진입 시 분할 매도 후 잔여 포지션이 반락하여 전체 손실로 전환됨
+        # → weak 신호 TAKE_PROFIT은 항상 전량 청산하여 분할 매도 손실을 방지
+        if reason_code == "TAKE_PROFIT_TARGET_HIT" and signal_level == "weak":
+            return 1.0
         continuation_score = PositionExitService._chart_continuation_score(
             momentum_score=momentum_score,
             orderbook_imbalance=orderbook_imbalance,
@@ -633,15 +637,20 @@ class PositionExitService:
         current_price: float,
         remaining_quantity: float,
     ):
+        # 분석 결과: 분할 청산 후 남은 포지션이 반락하여 전체 수익이 음수로 전환됨
+        # → 잔여 포지션은 현재가 기준 타이트한 손절가 적용 (현재가의 -0.3% 또는 진입가+수수료 중 높은 값)
         fee_adjusted_floor = position.entry_price * (
             1 + (self._trading_fee_rate * 2) + self._profit_protection_buffer_pct
         )
+        # 현재가 기준 tight 트레일링 손절 (0.3% 하락 시 청산)
+        tight_stop_price = current_price * (1 - max(self._trading_fee_rate * 2, 0.003))
         if fee_adjusted_floor > current_price:
             protected_stop_loss_price = position.stop_loss_price
         else:
             protected_stop_loss_price = max(
                 position.stop_loss_price,
-                min(fee_adjusted_floor, current_price * (1 - self._trading_fee_rate)),
+                fee_adjusted_floor,
+                tight_stop_price,  # 현재가 기준 tight 손절가 추가
             )
         return replace(
             position,

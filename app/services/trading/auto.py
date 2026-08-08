@@ -46,8 +46,9 @@ class AutoTradingConfig:
     allow_weak_no_trade_relax: bool = False
     scale_in_enabled: bool = True
     scale_in_max_price_premium_pct: float = 0.0
-    scale_in_max_entries: int = 2
+    scale_in_max_entries: int = 1  # 거래 분석: weak 신호 연속 scale-in으로 손실 확대 → 1회로 제한
     scale_in_max_position_multiplier: float = 0.55
+    weak_signal_scale_in_enabled: bool = False  # 분석 결과: weak 신호 scale-in 금지 (손실 확대 방지)
     bull_scale_in_enabled: bool = True
     bull_scale_in_max_price_premium_pct: float = 0.004
     bull_scale_in_min_traded_value_multiple: float = 1.03
@@ -56,7 +57,7 @@ class AutoTradingConfig:
     reentry_block_seconds: int = 0
     # Adaptive reentry cooldowns: shorter after profit, longer after loss.
     reentry_block_seconds_profit: int = 60
-    reentry_block_seconds_loss: int = 120
+    reentry_block_seconds_loss: int = 300  # 분석 결과: 손절 후 재진입 차단 120s→300s (충분한 냉각 시간 확보)
     sideways_risk_guard_enabled: bool = True
     sideways_price_range_pct: float = 0.002
     sideways_traded_value_range_pct: float = 0.003
@@ -79,7 +80,7 @@ class AutoTradingConfig:
     historical_loss_guard_box_entry_min_score: float = 0.30
     initial_observation_warmup_seconds: int = 180
     initial_observation_min_samples: int = 20
-    post_stop_loss_max_block_hours: float = 8.0  # 손절 후 재진입 최대 차단 시간(시간). 12→8시간: 더 빠른 재진입 허용.
+    post_stop_loss_max_block_hours: float = 12.0  # 분석 결과: 손절 후 재진입 최대 차단 시간 8→12시간 (빠른 재진입 손실 방지)
     rule_update_state_path: Path | None = None
 
 
@@ -1846,6 +1847,9 @@ class AutoTradingService:
     def _scale_in_limit_decision(self, *, position, decision, current_price: float) -> dict[str, object]:
         if position is None:
             return {"allowed": True, "decision": decision, "cap_applied": False, "original_buy_amount": None}
+        # 분석 결과: weak 신호로 연속 scale-in 시 손실 확대됨 → weak 신호 scale-in 금지
+        if decision.signal.level == "weak" and not self._config.weak_signal_scale_in_enabled:
+            return {"allowed": False, "reason_code": "SCALE_IN_WEAK_SIGNAL_BLOCKED", "decision": decision}
         max_entries = max(int(self._config.scale_in_max_entries), 0)
         if self._scale_in_count >= max_entries:
             return {"allowed": False, "reason_code": "SCALE_IN_MAX_ENTRIES", "decision": decision}
