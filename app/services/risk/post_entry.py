@@ -47,9 +47,9 @@ class PostEntryExpectationRuleset:
     momentum_reversal_requires_imbalance: bool = True   # 모멘텀 + 오더북 이중 조건
     orderbook_confirm_threshold: float = -0.05          # 오더북 확인 기준 (-5% 이하)
     # ── 트레일링 스탑 ─────────────────────────────────────────────────────
-    trailing_stop_activation_pct: float = 0.003  # 0.3% 수익 달성 시 트레일링 스탑 활성화
-    trailing_stop_floor_pct: float = 0.0012       # 왕복 수수료 0.10% + 순수익 0.02%
-    trailing_stop_min_retrace_pct: float = 0.0015 # 최고가에서 최소 0.15% 되밀림 확인
+    trailing_stop_activation_pct: float = 0.006  # 0.6% 수익 달성 시 트레일링 스탑 활성화
+    trailing_stop_floor_pct: float = 0.0025       # 왕복 수수료 회수 후 의미 있는 순수익 보호
+    trailing_stop_min_retrace_pct: float = 0.0025 # 최고가에서 최소 0.25% 되밀림 확인
 
     def evaluate(
         self,
@@ -73,7 +73,8 @@ class PostEntryExpectationRuleset:
                 return (1.0, "TRAILING_STOP_TRIGGERED")
 
         # ── 3. 손실이 임계값 이내이면 관망 ───────────────────────────────
-        if unrealized_return_pct > -self.min_adverse_exit_pct:
+        adverse_exit_pct = self._adverse_exit_pct_for(position.signal_level)
+        if unrealized_return_pct > -adverse_exit_pct:
             return None
 
         # ── 4. 모멘텀 역전 손절 (이중 조건: 모멘텀 + 오더북 확인) ───────────
@@ -91,6 +92,17 @@ class PostEntryExpectationRuleset:
             return (1.0, "STOP_LOSS_LIQUIDITY_DROPPED")
 
         return None
+
+    def _adverse_exit_pct_for(self, signal_level: str | None) -> float:
+        if signal_level == "weak":
+            return min(self.min_adverse_exit_pct, 0.008)
+        if signal_level == "medium":
+            return min(self.min_adverse_exit_pct, 0.012)
+        if signal_level == "strong":
+            return min(self.min_adverse_exit_pct, 0.018)
+        if signal_level == "very_strong":
+            return max(self.min_adverse_exit_pct, 0.022)
+        return self.min_adverse_exit_pct
 
 
 class PostEntryValidator:

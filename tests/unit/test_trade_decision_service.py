@@ -166,7 +166,7 @@ def test_trade_decision_service_uses_observed_price_card_market_state_for_sizing
     assert bear.sizing.buy_ratio < bull.sizing.buy_ratio
 
 
-def test_trade_decision_service_promotes_supported_bull_weak_signal_to_medium() -> None:
+def test_trade_decision_service_keeps_marginal_bull_signal_weak() -> None:
     service = TradeDecisionService(
         feature_calculator=MarketFeatureCalculator(),
         signal_engine=SignalEngine(),
@@ -201,10 +201,10 @@ def test_trade_decision_service_promotes_supported_bull_weak_signal_to_medium() 
         ),
     )
 
-    assert result.signal.level == "medium"
-    assert result.signal.score == 0.4
-    assert "BULL_MARKET_PARTICIPATION_BOOST" in result.signal.reason_codes
-    assert result.sizing.allowed is True
+    assert result.signal.level == "weak"
+    assert "BULL_MARKET_PARTICIPATION_BOOST" not in result.signal.reason_codes
+    assert result.sizing.allowed is False
+    assert result.sizing.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT"
 
 
 def test_trade_decision_service_allows_confirmed_bear_rebound_participation() -> None:

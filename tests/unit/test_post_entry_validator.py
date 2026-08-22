@@ -263,10 +263,10 @@ def test_post_entry_validator_triggers_trailing_stop_after_fee_protected_profit_
         orderbook_imbalance=0.05,
     )
 
-    # +0.11%는 왕복 수수료를 겨우 넘는 수준이라 청산하지 않는다.
+    # +0.20%는 새 보호 바닥보다 낮아 청산하지 않는다.
     decision = validator.evaluate(
         position=position,
-        current_price=1001.1,
+        current_price=1002.0,
         elapsed_sec=60,
         momentum_score=0.40,
         orderbook_imbalance=0.05,
@@ -278,7 +278,7 @@ def test_post_entry_validator_triggers_trailing_stop_after_fee_protected_profit_
     # 확인됐으므로 청산한다.
     decision = validator.evaluate(
         position=position,
-        current_price=1001.2,
+        current_price=1002.5,
         elapsed_sec=61,
         momentum_score=0.40,
         orderbook_imbalance=0.05,

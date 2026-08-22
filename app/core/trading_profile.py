@@ -17,13 +17,17 @@ class TradingProfileSpec:
     spread_bps: float
     slippage_bps: float
     fixed_stop_loss_pct: float
+    stop_loss_weak_pct: float | None = None
+    stop_loss_medium_pct: float | None = None
+    stop_loss_strong_pct: float | None = None
+    stop_loss_very_strong_pct: float | None = None
 
     def stop_loss_by_signal(self) -> dict[str, float]:
         return {
-            "weak": self.fixed_stop_loss_pct,
-            "medium": self.fixed_stop_loss_pct,
-            "strong": self.fixed_stop_loss_pct,
-            "very_strong": self.fixed_stop_loss_pct,
+            "weak": self.stop_loss_weak_pct or self.fixed_stop_loss_pct,
+            "medium": self.stop_loss_medium_pct or self.fixed_stop_loss_pct,
+            "strong": self.stop_loss_strong_pct or self.fixed_stop_loss_pct,
+            "very_strong": self.stop_loss_very_strong_pct or self.fixed_stop_loss_pct,
         }
 
 
@@ -39,7 +43,11 @@ TRADING_PROFILES: dict[str, TradingProfileSpec] = {
         min_expected_return_pct=0.0065,  # 상향: 0.4%→0.65% (평균 수익률 0.62% 기반, 수익 추구 강화)
         spread_bps=8.0,
         slippage_bps=12.0,
-        fixed_stop_loss_pct=0.030,
+        fixed_stop_loss_pct=0.024,
+        stop_loss_weak_pct=0.012,
+        stop_loss_medium_pct=0.018,
+        stop_loss_strong_pct=0.024,
+        stop_loss_very_strong_pct=0.030,
     ),
     "short_term": TradingProfileSpec(
         key="short_term",
@@ -52,7 +60,11 @@ TRADING_PROFILES: dict[str, TradingProfileSpec] = {
         min_expected_return_pct=0.008,
         spread_bps=10.0,
         slippage_bps=15.0,
-        fixed_stop_loss_pct=0.030,
+        fixed_stop_loss_pct=0.024,
+        stop_loss_weak_pct=0.012,
+        stop_loss_medium_pct=0.018,
+        stop_loss_strong_pct=0.024,
+        stop_loss_very_strong_pct=0.030,
     ),
     "mid_term": TradingProfileSpec(
         key="mid_term",

@@ -187,7 +187,7 @@ class TradeDecisionService:
         score_floor = 0.0
         reason_code = None
         if regime.market_state == "bull" and TradeDecisionService._bull_participation_signal(features):
-            score_floor = 0.40
+            score_floor = 0.45
             reason_code = "BULL_MARKET_PARTICIPATION_BOOST"
         elif regime.market_state == "box" and TradeDecisionService._box_lower_range_signal(regime, features):
             # Enhanced: use dynamic box range if available
@@ -213,16 +213,16 @@ class TradeDecisionService:
     @staticmethod
     def _bull_participation_signal(features: FeatureSnapshot) -> bool:
         technical_support = (
-            features.macd_histogram >= -0.0005
-            and features.ma_trend >= -0.0005
-            and features.rsi_14 <= 78.0
-            and features.bollinger_position <= 0.95
-            and features.price_position_20 <= 0.92
+            features.macd_histogram >= 0.0
+            and features.ma_trend >= 0.0
+            and features.rsi_14 <= 74.0
+            and features.bollinger_position <= 0.90
+            and features.price_position_20 <= 0.88
         )
         flow_support = (
-            features.ret_5s >= 0.0
-            or features.orderbook_imbalance >= -0.08
-            or features.trend_efficiency_20 >= 0.15
+            features.ret_5s > 0.0
+            and features.orderbook_imbalance >= -0.03
+            and features.trend_efficiency_20 >= 0.18
         )
         return technical_support and flow_support
 

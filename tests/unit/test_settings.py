@@ -46,10 +46,10 @@ def test_valid_settings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.rule_change_max_params_per_run == 3
     assert settings.rule_change_apply_target == "demo"
     assert settings.rule_change_require_manual_approval is False
-    assert settings.fixed_stop_loss_pct == 0.030
-    assert settings.stop_loss_weak == 0.030
-    assert settings.stop_loss_medium == 0.030
-    assert settings.stop_loss_strong == 0.030
+    assert settings.fixed_stop_loss_pct == 0.024
+    assert settings.stop_loss_weak == 0.012
+    assert settings.stop_loss_medium == 0.018
+    assert settings.stop_loss_strong == 0.024
     assert settings.stop_loss_very_strong == 0.030
     assert settings.external_context_enabled is True
     assert settings.external_context_cache_ttl_sec == 30

@@ -450,7 +450,9 @@ def create_app(
     # 추적청산은 설정된 왕복 수수료를 회수하고도 작은 순수익이 남을 때만
     # 실행한다. 데모와 실거래가 동일한 settings를 사용하므로 기준도 같다.
     post_entry_ruleset = PostEntryExpectationRuleset(
-        trailing_stop_floor_pct=(float(settings.trading_fee_rate) * 2) + 0.0002,
+        trailing_stop_activation_pct=0.006,
+        trailing_stop_floor_pct=(float(settings.trading_fee_rate) * 2) + 0.0015,
+        trailing_stop_min_retrace_pct=0.0025,
     )
     position_risk_service = PositionRiskService(
         position_store=position_store,
@@ -472,8 +474,8 @@ def create_app(
             position_lifecycle_ledger=position_lifecycle_ledger,
             order_rules=order_rules,
             trading_fee_rate=float(settings.trading_fee_rate),
-            take_profit_min_exit_ratio=0.50 if settings.trading_profile == "scalping" else 0.75,
-            weak_signal_take_profit_min_exit_ratio=0.75 if settings.trading_profile == "scalping" else 1.0,
+            take_profit_min_exit_ratio=0.45 if settings.trading_profile in {"scalping", "short_term"} else 0.65,
+            weak_signal_take_profit_min_exit_ratio=0.75 if settings.trading_profile == "scalping" else 0.85,
         )
     if post_fill_service is None:
         post_fill_service = PostFillService(

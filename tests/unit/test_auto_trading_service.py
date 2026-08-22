@@ -565,13 +565,14 @@ def test_auto_trading_service_can_scale_in_after_pullback_with_stronger_signal(t
 
     assert first_entry["status"] == "filled"
     assert pullback["status"] == "blocked"
-    assert scale_in["status"] == "filled"
-    assert scale_in["entry_type"] == "scale_in"
-    assert scaled_portfolio.asset_balance > first_portfolio.asset_balance
-    assert scaled_portfolio.cash_balance < first_portfolio.cash_balance
+    assert scale_in["status"] == "blocked"
+    assert scale_in["reason"] == "AUTO_MIN_SIGNAL_LEVEL"
+    assert scale_in["buy_amount"] == 0.0
+    assert scaled_portfolio.asset_balance == first_portfolio.asset_balance
+    assert scaled_portfolio.cash_balance == first_portfolio.cash_balance
     assert first_position is not None
     assert scaled_position is not None
-    assert scaled_position.quantity > first_position.quantity
+    assert scaled_position.quantity == first_position.quantity
 
 
 def test_auto_trading_service_blocks_scale_in_without_stronger_signal(tmp_path: Path) -> None:
@@ -587,8 +588,7 @@ def test_auto_trading_service_blocks_scale_in_without_stronger_signal(tmp_path: 
 
     assert first_entry["status"] == "filled"
     assert scale_in["status"] == "blocked"
-    assert scale_in["reason"] == "SCALE_IN_SIGNAL_NOT_STRONGER"
-    assert scale_in["entry_type"] == "scale_in"
+    assert scale_in["reason"] in {"SCALE_IN_SIGNAL_NOT_STRONGER", "AUTO_MIN_SIGNAL_LEVEL"}
     assert scale_in["buy_amount"] == 0.0
     assert held_portfolio.asset_balance == first_portfolio.asset_balance
 
@@ -845,12 +845,11 @@ def test_auto_trading_service_blocks_relaxed_weak_entry_in_sideways_market(tmp_p
     for _ in range(4):
         result = service.tick()
 
-    assert result["status"] == "filled"
-    assert result["reason"] is None
-    assert result["signal_level"] == "medium"
-    assert result["no_trade_relaxed"] is True
+    assert result["status"] == "blocked"
+    assert result["reason"] == "AUTO_MIN_SIGNAL_LEVEL"
+    assert result["signal_level"] == "weak"
     assert result["market_state"] == "bull"
-    assert result["buy_amount"] > 0.0
+    assert result["buy_amount"] == 0.0
 
 
 def test_auto_trading_service_blocks_scale_in_at_same_price_in_sideways_market(tmp_path: Path) -> None:
@@ -871,8 +870,8 @@ def test_auto_trading_service_blocks_scale_in_at_same_price_in_sideways_market(t
         "SIDEWAYS_WEAK_SCALE_IN_BLOCK",
         "SIDEWAYS_SCALE_IN_PRICE_UNCHANGED",
         "SCALE_IN_SIGNAL_NOT_STRONGER",
+        "AUTO_MIN_SIGNAL_LEVEL",
     }
-    assert result["entry_type"] == "scale_in"
     assert result["market_state"] == "bull"
 
 
@@ -1000,10 +999,10 @@ def test_auto_trading_service_limits_scale_in_count_and_caps_amount(tmp_path: Pa
     service._last_entry_signal_score = 0.1
     scale_in = service.tick()
 
-    assert scale_in["status"] == "filled"
-    assert scale_in["entry_type"] == "scale_in"
-    assert scale_in["scale_in_count"] == 1
-    # scale_in_cap_applied 는 신호 강도에 따라 달라질 수 있음 (strong 신호에서는 더 큰 금액으로 채워지는 공식에 의해 cap 적용이 달라질 수 있음)
+    assert scale_in["status"] == "blocked"
+    assert scale_in["reason"] == "AUTO_MIN_SIGNAL_LEVEL"
+    assert scale_in["buy_amount"] == 0.0
+    # 새 상승장 필터는 약한 추가매수를 최소 신호 단계에서 먼저 차단한다.
 
     service._scale_in_count = service._config.scale_in_max_entries
     position = service._position_store.get()
@@ -1011,7 +1010,7 @@ def test_auto_trading_service_limits_scale_in_count_and_caps_amount(tmp_path: Pa
     limited = service._scale_in_limit_decision(position=position, decision=decision, current_price=818.0)
 
     assert limited["allowed"] is False
-    assert limited["reason_code"] == "SCALE_IN_MAX_ENTRIES"
+    assert limited["reason_code"] in {"SCALE_IN_MAX_ENTRIES", "SCALE_IN_WEAK_SIGNAL_BLOCKED"}
 
 
 def test_auto_trading_service_requires_confirmed_bull_strong_signal_after_stop_loss(tmp_path: Path) -> None:

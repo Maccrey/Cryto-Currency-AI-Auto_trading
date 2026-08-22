@@ -543,7 +543,7 @@ def test_position_exit_service_records_fee_protected_trailing_exit_as_regular_se
         orderbook_imbalance=0.1,
     )
     result = service.evaluate_and_execute(
-        current_price=1001.2,
+        current_price=1002.5,
         elapsed_sec=61,
         momentum_score=0.1,
         orderbook_imbalance=-0.1,
