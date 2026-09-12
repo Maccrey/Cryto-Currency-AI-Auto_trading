@@ -1,11 +1,27 @@
 from __future__ import annotations
 
+import pytest
+
 from app.services.risk.post_entry import (
     PostEntryDecision,
     PostEntryExpectationRuleset,
     PostEntryValidator,
 )
 from app.services.risk.stop_loss import PositionSnapshot
+
+
+@pytest.mark.parametrize("current_return", [0.002, 0.0, -0.001])
+def test_ruleset_keeps_trailing_stop_active_below_floor(current_return) -> None:
+    position = PositionSnapshot(
+        market="KRW-XRP", signal_level="medium", entry_price=1000.0,
+        quantity=100.0, stop_loss_price=970.0, stop_loss_pct=0.03,
+        validation_window_sec=180, min_expected_return_pct=0.01,
+        stop_loss_reason=None,
+    )
+    assert PostEntryExpectationRuleset().evaluate(
+        position=position, unrealized_return_pct=current_return,
+        momentum_score=0.5, orderbook_imbalance=0.1, peak_return_pct=0.006,
+    ) == (1.0, "TRAILING_STOP_TRIGGERED")
 
 
 def test_post_entry_validator_holds_near_breakeven_after_window() -> None:
@@ -263,7 +279,7 @@ def test_post_entry_validator_triggers_trailing_stop_after_fee_protected_profit_
         orderbook_imbalance=0.05,
     )
 
-    # +0.20%는 새 보호 바닥보다 낮아 청산하지 않는다.
+    # 보호 바닥을 건너뛰어도 활성화된 추적청산을 취소하지 않는다.
     decision = validator.evaluate(
         position=position,
         current_price=1002.0,
@@ -272,10 +288,10 @@ def test_post_entry_validator_triggers_trailing_stop_after_fee_protected_profit_
         orderbook_imbalance=0.05,
     )
 
-    assert decision.triggered is False
+    assert decision.triggered is True
+    assert decision.reason_code == "TRAILING_STOP_TRIGGERED"
 
-    # +0.12%로 내려가면 fee-protected floor를 지키면서 큰 되밀림도
-    # 확인됐으므로 청산한다.
+    # 보호 바닥에 정확히 도달해도 청산한다.
     decision = validator.evaluate(
         position=position,
         current_price=1002.5,

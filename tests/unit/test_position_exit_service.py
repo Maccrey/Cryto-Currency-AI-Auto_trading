@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.execution.demo import DemoExecutor
 from app.services.learning.service import LearningEvent
 from app.services.position.ledger import PositionLifecycleLedger
@@ -551,3 +553,31 @@ def test_position_exit_service_records_fee_protected_trailing_exit_as_regular_se
 
     assert result["trigger"]["reason_code"] == "TRAILING_STOP_TRIGGERED"
     assert result["execution"]["is_stop_loss"] is False
+
+
+@pytest.mark.parametrize(
+    ("exit_price", "is_stop_loss"),
+    [(1002.0, False), (1000.5, True), (999.0, True)],
+)
+def test_trailing_exit_survives_gap_below_floor(exit_price, is_stop_loss) -> None:
+    store = CurrentPositionStore()
+    store.save(PositionSnapshot(
+        market="KRW-XRP", signal_level="medium", entry_price=1000.0,
+        quantity=100.0, stop_loss_price=970.0, stop_loss_pct=0.03,
+        validation_window_sec=180, min_expected_return_pct=0.01,
+        stop_loss_reason=None,
+    ))
+    service = _build_service(store)
+    peak = service.evaluate_and_execute(
+        current_price=1006.0, elapsed_sec=50,
+        momentum_score=0.5, orderbook_imbalance=0.1,
+    )
+    assert peak["execution"] is None
+    result = service.evaluate_and_execute(
+        current_price=exit_price, elapsed_sec=60,
+        momentum_score=0.5, orderbook_imbalance=0.1,
+    )
+    assert result["trigger"]["reason_code"] == "TRAILING_STOP_TRIGGERED"
+    assert result["execution"]["is_stop_loss"] is is_stop_loss
+    assert result["execution"]["filled_quantity"] == 100.0
+    assert store.get() is None

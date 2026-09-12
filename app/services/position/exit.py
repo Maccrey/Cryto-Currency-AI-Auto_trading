@@ -425,13 +425,12 @@ class PositionExitService:
 
         exit_quantity = resolved_exit["quantity"]
         exit_ratio = resolved_exit["exit_ratio"]
-        # 추적청산은 손실 방어 규칙이지만, 수수료를 넘긴 수익 구간에서만
-        # 발동하도록 PostEntryValidator가 보장한다. 손절 주문으로 기록하면
-        # 손절 통계와 A~R 평가가 왜곡되므로 일반 매도로 분류한다.
-        is_take_profit = post_entry.reason_code in {
-            "TAKE_PROFIT_TARGET_HIT",
-            "TRAILING_STOP_TRIGGERED",
-        }
+        # 급락으로 추적청산선을 건너뛴 경우 수수료 차감 손실을 구분한다.
+        is_take_profit = post_entry.reason_code == "TAKE_PROFIT_TARGET_HIT" or (
+            post_entry.reason_code == "TRAILING_STOP_TRIGGERED"
+            and current_price * (1.0 - self._trading_fee_rate)
+            >= position.entry_price * (1.0 + self._trading_fee_rate)
+        )
         sell_executor = (
             RegularSellExecutor(executor=self._executor)
             if is_take_profit

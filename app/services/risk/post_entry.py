@@ -35,9 +35,9 @@ class PostEntryExpectationRuleset:
       오더북 불균형 최대값. 기본값 -0.05.
     * ``trailing_stop_activation_pct`` – 이 값 이상 수익을 달성하면 트레일링 스탑
       활성화. 활성화 후 floor 이하로 내려오면 즉시 익절.
-    * ``trailing_stop_floor_pct`` – 트레일링 스탑 활성화 후 보장되는 최소 총수익률.
-      왕복 수수료와 순수익 여유를 함께 넘어야 한다. 수수료 0.05% × 2인
-      기본 환경에서는 0.12%로, 수수료만 남기고 청산되는 것을 막는다.
+    * ``trailing_stop_floor_pct`` – 활성화 이후 추적청산 기준의 하한.
+      현재 수익률이 이 기준 아래로 급락해도 청산한다. 기본값은 0.25%이며,
+      관찰 간격과 체결 가격 차이 때문에 실제 최소 수익을 보장하지 않는다.
     """
 
     momentum_reversal_threshold: float = 0.20   # 강화: 0.35→0.25→0.20 (횡보 오발동 방지)
@@ -67,8 +67,10 @@ class PostEntryExpectationRuleset:
         # ── 2. 트레일링 스탑 (수익 구간 진입 후 원금 보호) ─────────────────
         if peak_return_pct is not None and peak_return_pct >= self.trailing_stop_activation_pct:
             if (
-                self.trailing_stop_floor_pct <= unrealized_return_pct
-                <= peak_return_pct - self.trailing_stop_min_retrace_pct
+                unrealized_return_pct <= max(
+                    self.trailing_stop_floor_pct,
+                    peak_return_pct - self.trailing_stop_min_retrace_pct,
+                )
             ):
                 return (1.0, "TRAILING_STOP_TRIGGERED")
 
@@ -149,13 +151,15 @@ class PostEntryValidator:
                 unrealized_return_pct=unrealized_return_pct,
             )
 
-        # ── 트레일링 스탑 (validation window 이후, 수익 달성 후 하락 시) ──
+        # ── 트레일링 스탑 (validation window 무관, 수익 달성 후 하락 시) ──
         ruleset = self._expectation_ruleset
         if (
             self._peak_return_pct is not None
             and self._peak_return_pct >= ruleset.trailing_stop_activation_pct
-            and ruleset.trailing_stop_floor_pct <= unrealized_return_pct
-            <= self._peak_return_pct - ruleset.trailing_stop_min_retrace_pct
+            and unrealized_return_pct <= max(
+                ruleset.trailing_stop_floor_pct,
+                self._peak_return_pct - ruleset.trailing_stop_min_retrace_pct,
+            )
         ):
             return PostEntryDecision(
                 triggered=True,
