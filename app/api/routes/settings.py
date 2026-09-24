@@ -191,6 +191,12 @@ SETTINGS_HTML = """
     .danger-button:disabled { background: #c9847c; cursor: wait; }
     .danger-zone { margin-top: 18px; padding-top: 16px; border-top: 1px solid #f1b8b1; }
     .subsection { margin-top: 18px; padding-top: 16px; border-top: 1px solid #d8e0e6; }
+    .settings-group { margin-top: 18px; padding: 16px; border: 1px solid #d8e0e6; border-radius: 8px; background: #fbfcfd; }
+    .settings-group h2 { margin: 0 0 4px; font-size: 16px; }
+    .settings-group > .note { margin-bottom: 10px; }
+    .settings-group[hidden] { display: none; }
+    details.subsection > summary { cursor: pointer; font-weight: 700; }
+    details.subsection[open] > summary { margin-bottom: 8px; }
     .rule-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
     .rule-result { width: 100%; margin-top: 10px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
     .rule-result th, .rule-result td { padding: 8px; border-top: 1px solid #d8e0e6; text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
@@ -232,7 +238,7 @@ SETTINGS_HTML = """
 <main>
   <section>
     <h1>설정</h1>
-    <div class="note">demo 모드는 API 키 없이 학습/검증용으로 실행할 수 있다. live 모드는 저장 시 업비트 API 키가 필요하다.</div>
+    <div class="note">필수 설정은 거래 모드, 거래소(LIVE), 코인/마켓입니다. 세부 학습 설정은 아래 고급 설정에서 관리합니다.</div>
     <label for="serverName">서버 이름</label>
     <input id="serverName" autocomplete="off" placeholder="예: 서울-데모-1">
     <div class="note">텔레그램 알림 앞에 표시되어 어떤 서버에서 보낸 메시지인지 구분한다.</div>
@@ -240,6 +246,27 @@ SETTINGS_HTML = """
     <div id="modeSwitch" class="switch">
       <button type="button" data-mode="demo">DEMO</button>
       <button type="button" data-mode="live">LIVE</button>
+    </div>
+    <div id="upbitCredentialSection" class="settings-group" hidden>
+      <h2>실거래 거래소 및 API</h2>
+      <div class="note">거래소와 API 키를 선택하세요. 저장 후 서버 재시작 시 적용됩니다.</div>
+      <label for="liveExchange">거래소<span class="required-mark live-required">*</span></label>
+      <select id="liveExchange" onchange="updateExchangeFields()"><option value="upbit">업비트</option><option value="coinone">코인원</option></select>
+      <div id="upbitKeys">
+        <label for="accessKey">업비트 액세스 키<span class="required-mark live-required">*</span></label>
+        <input id="accessKey" autocomplete="off" placeholder="저장된 키가 있으면 ********로 표시">
+        <label for="secretKey">업비트 시크릿 키<span class="required-mark live-required">*</span></label>
+        <input id="secretKey" type="password" autocomplete="off" placeholder="저장된 키가 있으면 ********로 표시">
+      </div>
+      <div id="coinoneKeys" class="hidden">
+        <label for="coinoneAccessToken">코인원 액세스 토큰<span class="required-mark live-required">*</span></label>
+        <input id="coinoneAccessToken" type="password" autocomplete="off" placeholder="저장된 키는 *** 표시">
+        <label for="coinoneSecretKey">코인원 시크릿 키<span class="required-mark live-required">*</span></label>
+        <input id="coinoneSecretKey" type="password" autocomplete="off" placeholder="저장된 키는 *** 표시">
+        <label for="coinoneFeeRate">코인원 편도 수수료율 (0.002 = 0.2%)</label>
+        <input id="coinoneFeeRate" type="number" min="0" max="0.01" step="0.0001" value="0.002">
+        <div class="note">API 키에는 잔고 조회·주문 조회·주문 권한과 서버 공인 IP 등록이 필요합니다.</div>
+      </div>
     </div>
     <label for="tradingProfile">투자성향<span class="required-mark">*</span></label>
     <select id="tradingProfile"></select>
@@ -256,6 +283,9 @@ SETTINGS_HTML = """
     </div>
     <label for="demoInitialCapital">데모 시작 투자금<span class="required-mark">*</span></label>
     <input id="demoInitialCapital" type="number" min="0" step="10000" placeholder="1000000">
+    <details class="subsection">
+      <summary>고급 설정 · 외부 컨텍스트, 학습 및 리스크 조정</summary>
+      <div class="note">기본 거래에 익숙한 경우 이 항목은 기본값으로 둘 수 있습니다.</div>
     <div class="subsection">
       <label>온체인/ETF 컨텍스트</label>
       <div class="checkbox-line">
@@ -380,27 +410,7 @@ SETTINGS_HTML = """
       </div>
       <div id="autoRuleStatus" class="note"></div>
     </div>
-    <div id="upbitCredentialSection" class="subsection">
-      <label for="liveExchange">실거래 거래소</label>
-      <select id="liveExchange" onchange="updateExchangeFields()"><option value="upbit">업비트</option><option value="coinone">코인원</option></select>
-      <div class="note">거래소·모드 변경은 저장 후 서버 재시작 시 적용됩니다. 코인원은 해당 거래소 시세와 잔고로 운용합니다.</div>
-      <div id="upbitKeys">
-      <label for="accessKey">업비트 액세스 키<span class="required-mark live-required">*</span></label>
-      <input id="accessKey" autocomplete="off" placeholder="저장된 키가 있으면 ********로 표시">
-      <label for="secretKey">업비트 시크릿 키<span class="required-mark live-required">*</span></label>
-      <input id="secretKey" type="password" autocomplete="off" placeholder="저장된 키가 있으면 ********로 표시">
-      </div>
-      <div id="coinoneKeys" style="display:none">
-        <label for="coinoneAccessToken">코인원 액세스 토큰</label>
-        <input id="coinoneAccessToken" type="password" autocomplete="off" placeholder="저장된 키는 *** 표시">
-        <label for="coinoneSecretKey">코인원 시크릿 키</label>
-        <input id="coinoneSecretKey" type="password" autocomplete="off" placeholder="저장된 키는 *** 표시">
-        <label for="coinoneFeeRate">코인원 편도 수수료율 (0.002 = 0.2%)</label>
-        <input id="coinoneFeeRate" type="number" min="0" max="0.01" step="0.0001" value="0.002">
-        <div class="note">본인 계정 수수료율을 확인해 입력하세요. API 키에는 잔고 조회·주문 조회·주문 권한과 서버 공인 IP 등록이 필요합니다.</div>
-      </div>
-      <div class="note">LIVE 모드에서만 필요하다. DEMO 모드에서는 입력 폼을 숨기고 저장된 키를 변경하지 않는다.</div>
-    </div>
+    </details>
     <div class="subsection">
       <label for="telegramToken">텔레그램 봇 토큰</label>
       <div class="secret-input">
@@ -581,15 +591,15 @@ function formatReadinessProblems(readiness) {
 }
 function updateExchangeFields() {
   const coinone = document.getElementById("liveExchange").value === "coinone";
-  document.getElementById("upbitKeys").style.display = coinone ? "none" : "block";
-  document.getElementById("coinoneKeys").style.display = coinone ? "block" : "none";
+  document.getElementById("upbitKeys").classList.toggle("hidden", coinone);
+  document.getElementById("coinoneKeys").classList.toggle("hidden", !coinone);
 }
 function setMode(next) {
   mode = next;
   document.querySelectorAll("#modeSwitch button").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === mode);
   });
-  document.getElementById("upbitCredentialSection").style.display = mode === "live" ? "block" : "none";
+  document.getElementById("upbitCredentialSection").hidden = mode !== "live";
   document.querySelectorAll(".live-required").forEach((mark) => {
     mark.style.display = mode === "live" ? "inline" : "none";
   });
