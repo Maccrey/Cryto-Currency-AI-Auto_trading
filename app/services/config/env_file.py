@@ -50,7 +50,7 @@ class EnvFileService:
                 ),
             },
             "auto_rule_update": {
-                "enabled": values.get("AUTO_RULE_UPDATE_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
+                "enabled": values.get("AUTO_RULE_UPDATE_ENABLED", "true").lower() in {"1", "true", "yes", "on"},
                 "learning_completion_rate_required": float(
                     values.get("AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE", "1.0"),
                 ),

@@ -238,18 +238,40 @@ SETTINGS_HTML = """
 <main>
   <section>
     <h1>설정</h1>
-    <div class="note">필수 설정은 거래 모드, 거래소(LIVE), 코인/마켓입니다. 세부 학습 설정은 아래 고급 설정에서 관리합니다.</div>
-    <label for="serverName">서버 이름</label>
-    <input id="serverName" autocomplete="off" placeholder="예: 서울-데모-1">
-    <div class="note">텔레그램 알림 앞에 표시되어 어떤 서버에서 보낸 메시지인지 구분한다.</div>
-    <label>거래 모드<span class="required-mark">*</span></label>
-    <div id="modeSwitch" class="switch">
-      <button type="button" data-mode="demo">DEMO</button>
-      <button type="button" data-mode="live">LIVE</button>
+    <div class="note">공통 거래 설정과 알림은 함께 관리하고, 아래 탭에서 데모 또는 실거래 전용 설정을 선택합니다.</div>
+    <label>설정 카테고리<span class="required-mark">*</span></label>
+    <div id="modeSwitch" class="switch" role="tablist" aria-label="거래 설정 카테고리">
+      <button id="demoSettingsTab" type="button" role="tab" aria-controls="demoSettingsPanel" data-mode="demo">데모 설정</button>
+      <button id="liveSettingsTab" type="button" role="tab" aria-controls="liveSettingsPanel" data-mode="live">실거래 설정</button>
     </div>
-    <div id="upbitCredentialSection" class="settings-group" hidden>
-      <h2>실거래 거래소 및 API</h2>
-      <div class="note">거래소와 API 키를 선택하세요. 저장 후 서버 재시작 시 적용됩니다.</div>
+    <div class="settings-group">
+      <h2>공통 거래 설정</h2>
+      <label for="serverName">서버 이름</label>
+      <input id="serverName" autocomplete="off" placeholder="예: 서울-데모-1">
+      <div class="note">텔레그램 알림 앞에 표시되어 어느 서버에서 보낸 메시지인지 구분합니다.</div>
+      <label for="tradingProfile">투자성향<span class="required-mark">*</span></label>
+      <select id="tradingProfile"></select>
+      <div id="profileDescription" class="note"></div>
+      <div class="row">
+        <div>
+          <label for="tradeMarket">마켓<span class="required-mark">*</span></label>
+          <input id="tradeMarket" placeholder="KRW-XRP">
+        </div>
+        <div>
+          <label for="tradeCoin">코인<span class="required-mark">*</span></label>
+          <input id="tradeCoin" placeholder="XRP">
+        </div>
+      </div>
+    </div>
+    <div id="demoSettingsPanel" class="settings-group" role="tabpanel" aria-labelledby="demoSettingsTab">
+      <h2>데모 설정</h2>
+      <div class="note">실제 주문 없이 전략을 학습하고 검증할 때 사용하는 항목입니다.</div>
+      <label for="demoInitialCapital">데모 시작 투자금<span class="required-mark">*</span></label>
+      <input id="demoInitialCapital" type="number" min="0" step="10000" placeholder="1000000">
+    </div>
+    <div id="liveSettingsPanel" class="settings-group" role="tabpanel" aria-labelledby="liveSettingsTab" hidden>
+      <h2>실거래 설정</h2>
+      <div class="note">거래소와 API 키를 설정합니다. 저장 후 서버 재시작 시 적용됩니다.</div>
       <label for="liveExchange">거래소<span class="required-mark live-required">*</span></label>
       <select id="liveExchange" onchange="updateExchangeFields()"><option value="upbit">업비트</option><option value="coinone">코인원</option></select>
       <div id="upbitKeys">
@@ -268,23 +290,8 @@ SETTINGS_HTML = """
         <div class="note">API 키에는 잔고 조회·주문 조회·주문 권한과 서버 공인 IP 등록이 필요합니다.</div>
       </div>
     </div>
-    <label for="tradingProfile">투자성향<span class="required-mark">*</span></label>
-    <select id="tradingProfile"></select>
-    <div id="profileDescription" class="note"></div>
-    <div class="row">
-      <div>
-        <label for="tradeMarket">마켓<span class="required-mark">*</span></label>
-        <input id="tradeMarket" placeholder="KRW-XRP">
-      </div>
-      <div>
-        <label for="tradeCoin">코인<span class="required-mark">*</span></label>
-        <input id="tradeCoin" placeholder="XRP">
-      </div>
-    </div>
-    <label for="demoInitialCapital">데모 시작 투자금<span class="required-mark">*</span></label>
-    <input id="demoInitialCapital" type="number" min="0" step="10000" placeholder="1000000">
     <details class="subsection">
-      <summary>고급 설정 · 외부 컨텍스트, 학습 및 리스크 조정</summary>
+      <summary>공통 고급 설정 · 외부 컨텍스트, 학습 및 리스크 조정</summary>
       <div class="note">기본 거래에 익숙한 경우 이 항목은 기본값으로 둘 수 있습니다.</div>
     <div class="subsection">
       <label>온체인/ETF 컨텍스트</label>
@@ -412,6 +419,7 @@ SETTINGS_HTML = """
     </div>
     </details>
     <div class="subsection">
+      <h2>텔레그램 알림</h2>
       <label for="telegramToken">텔레그램 봇 토큰</label>
       <div class="secret-input">
         <input id="telegramToken" type="password" autocomplete="off" placeholder="저장된 토큰이 있으면 ********로 표시">
@@ -426,19 +434,6 @@ SETTINGS_HTML = """
       <label for="telegramChat">텔레그램 채팅 ID</label>
       <input id="telegramChat" autocomplete="off" placeholder="-1003988291151 또는 telegram:group:-1003988291151">
       <div class="note">그룹 채팅은 Bot API 전송용 숫자 ID(-100...)로 저장된다. Chat 값이 telegram:group:-100... 형식이면 저장할 때 자동 변환된다.</div>
-      <div class="row">
-        <div>
-          <label for="telegramUserId">텔레그램 사용자 ID</label>
-          <input id="telegramUserId" autocomplete="off" placeholder="467359360">
-        </div>
-        <div>
-          <label for="telegramUsername">텔레그램 사용자명</label>
-          <input id="telegramUsername" autocomplete="off" placeholder="@maccrey">
-        </div>
-      </div>
-      <label for="telegramAllowFrom">텔레그램 허용 사용자</label>
-      <input id="telegramAllowFrom" autocomplete="off" placeholder="467359360">
-      <div class="note">Identity의 AllowFrom 값을 기록해 둔다. 현재는 발신 알림 대상이 아니라 운영자 식별/향후 수신 명령 제한용 설정이다.</div>
       <button class="secondary" type="button" onclick="sendTelegramTest()">텔레그램 테스트 메시지 전송</button>
     </div>
     <div class="actions">
@@ -598,8 +593,10 @@ function setMode(next) {
   mode = next;
   document.querySelectorAll("#modeSwitch button").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === mode);
+    button.setAttribute("aria-selected", String(button.dataset.mode === mode));
   });
-  document.getElementById("upbitCredentialSection").hidden = mode !== "live";
+  document.getElementById("demoSettingsPanel").hidden = mode !== "demo";
+  document.getElementById("liveSettingsPanel").hidden = mode !== "live";
   document.querySelectorAll(".live-required").forEach((mark) => {
     mark.style.display = mode === "live" ? "inline" : "none";
   });
@@ -706,7 +703,9 @@ async function loadSettings() {
     document.getElementById("sidewaysMaxAvgAbsReturnPct").value = values.SIDEWAYS_MAX_AVG_ABS_RETURN_PCT || "0.001";
     document.getElementById("sidewaysScaleInMinDiscountPct").value = values.SIDEWAYS_SCALE_IN_MIN_DISCOUNT_PCT || "0.003";
     document.getElementById("storageDir").value = values.STORAGE_DIR || "./storage";
-    document.getElementById("autoRuleUpdateEnabled").checked = values.AUTO_RULE_UPDATE_ENABLED === "true";
+    document.getElementById("autoRuleUpdateEnabled").checked = !["0", "false", "no", "off"].includes(
+      String(values.AUTO_RULE_UPDATE_ENABLED || "true").trim().toLowerCase()
+    );
     document.getElementById("autoRuleCompletionRate").value = values.AUTO_RULE_UPDATE_MIN_LEARNING_COMPLETION_RATE || "1.0";
     document.getElementById("autoRuleWinRateSkip").value = values.AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD || "0.8";
     document.getElementById("autoRuleNoTradeHours").value = values.AUTO_RULE_UPDATE_NO_TRADE_HOURS || "24";
@@ -726,9 +725,6 @@ async function loadSettings() {
       ? "저장된 봇 토큰이 있습니다. 변경하지 않으면 기존 토큰을 유지합니다."
       : "저장된 봇 토큰이 없습니다.";
     document.getElementById("telegramChat").value = values.TELEGRAM_CHAT_ID || "";
-    document.getElementById("telegramUserId").value = values.TELEGRAM_USER_ID || "";
-    document.getElementById("telegramUsername").value = values.TELEGRAM_USERNAME || "";
-    document.getElementById("telegramAllowFrom").value = values.TELEGRAM_ALLOW_FROM || "";
     showStartPanel(Boolean(data.start_readiness && data.start_readiness.ready), data.start_readiness);
     await refreshTradingStatus(data.start_readiness);
     renderLatestRuleProposal(await fetchJson("/api/v1/rules/proposals"));
@@ -942,10 +938,7 @@ async function saveSettings() {
     AUTO_RULE_UPDATE_WIN_RATE_SKIP_THRESHOLD: document.getElementById("autoRuleWinRateSkip").value || "0.8",
     AUTO_RULE_UPDATE_NO_TRADE_HOURS: document.getElementById("autoRuleNoTradeHours").value || "24",
     TELEGRAM_BOT_TOKEN: document.getElementById("telegramToken").value,
-    TELEGRAM_CHAT_ID: document.getElementById("telegramChat").value,
-    TELEGRAM_USER_ID: document.getElementById("telegramUserId").value,
-    TELEGRAM_USERNAME: document.getElementById("telegramUsername").value,
-    TELEGRAM_ALLOW_FROM: document.getElementById("telegramAllowFrom").value
+    TELEGRAM_CHAT_ID: document.getElementById("telegramChat").value
   };
   if (mode === "live") {
     payload.LIVE_EXCHANGE = document.getElementById("liveExchange").value;

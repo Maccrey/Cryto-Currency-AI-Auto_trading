@@ -4,6 +4,7 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from itertools import islice
 
 
 @dataclass(frozen=True)
@@ -53,10 +54,14 @@ class MarketPriceStore:
         *,
         limit: int | None = None,
     ) -> list[MarketPriceSnapshot]:
-        history = list(self._history.get(market, ()))
+        history = self._history.get(market)
+        if not history or limit == 0 or (limit is not None and limit < 0):
+            return []
         if limit is None or limit >= len(history):
-            return history
-        return history[-limit:]
+            return list(history)
+        recent = list(islice(reversed(history), limit))
+        recent.reverse()
+        return recent
 
     def get_price(self, market: str) -> float | None:
         snapshot = self.get(market)

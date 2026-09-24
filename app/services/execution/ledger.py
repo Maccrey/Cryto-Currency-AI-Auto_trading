@@ -118,7 +118,8 @@ class ExecutionLedger:
             if matched_quantity <= 0:
                 continue
 
-            proceeds = (fill.filled_price * matched_quantity) - fill.fee
+            matched_fee = self._matched_sell_fee(fill, matched_quantity)
+            proceeds = (fill.filled_price * matched_quantity) - matched_fee
             realized_pnl += proceeds - (average_cost * matched_quantity)
             open_quantity = round(open_quantity - matched_quantity, 8)
             if open_quantity <= 0:
@@ -156,7 +157,8 @@ class ExecutionLedger:
             matched_quantity = min(open_quantity, fill.filled_quantity)
             if matched_quantity <= 0:
                 continue
-            proceeds = (fill.filled_price * matched_quantity) - fill.fee
+            matched_fee = self._matched_sell_fee(fill, matched_quantity)
+            proceeds = (fill.filled_price * matched_quantity) - matched_fee
             pnl = proceeds - (average_cost * matched_quantity)
             if self._recorded_date(record.recorded_at) == target_date:
                 realized_pnl += pnl
@@ -202,7 +204,8 @@ class ExecutionLedger:
             if matched_quantity <= 0:
                 continue
 
-            proceeds = (fill.filled_price * matched_quantity) - fill.fee
+            matched_fee = self._matched_sell_fee(fill, matched_quantity)
+            proceeds = (fill.filled_price * matched_quantity) - matched_fee
             pnl = proceeds - (average_cost * matched_quantity)
             realized_pnl += pnl
             if fill.is_stop_loss:
@@ -257,7 +260,8 @@ class ExecutionLedger:
             matched_quantity = min(open_quantity, fill.filled_quantity)
             if matched_quantity <= 0:
                 continue
-            proceeds = (fill.filled_price * matched_quantity) - fill.fee
+            matched_fee = self._matched_sell_fee(fill, matched_quantity)
+            proceeds = (fill.filled_price * matched_quantity) - matched_fee
             pnl = proceeds - (average_cost * matched_quantity)
             streak = streak + 1 if pnl < 0 else 0
             open_quantity = round(open_quantity - matched_quantity, 8)
@@ -292,7 +296,8 @@ class ExecutionLedger:
                 continue
 
             sell_quantity = min(asset_balance, fill.filled_quantity)
-            cash_balance += (fill.filled_price * sell_quantity) - fill.fee
+            matched_fee = self._matched_sell_fee(fill, sell_quantity)
+            cash_balance += (fill.filled_price * sell_quantity) - matched_fee
             asset_balance = round(asset_balance - sell_quantity, 8)
             if asset_balance <= 0:
                 asset_balance = 0.0
@@ -358,6 +363,13 @@ class ExecutionLedger:
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _matched_sell_fee(fill: FillResult, matched_quantity: float) -> float:
+        """Allocate only the fee belonging to quantity matched against inventory."""
+        if fill.filled_quantity <= 0 or matched_quantity <= 0:
+            return 0.0
+        return fill.fee * min(matched_quantity / fill.filled_quantity, 1.0)
 
     @staticmethod
     def _recorded_date(value: str | None) -> date | None:
