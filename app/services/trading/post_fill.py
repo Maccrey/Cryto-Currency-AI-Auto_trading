@@ -87,6 +87,9 @@ class PostFillService:
             )
         regime_payload = self._regime_payload(getattr(execution_result.decision, "regime", None))
         if self._learning_service is not None:
+            if execution.mode == "live":
+                self._learning_service.record(LearningEvent(event_name="fill_result", market=execution.market,
+                    mode="live", payload=asdict(execution)))
             self._learning_service.record(
                 LearningEvent(
                     event_name="position_opened",

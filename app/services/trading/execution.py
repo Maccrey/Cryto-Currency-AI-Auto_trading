@@ -30,6 +30,7 @@ class TradeExecutionService:
         self._executor = executor
         self._market = market
         self._order_rules = order_rules or UpbitOrderRules()
+        self._pending_decisions: dict[str, TradeDecisionResult] = {}
 
     def execute(self, decision: TradeDecisionResult) -> TradeExecutionResult:
         if not decision.sizing.allowed:
@@ -67,6 +68,8 @@ class TradeExecutionService:
         )
 
         execution = self._executor.execute(intent)
+        if isinstance(execution, LiveExecutionResult) and execution.accepted and execution.order_id:
+            self._pending_decisions[execution.order_id] = decision
         blocked_reason = getattr(execution, "blocked_reason", None)
         status = getattr(execution, "status", "unknown")
         return TradeExecutionResult(
@@ -85,6 +88,22 @@ class TradeExecutionService:
                 "blocked_reason": "ORDER_STATUS_UNAVAILABLE",
             }
         return order_status(order_id)
+
+    def resolve_order(self, order_id: str) -> TradeExecutionResult:
+        execution = self._executor.resolve_order(order_id)
+        return TradeExecutionResult(self._pending_decisions[order_id], execution,
+                                    execution.status, getattr(execution, "blocked_reason", None))
+
+    def acknowledge_order(self, order_id: str) -> None:
+        self._executor.acknowledge_order(order_id)
+        self._pending_decisions.pop(order_id, None)
+
+    def pending_order_ids(self) -> list[str]:
+        return list(self._pending_decisions)
+
+    def recovery_required(self) -> bool:
+        check = getattr(self._executor, "recovery_required", None)
+        return bool(check and check())
 
     @staticmethod
     def to_payload(result: TradeExecutionResult) -> dict[str, object]:

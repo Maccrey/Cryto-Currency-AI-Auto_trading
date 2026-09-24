@@ -163,6 +163,11 @@ class RecoveryOrchestrator:
                 reconcile_result=None,
             )
 
+        if self._trading_mode == "live" and reconcile_result.get("open_order_count", 0):
+            return BootState(safe_mode=True, hard_stop=False, trading_ready=False,
+                             failure_stage="open_orders_pending", portfolio_state=portfolio_state,
+                             reconcile_result=reconcile_result)
+
         boot_state = BootState(
             safe_mode=False,
             hard_stop=False,

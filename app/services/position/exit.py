@@ -103,6 +103,7 @@ class PositionExitService:
         self._take_profit_min_exit_ratio = min(max(float(take_profit_min_exit_ratio), 0.25), 1.0)
         self._weak_signal_take_profit_min_exit_ratio = min(max(float(weak_signal_take_profit_min_exit_ratio), self._take_profit_min_exit_ratio), 1.0)
         self._profit_protection_buffer_pct = max(float(profit_protection_buffer_pct), 0.0)
+        self._pending_live_exit: dict | None = None
 
     def evaluate_and_execute(
         self,
@@ -115,6 +116,8 @@ class PositionExitService:
         box_range_low: float | None = None,
         box_range_high: float | None = None,
     ) -> dict[str, object]:
+        if self._pending_live_exit is not None:
+            return self._resolve_live_exit()
         position = self._position_store.get()
         if position is None:
             return {
@@ -124,6 +127,9 @@ class PositionExitService:
                 "execution": None,
             }
 
+        live_context = dict(elapsed_sec=elapsed_sec, momentum_score=momentum_score,
+                            orderbook_imbalance=orderbook_imbalance, market_state=market_state,
+                            box_range_low=box_range_low, box_range_high=box_range_high)
         hard_stop = self._hard_stop_monitor.evaluate(
             position=position,
             current_price=current_price,
@@ -162,6 +168,8 @@ class PositionExitService:
                 price=hard_stop.trigger_price,
                 quantity=hard_stop.quantity,
             )
+            if self._trading_mode == "live":
+                return self._queue_live_exit(execution, position, "hard_stop", hard_stop.reason_code, live_context)
             self._position_store.clear()
             self._post_entry_validator.reset()   # 트레일링 스탑 상태 초기화
             self._record_exit_event(
@@ -233,6 +241,8 @@ class PositionExitService:
                 price=current_price,
                 quantity=exit_quantity,
             )
+            if self._trading_mode == "live":
+                return self._queue_live_exit(execution, position, "box_range_take_profit", "BOX_RANGE_HIGH_TAKE_PROFIT", live_context)
             self._position_store.clear()
             self._post_entry_validator.reset()   # 트레일링 스탑 상태 초기화
             self._record_exit_event(
@@ -318,6 +328,8 @@ class PositionExitService:
                 quantity=exit_quantity,
             )
             remaining_quantity = round(position.quantity - exit_quantity, 8)
+            if self._trading_mode == "live":
+                return self._queue_live_exit(execution, position, "take_profit", "TAKE_PROFIT_TARGET_HIT", live_context)
             if remaining_quantity <= 0:
                 self._position_store.clear()
                 self._post_entry_validator.reset()   # 트레일링 스탑 상태 초기화
@@ -441,6 +453,8 @@ class PositionExitService:
             price=current_price,
             quantity=exit_quantity,
         )
+        if self._trading_mode == "live":
+            return self._queue_live_exit(execution, position, "take_profit" if is_take_profit else "post_entry", post_entry.reason_code, live_context)
         remaining_quantity = round(position.quantity - exit_quantity, 8)
         if remaining_quantity <= 0:
             self._position_store.clear()
@@ -569,6 +583,50 @@ class PositionExitService:
             "estimated_net_return_pct": round(net_return_pct, 6),
             "round_trip_fee_pct": round(round_trip_fee_pct, 6),
         }
+
+    def _queue_live_exit(self, execution, position, trigger_type, reason_code, context):
+        if not getattr(execution, "accepted", False) or not getattr(execution, "order_id", None):
+            return {"status": "blocked", "position": self._position_store.to_payload(position),
+                    "trigger": None, "execution": asdict(execution) if execution else None}
+        self._pending_live_exit = {"order_id": execution.order_id, "position": position,
+                                   "trigger_type": trigger_type, "reason_code": reason_code, "context": context}
+        return {"status": "pending", "position": self._position_store.to_payload(position),
+                "trigger": None, "execution": asdict(execution)}
+
+    def _resolve_live_exit(self):
+        pending = self._pending_live_exit
+        execution = self._executor.resolve_order(pending["order_id"])
+        position = pending["position"]
+        if not isinstance(execution, FillResult):
+            if execution.status == "cancel":
+                self._executor.acknowledge_order(pending["order_id"])
+                self._pending_live_exit = None
+            return {"status": "blocked" if execution.status == "cancel" else "pending",
+                    "position": self._position_store.to_payload(position), "trigger": None,
+                    "execution": asdict(execution)}
+        remaining = round(position.quantity - execution.filled_quantity, 8)
+        if remaining < -1e-6:
+            raise ValueError("Live sell exceeds managed position")
+        if remaining <= 0:
+            self._position_store.clear()
+            self._post_entry_validator.reset()
+            updated = None
+        else:
+            updated = replace(position, quantity=remaining)
+            if pending["trigger_type"] == "take_profit" and not execution.is_stop_loss:
+                updated = self._profit_protected_position(position=position,
+                    current_price=execution.filled_price, remaining_quantity=remaining)
+            self._position_store.save(updated)
+        self._record_exit_event(position=position, trigger_type=pending["trigger_type"],
+            reason_code=pending["reason_code"], exit_ratio=execution.filled_quantity / position.quantity,
+            current_price=execution.filled_price, execution=execution, remaining_quantity=max(remaining, 0),
+            **pending["context"])
+        self._executor.acknowledge_order(pending["order_id"])
+        self._pending_live_exit = None
+        return {"status": "ok", "position": None if updated is None else self._position_store.to_payload(updated),
+                "trigger": {"type": pending["trigger_type"], "reason_code": pending["reason_code"],
+                            "exit_ratio": execution.filled_quantity / position.quantity},
+                "execution": asdict(execution)}
 
     def _dynamic_take_profit_target_pct(
         self,
@@ -751,6 +809,9 @@ class PositionExitService:
     ) -> None:
         extra_payload = extra_payload or {}
         if self._learning_service is not None:
+            if isinstance(execution, FillResult) and execution.mode == "live":
+                self._learning_service.record(LearningEvent(event_name="fill_result", market=execution.market,
+                    mode="live", payload=asdict(execution)))
             self._learning_service.record(
                 LearningEvent(
                     event_name="position_exit_completed",

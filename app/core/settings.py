@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
@@ -21,6 +22,11 @@ class SettingsModel(BaseModel):
     server_name: str = Field(default="")
     app_timezone: str = Field(default="Asia/Seoul")
     trading_mode: str = Field(default="demo")
+    live_exchange: Literal["upbit", "coinone"] = "upbit"
+    coinone_access_token: str = ""
+    coinone_secret_key: str = ""
+    coinone_base_url: str = "https://api.coinone.co.kr"
+    coinone_fee_rate: float = Field(default=0.002, ge=0, le=0.01)
     learning_enabled: bool = Field(default=True)
     rule_review_enabled: bool = Field(default=True)
     rule_review_window_days: int = Field(default=14)
@@ -311,6 +317,11 @@ class AppSettings:
     dashboard_host: str
     dashboard_port: int
     env_file_path: Path
+    live_exchange: str = "upbit"
+    coinone_access_token: str = ""
+    coinone_secret_key: str = ""
+    coinone_base_url: str = "https://api.coinone.co.kr"
+    coinone_fee_rate: float = 0.002
 
 
 def load_settings(*, env_file: Path | None = None) -> AppSettings:
@@ -324,6 +335,11 @@ def load_settings(*, env_file: Path | None = None) -> AppSettings:
         raise SettingsError(str(exc)) from exc
 
     payload = {
+        "live_exchange": _setting("LIVE_EXCHANGE", "upbit", env_values),
+        "coinone_access_token": _setting("COINONE_ACCESS_TOKEN", "", env_values),
+        "coinone_secret_key": _setting("COINONE_SECRET_KEY", "", env_values),
+        "coinone_base_url": _setting("COINONE_BASE_URL", "https://api.coinone.co.kr", env_values),
+        "coinone_fee_rate": float(_setting("COINONE_FEE_RATE", "0.002", env_values)),
         "app_env": _setting("APP_ENV", "production", env_values),
         "app_name": _setting("APP_NAME", "upbit-auto-trader", env_values),
         "server_name": _setting("SERVER_NAME", "", env_values),

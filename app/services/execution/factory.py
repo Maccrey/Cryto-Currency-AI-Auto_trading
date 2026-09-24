@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from pathlib import Path
 
 from app.services.execution.demo import DemoExecutor
 from app.services.execution.interface import ExecutionExecutor
@@ -19,10 +20,12 @@ class ExecutionFactory:
         fee_rate: float = DemoExecutor.FEE_RATE,
         min_order_amount_krw: float = 5_000.0,
         order_rules: UpbitOrderRules | None = None,
+        journal_path: Path | None = None,
     ) -> None:
         self._live_order_gateway = live_order_gateway
         self._learning_service = learning_service
         self._fee_rate = fee_rate
+        self._journal_path = journal_path
         self._order_rules = order_rules or UpbitOrderRules(
             min_order_amount_krw=min_order_amount_krw,
         )
@@ -35,6 +38,7 @@ class ExecutionFactory:
                 safe_mode=safe_mode,
                 hard_stop=hard_stop,
                 order_rules=self._order_rules,
+                journal_path=self._journal_path,
             )
 
         return DemoExecutor(

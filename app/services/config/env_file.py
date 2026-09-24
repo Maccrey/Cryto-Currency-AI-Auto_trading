@@ -6,7 +6,7 @@ from pathlib import Path
 from app.core.trading_profile import TRADING_PROFILES, get_trading_profile
 
 
-SECRET_KEYS = {"UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY", "TELEGRAM_BOT_TOKEN"}
+SECRET_KEYS = {"UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY", "COINONE_ACCESS_TOKEN", "COINONE_SECRET_KEY", "TELEGRAM_BOT_TOKEN"}
 SECRET_MASK = "***"
 LIVE_REQUIRED_KEYS = ["UPBIT_ACCESS_KEY", "UPBIT_SECRET_KEY"]
 DEMO_REQUIRED_KEYS = ["TRADING_MODE", "TRADING_PROFILE", "TRADE_MARKET", "TRADE_COIN", "DEMO_INITIAL_CAPITAL"]
@@ -21,6 +21,8 @@ class EnvFileService:
     def current(self) -> dict[str, object]:
         values = self._read()
         display_values = dict(values)
+        display_values.setdefault("LIVE_EXCHANGE", "upbit")
+        display_values.setdefault("COINONE_FEE_RATE", "0.002")
         display_values.setdefault("SERVER_NAME", self._default_server_name())
         for key, value in self._sideways_risk_defaults().items():
             display_values.setdefault(key, value)
@@ -105,7 +107,17 @@ class EnvFileService:
             normalized["TRADE_MARKET"] = normalized["TRADE_MARKET"].upper()
         self._normalize_trade_market_for_coin(values=values, normalized=normalized)
         normalized.setdefault("LEARNING_ENABLED", "true")
-        mode = normalized.get("TRADING_MODE", "demo")
+        mode = normalized.get("TRADING_MODE", values.get("TRADING_MODE", "demo"))
+        exchange = normalized.get("LIVE_EXCHANGE", values.get("LIVE_EXCHANGE", "upbit"))
+        if exchange not in {"upbit", "coinone"}:
+            return {"status": "invalid", "saved": False, "message": "LIVE_EXCHANGE must be upbit or coinone"}
+        normalized["LIVE_EXCHANGE"] = exchange
+        if "COINONE_FEE_RATE" in normalized:
+            try:
+                if not 0 <= float(normalized["COINONE_FEE_RATE"]) <= 0.01:
+                    raise ValueError
+            except ValueError:
+                return {"status": "invalid", "saved": False, "message": "COINONE_FEE_RATE must be between 0 and 0.01"}
         if mode not in {"demo", "live"}:
             return {
                 "status": "invalid",
@@ -129,13 +141,13 @@ class EnvFileService:
         for key, value in self._profile_defaults(profile_spec).items():
             normalized.setdefault(key, value)
 
-        missing_for_live = self._missing_for_live(normalized) if mode == "live" else []
+        missing_for_live = self._missing_for_live({**values, **normalized}) if mode == "live" else []
         if missing_for_live:
             return {
                 "status": "missing_required",
                 "saved": False,
                 "missing_for_live": missing_for_live,
-                "message": "live mode requires Upbit API keys",
+                "message": f"live mode requires {exchange} API keys",
             }
 
         values.update(normalized)
@@ -171,6 +183,8 @@ class EnvFileService:
 
         if mode == "live":
             missing.extend(self._missing_for_live(current_values))
+            if current_values.get("LIVE_EXCHANGE", "upbit") not in {"upbit", "coinone"}:
+                invalid.append("LIVE_EXCHANGE")
 
         missing = sorted(set(missing))
         invalid = sorted(set(invalid))
@@ -179,7 +193,7 @@ class EnvFileService:
             "mode": mode,
             "missing": missing,
             "invalid": invalid,
-            "required": sorted(set(DEMO_REQUIRED_KEYS + (LIVE_REQUIRED_KEYS if mode == "live" else []))),
+            "required": sorted(set(DEMO_REQUIRED_KEYS + (self._live_required_keys(current_values) if mode == "live" else []))),
             "message": self._readiness_message(mode=mode, missing=missing, invalid=invalid),
         }
 
@@ -202,7 +216,13 @@ class EnvFileService:
 
     @staticmethod
     def _missing_for_live(values: dict[str, str]) -> list[str]:
-        return [key for key in LIVE_REQUIRED_KEYS if not values.get(key, "").strip()]
+        return [key for key in EnvFileService._live_required_keys(values) if not values.get(key, "").strip() or EnvFileService._is_secret_placeholder(values[key])]
+
+    @staticmethod
+    def _live_required_keys(values: dict[str, str]) -> list[str]:
+        if values.get("LIVE_EXCHANGE", "upbit") == "coinone":
+            return ["COINONE_ACCESS_TOKEN", "COINONE_SECRET_KEY"]
+        return LIVE_REQUIRED_KEYS
 
     @staticmethod
     def _normalize_trade_market_for_coin(*, values: dict[str, str], normalized: dict[str, str]) -> None:

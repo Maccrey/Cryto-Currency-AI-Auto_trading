@@ -381,10 +381,24 @@ SETTINGS_HTML = """
       <div id="autoRuleStatus" class="note"></div>
     </div>
     <div id="upbitCredentialSection" class="subsection">
+      <label for="liveExchange">실거래 거래소</label>
+      <select id="liveExchange" onchange="updateExchangeFields()"><option value="upbit">업비트</option><option value="coinone">코인원</option></select>
+      <div class="note">거래소·모드 변경은 저장 후 서버 재시작 시 적용됩니다. 코인원은 해당 거래소 시세와 잔고로 운용합니다.</div>
+      <div id="upbitKeys">
       <label for="accessKey">업비트 액세스 키<span class="required-mark live-required">*</span></label>
       <input id="accessKey" autocomplete="off" placeholder="저장된 키가 있으면 ********로 표시">
       <label for="secretKey">업비트 시크릿 키<span class="required-mark live-required">*</span></label>
       <input id="secretKey" type="password" autocomplete="off" placeholder="저장된 키가 있으면 ********로 표시">
+      </div>
+      <div id="coinoneKeys" style="display:none">
+        <label for="coinoneAccessToken">코인원 액세스 토큰</label>
+        <input id="coinoneAccessToken" type="password" autocomplete="off" placeholder="저장된 키는 *** 표시">
+        <label for="coinoneSecretKey">코인원 시크릿 키</label>
+        <input id="coinoneSecretKey" type="password" autocomplete="off" placeholder="저장된 키는 *** 표시">
+        <label for="coinoneFeeRate">코인원 편도 수수료율 (0.002 = 0.2%)</label>
+        <input id="coinoneFeeRate" type="number" min="0" max="0.01" step="0.0001" value="0.002">
+        <div class="note">본인 계정 수수료율을 확인해 입력하세요. API 키에는 잔고 조회·주문 조회·주문 권한과 서버 공인 IP 등록이 필요합니다.</div>
+      </div>
       <div class="note">LIVE 모드에서만 필요하다. DEMO 모드에서는 입력 폼을 숨기고 저장된 키를 변경하지 않는다.</div>
     </div>
     <div class="subsection">
@@ -565,6 +579,11 @@ function formatReadinessProblems(readiness) {
   if (readiness.invalid && readiness.invalid.length) parts.push(`확인 필요: ${readiness.invalid.join(", ")}`);
   return parts.length ? parts.join(" / ") : readiness.message;
 }
+function updateExchangeFields() {
+  const coinone = document.getElementById("liveExchange").value === "coinone";
+  document.getElementById("upbitKeys").style.display = coinone ? "none" : "block";
+  document.getElementById("coinoneKeys").style.display = coinone ? "block" : "none";
+}
 function setMode(next) {
   mode = next;
   document.querySelectorAll("#modeSwitch button").forEach((button) => {
@@ -685,6 +704,11 @@ async function loadSettings() {
     document.getElementById("dataPathStatus").textContent = `로그 ${dataPath.learning_log_dir || "-"} / 데이터셋 ${dataPath.learning_dataset_dir || "-"}`;
     const autoRule = data.auto_rule_update || {};
     document.getElementById("autoRuleStatus").textContent = `현재 ${autoRule.enabled ? "ON" : "OFF"} / 충족률 ${autoRule.learning_completion_rate_required || 1.0} / 승률 기준 ${autoRule.win_rate_skip_threshold || 0.8} / 무거래 ${autoRule.no_trade_hours || 24}시간`;
+    document.getElementById("liveExchange").value = values.LIVE_EXCHANGE || "upbit";
+    document.getElementById("coinoneAccessToken").value = values.COINONE_ACCESS_TOKEN || "";
+    document.getElementById("coinoneSecretKey").value = values.COINONE_SECRET_KEY || "";
+    document.getElementById("coinoneFeeRate").value = values.COINONE_FEE_RATE || "0.002";
+    updateExchangeFields();
     document.getElementById("accessKey").value = values.UPBIT_ACCESS_KEY || "";
     document.getElementById("secretKey").value = values.UPBIT_SECRET_KEY || "";
     setTelegramTokenHidden(values.TELEGRAM_BOT_TOKEN === "***");
@@ -914,8 +938,15 @@ async function saveSettings() {
     TELEGRAM_ALLOW_FROM: document.getElementById("telegramAllowFrom").value
   };
   if (mode === "live") {
-    payload.UPBIT_ACCESS_KEY = document.getElementById("accessKey").value;
-    payload.UPBIT_SECRET_KEY = document.getElementById("secretKey").value;
+    payload.LIVE_EXCHANGE = document.getElementById("liveExchange").value;
+    if (payload.LIVE_EXCHANGE === "coinone") {
+      payload.COINONE_ACCESS_TOKEN = document.getElementById("coinoneAccessToken").value;
+      payload.COINONE_SECRET_KEY = document.getElementById("coinoneSecretKey").value;
+      payload.COINONE_FEE_RATE = document.getElementById("coinoneFeeRate").value;
+    } else {
+      payload.UPBIT_ACCESS_KEY = document.getElementById("accessKey").value;
+      payload.UPBIT_SECRET_KEY = document.getElementById("secretKey").value;
+    }
   }
   try {
     const response = await fetch("/settings", {

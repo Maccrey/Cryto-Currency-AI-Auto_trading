@@ -52,7 +52,9 @@ class RecordingLiveOrderGateway:
 
     def get_order(self, *, order_id: str) -> dict[str, object]:
         state = self.order_states.pop(0) if self.order_states else "wait"
-        return {"uuid": order_id, "state": state, "market": "KRW-XRP", "side": "bid"}
+        return {"uuid": order_id, "state": state, "market": "KRW-XRP", "side": "bid",
+                "executed_volume": "120", "paid_fee": "49.5",
+                "trades": [{"price": "825", "volume": "120", "funds": "99000"}]}
 
 
 class PortfolioSyncStub:
@@ -800,8 +802,10 @@ def test_auto_trading_service_resumes_live_after_order_done_and_portfolio_sync(t
     second = service.tick()
 
     assert first["status"] == "wait"
-    assert second["status"] == "blocked"
-    assert second["reason"] == "LIVE_ASSET_WITHOUT_ACTIVE_POSITION"
+    assert second["status"] == "position_checked"
+    assert second["reason"] == "LIVE_ORDER_RESOLVED"
+    assert service._position_store.get().quantity == 120
+    assert service._position_store.get().entry_price == 825
     assert sync.calls == 1
     assert service._portfolio_state().cash_balance == 900_000.0
     assert len(gateway.order_calls) == 1

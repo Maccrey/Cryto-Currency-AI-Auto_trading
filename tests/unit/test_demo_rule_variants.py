@@ -369,7 +369,7 @@ def test_demo_rule_variant_positive_leader_switches_applied_entry_policy() -> No
     assert report["leader_key"] == "B"
     assert report["selection_changed"] is True
     assert report["applied_variant_key"] == "B"
-    assert applied.sizing.buy_amount > decision.sizing.buy_amount
+    assert applied.sizing.buy_amount <= decision.sizing.buy_amount
 
 
 def test_demo_rule_variant_stop_loss_forced_switch() -> None:

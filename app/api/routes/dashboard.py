@@ -32,6 +32,7 @@ def build_dashboard_router(
     dashboard_recovery_facade: DashboardRecoveryFacade,
     promotion_dashboard_facade: PromotionDashboardFacade,
     external_context_provider: Callable[..., dict[str, object]] | None = None,
+    live_exchange: str = "upbit",
 ) -> APIRouter:
     router = APIRouter(prefix="/dashboard")
 
@@ -41,13 +42,16 @@ def build_dashboard_router(
 
     @router.get("/summary")
     def dashboard_summary() -> dict[str, object]:
-        return dashboard_summary_facade.build_response(
+        payload = dashboard_summary_facade.build_response(
             boot_state=boot_state_provider() if boot_state_provider is not None else boot_state,
             trading_mode=trading_mode,
             trading_profile=trading_profile,
             trading_profile_label=trading_profile_label,
             learning_enabled=learning_enabled,
         )
+        if trading_mode == "live":
+            payload["exchange"] = live_exchange
+        return payload
 
     @router.get("/market")
     def dashboard_market(history_limit: int = 20) -> dict[str, object]:
@@ -1935,7 +1939,7 @@ function renderDashboard(data) {
   document.getElementById("statusLine").innerHTML = `${readyBadge} ${learningBadge}`;
   renderTradingRuntime(tradingStatus);
   renderExchangeSimulation({market, tradingStatus, winRate});
-  document.getElementById("modeMetric").textContent = String(summary.trading_mode || health.mode).toUpperCase();
+  document.getElementById("modeMetric").textContent = String(summary.trading_mode || health.mode).toUpperCase() + (summary.trading_mode === "live" ? ` · ${summary.exchange === "coinone" ? "코인원" : "업비트"}` : "");
   const profileLabel = summary.trading_profile_label || summary.trading_profile || "단타";
   const modeDescription = summary.trading_mode === "live" ? "실제 주문 모드입니다. API 키와 리스크 상태를 계속 확인하세요." : "데모 주문 모드입니다. API 키 없이 학습과 검증을 진행합니다.";
   setLinesWithTitle("modeSub", [modeDescription, `투자성향: ${profileLabel}`]);

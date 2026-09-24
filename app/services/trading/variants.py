@@ -599,10 +599,12 @@ class DemoRuleVariantShadowTester:
         
         # 룰 배수를 적용한 매수 금액 계산 후 가용 현금(수수료 감안)으로 캡핑
         raw_buy_amount = sizing.buy_amount * policy.buy_multiplier
-        max_allowed = available_cash / (1 + self._trading_fee_rate)
-        buy_amount = round(min(raw_buy_amount, max_allowed), 1)
+        # Sizing already imposed the cash reserve and stop-loss risk budget.
+        # A shadow winner cannot enlarge an approved order past that budget.
+        max_allowed = min(sizing.buy_amount, available_cash / (1 + self._trading_fee_rate))
+        buy_amount = min(round(min(raw_buy_amount, max_allowed), 1), max_allowed)
 
-        buy_ratio = round(min(sizing.buy_ratio * policy.buy_multiplier, 1.0), 3)
+        buy_ratio = round(sizing.buy_ratio * buy_amount / sizing.buy_amount, 3)
         return replace(
             decision,
             sizing=replace(

@@ -112,6 +112,7 @@ class AutoTradingService:
         uptime_store: TradingUptimeStore | None = None,
         execution_ledger: ExecutionLedger | None = None,
         etf_context_change_monitor: Any | None = None,
+        live_portfolio_update_callback: Callable[[PortfolioState], None] | None = None,
     ) -> None:
         self._market = market
         self._trading_mode = trading_mode
@@ -131,6 +132,7 @@ class AutoTradingService:
         self._external_context_provider = external_context_provider
         self._auto_rule_update_service = auto_rule_update_service
         self._live_portfolio_sync_service = live_portfolio_sync_service
+        self._live_portfolio_update_callback = live_portfolio_update_callback
         self._telegram_notifier = telegram_notifier
         self._uptime_store = uptime_store
         self._execution_ledger = execution_ledger
@@ -197,6 +199,8 @@ class AutoTradingService:
         )
         self._last_cycle: dict[str, object] | None = None
         self._pending_live_order_id: str | None = None
+        self._pending_live_fill_applied = False
+        self._live_sync_required = False
         self._last_ticker_reference_change_pct: float | None = None
         self._last_auto_rule_update_check_at = 0
         self._auto_rule_update_check_interval_sec = 60
@@ -402,6 +406,24 @@ class AutoTradingService:
         if not self.should_run():
             return self._record_cycle(status="disabled", reason="AUTO_TRADING_DISABLED_OR_NOT_READY")
 
+        # Resolve orders before any further entry OR protective sell decision.
+        if self._trading_mode == "live" and self._trade_execution_service.recovery_required():
+            return self._record_cycle(status="blocked", reason="LIVE_ORDER_RECONCILIATION_REQUIRED")
+        if self._trading_mode == "live" and self._pending_live_order_id is None:
+            pending_ids = self._trade_execution_service.pending_order_ids()
+            if pending_ids:
+                self._pending_live_order_id = pending_ids[0]
+                self._pending_live_fill_applied = False
+        if self._pending_live_order_id is not None:
+            pending = self._resolve_pending_live_order()
+            return self._record_cycle(status="position_checked" if pending["resolved"] else "blocked",
+                                      reason="LIVE_ORDER_RESOLVED" if pending["resolved"] else "LIVE_ORDER_PENDING", extra=pending)
+        if self._live_sync_required:
+            sync = self._sync_live_portfolio_after_order()
+            if sync["status"] != "synced":
+                return self._record_cycle(status="blocked", reason="LIVE_PORTFOLIO_SYNC_REQUIRED", extra={"portfolio_sync": sync})
+            self._live_sync_required = False
+
         try:
             snapshot = self._get_snapshot()
         except Exception as exc:
@@ -443,6 +465,12 @@ class AutoTradingService:
                 self._position_opened_at = None
                 self._scale_in_count = 0
             self._apply_demo_execution(result.get("execution"))
+            if self._trading_mode == "live":
+                if result.get("status") in {"pending", "blocked"}:
+                    return self._record_cycle(status="blocked", reason="LIVE_EXIT_PENDING_OR_BLOCKED", extra={"position_result": result})
+                live_fill = result.get("execution") or {}
+                if live_fill.get("status") == "filled":
+                    self._live_sync_required = self._sync_live_portfolio_after_order()["status"] != "synced"
             if result.get("trigger") is not None:
                 trigger = result.get("trigger")
                 if isinstance(trigger, dict):
@@ -758,26 +786,7 @@ class AutoTradingService:
                     **rule_variant,
                 },
             )
-        if relaxed_signal and decision.sizing.blocked_reason == "FEE_ADJUSTED_EDGE_LIMIT":
-            decision = self._trade_decision_service.evaluate(
-                self._build_decision_request(snapshot.trade_price, relax_fee_edge=True),
-            )
-            variant_payload = self._run_demo_rule_variant_shadow(decision=decision, current_price=snapshot.trade_price)
-            available_cash = self._demo_cash_balance if self._trading_mode == "demo" else portfolio.cash_balance
-            decision = self._apply_variant_and_gate_entry(
-                decision=decision,
-                variant_payload=variant_payload,
-                current_price=snapshot.trade_price,
-                position_exists=position is not None,
-                available_cash=available_cash,
-            )
-            box_range_opportunity = self._box_range_buy_opportunity(
-                market_state=decision.regime.market_state,
-                box_range_low=decision.regime.box_range_low,
-                box_range_high=decision.regime.box_range_high,
-                current_price=snapshot.trade_price,
-                position_exists=position is not None,
-            )
+        # A long wait or shadow-rule selection cannot waive transaction costs.
         if decision.signal.level == "weak" and not relaxed_signal:
             self._consecutive_entry_blocks += 1
             rule_variant = self._variant_extra(variant_payload)
@@ -1051,6 +1060,7 @@ class AutoTradingService:
             return
         if getattr(execution, "accepted", False):
             self._pending_live_order_id = getattr(execution, "order_id", None) or "unknown"
+            self._pending_live_fill_applied = False
 
     def _notify_market_shock_if_needed(
         self,
@@ -1082,26 +1092,39 @@ class AutoTradingService:
         if order_id is None:
             return {"resolved": True}
         try:
-            status = self._trade_execution_service.order_status(order_id)
+            result = self._trade_execution_service.resolve_order(order_id)
         except Exception as exc:
             return {
                 "resolved": False,
                 "pending_live_order_id": order_id,
                 "order_status_error": str(exc),
             }
-        state = str(status.get("state", "unknown"))
-        if state not in {"done", "cancel"}:
+        state = result.status
+        if state not in {"filled", "cancel"}:
             return {
                 "resolved": False,
                 "pending_live_order_id": order_id,
-                "live_order_status": status,
+                "live_order_status": {"state": state},
             }
-        self._pending_live_order_id = None
+        if state == "filled" and not self._pending_live_fill_applied:
+            had_position = self._position_store.get() is not None
+            post_fill = self._post_fill_service.process(result)
+            self._pending_live_fill_applied = True
+            if post_fill.position is not None:
+                self._position_opened_at = self._clock()
+                self._last_trade_filled_at = self._clock()
+                self._last_entry_signal_level = result.decision.signal.level
+                self._last_entry_signal_score = result.decision.signal.score
+                self._scale_in_count = self._scale_in_count + 1 if had_position else 0
         sync_payload = self._sync_live_portfolio_after_order()
+        if sync_payload["status"] != "synced":
+            return {"resolved": False, "pending_live_order_id": order_id, "portfolio_sync": sync_payload}
+        self._trade_execution_service.acknowledge_order(order_id)
+        self._pending_live_order_id = None
         return {
             "resolved": True,
             "resolved_live_order_id": order_id,
-            "live_order_status": status,
+            "live_order_status": {"state": state},
             "portfolio_sync": sync_payload,
         }
 
@@ -1113,6 +1136,8 @@ class AutoTradingService:
         except Exception as exc:
             return {"status": "failed", "reason": str(exc)}
         self._boot_state = replace(self._boot_state, portfolio_state=portfolio)
+        if self._live_portfolio_update_callback is not None:
+            self._live_portfolio_update_callback(portfolio)
         return {
             "status": "synced",
             "cash_balance": portfolio.cash_balance,

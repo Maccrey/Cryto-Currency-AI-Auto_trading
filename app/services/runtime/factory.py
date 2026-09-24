@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
+from app.integrations.coinone.client import CoinoneRestClient
 from app.services.learning.service import LearningService
 from app.services.portfolio.sync import PortfolioState
 from app.services.portfolio.sync import PortfolioSyncService
@@ -49,7 +50,14 @@ def build_runtime_services(
     learning_service: LearningService | None = None,
     recovery_orchestrator: RecoveryOrchestrator | None = None,
     dispatch_boot_notification_on_start: bool = True,
+    live_exchange: str = "upbit",
+    coinone_access_token: str = "",
+    coinone_secret_key: str = "",
+    coinone_base_url: str = "https://api.coinone.co.kr",
 ) -> RuntimeServices:
+    if live_exchange not in {"upbit", "coinone"}:
+        raise ValueError("Unsupported live exchange")
+    access_key, secret_key = (coinone_access_token, coinone_secret_key) if live_exchange == "coinone" else (upbit_access_key, upbit_secret_key)
     if recovery_orchestrator is None:
         if trading_mode == "demo":
             recovery_orchestrator = StaticRecoveryOrchestrator(
@@ -67,7 +75,7 @@ def build_runtime_services(
                     reconcile_result={"open_order_count": 0, "status": "demo_skipped"},
                 ),
             )
-        elif trading_mode == "live" and (not upbit_access_key or not upbit_secret_key):
+        elif trading_mode == "live" and (not access_key or not secret_key):
             recovery_orchestrator = StaticRecoveryOrchestrator(
                 BootState(
                     safe_mode=True,
@@ -79,7 +87,9 @@ def build_runtime_services(
                 ),
             )
         else:
-            upbit_client = UpbitRestClient(
+            upbit_client = CoinoneRestClient(
+                base_url=coinone_base_url, access_token=coinone_access_token, secret_key=coinone_secret_key,
+            ) if live_exchange == "coinone" else UpbitRestClient(
                 base_url=upbit_base_url,
                 auth_signer=UpbitAuthSigner(
                     access_key=upbit_access_key,

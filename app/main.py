@@ -28,6 +28,9 @@ from app.core.settings import load_settings
 from app.core.trading_profile import get_trading_profile, learning_log_dir_for_coin_profile
 from app.integrations.upbit.auth import UpbitAuthSigner
 from app.integrations.upbit.client import UpbitRestClient
+from app.integrations.coinone.client import CoinoneRestClient
+from app.integrations.coinone.gateway import CoinoneLiveOrderGateway
+from app.integrations.coinone.market import CoinoneMarketProvider
 from app.integrations.telegram.boot_notification_dispatcher import BootNotificationDispatcher
 from app.integrations.telegram.gateway import TelegramHttpGateway
 from app.integrations.telegram.hard_stop_notifier import HardStopNotifier
@@ -120,6 +123,9 @@ def create_app(
     timestamp_provider: Callable[[], str] | None = None,
 ) -> FastAPI:
     settings = load_settings()
+    use_coinone = settings.trading_mode == "live" and settings.live_exchange == "coinone"
+    if use_coinone:
+        settings = replace(settings, trading_fee_rate=settings.coinone_fee_rate)
     env_file_service = EnvFileService(settings.env_file_path)
     trading_profile = get_trading_profile(settings.trading_profile)
     profile_learning_log_dir = learning_log_dir_for_coin_profile(
@@ -127,6 +133,9 @@ def create_app(
         settings.trading_profile,
         settings.trade_coin,
     )
+    verified_rule_update_path = profile_learning_log_dir / "verified-rule-updates.json"
+    if settings.trading_mode == "live":
+        profile_learning_log_dir = profile_learning_log_dir / "live" / settings.live_exchange
     configure_logging(
         profile_learning_log_dir,
         app_name=settings.app_name,
@@ -193,6 +202,10 @@ def create_app(
         upbit_base_url=settings.upbit_base_url,
         upbit_access_key=settings.upbit_access_key,
         upbit_secret_key=settings.upbit_secret_key,
+        live_exchange=settings.live_exchange,
+        coinone_access_token=settings.coinone_access_token,
+        coinone_secret_key=settings.coinone_secret_key,
+        coinone_base_url=settings.coinone_base_url,
         trade_coin=settings.trade_coin,
         trade_market=settings.trade_market,
         restart_state_path=settings.restart_state_path,
@@ -221,20 +234,9 @@ def create_app(
         execution_ledger = ExecutionLedger(
             storage_path=(
                 runtime_state_dir / "execution-ledger.json"
-                if settings.trading_mode == "demo" and "PYTEST_CURRENT_TEST" not in os.environ
+                if "PYTEST_CURRENT_TEST" not in os.environ
                 else None
             ),
-        )
-    if (
-        settings.trading_mode != "demo"
-        and "PYTEST_CURRENT_TEST" not in os.environ
-        and not execution_ledger.list_records()
-    ):
-        _seed_execution_ledger_from_learning_log(
-            log_path=profile_learning_log_dir / "learning.jsonl",
-            execution_ledger=execution_ledger,
-            limit=200,
-            initial_cash=float(settings.demo_initial_capital),
         )
     position_lifecycle_ledger = position_lifecycle_ledger or PositionLifecycleLedger(
         timestamp_provider=timestamp_provider,
@@ -361,19 +363,27 @@ def create_app(
                 reconcile_result=getattr(current_state, "reconcile_result", None),
             )
     runtime_services.runtime_service.dispatch_boot_notification(boot_state=notification_boot_state)
-    live_rest_client = UpbitRestClient(
+    live_rest_client = CoinoneRestClient(
+        base_url=settings.coinone_base_url,
+        access_token=settings.coinone_access_token,
+        secret_key=settings.coinone_secret_key,
+    ) if use_coinone else UpbitRestClient(
         base_url=settings.upbit_base_url,
         auth_signer=UpbitAuthSigner(
             access_key=settings.upbit_access_key,
             secret_key=settings.upbit_secret_key,
         ),
     )
-    live_order_gateway = UpbitLiveOrderGateway(rest_client=live_rest_client)
+    live_order_gateway = (
+        CoinoneLiveOrderGateway(rest_client=live_rest_client, market=settings.trade_market)
+        if use_coinone else UpbitLiveOrderGateway(rest_client=live_rest_client)
+    )
     live_portfolio_sync_service = PortfolioSyncService(
         upbit_client=live_rest_client,
         trade_coin=settings.trade_coin,
     )
     executor = ExecutionFactory(
+        journal_path=runtime_state_dir / "pending-live-order.json" if settings.trading_mode == "live" else None,
         live_order_gateway=live_order_gateway,
         learning_service=learning_service,
         fee_rate=float(settings.trading_fee_rate),
@@ -393,11 +403,11 @@ def create_app(
         position_store = CurrentPositionStore(
             storage_path=(
                 runtime_state_dir / "current-position.json"
-                if settings.trading_mode == "demo" and "PYTEST_CURRENT_TEST" not in os.environ
+                if "PYTEST_CURRENT_TEST" not in os.environ
                 else None
             ),
         )
-    current_price_provider = UpbitTickerPriceProvider(
+    current_price_provider = CoinoneMarketProvider(base_url=settings.coinone_base_url) if use_coinone else UpbitTickerPriceProvider(
         base_url=settings.upbit_base_url,
     )
     market_history_bootstrap_result: dict[str, object] = {
@@ -405,7 +415,7 @@ def create_app(
         "reason": "pytest",
     }
     if "PYTEST_CURRENT_TEST" not in os.environ:
-        historical_candle_provider = UpbitHistoricalCandleProvider(
+        historical_candle_provider = CoinoneMarketProvider(base_url=settings.coinone_base_url) if use_coinone else UpbitHistoricalCandleProvider(
             base_url=settings.upbit_base_url,
         )
         try:
@@ -537,11 +547,12 @@ def create_app(
             market_recovery_change_pct=settings.market_recovery_change_pct,
             market_recovery_confirmation_ticks=settings.market_recovery_confirmation_ticks,
             market_shock_alert_cooldown_sec=settings.market_shock_alert_cooldown_sec,
-            rule_update_state_path=profile_learning_log_dir / "verified-rule-updates.json",
+            rule_update_state_path=verified_rule_update_path,
         ),
         external_context_provider=external_context_service,
         demo_portfolio_state=demo_portfolio_state,
         live_portfolio_sync_service=live_portfolio_sync_service,
+        live_portfolio_update_callback=set_boot_portfolio_state,
         telegram_notifier=trade_fill_notifier,
         uptime_store=TradingUptimeStore(path=runtime_state_dir / "trading-uptime.json"),
         execution_ledger=execution_ledger,
@@ -611,6 +622,8 @@ def create_app(
     async def stop_auto_trading_service() -> None:
         await auto_trading_service.stop()
         daily_report_service.stop()
+        live_rest_client.close()
+        current_price_provider.close()
 
     # ── 일일 리포트 서비스 설정 ────────────────────────────────────────────
     def _get_demo_portfolio_state():
@@ -655,6 +668,13 @@ def create_app(
         return base_message
 
     def start_trading_service() -> dict[str, object]:
+        saved = env_file_service.current()["values"]
+        if saved.get("TRADING_MODE", settings.trading_mode) != settings.trading_mode or (
+            settings.trading_mode == "live" and saved.get("LIVE_EXCHANGE", "upbit") != settings.live_exchange
+        ):
+            return {"status": "restart_required", "started": False,
+                    "running": auto_trading_service.is_running(),
+                    "message": "저장한 거래 모드·거래소를 적용하려면 서버를 재시작하세요."}
         if auto_trading_service.is_running():
             telegram_notification = _send_telegram_lifecycle_message(
                 [
@@ -717,6 +737,8 @@ def create_app(
             ),
             "uptime_sec": auto_trading_service.uptime_sec() if running else None,
             "last_cycle": auto_trading_service.last_cycle(),
+            "runtime_mode": settings.trading_mode,
+            "runtime_exchange": settings.live_exchange if settings.trading_mode == "live" else "upbit",
             "message": message,
         }
 
@@ -857,6 +879,7 @@ def create_app(
     )
     app.include_router(
         build_dashboard_router(
+            live_exchange=settings.live_exchange,
             boot_state=boot_state,
             boot_state_provider=current_boot_state,
             trading_mode=settings.trading_mode,
