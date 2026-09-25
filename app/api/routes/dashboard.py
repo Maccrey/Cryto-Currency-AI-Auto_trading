@@ -159,8 +159,10 @@ DASHBOARD_HTML = """
     .nav { display: flex; gap: 8px; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .primary { background: var(--primary); color: white; border-color: var(--primary); }
-    .runtime-pill { display: none; align-items: center; justify-content: center; min-height: 36px; width: 258px; padding: 0 12px; box-sizing: border-box; border: 1px solid #f97316; border-radius: 6px; background: #f97316; color: #ffffff; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; flex: 0 0 258px; }
-    .runtime-pill.visible { display: inline-flex; }
+    .runtime-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; box-sizing: border-box; border: 1px solid #94a3b8; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .runtime-pill.running { border-color: #16a34a; background: #dcfce7; color: #166534; }
+    .runtime-pill.stopped { border-color: #94a3b8; background: #f1f5f9; color: #475569; }
+    .runtime-pill.unavailable { border-color: #dc2626; background: #fee2e2; color: #991b1b; }
     .status-line { margin-top: 10px; min-height: 28px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     main.wrap { padding-top: 18px; }
     .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
@@ -322,7 +324,7 @@ DASHBOARD_HTML = """
         <button class="btn primary" type="button" onclick="refreshDashboard(true)">새로고침</button>
         <a class="btn" href="/settings">설정</a>
         <a class="btn" href="/health" target="_blank" rel="noreferrer">상태 API</a>
-        <span id="tradingRuntime" class="runtime-pill" title="트레이딩 운영시간"></span>
+        <span id="tradingRuntime" class="runtime-pill stopped" title="자동매매 루프 상태" aria-live="polite">자동매매 상태 확인 중</span>
       </nav>
     </div>
   </div>
@@ -692,13 +694,26 @@ function formatTradingRuntime(seconds) {
 
 function renderTradingRuntime(status) {
   const runtime = document.getElementById("tradingRuntime");
-  if (!status || !status.running) {
-    runtime.classList.remove("visible");
-    runtime.textContent = "";
+  runtime.classList.remove("running", "stopped", "unavailable");
+  if (!status) {
+    runtime.classList.add("unavailable");
+    runtime.textContent = "자동매매 상태 확인 불가";
     return;
   }
-  runtime.textContent = `트레이딩 운영시간 : ${formatTradingRuntime(status.uptime_sec)}`;
-  runtime.classList.add("visible");
+  if (status.running) {
+    runtime.classList.add("running");
+    runtime.textContent = `● 자동매매 실행 중 · ${formatTradingRuntime(status.uptime_sec)}`;
+    runtime.title = status.message || "자동매매 루프가 실행 중입니다.";
+    return;
+  }
+  if (status.startable) {
+    runtime.classList.add("stopped");
+    runtime.textContent = "○ 자동매매 중지됨 · 시작 가능";
+  } else {
+    runtime.classList.add("unavailable");
+    runtime.textContent = "! 자동매매 시작 불가 · 설정/안전상태 확인";
+  }
+  runtime.title = status.message || "자동매매가 실행되고 있지 않습니다.";
 }
 
 function renderExchangeSimulation({market, tradingStatus, winRate}) {
