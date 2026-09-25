@@ -49,15 +49,15 @@ class HardStopNotifier:
         restart_count = reconcile_result.get("restart_count", "unknown")
         blocked_reason = reconcile_result.get("blocked_reason", "unknown")
 
-        return (
-            "[HARD_STOP_TRIGGERED]\n"
-            f"app={app_name}\n"
-            f"market={market}\n"
-            f"triggered_at={triggered_at}\n"
-            f"restart_count={restart_count}\n"
-            f"blocked_reason={blocked_reason}\n"
-            f"safe_mode={boot_state.safe_mode}\n"
-            f"hard_stop={boot_state.hard_stop}\n"
-            f"trading_ready={boot_state.trading_ready}\n"
-            f"failure_stage={boot_state.failure_stage}"
-        )
+        return "\n".join([
+            "🚨 자동매매 안전 정지",
+            "━━━━━━━━━━━━━━━━━━",
+            f"앱: {app_name}  ·  시장: {market}",
+            f"발생 시각: {triggered_at}",
+            f"차단 사유: {blocked_reason}",
+            f"재시작 횟수: {restart_count}",
+            f"안전 모드: {'켜짐' if boot_state.safe_mode else '꺼짐'}  ·  HARD_STOP: {'발생' if boot_state.hard_stop else '없음'}",
+            f"거래 준비: {'완료' if boot_state.trading_ready else '미완료'}  ·  실패 단계: {boot_state.failure_stage or '없음'}",
+            "⚠️ 원인을 확인하고 안전 상태를 복구하기 전까지 자동매매가 중지됩니다.",
+            "━━━━━━━━━━━━━━━━━━",
+        ])

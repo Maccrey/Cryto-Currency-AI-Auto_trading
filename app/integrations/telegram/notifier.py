@@ -5,6 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Callable
 
 from app.services.execution.demo import FillResult
+from app.services.reporting.daily_goal import progress_bar
 
 logger = logging.getLogger(__name__)
 
@@ -22,42 +23,70 @@ class FillMessageTemplate:
         market_state_label: str | None = None,
         box_range_low: float | None = None,
         box_range_high: float | None = None,
+        daily_goal_progress: dict[str, Any] | None = None,
     ) -> str:
         if fill.is_stop_loss:
-            title = "손절 매도가 체결되었습니다."
+            title = "🛑 손절 매도 체결"
         elif fill.side == "buy":
-            title = "매수가 체결되었습니다."
+            title = "🟢 매수 체결"
         else:
-            title = "매도가 체결되었습니다."
+            title = "🔵 매도 체결"
 
         notional = _round_krw(fill.filled_price * fill.filled_quantity)
         lines = [
+            "━━━━━━━━━━━━━━━━━━",
             title,
-            f"{fill.market}에서 {fill.filled_price:,.2f}원에 {fill.filled_quantity:,.8f}개가 체결되었습니다.",
-            f"체결 금액은 약 {notional:,.0f}원이고 수수료는 {fill.fee:,.2f}원입니다.",
-            f"거래 모드는 {'데모' if fill.mode == 'demo' else '실거래'}입니다.",
+            f"📍 {fill.market}  ·  {'데모' if fill.mode == 'demo' else '실거래'}",
+            f"체결가  {fill.filled_price:,.2f}원",
+            f"수량    {fill.filled_quantity:,.8f}",
+            f"거래금액 약 {notional:,.0f}원  ·  수수료 {fill.fee:,.2f}원",
         ]
         if total_asset_value is not None:
-            lines.append(f"총 보유자산은 {total_asset_value:,.2f}원입니다.")
+            lines.append(f"💼 체결 후 총 자산 약 {total_asset_value:,.0f}원")
         if market_state_label:
             if market_state_label == "박스권" and box_range_low is not None and box_range_high is not None:
-                lines.append(f"현재 장세는 박스권이며 레인지는 {box_range_low:,.2f}원부터 {box_range_high:,.2f}원입니다.")
+                lines.append(f"📊 장세 박스권  ·  {box_range_low:,.2f}~{box_range_high:,.2f}원")
             else:
-                lines.append(f"현재 장세는 {market_state_label}입니다.")
+                lines.append(f"📊 장세 {market_state_label}")
         if fill.side == "sell" and entry_price is not None:
             gross_profit = (fill.filled_price - entry_price) * fill.filled_quantity
             net_profit = gross_profit - fill.fee
             profit_rate = 0.0 if entry_price <= 0 else ((fill.filled_price - entry_price) / entry_price) * 100
-            lines.append(
-                f"평균 매수가 {entry_price:,.2f}원 기준으로 이번 매도 손익은 {net_profit:,.2f}원이고 수익률은 {profit_rate:,.2f}%입니다.",
-            )
+            pnl_icon = "📈" if net_profit >= 0 else "📉"
+            lines.extend([
+                "",
+                f"{pnl_icon} 이번 매도 손익 {net_profit:+,.2f}원 · 가격 기준 {profit_rate:+,.3f}%",
+                f"평균 매수가 {entry_price:,.2f}원 기준 · 매도 수수료 차감",
+            ])
+            if daily_goal_progress and daily_goal_progress.get("available"):
+                goal_pct = float(daily_goal_progress.get("target_return_rate", 0.001)) * 100
+                realized_pct = float(daily_goal_progress.get("return_rate", 0.0)) * 100
+                progress_pct = float(daily_goal_progress.get("progress_pct", 0.0))
+                progress_text = f"{progress_pct:.1f}%" if progress_pct >= 0 else f"−{abs(progress_pct):.1f}%"
+                lines.extend([
+                    "",
+                    f"🎯 24시간 목표 +{goal_pct:.2f}%  ·  달성 {progress_text}",
+                    f"{progress_bar(progress_pct)}  실현 {realized_pct:+.3f}% / {float(daily_goal_progress.get('initial_capital', 0)):,.0f}원 기준",
+                ])
         if fill.is_stop_loss and reason_code is not None:
-            lines.append(f"손절 사유는 {reason_code}입니다.")
+            lines.append(f"손절 사유: {_reason_label(reason_code)}")
+        lines.append("━━━━━━━━━━━━━━━━━━")
         return "\n".join(lines)
 
 
 def _round_krw(value: float) -> int:
     return int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def _reason_label(reason_code: str) -> str:
+    labels = {
+        "TAKE_PROFIT_TARGET_HIT": "익절 목표 도달",
+        "TRAILING_STOP_HIT": "트레일링 스톱 도달",
+        "STOP_LOSS_HIT": "손절 기준 도달",
+        "MARKET_STATE_BEAR": "하락 장세 위험 대응",
+        "POST_SELL_REENTRY_EDGE_REQUIRED": "매도 후 재진입 조건 미충족",
+    }
+    return labels.get(reason_code, reason_code.replace("_", " ").strip().capitalize())
 
 
 class TelegramNotifier:
@@ -69,10 +98,15 @@ class TelegramNotifier:
         gateway: Any,
         fill_message_template: FillMessageTemplate | None = None,
         server_name_provider: Callable[[], str] | None = None,
+        daily_goal_progress_provider: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self._gateway = gateway
         self._fill_message_template = fill_message_template or FillMessageTemplate()
         self._server_name_provider = server_name_provider
+        self._daily_goal_progress_provider = daily_goal_progress_provider
+
+    def set_daily_goal_progress_provider(self, provider: Callable[[], dict[str, Any]]) -> None:
+        self._daily_goal_progress_provider = provider
 
     def notify_fill(
         self,
@@ -86,6 +120,12 @@ class TelegramNotifier:
         box_range_high: float | None = None,
     ) -> None:
         try:
+            daily_goal_progress = None
+            if self._daily_goal_progress_provider is not None:
+                try:
+                    daily_goal_progress = self._daily_goal_progress_provider()
+                except Exception:
+                    logger.exception("telegram_daily_goal_progress_failed")
             self._gateway.send_message(
                 self._format_message(
                     self._fill_message_template.build(
@@ -96,6 +136,7 @@ class TelegramNotifier:
                         market_state_label=market_state_label,
                         box_range_low=box_range_low,
                         box_range_high=box_range_high,
+                        daily_goal_progress=daily_goal_progress,
                     ),
                 ),
             )
@@ -127,10 +168,13 @@ class TelegramNotifier:
         )
         message = "\n".join(
             [
-                f"{label} 변동성이 감지되었습니다.",
-                f"{market} 현재가는 {current_price:,.2f}원이고 최근 변화율은 {recent_change_pct * 100:,.2f}%입니다.",
-                f"거래 모드는 {'데모' if mode == 'demo' else '실거래'}입니다.",
-                action,
+                "⚠️ 시장 변동성 알림",
+                "━━━━━━━━━━━━━━━━━━",
+                f"{label} 감지  ·  {market}",
+                f"현재가 {current_price:,.2f}원  ·  최근 변화 {recent_change_pct * 100:+.2f}%",
+                f"모드: {'데모' if mode == 'demo' else '실거래'}",
+                f"대응: {action}",
+                "━━━━━━━━━━━━━━━━━━",
             ],
         )
         try:
@@ -170,12 +214,14 @@ class TelegramNotifier:
         )
         message = "\n".join(
             [
-                "매매 룰이 변경되었습니다.",
-                f"시장: {market} / 모드: {'데모' if mode == 'demo' else '실거래'}",
-                f"변경 전: {previous_label} ({previous_rate_text})",
-                f"변경 후: {applied_variant_label} (누적 수익률 {applied_profit_rate * 100:,.2f}%)",
-                f"전환 유형: {selection_label}",
-                f"변경 근거: {reason}",
+                "🔄 매매 룰 변경",
+                "━━━━━━━━━━━━━━━━━━",
+                f"시장 {market}  ·  {'데모' if mode == 'demo' else '실거래'}",
+                f"이전  {previous_label} ({previous_rate_text})",
+                f"적용  {applied_variant_label} ({applied_profit_rate * 100:+.2f}%)",
+                f"전환  {selection_label}",
+                f"근거  {reason}",
+                "━━━━━━━━━━━━━━━━━━",
             ],
         )
         try:
@@ -201,14 +247,16 @@ class TelegramNotifier:
     ) -> None:
         message = "\n".join(
             [
-                "XRP ETF 상태가 변경되었습니다.",
-                f"시장: {market} / 모드: {'데모' if mode == 'demo' else '실거래'}",
+                "🧾 XRP ETF 데이터 변경",
+                "━━━━━━━━━━━━━━━━━━",
+                f"시장 {market}  ·  {'데모' if mode == 'demo' else '실거래'}",
                 f"변경 항목: {', '.join(changed_fields)}",
-                f"상태: {previous.get('state')} → {current.get('state')}",
+                f"상태: {previous.get('state') or '-'} → {current.get('state') or '-'}",
                 f"순흐름: {float(previous.get('flow_usd') or 0):,.0f} → {float(current.get('flow_usd') or 0):,.0f} USD",
                 f"AUM: {float(previous.get('total_aum_usd') or 0):,.0f} → {float(current.get('total_aum_usd') or 0):,.0f} USD",
                 f"보유량: {float(previous.get('total_holding_coin') or 0):,.0f} → {float(current.get('total_holding_coin') or 0):,.0f} XRP",
-                f"기준일: {current.get('flow_date') or '-'} / 데이터 상태: {current.get('data_status')}",
+                f"기준일 {current.get('flow_date') or '-'}  ·  데이터 {current.get('data_status') or '-'}",
+                "━━━━━━━━━━━━━━━━━━",
             ],
         )
         try:

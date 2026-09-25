@@ -12,6 +12,7 @@ from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.store import CurrentPositionStore
 from app.services.promotion.dashboard import PromotionDashboardFacade
 from app.services.recovery.orchestrator import BootState
+from app.services.reporting.daily_goal import calculate_daily_goal_progress
 
 
 class DashboardSummaryFacade:
@@ -281,6 +282,19 @@ class DashboardSummaryFacade:
         profit_rate_series_24h = self._build_profit_rate_series_24h(
             boot_state=boot_state,
             current_time=current_time,
+        )
+        portfolio_state = boot_state.portfolio_state
+        initial_capital = 0.0
+        if portfolio_state is not None:
+            reference_price = portfolio_state.avg_buy_price
+            if reference_price <= 0 and self._market_price_store is not None:
+                active_market = None if active_position is None else active_position.market
+                if active_market:
+                    reference_price = self._market_price_store.get_price(active_market) or 0.0
+            initial_capital = portfolio_state.cash_balance + portfolio_state.asset_balance * reference_price
+        payload["daily_goal"] = calculate_daily_goal_progress(
+            [] if self._execution_ledger is None else self._execution_ledger.list_records(),
+            initial_capital=initial_capital,
         )
         if profit_rate_series_24h:
             payload["profit_rate_series_24h"] = profit_rate_series_24h

@@ -273,6 +273,12 @@ DASHBOARD_HTML = """
     .profit-chart .trade-marker.buy { fill: #b42318; }
     .profit-chart .trade-marker.sell { fill: #145ea8; }
     .profit-chart .trade-marker.stop-loss { fill: #facc15; }
+    .goal-progress { display: grid; grid-template-columns: minmax(140px, 1fr) auto; align-items: center; gap: 10px; margin-top: 10px; }
+    .goal-progress-track { height: 12px; overflow: hidden; border-radius: 999px; background: var(--soft); border: 1px solid var(--border); }
+    .goal-progress-fill { width: 0; height: 100%; border-radius: inherit; background: #16a34a; transition: width 180ms ease; }
+    .goal-progress-fill.negative { background: #dc2626; }
+    .goal-progress-fill.complete { background: #0284c7; }
+    .goal-progress-label { min-width: 115px; text-align: right; color: var(--text); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
     .legend { margin-top: 12px; }
     .legend-toggle { margin-top: 12px; }
     .legend-panel { display: none; }
@@ -372,6 +378,11 @@ DASHBOARD_HTML = """
     <h2>24시간 수익률</h2>
     <svg id="profitRateChart" class="profit-chart" viewBox="0 0 720 180" role="img" aria-label="24시간 수익률 선그래프"></svg>
     <div id="profitRateChartSub" class="sub">-</div>
+    <div class="goal-progress" aria-label="일일 목표 달성률">
+      <div id="dailyGoalProgressTrack" class="goal-progress-track" role="progressbar" aria-label="일일 목표 달성률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="dailyGoalProgressFill" class="goal-progress-fill"></div></div>
+      <div id="dailyGoalProgressLabel" class="goal-progress-label">목표 진행 집계 중</div>
+    </div>
+    <div id="dailyGoalProgressSub" class="sub">최근 24시간 실현 손익 기준</div>
   </section>
 
   <section class="card">
@@ -1110,7 +1121,7 @@ function deriveInvestmentValue(summary, market) {
   };
 }
 
-function renderProfitRateChart(points, executions = [], market = {}) {
+function renderProfitRateChart(points, executions = [], market = {}, dailyGoal = {}) {
   const svg = document.getElementById("profitRateChart");
   const sub = document.getElementById("profitRateChartSub");
   const data = Array.isArray(points)
@@ -1160,11 +1171,29 @@ function renderProfitRateChart(points, executions = [], market = {}) {
   const profitLine = coords ? `<polyline points="${coords}"></polyline>` : "";
   svg.innerHTML = `<line class="axis" x1="24" y1="${number(zeroY, 1)}" x2="696" y2="${number(zeroY, 1)}"></line>${profitLine}${marketPriceLine}${markers}`;
   const latest = data.length ? values[values.length - 1] : null;
-  const target = 0.005;
+  const target = Number(dailyGoal.target_return_rate || 0.001);
   const priceSummary = marketPriceSummary(market, startTime, endTime);
   sub.textContent = data.length
-    ? `최근 수익률 ${percent(latest)} / 일 목표 ${percent(target)}${priceSummary ? ` / 가격 ${priceSummary}` : ""}`
+    ? `최근 총자산 수익률 ${percent(latest)} / 일 목표 +${(target * 100).toFixed(2)}%${priceSummary ? ` / 가격 ${priceSummary}` : ""}`
     : `최근 24시간 수익률 데이터가 아직 없습니다.${priceSummary ? ` / 가격 ${priceSummary}` : ""}`;
+  const goalAvailable = dailyGoal.available !== false && Number(dailyGoal.initial_capital || 0) > 0;
+  const achievedRate = Number(dailyGoal.return_rate || 0);
+  const progressPct = Number(dailyGoal.progress_pct || 0);
+  const boundedProgress = Math.min(Math.max(progressPct, 0), 100);
+  const track = document.getElementById("dailyGoalProgressTrack");
+  const fill = document.getElementById("dailyGoalProgressFill");
+  const label = document.getElementById("dailyGoalProgressLabel");
+  const goalSub = document.getElementById("dailyGoalProgressSub");
+  fill.style.width = `${boundedProgress}%`;
+  fill.classList.toggle("negative", achievedRate < 0);
+  fill.classList.toggle("complete", progressPct >= 100);
+  track.setAttribute("aria-valuenow", String(Math.round(boundedProgress)));
+  label.textContent = goalAvailable
+    ? `${progressPct < 0 ? "−" : ""}${Math.abs(progressPct).toFixed(1)}% 달성`
+    : "목표 집계 불가";
+  goalSub.textContent = goalAvailable
+    ? `24시간 실현 손익 ${number(dailyGoal.realized_pnl, 0)}원 · 목표 +${(target * 100).toFixed(2)}% (${number(dailyGoal.target_profit, 0)}원)${progressPct >= 100 ? " · 목표 달성" : ""}`
+    : "기준 투자금을 확인할 수 없어 목표 달성률을 계산하지 못했습니다.";
 }
 
 function profitChartDomain(data, executions, market) {
@@ -1713,7 +1742,7 @@ function renderDashboard(data) {
   document.getElementById("winRateSub").textContent = winRate === null ? "완료된 거래 손익 기록이 쌓이면 표시됩니다." : "현재 기록 기준 수익 거래 비율입니다.";
   setFlipTextWithTitle("pnlMetric", `${number(summary.realized_pnl, 2)} KRW`);
   document.getElementById("pnlSub").textContent = `미실현 손익 ${number(summary.unrealized_pnl, 2)} KRW, 매수 ${summary.buy_count || 0}건, 매도 ${summary.sell_count || 0}건`;
-  renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market);
+  renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market, summary.daily_goal || {});
   const aiState = deriveAiState({health, summary, market, executions});
   document.getElementById("aiState").innerHTML = aiBadge(aiState.ai[0], aiState.ai[1]);
   document.getElementById("autoTradingState").innerHTML = aiBadge(aiState.trading[0], aiState.trading[1]);

@@ -9,6 +9,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.services.reporting.daily_goal import calculate_daily_goal_progress, progress_bar
+
 logger = logging.getLogger(__name__)
 
 # 한국 표준시 UTC+9
@@ -27,6 +29,7 @@ class DailyReportService:
         trading_mode: str,
         report_hour_kst: int = 8,
         portfolio_state_provider: Any | None = None,
+        initial_capital_provider: Any | None = None,
     ) -> None:
         self._ledger = execution_ledger
         self._gateway = telegram_gateway
@@ -34,6 +37,7 @@ class DailyReportService:
         self._trading_mode = trading_mode
         self._report_hour_kst = report_hour_kst
         self._portfolio_state_provider = portfolio_state_provider
+        self._initial_capital_provider = initial_capital_provider
         self._task: asyncio.Task[None] | None = None
 
     # ──────────────────────────────────────────────────────────────────────
@@ -116,6 +120,19 @@ class DailyReportService:
 
         # 24시간 통계
         stats_24h = self._compute_stats(records_24h)
+        daily_goal = calculate_daily_goal_progress(
+            all_records,
+            initial_capital=self._get_initial_capital(),
+            now=now_kst,
+        )
+        stats_24h["realized_pnl"] = daily_goal["realized_pnl"]
+        stats_24h["stop_loss_pnl"] = daily_goal["stop_loss_pnl"]
+        stats_24h["regular_sell_pnl"] = daily_goal["regular_sell_pnl"]
+        stats_24h["stop_loss_count"] = daily_goal["stop_loss_count"]
+        stats_24h["regular_sell_count"] = daily_goal["regular_sell_count"]
+        stats_24h["sell_count"] = daily_goal["sell_count"]
+        stats_24h["win_count"] = daily_goal["win_count"]
+        stats_24h["loss_count"] = daily_goal["loss_count"]
 
         # 현재 포트폴리오 상태
         portfolio_info = self._get_portfolio_info()
@@ -123,45 +140,57 @@ class DailyReportService:
         mode_label = "데모" if self._trading_mode == "demo" else "실거래"
 
         lines = [
-            "━━━━━━━━━━━━━━━━━━━━━━━━",
-            f"📊 24시간 매매 일일 리포트",
-            f"━━━━━━━━━━━━━━━━━━━━━━━━",
-            f"🕗 기준 시각: {now_kst.strftime('%Y-%m-%d %H:%M')} KST",
-            f"📈 시장: {self._market} | 모드: {mode_label}",
+            "📊 자동매매 일일 리포트",
+            "━━━━━━━━━━━━━━━━━━",
+            f"🕒 기준: 최근 24시간 · {now_kst.strftime('%m-%d %H:%M')} KST",
+            f"💱 시장: {self._market}  |  모드: {mode_label}",
             "",
-            "[ 최근 24시간 매매 현황 ]",
-            f"  매수 횟수: {stats_24h['buy_count']}회",
-            f"  매도 횟수: {stats_24h['sell_count']}회",
-            f"  손절 횟수: {stats_24h['stop_loss_count']}회",
-            f"  실현 손익: {self._format_pnl(stats_24h['realized_pnl'])}",
+            "🎯 일일 목표 진행",
         ]
+        if daily_goal["available"]:
+            goal_pct = float(daily_goal["target_return_rate"]) * 100
+            achieved_pct = float(daily_goal["return_rate"]) * 100
+            progress_pct = float(daily_goal["progress_pct"])
+            progress_label = f"{progress_pct:.1f}%" if progress_pct >= 0 else f"−{abs(progress_pct):.1f}%"
+            lines.extend([
+                f"목표  +{goal_pct:.2f}%  ({float(daily_goal['target_profit']):,.0f}원)",
+                f"진행  {progress_bar(progress_pct)}  {progress_label}",
+                f"실현  {achieved_pct:+.3f}%  |  {self._format_pnl(float(daily_goal['realized_pnl']))}",
+                f"남은 목표 금액: {float(daily_goal['remaining_profit']):,.0f}원" if not daily_goal["goal_reached"] else "✅ 일일 목표를 달성했습니다.",
+            ])
+        else:
+            lines.append("기준 투자금이 없어 목표 달성률을 계산할 수 없습니다.")
+        lines.extend([
+            "",
+            "📈 체결 현황",
+            f"매수 {stats_24h['buy_count']}회  ·  매도 {stats_24h['sell_count']}회  ·  손절 {stats_24h['stop_loss_count']}회",
+            f"실현 손익: {self._format_pnl(stats_24h['realized_pnl'])}",
+        ])
 
         # 24시간 손절 세부사항
         if stats_24h["stop_loss_count"] > 0:
-            lines.append(f"  손절 합계: {self._format_pnl(stats_24h['stop_loss_pnl'])}")
+            lines.append(f"손절 손익: {self._format_pnl(stats_24h['stop_loss_pnl'])}")
         if stats_24h["regular_sell_count"] > 0:
-            lines.append(f"  일반 매도 손익: {self._format_pnl(stats_24h['regular_sell_pnl'])}")
+            lines.append(f"일반 매도 손익: {self._format_pnl(stats_24h['regular_sell_pnl'])}")
 
         # 수익/손실 거래 비율
         if stats_24h["sell_count"] > 0:
             win_rate = stats_24h["win_count"] / stats_24h["sell_count"] * 100
-            lines.append(f"  승률: {win_rate:.1f}% ({stats_24h['win_count']}승 {stats_24h['loss_count']}패)")
+            lines.append(f"승률: {win_rate:.1f}%  ({stats_24h['win_count']}승 {stats_24h['loss_count']}패)")
 
         # 최대 단일 손익
         if stats_24h["max_single_profit"] is not None:
-            lines.append(f"  최대 단건 수익: {self._format_pnl(stats_24h['max_single_profit'])}")
+            lines.append(f"최대 단건 수익: {self._format_pnl(stats_24h['max_single_profit'])}")
         if stats_24h["max_single_loss"] is not None:
-            lines.append(f"  최대 단건 손실: {self._format_pnl(stats_24h['max_single_loss'])}")
+            lines.append(f"최대 단건 손실: {self._format_pnl(stats_24h['max_single_loss'])}")
 
-        lines.append("")
-        lines.append("[ 누적 전체 현황 ]")
-        lines.append(f"  총 매수: {total_stats['buy_count']}회 | 총 매도: {total_stats['sell_count']}회")
-        lines.append(f"  총 손절: {total_stats['stop_loss_count']}회")
-        lines.append(f"  누적 실현 손익: {self._format_pnl(total_stats['realized_pnl'])}")
+        lines.extend(["", "📚 누적 기록"])
+        lines.append(f"총 매수 {total_stats['buy_count']}회  ·  매도 {total_stats['sell_count']}회  ·  손절 {total_stats['stop_loss_count']}회")
+        lines.append(f"누적 실현 손익: {self._format_pnl(total_stats['realized_pnl'])}")
 
         if total_stats["sell_count"] > 0:
             total_win_rate = total_stats["win_count"] / total_stats["sell_count"] * 100
-            lines.append(f"  전체 승률: {total_win_rate:.1f}%")
+            lines.append(f"전체 승률: {total_win_rate:.1f}%")
 
         # 포트폴리오 현황
         if portfolio_info:
@@ -172,10 +201,25 @@ class DailyReportService:
         # 24시간 거래 없음 안내
         if stats_24h["buy_count"] == 0 and stats_24h["sell_count"] == 0:
             lines.append("")
-            lines.append("⚠️ 최근 24시간 동안 체결된 매매가 없습니다.")
+            lines.append("⚠️ 최근 24시간 동안 체결된 매매가 없습니다. 목표는 실현 손익 기준으로 집계됩니다.")
 
-        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append("━━━━━━━━━━━━━━━━━━")
         return "\n".join(lines)
+
+    def _get_initial_capital(self) -> float:
+        if self._initial_capital_provider is not None:
+            try:
+                return max(float(self._initial_capital_provider() or 0.0), 0.0)
+            except Exception:
+                logger.exception("daily_report_initial_capital_unavailable")
+        if self._portfolio_state_provider is not None:
+            try:
+                state = self._portfolio_state_provider()
+                if state is not None:
+                    return max(float(getattr(state, "cash_balance", 0.0) or 0.0), 0.0)
+            except Exception:
+                logger.exception("daily_report_portfolio_state_unavailable")
+        return 0.0
 
     # ──────────────────────────────────────────────────────────────────────
     # Statistics Helpers

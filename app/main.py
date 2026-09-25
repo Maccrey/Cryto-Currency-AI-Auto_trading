@@ -91,6 +91,7 @@ from app.services.trading.decision import TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
 from app.services.reporting.daily_report import DailyReportService
+from app.services.reporting.daily_goal import calculate_daily_goal_progress
 
 
 logger = logging.getLogger(__name__)
@@ -341,6 +342,26 @@ def create_app(
     demo_portfolio_state = None
     notification_boot_state = current_boot_state()
     boot_portfolio_state = current_boot_portfolio_state()
+
+    def daily_goal_initial_capital() -> float:
+        state = current_boot_portfolio_state()
+        if settings.trading_mode == "demo":
+            if state is not None and state.cash_balance > 0:
+                return float(state.cash_balance)
+            return float(env_file_service.demo_initial_capital(fallback=settings.demo_initial_capital))
+        if state is None:
+            return 0.0
+        return max(state.cash_balance + state.asset_balance * max(state.avg_buy_price, 0.0), 0.0)
+
+    def current_daily_goal_progress() -> dict[str, float | int | bool]:
+        return calculate_daily_goal_progress(
+            execution_ledger.list_records(),
+            initial_capital=daily_goal_initial_capital(),
+        )
+
+    if trade_fill_notifier is not None and hasattr(trade_fill_notifier, "set_daily_goal_progress_provider"):
+        trade_fill_notifier.set_daily_goal_progress_provider(current_daily_goal_progress)
+
     if (
         settings.trading_mode == "demo"
         and boot_portfolio_state is not None
@@ -641,6 +662,7 @@ def create_app(
         trading_mode=settings.trading_mode,
         report_hour_kst=8,
         portfolio_state_provider=_get_demo_portfolio_state if settings.trading_mode == "demo" else None,
+        initial_capital_provider=daily_goal_initial_capital,
     )
 
     @app.on_event("startup")

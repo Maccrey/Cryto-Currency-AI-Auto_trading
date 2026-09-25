@@ -1,0 +1,18 @@
+[Unit]
+Description=Upbit Momentum Auto Trader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/maccrey/Crypo_Auto_Trading
+EnvironmentFile=-/home/maccrey/Crypo_Auto_Trading/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/bin/bash /home/maccrey/Crypo_Auto_Trading/deploy/start-server.sh
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

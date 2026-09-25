@@ -19,12 +19,15 @@ class PromotionNotifier:
         max_drawdown: float,
     ) -> None:
         self._gateway.send_message(
-            "[PROMOTION_READY]\n"
-            f"market={market}\n"
-            f"demo_days={demo_days}\n"
-            f"total_trades={total_trades}\n"
-            f"profit_factor={profit_factor}\n"
-            f"max_drawdown={max_drawdown}"
+            "\n".join([
+                "✅ 데모 성과 검토 준비 완료",
+                "━━━━━━━━━━━━━━━━━━",
+                f"시장: {market}  ·  데모 운용: {demo_days}일",
+                f"완료 거래: {total_trades}회",
+                f"수익 팩터: {profit_factor:.2f}  ·  최대 낙폭: {max_drawdown:.2%}",
+                "실거래 전환은 설정과 승인 절차를 확인한 뒤 진행하세요.",
+                "━━━━━━━━━━━━━━━━━━",
+            ])
         )
 
     def notify_live_enabled(
@@ -35,8 +38,13 @@ class PromotionNotifier:
         activated_at: str,
     ) -> None:
         self._gateway.send_message(
-            "[LIVE_MODE_ENABLED]\n"
-            f"market={market}\n"
-            f"approved_by={approved_by}\n"
-            f"activated_at={activated_at}"
+            "\n".join([
+                "🔴 실거래 모드 활성화",
+                "━━━━━━━━━━━━━━━━━━",
+                f"시장: {market}",
+                f"승인자: {approved_by}",
+                f"활성 시각: {activated_at}",
+                "실제 주문이 제출될 수 있으니 거래소와 API 권한을 확인하세요.",
+                "━━━━━━━━━━━━━━━━━━",
+            ])
         )

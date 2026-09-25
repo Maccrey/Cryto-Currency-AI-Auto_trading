@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVER_UNIT="upbit-momentum-auto-trader.service"
+
+usage() {
+  cat <<'EOF'
+사용법:
+  ./trade install                 사용자 서비스 설치/갱신
+  ./trade start                   서버 시작
+  ./trade stop                    서버 중지
+  ./trade restart                 서버 재시작
+  ./trade status                  서버 상태 확인
+  ./trade logs                    서버 로그 보기
+  ./trade install-weekly-report   주간 README 자동 업데이트 예약
+  ./trade weekly-report           주간 성과를 지금 README에 기록하고 GitHub에 푸시
+EOF
+}
+
+if ! command -v systemctl >/dev/null 2>&1; then
+  echo "이 명령은 Linux systemd 사용자 서비스가 필요합니다. macOS에서는 bash start.sh를 사용하세요." >&2
+  exit 2
+fi
+
+command_name="${1:-help}"
+case "${command_name}" in
+  install)
+    bash "${ROOT_DIR}/deploy/install-user-service.sh"
+    ;;
+  start|stop|restart)
+    systemctl --user "${command_name}" "${SERVER_UNIT}"
+    ;;
+  status)
+    systemctl --user status "${SERVER_UNIT}" --no-pager
+    ;;
+  logs)
+    journalctl --user -u "${SERVER_UNIT}" -f
+    ;;
+  install-weekly-report)
+    bash "${ROOT_DIR}/deploy/install-weekly-report-timer.sh"
+    ;;
+  weekly-report)
+    "${ROOT_DIR}/.venv/bin/python" "${ROOT_DIR}/scripts/update_weekly_readme.py" --push
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
