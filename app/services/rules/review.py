@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
+import subprocess
 from collections import Counter, deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -30,6 +32,8 @@ class RuleReviewConfig:
     auto_update_min_learning_completion_rate: float = 1.0
     auto_update_win_rate_skip_threshold: float = 0.80
     trading_fee_rate: float = 0.0005
+    codex_rule_model: str = "gpt-6-astra"
+    min_net_edge_pct: float = 0.002
 
 
 class RuleReviewService:
@@ -87,6 +91,7 @@ class RuleReviewService:
             "no_trade_blocked_count": metrics["no_trade_blocked_count"],
             "learning_completion_rate": metrics["learning_completion_rate"],
             "win_rate": metrics["win_rate"],
+            "min_net_edge_pct": self._config.min_net_edge_pct,
             "external_context_summary": metrics["external_context_summary"],
             "rule_variant_shadow_summary": metrics["rule_variant_shadow_summary"],
             "technical_indicator_summary": metrics["technical_indicator_summary"],
@@ -119,7 +124,13 @@ class RuleReviewService:
         if int(review["stop_loss_count"]) < self._config.min_stoplosses and not no_trade_mitigation:
             rejection_reasons.append("insufficient_stoploss_sample")
 
-        changes = [] if rejection_reasons else proposed_changes or self._default_proposed_changes(review)
+        changes = (
+            []
+            if rejection_reasons
+            else self._default_proposed_changes(review)
+            if proposed_changes is None
+            else proposed_changes
+        )
         locked_changes = self._locked_changes(changes)
         if locked_changes:
             rejection_reasons.append("fixed_stop_loss_locked")
@@ -225,7 +236,27 @@ class RuleReviewService:
             },
         )
 
-        proposal_response = self.create_proposal(review_id=str(review["id"]))
+        codex_result = self._generate_codex_changes(review)
+        if not codex_result["ok"]:
+            steps.append({
+                "name": "Codex 룰 변경안 생성",
+                "status": "blocked",
+                "message": str(codex_result.get("error") or "Codex 실행에 실패했습니다."),
+            })
+            return {
+                "status": "blocked",
+                "codex_cli": {"mode": "codex_exec", "model": self._config.codex_rule_model},
+                "steps": steps,
+                "trigger_reason": trigger_reason,
+                "review": review,
+                "proposal": None,
+                "final_summary": "Codex 변경안 생성에 실패해 룰을 적용하지 않았습니다.",
+                "can_retry": True,
+            }
+        proposal_response = self.create_proposal(
+            review_id=str(review["id"]),
+            proposed_changes=codex_result["changes"],
+        )
         proposal = proposal_response["proposal"]
         if auto_gate_reasons:
             proposal["rejection_reasons"] = sorted(set(proposal.get("rejection_reasons", [])) | set(auto_gate_reasons))
@@ -242,7 +273,11 @@ class RuleReviewService:
             },
         )
 
-        replay_response = self.verify_replay(str(proposal["id"]), fixture_path=fixture_path)
+        replay_response = self.verify_replay(
+            str(proposal["id"]),
+            fixture_path=fixture_path,
+            proposed_changes=proposal.get("codex_suggested_changes") or [],
+        )
         proposal = replay_response["proposal"]
         replay_result = proposal.get("replay_result") or {}
         replay_passed = replay_result.get("status") == "passed"
@@ -277,9 +312,10 @@ class RuleReviewService:
         return {
             "status": "blocked" if auto_gate_reasons else ("completed" if demo_applied else "needs_retry"),
             "codex_cli": {
-                "mode": "local_harness",
-                "command": "codex rule-improve --from-learning-log --replay --apply-demo",
+                "mode": "codex_exec",
+                "model": self._config.codex_rule_model,
                 "prompt": review.get("codex_rule_prompt", ""),
+                "analysis": codex_result.get("summary", ""),
             },
             "steps": steps,
             "trigger_reason": trigger_reason,
@@ -323,20 +359,77 @@ class RuleReviewService:
             "history": limited,
         }
 
-    def verify_replay(self, proposal_id: str, *, fixture_path: Path) -> dict[str, object]:
+    def verify_replay(
+        self,
+        proposal_id: str,
+        *,
+        fixture_path: Path,
+        proposed_changes: list[dict[str, Any]] | None = None,
+    ) -> dict[str, object]:
         proposal = self._proposals[proposal_id]
         loader = ReplayFixtureLoader()
         ticks = loader.load(fixture_path)
-        observation_ticks = loader.load_market_observations(self._learning_log_dir / "market-observations.jsonl")
+        observation_ticks = loader.load_market_observations(
+            self._learning_log_dir / "market-observations.jsonl",
+            limit=20_000,
+        )
         if len(observation_ticks) >= 4:
             ticks = observation_ticks
-        harness = ReplayHarness(trading_fee_rate=self._config.trading_fee_rate)
-        results = harness.run(ticks)
-        replay_summary = harness.summarize(results)
+        changes = proposed_changes if proposed_changes is not None else proposal.get("codex_suggested_changes", [])
+        candidate_min_edge = self._config.min_net_edge_pct
+        candidate_trend_boost = 0.0
+        for change in changes:
+            parameter = str(change.get("parameter") or "")
+            try:
+                value = float(change.get("proposed_value"))
+            except (TypeError, ValueError):
+                continue
+            if parameter == "MIN_NET_EDGE_PCT":
+                candidate_min_edge = value
+            elif parameter == "TECHNICAL_TREND_CONFIRMATION":
+                candidate_trend_boost = value
+        split = max(4, int(len(ticks) * 0.7))
+        baseline_harness = ReplayHarness(
+            trading_fee_rate=self._config.trading_fee_rate,
+            min_net_edge_pct=self._config.min_net_edge_pct,
+        )
+        candidate_harness = ReplayHarness(
+            trading_fee_rate=self._config.trading_fee_rate,
+            min_net_edge_pct=candidate_min_edge,
+            technical_trend_confirmation_boost=candidate_trend_boost,
+        )
+        baseline_results = baseline_harness.run(ticks)
+        candidate_results = candidate_harness.run(ticks)
+        baseline_summary = baseline_harness.summarize(baseline_results)
+        replay_summary = candidate_harness.summarize(candidate_results)
+        baseline_holdout = ReplayHarness(
+            trading_fee_rate=self._config.trading_fee_rate,
+            min_net_edge_pct=self._config.min_net_edge_pct,
+        )
+        candidate_holdout = ReplayHarness(
+            trading_fee_rate=self._config.trading_fee_rate,
+            min_net_edge_pct=candidate_min_edge,
+            technical_trend_confirmation_boost=candidate_trend_boost,
+        )
+        baseline_holdout_summary = baseline_holdout.summarize(baseline_holdout.run(ticks[split:]))
+        candidate_holdout_summary = candidate_holdout.summarize(candidate_holdout.run(ticks[split:]))
+        candidate_changes_tested = bool(changes)
+        improvement_passed = bool(
+            candidate_changes_tested
+            and replay_summary.trade_count >= 10
+            and replay_summary.final_profit_rate > baseline_summary.final_profit_rate
+            and replay_summary.final_profit_rate > 0
+            and replay_summary.max_drawdown_pct <= 0.02
+            and candidate_holdout_summary.trade_count >= 4
+            and candidate_holdout_summary.final_profit_rate > baseline_holdout_summary.final_profit_rate
+            and candidate_holdout_summary.final_profit_rate > 0
+            and candidate_holdout_summary.max_drawdown_pct <= 0.02
+        )
         blocked_count = replay_summary.blocked_count
         signal_count = replay_summary.signal_count
         passed = (
-            signal_count > 0
+            improvement_passed
+            and signal_count > 0
             and blocked_count < signal_count
             and replay_summary.trade_count > 0
             and replay_summary.final_profit_rate > 0.0
@@ -344,6 +437,18 @@ class RuleReviewService:
         )
         proposal["replay_result"] = {
             "status": "passed" if passed else "failed",
+            "candidate_changes_tested": candidate_changes_tested,
+            "improvement_passed": improvement_passed,
+            "baseline_final_profit_rate": baseline_summary.final_profit_rate,
+            "baseline_trade_count": baseline_summary.trade_count,
+            "baseline_max_drawdown_pct": baseline_summary.max_drawdown_pct,
+            "holdout_final_profit_rate": candidate_holdout_summary.final_profit_rate,
+            "holdout_baseline_final_profit_rate": baseline_holdout_summary.final_profit_rate,
+            "holdout_trade_count": candidate_holdout_summary.trade_count,
+            "candidate_parameters": {
+                "min_net_edge_pct": candidate_min_edge,
+                "technical_trend_confirmation_boost": candidate_trend_boost,
+            },
             "fixture_path": str(fixture_path),
             "source": "market_observations" if len(observation_ticks) >= 4 else "fixture",
             "signal_count": signal_count,
@@ -385,6 +490,8 @@ class RuleReviewService:
             reasons.add("replay_non_positive_profit")
         elif int(proposal["replay_result"].get("trade_count") or 0) <= 0:
             reasons.add("replay_no_trades")
+        elif proposal.get("codex_suggested_changes") and not proposal["replay_result"].get("improvement_passed"):
+            reasons.add("candidate_not_better_than_baseline")
         shadow_summary = proposal.get("rule_variant_shadow_summary")
         if (
             isinstance(shadow_summary, dict)
@@ -397,14 +504,21 @@ class RuleReviewService:
         proposal["rejection_reasons"] = sorted(reasons)
         proposal["demo_applied"] = not proposal["rejection_reasons"]
         if proposal["demo_applied"]:
-            proposal["status"] = "demo_applied"
-            proposal["demo_applied_at"] = datetime.now(UTC).isoformat()
             if self._demo_rule_apply_callback is not None:
                 applied = self._demo_rule_apply_callback(proposal.get("codex_suggested_changes") or [])
                 proposal["runtime_rule_update"] = applied
+                if not isinstance(applied, dict) or not applied.get("applied"):
+                    proposal["demo_applied"] = False
+                    proposal["rejection_reasons"] = sorted(set(proposal["rejection_reasons"]) | {"runtime_rule_apply_failed"})
+            if proposal["demo_applied"]:
+                proposal["status"] = "demo_applied"
+                proposal["demo_applied_at"] = datetime.now(UTC).isoformat()
             if self._demo_rule_reset_callback is not None:
-                self._demo_rule_reset_callback()
-                proposal["rule_variant_shadow_reset"] = True
+                if proposal["demo_applied"]:
+                    self._demo_rule_reset_callback()
+                    proposal["rule_variant_shadow_reset"] = True
+            if not proposal["demo_applied"]:
+                proposal["status"] = "blocked"
         self._save_state()
         self._append_history_event(
             event_type="demo_applied" if proposal["demo_applied"] else "demo_apply_rejected",
@@ -1741,6 +1855,66 @@ class RuleReviewService:
                     "reason": f"다중 룰 동시 테스트에서 {variant_label}가 우세해 과도한 추세/방어 편향을 줄이고 기본 매수/매도 균형을 조율합니다.",
                 },
             ]
+
+    def _generate_codex_changes(self, review: dict[str, Any]) -> dict[str, Any]:
+        codex = shutil.which("codex")
+        if not codex:
+            return {"ok": False, "error": "Codex CLI를 찾을 수 없습니다. Codex CLI를 설치하고 인증한 뒤 다시 시도하세요."}
+        prompt = "\n".join([
+            "로그 분석을 바탕으로 데모 자동매매 룰 개선안을 만드세요.",
+            "결과는 JSON만 반환: {\"summary\": string, \"changes\": [{\"file\": string, \"parameter\": string, \"current_value\": string, \"proposed_value\": string, \"reason\": string}]}.",
+            f"변경은 최대 {self._config.max_params_per_run}개. STOP_LOSS 및 안전장치는 절대 완화하지 마세요.",
+            f"실제 적용 가능 후보만 사용하세요: MIN_NET_EDGE_PCT는 현재 {self._config.min_net_edge_pct}보다 낮되 {max(0.0005, self._config.min_net_edge_pct * 0.5):.6f} 이상, TECHNICAL_TREND_CONFIRMATION은 0.01~0.05 범위. STOP_LOSS 및 기타 파라미터는 변경하지 마세요.",
+            "A~R 동시 테스트 결과와 최근 거래 로그의 비용 차감 수익 및 drawdown을 보고 과최적화를 피하세요.",
+            json.dumps({"review": review, "codex_prompt": review.get("codex_rule_prompt", "")}, ensure_ascii=False),
+        ])
+        try:
+            result = subprocess.run(
+                [codex, "exec", "--ephemeral", "--model", self._config.codex_rule_model,
+                 "--sandbox", "read-only", "--skip-git-repo-check", "-"],
+                input=prompt,
+                capture_output=True,
+                text=True,
+                timeout=180,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return {"ok": False, "error": f"Codex 실행 실패: {exc}"}
+        if result.returncode != 0:
+            return {"ok": False, "error": (result.stderr or result.stdout or "Codex 실행 실패").strip()[-1000:]}
+        output = result.stdout.strip()
+        try:
+            payload = json.loads(output)
+        except json.JSONDecodeError:
+            start, end = output.find("{"), output.rfind("}")
+            try:
+                payload = json.loads(output[start:end + 1]) if start >= 0 and end > start else {}
+            except json.JSONDecodeError:
+                payload = {}
+        changes = payload.get("changes") if isinstance(payload, dict) else None
+        safe_changes: list[dict[str, Any]] = []
+        for item in changes if isinstance(changes, list) else []:
+            if not isinstance(item, dict):
+                continue
+            parameter = str(item.get("parameter") or "")
+            try:
+                value = float(item.get("proposed_value"))
+            except (TypeError, ValueError):
+                continue
+            if parameter == "MIN_NET_EDGE_PCT" and max(0.0005, self._config.min_net_edge_pct * 0.5) <= value < self._config.min_net_edge_pct:
+                item = {**item, "proposed_value": value}
+            elif parameter == "TECHNICAL_TREND_CONFIRMATION" and 0.01 <= value <= 0.05:
+                item = {**item, "proposed_value": value}
+            else:
+                continue
+            safe_changes.append(item)
+        if not safe_changes:
+            return {"ok": False, "error": "Codex가 적용 가능한 변경안을 JSON으로 반환하지 않아 적용하지 않았습니다."}
+        return {
+            "ok": True,
+            "changes": safe_changes[:self._config.max_params_per_run],
+            "summary": str(payload.get("summary") or ""),
+        }
 
     def _build_codex_rule_prompt(self, metrics: dict[str, object]) -> str:
         return "\n".join(

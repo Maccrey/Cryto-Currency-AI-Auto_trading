@@ -62,12 +62,13 @@ class TradeDecisionService:
         self._sizing_engine = sizing_engine
         self._runtime_rule_overrides: dict[str, float] = {}
 
-    def set_demo_rule_overrides(self, overrides: dict[str, float]) -> dict[str, float]:
-        """Store bounded in-memory overrides applied only by the demo runner."""
+    def set_verified_rule_overrides(self, overrides: dict[str, float]) -> dict[str, float]:
+        """Apply bounded replay-verified overrides to the active trading mode."""
         allowed = {
             "technical_trend_confirmation_boost": (0.0, 0.05),
             "bearish_entry_score_multiplier": (0.80, 1.0),
             "external_context_bullish_multiplier": (1.0, 1.02),
+            "minimum_net_edge_pct": (0.0005, 0.012),
         }
         applied: dict[str, float] = {}
         for key, value in overrides.items():
@@ -76,6 +77,8 @@ class TradeDecisionService:
             lower, upper = allowed[key]
             applied[key] = round(min(max(float(value), lower), upper), 4)
         self._runtime_rule_overrides.update(applied)
+        if "minimum_net_edge_pct" in applied:
+            self._sizing_engine.set_min_net_edge_pct(applied["minimum_net_edge_pct"])
         return applied
 
     def evaluate(self, request: TradeDecisionRequest) -> TradeDecisionResult:

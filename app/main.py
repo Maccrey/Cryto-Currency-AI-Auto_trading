@@ -606,6 +606,7 @@ def create_app(
             auto_update_min_learning_completion_rate=settings.auto_rule_update_min_learning_completion_rate,
             auto_update_win_rate_skip_threshold=settings.auto_rule_update_win_rate_skip_threshold,
             trading_fee_rate=settings.trading_fee_rate,
+            min_net_edge_pct=trading_profile.min_net_edge_pct,
         ),
         telegram_gateway=telegram_gateway,
         demo_rule_reset_callback=auto_trading_service.reset_demo_rule_variants,
@@ -875,6 +876,8 @@ def create_app(
             purge_runtime_data_service=purge_runtime_data_service,
             telegram_test_service=telegram_test_service,
             after_save_service=apply_saved_demo_initial_capital,
+            rule_review_service=rule_review_service,
+            trading_mode=settings.trading_mode,
         ),
     )
     app.include_router(
@@ -893,6 +896,8 @@ def create_app(
             dashboard_learning_facade=dashboard_services.learning_facade,
             dashboard_recovery_facade=dashboard_services.recovery_facade,
             promotion_dashboard_facade=promotion_services.dashboard_facade,
+            env_file_service=env_file_service,
+            rule_review_service=rule_review_service,
             external_context_provider=lambda force=False: external_context_service.snapshot(
                 market=settings.trade_market,
                 trade_coin=settings.trade_coin,

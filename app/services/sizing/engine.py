@@ -108,6 +108,10 @@ class SizingEngine:
             "very_strong": 0.030,
         }
 
+    def set_min_net_edge_pct(self, value: float) -> float:
+        self._min_net_edge_pct = round(min(max(float(value), 0.0005), 0.012), 6)
+        return self._min_net_edge_pct
+
     def size_entry(
         self,
         portfolio: PortfolioState,

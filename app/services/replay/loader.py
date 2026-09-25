@@ -16,6 +16,9 @@ class ReplayTick:
     orderbook_imbalance: float
     liquidity_score: float
     regime_score: float
+    market_state: str | None = None
+    box_range_low: float | None = None
+    box_range_high: float | None = None
 
 
 class ReplayFixtureLoader:
@@ -32,6 +35,9 @@ class ReplayFixtureLoader:
                 orderbook_imbalance=float(item["orderbook_imbalance"]),
                 liquidity_score=float(item["liquidity_score"]),
                 regime_score=float(item["regime_score"]),
+                market_state=None if item.get("market_state") is None else str(item["market_state"]),
+                box_range_low=None if item.get("box_range_low") is None else float(item["box_range_low"]),
+                box_range_high=None if item.get("box_range_high") is None else float(item["box_range_high"]),
             )
             for item in payload
         ]
@@ -50,6 +56,9 @@ class ReplayFixtureLoader:
                         orderbook_imbalance=float(item.get("orderbook_imbalance", 0.0)),
                         liquidity_score=float(item.get("liquidity_score", 0.5)),
                         regime_score=float(item.get("regime_score", 0.5)),
+                        market_state=None if item.get("market_state") is None else str(item["market_state"]),
+                        box_range_low=None if item.get("box_range_low") is None else float(item["box_range_low"]),
+                        box_range_high=None if item.get("box_range_high") is None else float(item["box_range_high"]),
                     ),
                 )
             except (KeyError, TypeError, ValueError):

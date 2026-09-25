@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -8,6 +9,7 @@ from fastapi.responses import HTMLResponse
 from app.services.config.env_file import EnvFileService
 from app.services.learning.reset import LearningDataResetService
 from app.services.learning.service import LearningService
+from app.services.rules.review import RuleReviewService
 
 
 def build_settings_router(
@@ -22,6 +24,8 @@ def build_settings_router(
     purge_runtime_data_service: Callable[[], dict[str, object]] | None = None,
     telegram_test_service: Callable[[], dict[str, object]] | None = None,
     after_save_service: Callable[[], dict[str, object]] | None = None,
+    rule_review_service: RuleReviewService | None = None,
+    trading_mode: str = "demo",
 ) -> APIRouter:
     router = APIRouter(prefix="/settings")
 
@@ -32,6 +36,25 @@ def build_settings_router(
     @router.get("/current")
     def current_settings() -> dict[str, object]:
         return env_file_service.current()
+
+    @router.post("/rules/optimize-demo")
+    def optimize_demo_rules() -> dict[str, object]:
+        if trading_mode != "demo":
+            return {"status": "blocked", "message": "룰 최적화는 데모 모드에서만 실행할 수 있습니다."}
+        current = env_file_service.current()
+        values = current.get("values", {}) if isinstance(current, dict) else {}
+        if str(values.get("TRADING_MODE", trading_mode)).strip().lower() != "demo":
+            return {"status": "blocked", "message": "현재 설정이 데모 모드가 아니어서 룰 최적화를 차단했습니다."}
+        enabled = str(values.get("AUTO_RULE_UPDATE_ENABLED", "false")).strip().lower() in {"1", "true", "yes", "on"}
+        if not enabled:
+            return {"status": "blocked", "message": "Codex 룰 개선을 활성화하고 설정을 저장한 뒤 실행하세요."}
+        if rule_review_service is None:
+            return {"status": "unavailable", "message": "룰 개선 서비스를 사용할 수 없습니다."}
+        return rule_review_service.auto_improve(
+            fixture_path=Path("fixtures/replay_ticks.json"),
+            force=True,
+            trigger_reason="settings_one_click",
+        )
 
     @router.get("/secret/{key}")
     def secret_value(key: str) -> dict[str, object]:
@@ -197,23 +220,8 @@ SETTINGS_HTML = """
     .settings-group[hidden] { display: none; }
     details.subsection > summary { cursor: pointer; font-weight: 700; }
     details.subsection[open] > summary { margin-bottom: 8px; }
-    .rule-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
-    .rule-result { width: 100%; margin-top: 10px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
-    .rule-result th, .rule-result td { padding: 8px; border-top: 1px solid #d8e0e6; text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
-    .rule-result th { width: 150px; color: #52616d; }
     .modal-backdrop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(15, 23, 42, 0.54); z-index: 50; }
     .modal-backdrop.visible { display: flex; }
-    .rule-modal { width: min(760px, 100%); max-height: min(82vh, 760px); display: flex; flex-direction: column; border-radius: 8px; background: white; border: 1px solid #b8c4ce; box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28); overflow: hidden; }
-    .rule-modal header { padding: 16px 18px; border-bottom: 1px solid #d8e0e6; }
-    .rule-modal h2 { margin: 0; font-size: 18px; }
-    .rule-modal-body { padding: 16px 18px; overflow-y: auto; line-height: 1.45; }
-    .rule-step { padding: 10px 0; border-bottom: 1px solid #edf2f5; font-size: 13px; overflow-wrap: anywhere; word-break: break-word; }
-    .rule-step strong { display: block; margin-bottom: 4px; }
-    .rule-step.completed strong { color: #1f6b35; }
-    .rule-step.blocked strong { color: #b42318; }
-    .rule-step.running strong { color: #1769aa; }
-    .rule-final { margin-top: 14px; padding: 12px; border: 1px solid #d8e0e6; border-radius: 6px; background: #f4f7f9; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; font-size: 13px; }
-    .rule-modal-footer { padding: 12px 18px; border-top: 1px solid #d8e0e6; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
     .hidden { display: none !important; }
     .next-steps { display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
     .next-steps.visible { display: flex; }
@@ -225,10 +233,6 @@ SETTINGS_HTML = """
       main { padding: 20px 12px; }
       section { padding: 16px; }
       .row { grid-template-columns: 1fr; }
-      .rule-actions { display: grid; grid-template-columns: 1fr; }
-      .rule-actions button { width: 100%; min-height: 42px; }
-      .rule-result th { width: 108px; }
-      .rule-modal { max-height: 88vh; }
     }
     .note { color: #52616d; font-size: 13px; line-height: 1.45; }
     .checkbox-line { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13px; font-weight: 650; }
@@ -396,11 +400,14 @@ SETTINGS_HTML = """
       <div id="dataPathStatus" class="note"></div>
     </div>
     <div class="subsection">
-      <label>자동 룰 업데이트</label>
+      <label>Codex 룰 최적화</label>
       <div class="checkbox-line">
         <input id="autoRuleUpdateEnabled" type="checkbox">
-        <span>학습데이터 충족률 100%에서 replay 통과 시 자동 룰 재평가</span>
+        <span>Codex 룰 개선 활성화 (백그라운드 자동 재평가 포함)</span>
       </div>
+      <div class="note">모델: gpt-6-astra. 클릭하면 학습 로그와 A~R 내부 테스트를 분석하고 replay 검증을 통과한 동일한 룰을 데모에 적용하고 실거래 룰 저장소에도 반영합니다. 실거래 모드가 시작될 때 같은 룰을 불러옵니다.</div>
+      <button id="optimizeDemoRulesButton" class="secondary" type="button" onclick="optimizeDemoRules()">로그 기반 룰 원클릭 최적화</button>
+      <div id="ruleOptimizeStatus" class="note" aria-live="polite"></div>
       <div class="row">
         <div>
           <label for="autoRuleCompletionRate">학습데이터 충족률 기준</label>
@@ -440,27 +447,6 @@ SETTINGS_HTML = """
       <button id="saveButton" class="primary" type="button" onclick="saveSettings()">저장</button>
       <span id="status" class="status"></span>
     </div>
-    <div class="subsection">
-      <label>룰 개선</label>
-      <div class="note">Codex 자동 룰 개선은 분석, 변경안 생성, replay 검증, demo 적용을 승인 없이 한 번에 실행하고 진행 과정을 모달로 표시한다. live 반영은 결과 확인 후 별도 승인한다.</div>
-      <div class="rule-actions">
-        <button class="primary" type="button" onclick="runCodexRuleAutomation()">Codex 자동 룰 개선 시작</button>
-        <button class="primary" type="button" onclick="approveRuleProposalForLive()">live 승인 적용</button>
-        <button class="secondary" type="button" onclick="linkRuleProposalCommitHash()">커밋 해시 연결</button>
-        <button class="secondary" type="button" onclick="appendRuleHistoryCorrection()">히스토리 보정</button>
-        <button class="danger-button" type="button" onclick="rollbackRuleProposal()">룰 변경 롤백</button>
-      </div>
-      <table class="rule-result">
-        <tbody id="ruleReviewTable">
-          <tr><td>룰 개선 분석을 실행하면 분석 대상 기간, 거래 수, 손절 수, 손실 원인, 변경안, replay 결과, 승인 필요 여부가 표시됩니다.</td></tr>
-        </tbody>
-      </table>
-      <table class="rule-result">
-        <tbody id="ruleHistoryTable">
-          <tr><td>룰 변경 히스토리가 표시됩니다.</td></tr>
-        </tbody>
-      </table>
-    </div>
     <div id="startPanel" class="start-panel">
       <div id="startMessage" class="note"></div>
       <div class="actions">
@@ -483,22 +469,6 @@ SETTINGS_HTML = """
     </div>
   </section>
 </main>
-<div id="ruleAutomationModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="ruleAutomationTitle">
-  <div class="rule-modal">
-    <header>
-      <h2 id="ruleAutomationTitle">Codex 자동 룰 개선 진행</h2>
-      <div class="note">진행 내용이 길면 아래 영역을 스크롤해서 전체 변경 이유와 결과를 확인하세요.</div>
-    </header>
-    <div class="rule-modal-body">
-      <div id="ruleAutomationSteps"></div>
-      <div id="ruleAutomationFinal" class="rule-final hidden"></div>
-    </div>
-    <div class="rule-modal-footer">
-      <button id="ruleAutomationRetry" class="secondary hidden" type="button" onclick="runCodexRuleAutomation()">다시 룰 개선</button>
-      <button id="ruleAutomationClose" class="primary hidden" type="button" onclick="closeRuleAutomationModal()">확인</button>
-    </div>
-  </div>
-</div>
 <script>
 let mode = "demo";
 let profiles = [];
@@ -506,48 +476,6 @@ let telegramTokenVisible = false;
 let telegramTokenLoaded = false;
 let latestStartReadiness = null;
 let latestTradingStatus = {running: false, startable: false};
-let latestRuleReviewId = null;
-let latestRuleProposalId = null;
-function openRuleAutomationModal() {
-  document.getElementById("ruleAutomationModal").classList.add("visible");
-  document.getElementById("ruleAutomationSteps").innerHTML = "";
-  document.getElementById("ruleAutomationFinal").classList.add("hidden");
-  document.getElementById("ruleAutomationFinal").textContent = "";
-  document.getElementById("ruleAutomationRetry").classList.add("hidden");
-  document.getElementById("ruleAutomationClose").classList.add("hidden");
-}
-function closeRuleAutomationModal() {
-  document.getElementById("ruleAutomationModal").classList.remove("visible");
-}
-function appendRuleAutomationStep(name, status, message) {
-  const steps = document.getElementById("ruleAutomationSteps");
-  const item = document.createElement("div");
-  item.className = `rule-step ${status}`;
-  item.innerHTML = `<strong>${name}</strong><div>${message || ""}</div>`;
-  steps.appendChild(item);
-}
-function renderRuleAutomationResult(payload) {
-  document.getElementById("ruleAutomationSteps").innerHTML = "";
-  (payload.steps || []).forEach((step) => appendRuleAutomationStep(step.name, step.status, step.message));
-  const summary = payload.final_summary || {};
-  const changed = (summary.changed_parameters || []).join(", ") || "실제 변경 없음";
-  const rejected = (summary.rejection_reasons || []).join(", ") || "없음";
-  const replay = summary.replay_result ? JSON.stringify(summary.replay_result, null, 2) : "replay 결과 없음";
-  const final = [
-    `완료 상태: ${payload.status === "completed" ? "demo 적용 완료" : "추가 개선 필요"}`,
-    `바뀐 항목: ${changed}`,
-    `변경 이유: ${summary.change_reason || "-"}`,
-    `replay 결과: ${replay}`,
-    `demo 적용: ${summary.demo_applied ? "완료" : "미완료"}`,
-    `live 승인 필요: ${summary.live_requires_approval ? "필요" : "불필요"}`,
-    `차단/보류 사유: ${rejected}`
-  ].join("\\n");
-  const finalBox = document.getElementById("ruleAutomationFinal");
-  finalBox.textContent = final;
-  finalBox.classList.remove("hidden");
-  document.getElementById("ruleAutomationClose").classList.remove("hidden");
-  document.getElementById("ruleAutomationRetry").classList.toggle("hidden", !payload.can_retry);
-}
 function showStatus(message, kind = "") {
   const status = document.getElementById("status");
   status.className = `status visible ${kind}`.trim();
@@ -727,166 +655,9 @@ async function loadSettings() {
     document.getElementById("telegramChat").value = values.TELEGRAM_CHAT_ID || "";
     showStartPanel(Boolean(data.start_readiness && data.start_readiness.ready), data.start_readiness);
     await refreshTradingStatus(data.start_readiness);
-    renderLatestRuleProposal(await fetchJson("/api/v1/rules/proposals"));
-    renderRuleHistory(await fetchJson("/api/v1/rules/history"));
   } catch (error) {
     showStatus("현재 설정을 불러오지 못했다. 서버 상태를 확인한 뒤 다시 시도한다.", "warning");
   }
-}
-function row(label, value) {
-  return `<tr><th>${label}</th><td>${value}</td></tr>`;
-}
-function number(value, digits = 0) {
-  const numeric = Number(value);
-  if (Number.isNaN(numeric)) return "-";
-  return numeric.toLocaleString("ko-KR", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits
-  });
-}
-function signedNumber(value, digits = 0) {
-  const numeric = Number(value);
-  if (Number.isNaN(numeric)) return "-";
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  return `${sign}${number(Math.abs(numeric), digits)}`;
-}
-async function fetchJson(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url} ${response.status}`);
-  return response.json();
-}
-async function postJson(url, body = {}) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(body)
-  });
-  if (!response.ok) throw new Error(`${url} ${response.status}`);
-  return response.json();
-}
-function renderRulePipeline(payload) {
-  const review = payload.review || {};
-  const proposal = payload.proposal || {};
-  latestRuleReviewId = review.id || proposal.review_id || latestRuleReviewId;
-  latestRuleProposalId = proposal.id || latestRuleProposalId;
-  const source = proposal.id ? proposal : review;
-  const causes = (source.major_loss_causes || []).map((item) => `${item.reason} ${item.count}건`).join(", ") || "데이터 부족";
-  const changes = (proposal.codex_suggested_changes || []).map((item) => `${item.parameter}: ${item.proposed_value}`).join(", ") || "변경안 없음";
-  const replay = proposal.replay_result ? JSON.stringify(proposal.replay_result) : "replay 필요";
-  const reasons = (proposal.rejection_reasons || []).join(", ") || "없음";
-  const externalContext = formatRuleExternalContext(source.external_context_summary || {});
-  const historyWarnings = formatRuleHistoryWarnings(proposal.history_warnings || []);
-  document.getElementById("ruleReviewTable").innerHTML = [
-    row("분석 대상 기간", source.analysis_window_days ? `${source.analysis_window_days}일` : "-"),
-    row("대상 코인", source.trade_coin || "-"),
-    row("룰 로그 경로", source.learning_log_dir || "-"),
-    row("거래 수", source.trade_count || 0),
-    row("손절 수", source.stop_loss_count || 0),
-    row("외부 컨텍스트", externalContext),
-    row("히스토리 경고", historyWarnings),
-    row("주요 손실 원인", causes),
-    row("Codex 제안 변경 항목", changes),
-    row("replay 결과", replay),
-    row("승인 필요 여부", source.approval_required ? "필요" : "불필요"),
-    row("차단/승인 사유", reasons)
-  ].join("");
-}
-function formatRuleExternalContext(summary) {
-  const onchain = Object.entries(summary.onchain_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${value}건`).join(", ") || "없음";
-  const etf = Object.entries(summary.etf_state_counts || {}).map(([key, value]) => `${formatContextState(key)} ${value}건`).join(", ") || "없음";
-  const stale = summary.etf_stale_count ? ` / 오래된 ETF ${summary.etf_stale_count}건 제외` : "";
-  const flow = `ETF 순흐름 ${signedNumber(summary.etf_flow_usd_total || 0, 0)} USD`;
-  return `표본 ${summary.sample_count || 0}건 / 온체인 ${onchain} / ETF ${etf}${stale} / 평균 가중치 ${summary.avg_learning_weight || 1} / ${flow}`;
-}
-function formatContextState(value) {
-  const labels = {
-    bullish: "강세",
-    bearish: "약세",
-    neutral: "중립",
-    inflow: "자금 유입",
-    outflow: "자금 유출",
-    disabled: "비활성",
-    not_applicable: "해당 없음"
-  };
-  return labels[value] || value || "-";
-}
-function formatRuleHistoryWarnings(warnings) {
-  return warnings.length
-    ? warnings.map((item) => `${item.parameter}: ${item.message}`).join(", ")
-    : "없음";
-}
-function renderLatestRuleProposal(payload) {
-  const latest = payload.latest_proposal;
-  if (!latest) return;
-  renderRulePipeline({proposal: latest});
-}
-function renderRuleHistory(payload) {
-  const history = payload.history || [];
-  document.getElementById("ruleHistoryTable").innerHTML = history.length
-    ? history.slice(0, 5).map((item) => row(
-        `${item.event_type || "-"} / ${item.approval_status || "-"}`,
-        `${item.trade_coin || "-"} ${item.changed_parameters ? item.changed_parameters.join(", ") : ""} / ${item.change_reason || "-"}${item.commit_hash ? ` / commit ${item.commit_hash}` : ""}`
-      )).join("")
-    : '<tr><td>룰 변경 히스토리가 없습니다.</td></tr>';
-}
-async function refreshRuleHistory() {
-  renderRuleHistory(await fetchJson("/api/v1/rules/history"));
-}
-async function runCodexRuleAutomation() {
-  openRuleAutomationModal();
-  appendRuleAutomationStep("Codex CLI 룰 개선 하네스 시작", "running", "학습 로그를 읽고 변경안을 생성하는 자동 파이프라인을 실행합니다.");
-  try {
-    const result = await postJson("/api/v1/rules/auto-improve", {fixture_path: "fixtures/replay_ticks.json"});
-    renderRuleAutomationResult(result);
-    renderRulePipeline({proposal: result.proposal || {}, review: result.review || {}});
-    await refreshRuleHistory();
-  } catch (error) {
-    appendRuleAutomationStep("자동 룰 개선 실패", "blocked", error.message);
-    const finalBox = document.getElementById("ruleAutomationFinal");
-    finalBox.textContent = "자동 룰 개선 요청이 실패했습니다. 서버 상태와 replay fixture를 확인한 뒤 다시 실행하세요.";
-    finalBox.classList.remove("hidden");
-    document.getElementById("ruleAutomationRetry").classList.remove("hidden");
-    document.getElementById("ruleAutomationClose").classList.remove("hidden");
-  }
-}
-async function runRuleReview() {
-  renderRulePipeline(await postJson("/api/v1/rules/review"));
-}
-async function createRuleProposal() {
-  renderRulePipeline(await postJson("/api/v1/rules/proposals", {review_id: latestRuleReviewId}));
-}
-async function applyRuleProposalToDemo() {
-  if (!latestRuleProposalId) await createRuleProposal();
-  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/apply-demo`));
-}
-async function verifyRuleProposalReplay() {
-  if (!latestRuleProposalId) await createRuleProposal();
-  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/replay`, {fixture_path: "fixtures/replay_ticks.json"}));
-}
-async function approveRuleProposalForLive() {
-  if (!latestRuleProposalId) await createRuleProposal();
-  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/approve-live`, {approved_by: ""}));
-}
-async function linkRuleProposalCommitHash() {
-  if (!latestRuleProposalId) await createRuleProposal();
-  const commitHash = window.prompt("연결할 Git 커밋 해시를 입력하세요.", "");
-  if (!commitHash) return;
-  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/commit-hash`, {commit_hash: commitHash}));
-  await refreshRuleHistory();
-}
-async function appendRuleHistoryCorrection() {
-  if (!latestRuleProposalId) await createRuleProposal();
-  const reason = window.prompt("히스토리 보정 사유를 입력하세요.", "");
-  if (!reason) return;
-  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/history-corrections`, {reason, corrected_fields: {}, corrected_by: "operator"}));
-  await refreshRuleHistory();
-}
-async function rollbackRuleProposal() {
-  if (!latestRuleProposalId) await createRuleProposal();
-  const reason = window.prompt("룰 변경 롤백 사유를 입력하세요.", "");
-  if (!reason) return;
-  renderRulePipeline(await postJson(`/api/v1/rules/proposals/${latestRuleProposalId}/rollback`, {reason, target: "demo", rolled_back_by: "operator"}));
-  await refreshRuleHistory();
 }
 async function refreshTradingStatus(readiness = latestStartReadiness) {
   try {
@@ -983,6 +754,43 @@ async function sendTelegramTest() {
     showStatus(result.message || (result.sent ? "텔레그램 테스트 메시지를 전송했습니다." : "텔레그램 테스트 메시지를 전송하지 못했습니다."), result.sent ? "" : "warning");
   } catch (error) {
     showStatus("텔레그램 테스트 메시지 전송 요청에 실패했습니다.", "warning");
+  }
+}
+async function optimizeDemoRules() {
+  if (mode !== "demo") {
+    showStatus("데모 모드에서만 룰 최적화를 실행할 수 있습니다.", "warning");
+    return;
+  }
+  const button = document.getElementById("optimizeDemoRulesButton");
+  const output = document.getElementById("ruleOptimizeStatus");
+  button.disabled = true;
+  output.textContent = "Codex가 학습 로그와 A~R 테스트 결과를 분석하고 replay 검증 중입니다...";
+  try {
+    const response = await fetch("/settings/rules/optimize-demo", {method: "POST"});
+    const result = await response.json();
+    const proposal = result.proposal || {};
+    const replay = proposal.replay_result || {};
+    const changed = proposal.codex_suggested_changes || [];
+    const reasons = (proposal.rejection_reasons || []).join(", ");
+    const details = replay.candidate_changes_tested
+      ? `검증 후보 수익 ${(Number(replay.final_profit_rate || 0) * 100).toFixed(3)}% / 기준 ${(Number(replay.baseline_final_profit_rate || 0) * 100).toFixed(3)}%, 검증 낙폭 ${(Number(replay.max_drawdown_pct || 0) * 100).toFixed(2)}% / 홀드아웃 ${(Number(replay.holdout_final_profit_rate || 0) * 100).toFixed(3)}%.`
+      : "비교할 변경 후보를 만들지 못했습니다.";
+    const runtimeUpdate = proposal.runtime_rule_update || {};
+    const immediateMessage = runtimeUpdate.effective_immediately
+      ? (runtimeUpdate.trading_running
+        ? "실행 중인 데모 엔진의 다음 매매 판단부터 바로 사용합니다."
+        : "데모 엔진 메모리에 반영했습니다. 엔진이 중지 상태이므로 매매를 시작하면 새 룰을 사용합니다.")
+      : "";
+    const liveMessage = runtimeUpdate.live_rules_persisted
+      ? "동일한 변경을 실거래 룰 저장소에도 반영해 실거래 모드 시작 시 불러옵니다."
+      : "";
+    output.textContent = proposal.demo_applied
+      ? `검증을 통과한 ${changed.map((item) => item.parameter).join(", ")} 변경을 데모에 적용했습니다. ${immediateMessage} ${liveMessage} ${details}`
+      : `검증 기준을 통과한 변경이 없어 현재 룰을 유지했습니다. ${details} ${reasons || result.message || ""}`;
+  } catch (error) {
+    output.textContent = `룰 최적화 실패: ${error.message}`;
+  } finally {
+    button.disabled = false;
   }
 }
 async function toggleTradingServer() {

@@ -213,6 +213,7 @@ class AutoTradingService:
         _init_now = self._clock()
         self._last_trade_filled_at: datetime = _init_now   # 마지막 매수 체결 시각
         self._last_variant_reset_at: datetime = _init_now  # 마지막 섀도 리셋 시각
+        # A replay-verified shared rule set is restored in demo and live mode.
         self._restore_verified_rule_updates()
 
     def should_run(self) -> bool:
@@ -301,42 +302,63 @@ class AutoTradingService:
         self._demo_rule_variant_shadow_tester.reset()
 
     def apply_demo_rule_update(self, changes: list[dict[str, Any]]) -> dict[str, object]:
-        """Persist a verified demo rule so the matching live profile uses it too."""
+        """Apply verified rules to demo and persist the same set for live mode."""
         if self._trading_mode != "demo":
             return {"applied": False, "reason": "demo_mode_required", "parameters": []}
         result = self._apply_verified_rule_updates(changes)
         if result["applied"]:
             self._persist_verified_rule_updates(changes)
+            result["effective_immediately"] = True
+            result["trading_running"] = self.is_running()
+            result["live_rules_persisted"] = self._rule_update_state_path is not None
+            result["live_applies_when_mode_active"] = self._rule_update_state_path is not None
         return result
 
     def _apply_verified_rule_updates(self, changes: list[dict[str, Any]]) -> dict[str, object]:
-        parameters = {str(change.get("parameter")) for change in changes if isinstance(change, dict)}
+        change_by_parameter = {
+            str(change.get("parameter")): change
+            for change in changes
+            if isinstance(change, dict)
+        }
+        parameters = set(change_by_parameter)
         updates: dict[str, object] = {}
-        if "NO_TRADE_RELAX_MIN_SCORE" in parameters:
-            self._config = replace(self._config, no_trade_relax_min_score=0.18)
-            updates["NO_TRADE_RELAX_MIN_SCORE"] = 0.18
-        if "BULL_BOX_BEAR_REBOUND_SIGNAL_BOOST" in parameters:
-            self._config = replace(self._config, allow_weak_no_trade_relax=True)
-            updates["BULL_BOX_BEAR_REBOUND_SIGNAL_BOOST"] = "enabled_after_fee_edge_check"
         decision_overrides: dict[str, float] = {}
         if "TECHNICAL_TREND_CONFIRMATION" in parameters:
-            decision_overrides["technical_trend_confirmation_boost"] = 0.03
-        if "TECHNICAL_BEARISH_SIZE_REDUCTION" in parameters:
-            decision_overrides["bearish_entry_score_multiplier"] = 0.90
-        if "EXTERNAL_CONTEXT_BULLISH_BOOST" in parameters:
-            decision_overrides["external_context_bullish_multiplier"] = 1.002
-        if decision_overrides and hasattr(self._trade_decision_service, "set_demo_rule_overrides"):
-            updates.update(self._trade_decision_service.set_demo_rule_overrides(decision_overrides))
+            decision_overrides["technical_trend_confirmation_boost"] = float(
+                change_by_parameter["TECHNICAL_TREND_CONFIRMATION"].get("proposed_value", 0.0),
+            )
+        if "MIN_NET_EDGE_PCT" in parameters:
+            decision_overrides["minimum_net_edge_pct"] = float(
+                change_by_parameter["MIN_NET_EDGE_PCT"].get("proposed_value", 0.0),
+            )
+        if decision_overrides and hasattr(self._trade_decision_service, "set_verified_rule_overrides"):
+            updates.update(self._trade_decision_service.set_verified_rule_overrides(decision_overrides))
         return {"applied": bool(updates), "parameters": updates}
 
     def _persist_verified_rule_updates(self, changes: list[dict[str, Any]]) -> None:
         if self._rule_update_state_path is None:
             return
         self._rule_update_state_path.parent.mkdir(parents=True, exist_ok=True)
-        self._rule_update_state_path.write_text(
-            json.dumps({"changes": changes}, ensure_ascii=False, sort_keys=True),
+        existing_changes: list[dict[str, Any]] = []
+        try:
+            existing_payload = json.loads(self._rule_update_state_path.read_text(encoding="utf-8"))
+            if isinstance(existing_payload, dict) and isinstance(existing_payload.get("changes"), list):
+                existing_changes = [
+                    item for item in existing_payload["changes"]
+                    if isinstance(item, dict) and item.get("parameter")
+                ]
+        except (OSError, json.JSONDecodeError):
+            pass
+        merged = {str(item["parameter"]): item for item in existing_changes}
+        merged.update({str(item["parameter"]): item for item in changes if isinstance(item, dict) and item.get("parameter")})
+        temporary_path = self._rule_update_state_path.with_suffix(
+            self._rule_update_state_path.suffix + ".tmp",
+        )
+        temporary_path.write_text(
+            json.dumps({"changes": list(merged.values())}, ensure_ascii=False, sort_keys=True),
             encoding="utf-8",
         )
+        temporary_path.replace(self._rule_update_state_path)
 
     def _restore_verified_rule_updates(self) -> None:
         if self._rule_update_state_path is None or not self._rule_update_state_path.exists():
