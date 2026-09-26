@@ -17,6 +17,11 @@ def build_learning_router(
     learning_log_dir: Path | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/learning")
+    readiness_service = (
+        None
+        if learning_log_dir is None
+        else ModelTrainingReadinessService(log_dir=learning_log_dir)
+    )
 
     @router.get("/recent")
     def recent_learning_events(limit: int = 20) -> dict[str, object]:
@@ -68,7 +73,8 @@ def build_learning_router(
                 "learning_log_dir": None,
                 "readiness": None,
             }
-        readiness = ModelTrainingReadinessService(log_dir=learning_log_dir).build()
+        assert readiness_service is not None
+        readiness = readiness_service.build()
         return {
             "status": "ok",
             "market": market,

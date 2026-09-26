@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import copy
+import threading
+import time
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -21,6 +24,8 @@ class ModelTrainingThresholds:
 class ModelTrainingReadinessService:
     """Evaluate whether learning logs are mature enough for ML model training."""
 
+    CACHE_TTL_SECONDS = 30.0
+
     def __init__(
         self,
         *,
@@ -29,8 +34,21 @@ class ModelTrainingReadinessService:
     ) -> None:
         self._log_path = log_dir / "learning.jsonl"
         self._thresholds = thresholds or ModelTrainingThresholds()
+        self._cache_lock = threading.Lock()
+        self._cached_result: dict[str, object] | None = None
+        self._cache_expires_at = 0.0
 
     def build(self) -> dict[str, object]:
+        now = time.monotonic()
+        with self._cache_lock:
+            if self._cached_result is not None and now < self._cache_expires_at:
+                return copy.deepcopy(self._cached_result)
+            result = self._build_uncached()
+            self._cached_result = result
+            self._cache_expires_at = now + self.CACHE_TTL_SECONDS
+            return copy.deepcopy(result)
+
+    def _build_uncached(self) -> dict[str, object]:
         scoped_counts: Counter[str] = Counter()
         market_state_counts: Counter[str] = Counter()
         total_events = 0
