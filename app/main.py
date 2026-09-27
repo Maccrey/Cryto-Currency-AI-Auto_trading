@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from collections.abc import Callable
 from dataclasses import replace
@@ -811,6 +812,36 @@ def create_app(
         }
 
     learning_data_reset_service = LearningDataResetService(log_dir=profile_learning_log_dir)
+    archive_cleanup_task: asyncio.Task[None] | None = None
+
+    async def archive_cleanup_loop() -> None:
+        while True:
+            try:
+                result = await asyncio.to_thread(learning_data_reset_service.cleanup_expired_archives)
+                if result.deleted_count:
+                    logger.info(
+                        "expired_learning_archives_deleted",
+                        extra={"deleted_count": result.deleted_count, "deleted_bytes": result.deleted_bytes},
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("learning_archive_cleanup_failed")
+            await asyncio.sleep(24 * 60 * 60)
+
+    @app.on_event("startup")
+    async def start_archive_cleanup() -> None:
+        nonlocal archive_cleanup_task
+        archive_cleanup_task = asyncio.create_task(archive_cleanup_loop(), name="learning_archive_cleanup")
+
+    @app.on_event("shutdown")
+    async def stop_archive_cleanup() -> None:
+        if archive_cleanup_task is not None:
+            archive_cleanup_task.cancel()
+            try:
+                await archive_cleanup_task
+            except asyncio.CancelledError:
+                pass
 
     def purge_runtime_data_service() -> dict[str, object]:
         deleted_paths: list[str] = []

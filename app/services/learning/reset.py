@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+import re
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,18 @@ EXTRA_LOG_FILES = [
     "rule-change-history.jsonl",     # 룰 변경 이력
     "rule-review-state.json",        # 룰 리뷰 상태
 ]
+
+ARCHIVE_RETENTION_DAYS = 30
+_ARCHIVE_NAME = re.compile(
+    r"^(?:\._)?(?:learning-(\d{8}-\d{6})\.jsonl|"
+    r"(?:market-observations\.jsonl|rule-change-history\.jsonl|rule-review-state\.json)-(\d{8}-\d{6}))$"
+)
+
+
+@dataclass(frozen=True)
+class ArchiveCleanupResult:
+    deleted_count: int
+    deleted_bytes: int
 
 
 class LearningDataResetService:
@@ -50,6 +63,32 @@ class LearningDataResetService:
             for name in EXTRA_LOG_FILES
             if (self._log_dir / name).exists()
         ]
+
+    def cleanup_expired_archives(self) -> ArchiveCleanupResult:
+        """Delete only recognized reset archives older than the retention period."""
+        if not self._archive_root.exists():
+            return ArchiveCleanupResult(deleted_count=0, deleted_bytes=0)
+
+        cutoff = self._timestamp_provider().replace(tzinfo=None) - timedelta(days=ARCHIVE_RETENTION_DAYS)
+        deleted_count = 0
+        deleted_bytes = 0
+        for path in self._archive_root.rglob("*"):
+            if not path.is_file() or path.is_symlink():
+                continue
+            match = _ARCHIVE_NAME.fullmatch(path.name)
+            if match is None:
+                continue
+            try:
+                archived_at = datetime.strptime(match.group(1) or match.group(2), "%Y%m%d-%H%M%S")
+            except ValueError:
+                continue
+            if archived_at > cutoff:
+                continue
+            size = path.stat().st_size
+            path.unlink()
+            deleted_count += 1
+            deleted_bytes += size
+        return ArchiveCleanupResult(deleted_count=deleted_count, deleted_bytes=deleted_bytes)
 
     # ── 공개 메서드 ──────────────────────────────────────────────────────────
 
