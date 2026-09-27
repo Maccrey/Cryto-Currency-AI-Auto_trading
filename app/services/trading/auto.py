@@ -2306,7 +2306,7 @@ class AutoTradingService:
             "market": self._market,
             "mode": self._trading_mode,
             "trade_price": snapshot.trade_price,
-            "traded_value": self._traded_value(snapshot),
+            "traded_value": self._traded_values[-1],
             "spread_bps": self._config.spread_bps,
             "orderbook_imbalance": self._orderbook_imbalance(),
             "liquidity_score": self._liquidity_score(),
