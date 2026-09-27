@@ -52,7 +52,8 @@ class MarketFeatureCalculator:
         ret_5s = _return(prices[-min(len(prices), 3)], prices[-1])
         ret_30s = _return(prices[0], prices[-1])
         comparison_window = traded_values[-3:-1] if len(traded_values) >= 3 else traded_values[:-1]
-        volume_multiple = traded_values[-1] / (sum(comparison_window) / len(comparison_window))
+        baseline = sum(comparison_window) / len(comparison_window)
+        volume_multiple = traded_values[-1] / baseline if baseline > 0 else 1.0
         traded_value_multiple = volume_multiple
         short_volatility = _average_absolute_return(
             [_return(a, b) for a, b in zip(prices[:-1], prices[1:])],

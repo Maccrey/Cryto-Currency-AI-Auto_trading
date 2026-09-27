@@ -12,6 +12,7 @@ class UpbitTickerSnapshot:
     signed_change_rate: float | None = None
     acc_trade_volume_24h: float | None = None
     acc_trade_price_24h: float | None = None
+    acc_trade_price: float | None = None
 
 
 class UpbitTickerPriceProvider:
@@ -48,6 +49,7 @@ class UpbitTickerPriceProvider:
             signed_change_rate=self._optional_float(first.get("signed_change_rate")),
             acc_trade_volume_24h=self._optional_float(first.get("acc_trade_volume_24h")),
             acc_trade_price_24h=self._optional_float(first.get("acc_trade_price_24h")),
+            acc_trade_price=self._optional_float(first.get("acc_trade_price")),
         )
 
     def close(self) -> None:

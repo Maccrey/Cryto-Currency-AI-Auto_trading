@@ -5,7 +5,7 @@ import json
 from collections import deque
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
-from datetime import datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -141,6 +141,8 @@ class AutoTradingService:
         history_size = max(config.min_history, config.initial_observation_min_samples, 2)
         self._prices: deque[float] = deque(maxlen=history_size)
         self._traded_values: deque[float] = deque(maxlen=history_size)
+        self._last_cumulative_traded_value: float | None = None
+        self._last_cumulative_utc_date: date | None = None
         self._initial_market_history_count = len(market_price_store.list_history(market))
         self._requires_initial_observation_warmup = self._initial_market_history_count <= 0
         self._first_observation_at: datetime | None = None
@@ -284,6 +286,8 @@ class AutoTradingService:
     def reset_runtime_market_data(self) -> dict[str, object]:
         self._prices.clear()
         self._traded_values.clear()
+        self._last_cumulative_traded_value = None
+        self._last_cumulative_utc_date = None
         self._market_price_store.clear(self._market)
         self._initial_market_history_count = 0
         self._requires_initial_observation_warmup = True
@@ -1967,10 +1971,19 @@ class AutoTradingService:
         }.get(str(level or ""), 0)
 
     def _traded_value(self, snapshot: UpbitTickerSnapshot) -> float:
-        value = snapshot.acc_trade_price_24h
-        if value is None or value <= 0:
-            value = snapshot.trade_price
-        return float(value)
+        # The UTC-day accumulator can be differenced between observations.
+        # A rolling 24h total cannot: older trades expire as new ones arrive.
+        value = snapshot.acc_trade_price
+        if value is None or value < 0:
+            return 0.0
+        utc_date = self._clock().astimezone(UTC).date()
+        previous = self._last_cumulative_traded_value
+        same_day = utc_date == self._last_cumulative_utc_date
+        self._last_cumulative_traded_value = float(value)
+        self._last_cumulative_utc_date = utc_date
+        if previous is None or not same_day or value < previous:
+            return 0.0
+        return float(value - previous)
 
     def _orderbook_imbalance(self) -> float:
         if len(self._prices) < 2:
@@ -1991,7 +2004,13 @@ class AutoTradingService:
     def _liquidity_score(self) -> float:
         if len(self._traded_values) < 2:
             return 0.5
-        return 0.9 if self._traded_values[-1] >= self._traded_values[-2] else 0.6
+        current_value = self._traded_values[-1]
+        previous_value = self._traded_values[-2]
+        if current_value <= 0:
+            return 0.5
+        if previous_value <= 0:
+            return 0.6
+        return 0.9 if current_value >= previous_value else 0.6
 
     def _elapsed_sec(self) -> int:
         if self._position_opened_at is None:
