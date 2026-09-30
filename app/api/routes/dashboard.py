@@ -767,7 +767,8 @@ function renderTradingRuntime(status) {
   if (status.startable) {
     runtime.disabled = dashboardTradingStartInFlight;
     runtime.classList.add("stopped");
-    runtime.textContent = "○ 자동매매 중지됨 · 시작 가능";
+    runtime.textContent = "○ 현재 중지 · 눌러서 자동매매 시작";
+    runtime.title = "자동매매 루프는 현재 중지 상태입니다. 버튼을 누르면 시작합니다.";
   } else {
     runtime.disabled = true;
     runtime.classList.add("unavailable");

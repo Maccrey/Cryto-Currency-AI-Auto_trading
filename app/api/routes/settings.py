@@ -502,7 +502,7 @@ function showStartPanel(visible, readiness = null, tradingStatus = null) {
     : running
       ? "자동매매 루프가 실행 중입니다. 중지 버튼을 누르면 매매 판단만 멈추고 설정 화면과 서버 프로세스는 유지됩니다."
       : ready
-        ? "필수 설정이 저장되었습니다. 자동매매 루프를 시작할 수 있습니다."
+        ? "현재 자동매매 루프는 중지 상태입니다. ‘자동매매 루프 시작’ 버튼을 누르면 실행됩니다."
         : `아직 시작할 수 없습니다. ${formatReadinessProblems(readiness)}`;
 }
 function formatReadinessProblems(readiness) {
