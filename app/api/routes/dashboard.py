@@ -163,6 +163,8 @@ DASHBOARD_HTML = """
     .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .primary { background: var(--primary); color: white; border-color: var(--primary); }
     .runtime-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; box-sizing: border-box; border: 1px solid #94a3b8; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    button.runtime-pill { cursor: pointer; font-family: inherit; }
+    button.runtime-pill:disabled { cursor: default; opacity: 0.88; }
     .runtime-pill.running { border-color: #16a34a; background: #dcfce7; color: #166534; }
     .runtime-pill.stopped { border-color: #94a3b8; background: #f1f5f9; color: #475569; }
     .runtime-pill.unavailable { border-color: #dc2626; background: #fee2e2; color: #991b1b; }
@@ -333,7 +335,7 @@ DASHBOARD_HTML = """
         <button class="btn primary" type="button" onclick="refreshDashboard(true)">새로고침</button>
         <a class="btn" href="/settings">설정</a>
         <a class="btn" href="/health" target="_blank" rel="noreferrer">상태 API</a>
-        <span id="tradingRuntime" class="runtime-pill stopped" title="자동매매 루프 상태" aria-live="polite">자동매매 상태 확인 중</span>
+        <button id="tradingRuntime" class="runtime-pill stopped" type="button" onclick="startTradingFromDashboard()" title="자동매매 루프 상태" aria-live="polite">자동매매 상태 확인 중</button>
       </nav>
     </div>
   </div>
@@ -543,6 +545,34 @@ const DASHBOARD_LAYOUT_KEY = "cryptoDashboardLayoutV1";
 let dashboardRefreshInFlight = false;
 let dashboardSlowRefreshInFlight = false;
 let dashboardRuleOptimizeInFlight = false;
+let dashboardTradingStartInFlight = false;
+
+async function startTradingFromDashboard() {
+  const button = document.getElementById("tradingRuntime");
+  if (dashboardTradingStartInFlight || button.disabled) return;
+  dashboardTradingStartInFlight = true;
+  button.disabled = true;
+  button.textContent = "◌ 자동매매 시작 중...";
+  button.title = "시작 요청을 처리하고 있습니다.";
+  try {
+    const response = await fetch("/settings/trading/start", {method: "POST"});
+    const result = await response.json();
+    if (!response.ok || !result.started) {
+      button.title = result.message || "자동매매를 시작하지 못했습니다.";
+      document.getElementById("statusLine").textContent = button.title;
+      await refreshDashboard();
+      return;
+    }
+    button.title = result.message || "자동매매 루프가 시작되었습니다.";
+    await refreshDashboard();
+  } catch (error) {
+    button.title = `시작 요청 실패: ${error.message}`;
+    document.getElementById("statusLine").textContent = button.title;
+  } finally {
+    dashboardTradingStartInFlight = false;
+    await fetchJson("/settings/trading/status").then(renderTradingRuntime).catch(() => { button.disabled = true; });
+  }
+}
 
 async function optimizeDemoRules() {
   if (dashboardRuleOptimizeInFlight) return;
@@ -722,20 +752,24 @@ function renderTradingRuntime(status) {
   const runtime = document.getElementById("tradingRuntime");
   runtime.classList.remove("running", "stopped", "unavailable");
   if (!status) {
+    runtime.disabled = true;
     runtime.classList.add("unavailable");
     runtime.textContent = "자동매매 상태 확인 불가";
     return;
   }
   if (status.running) {
+    runtime.disabled = true;
     runtime.classList.add("running");
     runtime.textContent = `● 자동매매 실행 중 · ${formatTradingRuntime(status.uptime_sec)}`;
     runtime.title = status.message || "자동매매 루프가 실행 중입니다.";
     return;
   }
   if (status.startable) {
+    runtime.disabled = dashboardTradingStartInFlight;
     runtime.classList.add("stopped");
     runtime.textContent = "○ 자동매매 중지됨 · 시작 가능";
   } else {
+    runtime.disabled = true;
     runtime.classList.add("unavailable");
     runtime.textContent = "! 자동매매 시작 불가 · 설정/안전상태 확인";
   }
