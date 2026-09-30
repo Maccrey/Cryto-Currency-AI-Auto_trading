@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 
 from app.integrations.telegram.notifier import TelegramNotifier
 from app.services.execution.demo import FillResult
@@ -69,6 +69,17 @@ class PostFillService:
             entry_price=execution.filled_price,
             quantity=execution.filled_quantity,
         )
+        variant_key = execution_result.decision.selected_variant_key
+        if variant_key is not None:
+            position = replace(position, variant_key=variant_key)
+        if variant_key in {"S", "T", "U", "V", "W", "X"}:
+            stop_pct = execution_result.decision.selected_variant_stop_loss_pct
+            if stop_pct is not None and stop_pct > 0:
+                position = replace(
+                    position,
+                    stop_loss_pct=stop_pct,
+                    stop_loss_price=round(position.entry_price * (1 - stop_pct), 2),
+                )
         existing_position = None if self._position_store is None else self._position_store.get()
         event_type = "opened"
         if existing_position is not None and existing_position.market == position.market:
@@ -188,6 +199,7 @@ class PostFillService:
             validation_window_sec=added_position.validation_window_sec,
             min_expected_return_pct=added_position.min_expected_return_pct,
             stop_loss_reason=None,
+            variant_key=existing_position.variant_key or added_position.variant_key,
         )
 
     @staticmethod

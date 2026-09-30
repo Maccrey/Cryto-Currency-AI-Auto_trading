@@ -43,6 +43,8 @@ class TradeDecisionResult:
     sizing: SizingDecision
     # Optional transition state (populated when MarketTransitionDetector is active)
     transition_state: TransitionState | None = field(default=None)
+    selected_variant_key: str | None = None
+    selected_variant_stop_loss_pct: float | None = None
 
 
 class TradeDecisionService:
@@ -105,6 +107,7 @@ class TradeDecisionService:
             observed_box_range_high=request.observed_box_range_high,
         )
         signal = self._apply_market_opportunity(signal, regime, features)
+        signal = self._apply_price_breakout(signal, features, request.prices)
         signal = self._apply_bearish_size_reduction(signal, regime)
         sizing = self._sizing_engine.size_entry(
             request.portfolio,
@@ -121,6 +124,21 @@ class TradeDecisionService:
             regime=regime,
             sizing=sizing,
         )
+
+    @staticmethod
+    def _apply_price_breakout(
+        signal: SignalDecision, features: FeatureSnapshot, prices: list[float],
+    ) -> SignalDecision:
+        """Recognize a confirmed short channel breakout for every rule candidate."""
+        if signal.blocked or len(prices) < 13 or signal.score >= 0.4:
+            return signal
+        prior = prices[-13:-1]
+        if (prices[-1] <= max(prior) or features.ret_5s < 0
+                or features.ma_trend <= 0 or features.trend_efficiency_20 < 0.18):
+            return signal
+        reasons = list(signal.reason_codes)
+        reasons.append("PRICE_CHANNEL_BREAKOUT_CONFIRMED")
+        return replace(signal, score=0.42, level="medium", reason_codes=reasons)
 
     def _apply_technical_trend_confirmation(
         self,

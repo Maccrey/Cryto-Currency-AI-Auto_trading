@@ -69,3 +69,13 @@ def test_market_state_entry_guard_blocks_strong_bear_initial_entries() -> None:
 
     assert decision.allowed is False
     assert decision.reason_code == "MARKET_STATE_BEAR_ENTRY_BLOCK"
+
+
+def test_market_state_entry_guard_accepts_verified_breakout_but_not_scale_in() -> None:
+    guard = MarketStateEntryGuard()
+    initial = guard.evaluate(market_state="bear", signal_level="medium",
+                             signal_score=0.42, confirmed_breakout=True)
+    scale_in = guard.evaluate(market_state="bear", signal_level="medium",
+                              signal_score=0.42, entry_type="scale_in", confirmed_breakout=True)
+    assert initial.allowed is True
+    assert scale_in.reason_code == "MARKET_STATE_BEAR_SCALE_IN_BLOCK"

@@ -115,6 +115,7 @@ class PositionExitService:
         market_state: str | None = None,
         box_range_low: float | None = None,
         box_range_high: float | None = None,
+        donchian_channel_exit: bool = False,
     ) -> dict[str, object]:
         if self._pending_live_exit is not None:
             return self._resolve_live_exit()
@@ -197,6 +198,35 @@ class PositionExitService:
                 },
                 "execution": None if execution is None else asdict(execution),
             }
+
+        if position.variant_key in {"S", "T", "U", "V", "W", "X"}:
+            if not donchian_channel_exit:
+                return {"status": "ok", "position": self._position_store.to_payload(position),
+                        "trigger": None, "execution": None}
+            resolved_exit = self._resolve_exit_quantity(
+                position=position, current_price=current_price, requested_exit_ratio=1.0,
+            )
+            if resolved_exit["blocked_reason"] is not None:
+                return {"status": "blocked", "position": self._position_store.to_payload(position),
+                        "trigger": {"type": "donchian_channel", "reason_code": "DONCHIAN_CHANNEL_EXIT",
+                                    "blocked_reason": resolved_exit["blocked_reason"]}, "execution": None}
+            execution = RegularSellExecutor(executor=self._executor).execute(
+                market=position.market, price=current_price, quantity=resolved_exit["quantity"],
+            )
+            if self._trading_mode == "live":
+                return self._queue_live_exit(execution, position, "donchian_channel", "DONCHIAN_CHANNEL_EXIT", live_context)
+            self._position_store.clear()
+            self._post_entry_validator.reset()
+            self._record_exit_event(
+                position=position, trigger_type="donchian_channel", reason_code="DONCHIAN_CHANNEL_EXIT",
+                exit_ratio=1.0, current_price=current_price, elapsed_sec=elapsed_sec,
+                momentum_score=momentum_score, orderbook_imbalance=orderbook_imbalance,
+                market_state=market_state, box_range_low=box_range_low, box_range_high=box_range_high,
+                execution=execution, remaining_quantity=0.0,
+            )
+            return {"status": "ok", "position": None,
+                    "trigger": {"type": "donchian_channel", "reason_code": "DONCHIAN_CHANNEL_EXIT", "exit_ratio": 1.0},
+                    "execution": None if execution is None else asdict(execution)}
 
         box_range_exit = self._box_range_exit(
             position=position,

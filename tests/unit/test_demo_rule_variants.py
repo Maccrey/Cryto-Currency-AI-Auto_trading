@@ -82,7 +82,9 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
     assert report["candidate_leader_key"] in set("ABCDEFGHIJKLMNOPQR")
     assert all("effective_buy_multiplier" in item for item in report["results"])
     assert all(0.0024 <= item["effective_take_profit_pct"] <= 0.0045 for item in report["results"])
-    assert all(0.0012 <= item["effective_stop_loss_pct"] <= 0.003 for item in report["results"])
+    assert all(0.0012 <= item["effective_stop_loss_pct"] <=
+               (0.007 if item["variant_key"] in set("STUVWX") else 0.003)
+               for item in report["results"])
     assert report["market_state"] == "bull"
 
 
@@ -334,6 +336,42 @@ def test_demo_rule_variant_requires_five_closed_trades_for_normal_promotion() ->
 
     candidate["trade_count"] = 5  # 정확히 MIN_PROMOTION_TRADES → 승격 가능
     assert DemoRuleVariantShadowTester._promotion_eligible(candidate) is True
+
+
+def test_donchian_uses_same_order_budget_and_promotion_threshold() -> None:
+    tester = DemoRuleVariantShadowTester()
+    portfolio = PortfolioState(cash_balance=1_000_000, asset_currency="XRP",
+                               asset_balance=0, avg_buy_price=0)
+    tester._price_history = [1_000.0] * 12
+    blocked = _decision(market_state="bull", buy_amount=0)
+    blocked = replace(blocked, sizing=replace(blocked.sizing, allowed=False))
+    report = tester.evaluate(decision=blocked, current_price=1_001.0, portfolio=portfolio)
+    fast = next(item for item in report["results"] if item["variant_key"] == "S")
+    assert fast["asset_balance"] == 0
+
+    eligible = dict(fast, profit_rate=0.01, realized_pnl=100.0,
+                    trade_count=5, profit_factor=1.5, stop_loss_rate=0.2)
+    assert DemoRuleVariantShadowTester._promotion_eligible(eligible) is True
+    eligible["trade_count"] = 4
+    assert DemoRuleVariantShadowTester._promotion_eligible(eligible) is False
+
+
+def test_shadow_reset_keeps_selected_rule_and_market_prices() -> None:
+    tester = DemoRuleVariantShadowTester()
+    tester._applied_variant_key = "S"
+    tester._price_history = [1_000.0] * 12
+    tester._portfolios["S"] = ShadowPortfolio(cash_balance=900_000.0,
+                                                asset_balance=100.0, avg_buy_price=1_000.0)
+    tester.reset_shadow_results()
+    assert tester._applied_variant_key == "S"
+    assert tester._price_history == [1_000.0] * 12
+    assert tester._portfolios == {}
+    invested = PortfolioState(cash_balance=900_000.0, asset_currency="XRP",
+                              asset_balance=100.0, avg_buy_price=1_000.0)
+    tester.evaluate(decision=_decision(market_state="bull", buy_amount=0),
+                    current_price=1_000.0, portfolio=invested)
+    assert all(item.cash_balance == 1_000_000.0 and item.asset_balance == 0
+               for item in tester._portfolios.values())
 
 
 def test_demo_rule_variant_positive_leader_switches_applied_entry_policy() -> None:

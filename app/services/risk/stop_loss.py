@@ -14,6 +14,7 @@ class PositionSnapshot:
     validation_window_sec: int
     min_expected_return_pct: float
     stop_loss_reason: str | None
+    variant_key: str | None = None
 
 
 @dataclass(frozen=True)

@@ -795,7 +795,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
   document.getElementById("agentRisk").textContent = `장세 ${market.market_state_label || "-"}, 성공률 ${percent(winRate)}`;
   document.getElementById("agentExecution").textContent = shadow.applied_variant_label
     ? `${shadow.applied_variant_label} 적용 중${shadow.selection_changed ? ", 이번 주기에 신규 전환" : ""}`
-    : "A~R 기존 후보와 S~X 돈치안 후보를 그림자 테스트 중입니다. 돈치안 6개는 내부 비교 전용입니다.";
+    : "A~X 후보를 같은 가상 자금으로 비교합니다. 수익과 거래 횟수 기준을 충족한 돈치안 후보도 실제 매매 룰로 자동 선정됩니다.";
 
   const fallback = [
     {variant_key: "A", variant_label: "룰 A 안정형", description: "기본 신호 장세 균형 추적", profit_rate: null, last_action: "대기"},
@@ -875,7 +875,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
       <div class="variant-desc">${stateText ? stateText + "<br>" : ""}${actionText}<br>실현손익 ${number(item.realized_pnl || 0, 0)} KRW<br>${item.description || ""}</div>
     </div>`;
   }).join("");
-  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "데모 모드에서 같은 실시간 데이터를 기준으로 A~X 가상 포트폴리오를 비교합니다. S~X 돈치안 후보는 자동 승격되지 않습니다.";
+  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "같은 실시간 데이터와 가상 자금으로 A~X 룰을 비교하고 검증 기준을 충족한 룰을 매매에 적용합니다.";
 }
 
 function aiBadge(label, className) {

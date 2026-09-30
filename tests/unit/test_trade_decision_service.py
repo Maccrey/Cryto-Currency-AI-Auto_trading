@@ -1,9 +1,25 @@
 from app.services.portfolio.sync import PortfolioState
 from app.services.regime.engine import RegimeEngine
-from app.services.signals.engine import SignalEngine
-from app.services.signals.features import MarketFeatureCalculator
+from app.services.signals.engine import SignalDecision, SignalEngine
+from app.services.signals.features import FeatureSnapshot, MarketFeatureCalculator
 from app.services.sizing.engine import SizingEngine
 from app.services.trading.decision import TradeDecisionRequest, TradeDecisionService
+
+
+def test_confirmed_channel_breakout_promotes_weak_signal_for_all_candidates() -> None:
+    features = FeatureSnapshot(
+        ret_1s=0.001, ret_5s=0.002, ret_30s=0.003,
+        volume_multiple=1.0, traded_value_multiple=1.0,
+        spread_bps=8.0, orderbook_imbalance=0.1,
+        short_volatility=0.001, regime_score=0.6, liquidity_score=0.8,
+        ma_trend=0.001, trend_efficiency_20=0.3,
+    )
+    weak = SignalDecision(level="weak", score=0.28, blocked=False, reason_codes=[])
+    prices = [1_000.0] * 12 + [1_002.0]
+    promoted = TradeDecisionService._apply_price_breakout(weak, features, prices)
+    assert promoted.level == "medium"
+    assert "PRICE_CHANNEL_BREAKOUT_CONFIRMED" in promoted.reason_codes
+    assert TradeDecisionService._apply_price_breakout(weak, features, prices[:-1] + [999.0]) == weak
 
 
 def test_trade_decision_service_evaluates_full_entry_path() -> None:

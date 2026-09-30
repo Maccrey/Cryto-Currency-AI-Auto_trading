@@ -39,12 +39,18 @@ class MarketStateEntryGuard:
         signal_score: float,
         entry_type: str = "initial",
         signal_reason_codes: list[str] | None = None,
+        confirmed_breakout: bool = False,
     ) -> MarketStateEntryDecision:
         current_state = market_state if market_state in {"bull", "box", "bear"} else "box"
         previous_state = self._previous_distinct_state(current_state)
         self._states.append(current_state)
         current_count = self._current_state_count(current_state)
         transition = f"{previous_state}->{current_state}" if previous_state is not None else None
+        breakout_entry = (
+            confirmed_breakout and entry_type == "initial"
+            and signal_level in {"medium", "strong", "very_strong"}
+            and signal_score >= 0.4
+        )
         transition_boost = (
             self._enabled
             and current_state == "bull"
@@ -71,7 +77,7 @@ class MarketStateEntryGuard:
                 current_state_count=current_count,
                 transition=transition,
             )
-        if current_state == "bear":
+        if current_state == "bear" and not breakout_entry:
             return MarketStateEntryDecision(
                 allowed=False,
                 reason_code="MARKET_STATE_BEAR_ENTRY_BLOCK",
@@ -82,7 +88,7 @@ class MarketStateEntryGuard:
                 transition=transition,
             )
         # 초기 진입 시 시장 상태가 최소 confirmation_ticks 동안 지속 확인되었는지 체크
-        if entry_type == "initial" and current_state in {"bull", "box"}:
+        if entry_type == "initial" and current_state in {"bull", "box"} and not breakout_entry:
             if current_count < self._confirmation_ticks:
                 return MarketStateEntryDecision(
                     allowed=False,

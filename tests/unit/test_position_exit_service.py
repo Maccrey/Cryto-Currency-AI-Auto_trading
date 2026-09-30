@@ -65,6 +65,25 @@ def test_position_exit_service_returns_empty_without_position() -> None:
     }
 
 
+def test_donchian_position_holds_profit_until_channel_exit() -> None:
+    store = CurrentPositionStore()
+    store.save(PositionSnapshot(
+        market="KRW-XRP", signal_level="medium", entry_price=1_000.0,
+        quantity=10.0, stop_loss_price=997.0, stop_loss_pct=0.003,
+        validation_window_sec=180, min_expected_return_pct=0.004,
+        stop_loss_reason=None, variant_key="S",
+    ))
+    service = _build_service(store)
+    held = service.evaluate_and_execute(current_price=1_020.0, elapsed_sec=180,
+                                        momentum_score=0.0, orderbook_imbalance=0.0)
+    exited = service.evaluate_and_execute(current_price=1_018.0, elapsed_sec=190,
+                                          momentum_score=0.0, orderbook_imbalance=0.0,
+                                          donchian_channel_exit=True)
+    assert held["trigger"] is None
+    assert exited["trigger"]["reason_code"] == "DONCHIAN_CHANNEL_EXIT"
+    assert store.get() is None
+
+
 def test_position_exit_service_executes_full_exit_on_hard_stop() -> None:
     store = CurrentPositionStore()
     learning_service = LearningServiceStub()

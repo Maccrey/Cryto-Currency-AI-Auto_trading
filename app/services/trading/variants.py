@@ -109,6 +109,7 @@ class DemoRuleVariantShadowTester:
     """
 
     MIN_PROMOTION_TRADES = 5
+    MIN_ORDER_AMOUNT_KRW = 5_000.0
     # 업비트 기본 수수료 0.05%를 매수·매도 모두 반영한 뒤에도 남는 목표치다.
     SCALPING_MIN_NET_TARGET_PCT = 0.0014
     SCALPING_MAX_TAKE_PROFIT_PCT = 0.0045
@@ -301,8 +302,7 @@ class DemoRuleVariantShadowTester:
             stop_loss_pct=0.0023,
         ),
         # Donchian/Turtle candidates use compact lookbacks suitable for this
-        # high-frequency price stream. These remain shadow-only until a held-out
-        # replay and minimum trade sample both validate them.
+        # high-frequency price stream and the same promotion criteria as A-R.
         DemoRuleVariant(key="S", label="터틀/돈치안 1 빠른돌파", description="Donchian 12틱 고가 돌파 진입, 6틱 저가 이탈 청산", buy_multiplier=0.55, sell_multiplier=1.0, take_profit_pct=0.0060, stop_loss_pct=0.0030),
         DemoRuleVariant(key="T", label="터틀/돈치안 2 균형돌파", description="Donchian 20틱 고가 돌파 진입, 10틱 저가 이탈 청산", buy_multiplier=0.50, sell_multiplier=1.0, take_profit_pct=0.0080, stop_loss_pct=0.0040),
         DemoRuleVariant(key="U", label="터틀/돈치안 3 추세보유", description="Donchian 30틱 고가 돌파, 넓은 손절로 추세 보유", buy_multiplier=0.45, sell_multiplier=1.0, take_profit_pct=0.0120, stop_loss_pct=0.0050),
@@ -327,6 +327,7 @@ class DemoRuleVariantShadowTester:
         self._price_history: list[float] = []
         self._equity_history: dict[str, list[float]] = {}
         self._action_history: dict[str, list[str]] = {}
+        self._fresh_start_cash_only = False
 
     # ──────────────────────────────────────────────────────────────────────────
     # Public API
@@ -362,11 +363,7 @@ class DemoRuleVariantShadowTester:
             )
             for variant in self._variants
         ]
-        selectable_results = [
-            item for item in results
-            if item["variant_key"] not in {"S", "T", "U", "V", "W", "X"}
-        ]
-        candidate = max(selectable_results or results, key=self._candidate_score)
+        candidate = max(results, key=self._candidate_score)
         # 조기 승격(Early Promotion): 서버 초기 기동 시 적용 룰이 없는 상태면
         # MIN_PROMOTION_TRADES를 1로 완화하여 영구 대기 상태를 방지합니다.
         is_initial_start = self._applied_variant_key is None
@@ -394,7 +391,7 @@ class DemoRuleVariantShadowTester:
             positive_other_results = [
                 r for r in results 
                 if r["variant_key"] != applied["variant_key"] 
-                and r["variant_key"] not in {"S", "T", "U", "V", "W", "X"}
+                and (r["variant_key"] not in {"S", "T", "U", "V", "W", "X"} or self._promotion_eligible(r))
                 and int(r.get("trade_count") or 0) >= 1
                 and float(r.get("realized_pnl") or 0.0) > 0.0
             ]
@@ -588,6 +585,16 @@ class DemoRuleVariantShadowTester:
         self._price_history.clear()
         self._equity_history.clear()
         self._action_history.clear()
+        self._last_report = None
+        self._fresh_start_cash_only = True
+
+    def reset_shadow_results(self) -> None:
+        """Start a fresh comparison period while keeping the selected live rule."""
+        selected = self._applied_variant_key
+        prices = list(self._price_history)
+        self.reset()
+        self._applied_variant_key = selected
+        self._price_history = prices
 
     def apply_selected_variant(
         self,
@@ -618,6 +625,8 @@ class DemoRuleVariantShadowTester:
         if not policy.entry_allowed or policy.buy_multiplier <= 0:
             return replace(
                 decision,
+                selected_variant_key=variant.key,
+                selected_variant_stop_loss_pct=policy.stop_loss_pct,
                 sizing=replace(
                     decision.sizing,
                     allowed=False,
@@ -637,10 +646,19 @@ class DemoRuleVariantShadowTester:
         # A shadow winner cannot enlarge an approved order past that budget.
         max_allowed = min(sizing.buy_amount, available_cash / (1 + self._trading_fee_rate))
         buy_amount = min(round(min(raw_buy_amount, max_allowed), 1), max_allowed)
+        if buy_amount < self.MIN_ORDER_AMOUNT_KRW:
+            return replace(
+                decision,
+                selected_variant_key=variant.key,
+                sizing=replace(sizing, allowed=False, buy_amount=0.0, buy_quantity=0.0,
+                               buy_ratio=0.0, blocked_reason="MIN_ORDER_AMOUNT"),
+            )
 
         buy_ratio = round(sizing.buy_ratio * buy_amount / sizing.buy_amount, 3)
         return replace(
             decision,
+            selected_variant_key=variant.key,
+            selected_variant_stop_loss_pct=policy.stop_loss_pct,
             sizing=replace(
                 sizing,
                 buy_ratio=buy_ratio,
@@ -654,21 +672,20 @@ class DemoRuleVariantShadowTester:
     # ──────────────────────────────────────────────────────────────────────────
 
     def _ensure_started(self, *, portfolio: PortfolioState, current_price: float) -> None:
+        initial_equity = portfolio.cash_balance + (portfolio.asset_balance * current_price)
         if self._initial_equity is None:
-            self._initial_equity = max(
-                portfolio.cash_balance + (portfolio.asset_balance * current_price),
-                1.0,
-            )
+            self._initial_equity = max(initial_equity, 1.0)
         for variant in self._variants:
             self._portfolios.setdefault(
                 variant.key,
                 ShadowPortfolio(
-                    cash_balance=portfolio.cash_balance,
-                    asset_balance=portfolio.asset_balance,
-                    avg_buy_price=portfolio.avg_buy_price,
-                    peak_equity=portfolio.cash_balance + (portfolio.asset_balance * current_price),
+                    cash_balance=initial_equity if self._fresh_start_cash_only else portfolio.cash_balance,
+                    asset_balance=0.0 if self._fresh_start_cash_only else portfolio.asset_balance,
+                    avg_buy_price=0.0 if self._fresh_start_cash_only else portfolio.avg_buy_price,
+                    peak_equity=initial_equity,
                 ),
             )
+        self._fresh_start_cash_only = False
 
     def _evaluate_variant(
         self,
@@ -705,7 +722,7 @@ class DemoRuleVariantShadowTester:
             stop_loss_triggered_this_tick = (
                 action == "sell" and stop_loss_triggered_this_tick
             )
-        elif decision.sizing.allowed or variant.key in {"S", "T", "U", "V", "W", "X"}:
+        elif decision.sizing.allowed:
             action = self._maybe_shadow_buy(
                 shadow=shadow,
                 policy=policy,
@@ -813,12 +830,19 @@ class DemoRuleVariantShadowTester:
             breakout = len(prior) == period and current_price > max(prior)
             exit_window = prior[-max(2, period // 2):]
             forced_sell = bool(exit_window) and current_price < min(exit_window)
-            entry_allowed = breakout and market_state != "bear"
-            buy_multiplier = variant.buy_multiplier if entry_allowed else 0.0
+            # A Donchian breakout is itself a trend confirmation. The generic
+            # regime classifier can lag a reversal and keep labeling a rising
+            # breakout as bear, which otherwise suppresses every Turtle entry.
+            entry_allowed = breakout
+            buy_multiplier = (
+                variant.buy_multiplier * (0.5 if market_state == "bear" else 1.0)
+                if entry_allowed else 0.0
+            )
             action_reason = f"donchian_{period}_breakout" if entry_allowed else f"donchian_{period}_waiting"
 
         # ── Forced sell flag: apply to all variants when bull→bear is confirmed ─
-        forced_sell = forced_sell or (bu2be_confirmed and market_state in {"bull", "box"})
+        if variant.key not in {"S", "T", "U", "V", "W", "X"}:
+            forced_sell = forced_sell or (bu2be_confirmed and market_state in {"bull", "box"})
 
         # ── Transition buy boost (shared across variants) ──────────────────────
         # Applied *after* per-variant logic so it stacks on top
@@ -1534,7 +1558,15 @@ class DemoRuleVariantShadowTester:
                 ),
                 6,
             ),
-            stop_loss_pct=round(min(max(stop_loss_pct, 0.0012), self.SCALPING_MAX_STOP_LOSS_PCT), 6),
+            stop_loss_pct=round(
+                min(
+                    max(stop_loss_pct, 0.0012),
+                    max(self.SCALPING_MAX_STOP_LOSS_PCT, variant.stop_loss_pct)
+                    if variant.key in {"S", "T", "U", "V", "W", "X"}
+                    else self.SCALPING_MAX_STOP_LOSS_PCT,
+                ),
+                6,
+            ),
             entry_allowed=entry_allowed,
             action_reason=action_reason,
             market_state=market_state,
@@ -1564,18 +1596,12 @@ class DemoRuleVariantShadowTester:
             return "hold"
         if not policy.entry_allowed:
             return "hold"
-        # Donchian strategies are isolated shadow portfolios: when the live
-        # sizing gate blocks an order, allocate a fixed 1% of shadow starting
-        # equity so historical strategy comparison still produces a sample.
-        shadow_base = self._initial_equity or shadow.cash_balance
         sized_amount = decision.sizing.buy_amount
-        if sized_amount <= 0 and policy.action_reason.startswith("donchian_"):
-            sized_amount = shadow_base * 0.01
         buy_amount = min(
             max(sized_amount * policy.buy_multiplier, 0.0),
             shadow.cash_balance / (1 + self._trading_fee_rate),
         )
-        if buy_amount <= 0:
+        if buy_amount < self.MIN_ORDER_AMOUNT_KRW:
             return "hold"
         quantity = round(buy_amount / current_price, 8)
         fee = buy_amount * self._trading_fee_rate
@@ -1598,19 +1624,22 @@ class DemoRuleVariantShadowTester:
             return "hold"
         profit_pct = (current_price - shadow.avg_buy_price) / shadow.avg_buy_price
         stop_loss_triggered = profit_pct <= -policy.stop_loss_pct
+        is_donchian = policy.action_reason.startswith("donchian_")
         # High box position exit: use resolved box_position
         box_high_exit = self._resolved_box_high_exit(policy=policy)
         # ── 하락장 즘시 전량 매도: bear 진입 시 최소 80% 이상 신속 철수 ─────
-        is_bear_market = decision.regime.market_state == "bear"
+        is_bear_market = decision.regime.market_state == "bear" and not is_donchian
         time_exit = (
+            not is_donchian
+            and
             shadow.holding_ticks >= self.SCALPING_MAX_HOLD_TICKS
             and profit_pct >= (self._trading_fee_rate * 2) + 0.0003
         )
         should_exit = (
-            profit_pct >= policy.take_profit_pct
+            (profit_pct >= policy.take_profit_pct and not is_donchian)
             or stop_loss_triggered
             or is_bear_market
-            or box_high_exit
+            or (box_high_exit and not is_donchian)
             or policy.forced_sell  # bull→bear transition forced exit
             or time_exit
         )
@@ -1620,7 +1649,7 @@ class DemoRuleVariantShadowTester:
         # Forced sell / bear market: use a higher sell ratio (80% minimum) to clear position
         if policy.forced_sell or is_bear_market:
             base_sell_ratio = max(base_sell_ratio, 0.80)
-        sell_ratio = min(max(base_sell_ratio * policy.sell_multiplier, 0.1), 1.0)
+        sell_ratio = 1.0 if is_donchian else min(max(base_sell_ratio * policy.sell_multiplier, 0.1), 1.0)
         quantity = round(shadow.asset_balance * sell_ratio, 8)
         if quantity <= 0:
             return "hold"
@@ -1735,8 +1764,6 @@ class DemoRuleVariantShadowTester:
         profit_factor = item.get("profit_factor")
         stop_loss_rate = item.get("stop_loss_rate")
         eligible = (
-            item.get("variant_key") not in {"S", "T", "U", "V", "W", "X"}
-            and
             float(item.get("profit_rate") or 0.0) > 0.0
             and float(item.get("realized_pnl") or 0.0) > 0.0
             and int(item.get("trade_count") or 0) >= min_trades

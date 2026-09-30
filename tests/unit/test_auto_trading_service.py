@@ -302,6 +302,31 @@ def test_auto_trading_service_notifies_when_applied_rule_variant_changes(tmp_pat
     ]
 
 
+def test_rule_switch_and_verified_update_reset_shadow_comparison(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0])
+    tester = service._demo_rule_variant_shadow_tester
+    tester._applied_variant_key = "S"
+    tester._price_history = [800.0] * 12
+    tester._initial_equity = 1_000_000.0
+    tester.evaluate = lambda **kwargs: {
+        "selection_changed": True, "previous_variant_key": "A",
+        "leader_key": "S", "results": [],
+    }
+    payload = service._run_demo_rule_variant_shadow(decision=object(), current_price=801.0)
+    assert payload["shadow_test_reset"] is True
+    assert tester._applied_variant_key == "S"
+    assert tester._initial_equity is None
+    assert tester._price_history == [800.0] * 12
+
+    tester._initial_equity = 1_000_000.0
+    update = service.apply_demo_rule_update([
+        {"parameter": "MIN_NET_EDGE_PCT", "proposed_value": 0.001},
+    ])
+    assert update["applied"] is True
+    assert tester._initial_equity is None
+    assert tester._applied_variant_key is None
+
+
 def test_auto_trading_service_passes_recent_loss_streak_to_regime_engine(tmp_path: Path) -> None:
     ledger = ExecutionLedger()
     for buy_price, sell_price in ((1000.0, 980.0), (990.0, 970.0)):
@@ -512,7 +537,7 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert result["rule_variant_shadow"]["candidate_leader_key"] in set("ABCDEFGHIJKLMNOPQR")
     assert result["trade_logic_update_trace"]["version"] == "2026-06-07-loss-aware-weak-recovery-guard"
     assert "demo_realized_pnl" in result["trade_logic_update_trace"]["optimization_metric_keys"]
-    assert {item["variant_key"] for item in result["rule_variant_shadow"]["results"]} == set("ABCDEFGHIJKLMNOPQR")
+    assert {item["variant_key"] for item in result["rule_variant_shadow"]["results"]} == set("ABCDEFGHIJKLMNOPQRSTUVWX")
     assert service.last_cycle()["rule_variant_leader_key"] == result["rule_variant_leader_key"]
     observation_rows = [
         json.loads(line)

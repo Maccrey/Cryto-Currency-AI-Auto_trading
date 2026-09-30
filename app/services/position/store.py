@@ -54,6 +54,7 @@ class CurrentPositionStore:
                 validation_window_sec=int(payload["validation_window_sec"]),
                 min_expected_return_pct=float(payload["min_expected_return_pct"]),
                 stop_loss_reason=None if payload.get("stop_loss_reason") is None else str(payload["stop_loss_reason"]),
+                variant_key=None if payload.get("variant_key") is None else str(payload["variant_key"]),
             )
         except (KeyError, TypeError, ValueError):
             self._position = None

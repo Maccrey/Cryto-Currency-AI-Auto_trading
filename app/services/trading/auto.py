@@ -315,6 +315,7 @@ class AutoTradingService:
         result = self._apply_verified_rule_updates(changes)
         if result["applied"]:
             self._persist_verified_rule_updates(changes)
+            self._demo_rule_variant_shadow_tester.reset()
             result["effective_immediately"] = True
             result["trading_running"] = self.is_running()
             result["live_rules_persisted"] = self._rule_update_state_path is not None
@@ -499,6 +500,7 @@ class AutoTradingService:
                 market_state=None if position_market_trend is None else position_market_trend.market_state,
                 box_range_low=None if position_market_trend is None else position_market_trend.box_range_low,
                 box_range_high=None if position_market_trend is None else position_market_trend.box_range_high,
+                donchian_channel_exit=self._donchian_channel_exit(position.variant_key, snapshot.trade_price),
             )
             if result.get("position") is None:
                 self._position_opened_at = None
@@ -660,6 +662,9 @@ class AutoTradingService:
             signal_score=decision.signal.score,
             entry_type=entry_type,
             signal_reason_codes=decision.signal.reason_codes,
+            confirmed_breakout=self._selected_donchian_breakout(
+                variant_payload=variant_payload, decision=decision,
+            ),
         )
         market_state_extra = self._market_state_extra(market_state_entry)
         if not market_state_entry.allowed:
@@ -1199,7 +1204,35 @@ class AutoTradingService:
         )
         self._notify_rule_variant_change_if_needed(payload)
         self._record_variant_diagnostic_events(payload)
+        if payload.get("selection_changed") and payload.get("previous_variant_key"):
+            self._demo_rule_variant_shadow_tester.reset_shadow_results()
+            payload["shadow_test_reset"] = True
         return payload
+
+    def _donchian_channel_exit(self, variant_key: str | None, current_price: float) -> bool:
+        lookbacks = {"S": 12, "T": 20, "U": 30, "V": 40, "W": 55, "X": 80}
+        period = lookbacks.get(variant_key or "")
+        if period is None:
+            return False
+        exit_period = max(2, period // 2)
+        prior = list(self._prices)[:-1]
+        return len(prior) >= exit_period and current_price < min(prior[-exit_period:])
+
+    @staticmethod
+    def _selected_donchian_breakout(*, variant_payload: dict[str, object] | None, decision) -> bool:
+        if not variant_payload or not decision.sizing.allowed or decision.signal.blocked:
+            return False
+        if decision.signal.level not in {"medium", "strong", "very_strong"}:
+            return False
+        selected = variant_payload.get("leader_key")
+        if selected not in {"S", "T", "U", "V", "W", "X"}:
+            return False
+        return any(
+            item.get("variant_key") == selected
+            and str(item.get("action_reason", "")).endswith("_breakout")
+            for item in variant_payload.get("results", [])
+            if isinstance(item, dict)
+        )
 
     def _record_variant_diagnostic_events(self, payload: dict[str, object] | None) -> None:
         """Fallback Leader 선발·시장 전환 등 진단에 유용한 섀도 평가 이벤트를 기록한다."""
