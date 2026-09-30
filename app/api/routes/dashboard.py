@@ -844,11 +844,17 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
       const priceLine = priceCurve.length ? `<polyline fill="none" stroke="#111827" stroke-width="2" stroke-dasharray="6 4" points="${pricePoints}"/>` : "";
       const tradeMarkers = channelRows.map((item) => {
         const curve = item.equity_curve || [], actions = item.action_curve || [];
+        // trade_count counts completed sell cycles. If it is zero, suppress action-history
+        // markers too; otherwise stale/open-position actions can look like completed trades.
+        if (!item.trade_count) return "";
         return actions.map((action, index) => {
           if ((action !== "buy" && action !== "sell") || index >= curve.length) return "";
-          const x = 24 + index * 672 / Math.max(maxN - 1, 1), y = 154 - (curve[index] - lo) * 128 / span;
+          const x = 24 + index * 672 / Math.max(maxN - 1, 1);
+          const priceIndex = Math.round(index * Math.max(priceCurve.length - 1, 0) / Math.max(curve.length - 1, 1));
+          const markerValue = priceCurve[priceIndex] ?? curve[index];
+          const y = 154 - (markerValue - lo) * 128 / span;
           const color = action === "buy" ? "#16a34a" : "#dc2626";
-          return `<circle cx="${x}" cy="${y}" r="4" fill="${color}" stroke="white" stroke-width="1"><title>${item.variant_key} ${action === "buy" ? "매수" : "매도"} · ${percent(curve[index])}</title></circle>`;
+          return `<circle cx="${x}" cy="${y}" r="4" fill="${color}" stroke="white" stroke-width="1"><title>${item.variant_key} ${action === "buy" ? "매수" : "매도"} · 전략 수익률 ${percent(curve[index])}</title></circle><text x="${x + 6}" y="${y - 5}" fill="${colors[item.variant_key]}" font-size="9" font-weight="800">${item.variant_key.toLowerCase()}</text>`;
         }).join("");
       }).join("");
       const zeroY = 154 - (0 - lo) * 128 / span;
