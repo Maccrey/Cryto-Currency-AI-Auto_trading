@@ -326,6 +326,7 @@ class DemoRuleVariantShadowTester:
         self._transition_detector = transition_detector or MarketTransitionDetector()
         self._price_history: list[float] = []
         self._equity_history: dict[str, list[float]] = {}
+        self._action_history: dict[str, list[str]] = {}
 
     # ──────────────────────────────────────────────────────────────────────────
     # Public API
@@ -562,9 +563,18 @@ class DemoRuleVariantShadowTester:
             "dynamic_box_high": transition.dynamic_box_high,
             "dynamic_box_position": transition.dynamic_box_position,
             "results": results,
+            "price_curve": self._normalized_price_history(),
+            "current_price": float(current_price),
         }
         self._last_report = _report  # 일일 요약 등 외부 접근용 캐시
         return _report
+
+    def _normalized_price_history(self) -> list[float]:
+        prices = self._price_history[-500:]
+        if not prices or prices[0] <= 0:
+            return []
+        base = prices[0]
+        return [round((price - base) / base, 6) for price in prices]
 
     def reset(self) -> None:
         self._portfolios.clear()
@@ -573,6 +583,7 @@ class DemoRuleVariantShadowTester:
         self._transition_detector.reset()
         self._price_history.clear()
         self._equity_history.clear()
+        self._action_history.clear()
 
     def apply_selected_variant(
         self,
@@ -705,6 +716,10 @@ class DemoRuleVariantShadowTester:
         curve.append(round(profit_rate, 6))
         if len(curve) > 500:
             del curve[:-500]
+        actions = self._action_history.setdefault(variant.key, [])
+        actions.append(action)
+        if len(actions) > 500:
+            del actions[:-500]
         win_rate = None if shadow.trade_count <= 0 else shadow.win_count / shadow.trade_count
         profit_factor = (
             999.0
@@ -718,6 +733,7 @@ class DemoRuleVariantShadowTester:
             "description": variant.description,
             "profit_rate": round(profit_rate, 6),
             "equity_curve": list(self._equity_history.get(variant.key, [])),
+            "action_curve": list(self._action_history.get(variant.key, [])),
             "equity": round(equity, 2),
             "cash_balance": round(shadow.cash_balance, 2),
             "asset_balance": round(shadow.asset_balance, 8),

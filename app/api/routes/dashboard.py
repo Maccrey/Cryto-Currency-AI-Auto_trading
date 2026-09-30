@@ -780,30 +780,48 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
     {variant_key: "O", variant_label: "룰 O 공격추세형", description: "상승 확정 시 최대 비중 진입", profit_rate: null, last_action: "대기"},
     {variant_key: "P", variant_label: "룰 P 추세장기형", description: "넓은 손절선으로 큰 추세를 길게 보유", profit_rate: null, last_action: "대기"},
     {variant_key: "Q", variant_label: "룰 Q 변동적응형", description: "변동성에 맞춰 TP/SL 실시간 조율", profit_rate: null, last_action: "대기"},
-    {variant_key: "R", variant_label: "룰 R 반등돌파형", description: "하락세 진정 후 상승 반전 초입에 공격 진입", profit_rate: null, last_action: "대기"}
+    {variant_key: "R", variant_label: "룰 R 반등돌파형", description: "하락세 진정 후 상승 반전 초입에 공격 진입", profit_rate: null, last_action: "대기"},
+    {variant_key: "S", variant_label: "터틀/돈치안 1 빠른돌파 (12)", description: "12틱 고가 돌파 · 6틱 저가 청산", profit_rate: null, trade_count: 0, last_action: "대기"},
+    {variant_key: "T", variant_label: "터틀/돈치안 2 균형돌파 (20)", description: "20틱 고가 돌파 · 10틱 저가 청산", profit_rate: null, trade_count: 0, last_action: "대기"},
+    {variant_key: "U", variant_label: "터틀/돈치안 3 추세보유 (30)", description: "30틱 고가 돌파 추세추종", profit_rate: null, trade_count: 0, last_action: "대기"},
+    {variant_key: "V", variant_label: "터틀/돈치안 4 보수돌파 (40)", description: "40틱 채널 돌파 추종", profit_rate: null, trade_count: 0, last_action: "대기"},
+    {variant_key: "W", variant_label: "터틀/돈치안 5 장기추세 (55)", description: "55틱 고가 돌파 추세추종", profit_rate: null, trade_count: 0, last_action: "대기"},
+    {variant_key: "X", variant_label: "터틀/돈치안 6 초장기추세 (80)", description: "80틱 고가 돌파 추세추종", profit_rate: null, trade_count: 0, last_action: "대기"}
   ];
   const rows = results.length ? results : fallback;
   const channelRows = rows.filter((item) => ["S", "T", "U", "V", "W", "X"].includes(item.variant_key));
   const chart = document.getElementById("donchianComparisonChart");
   const colors = {S:"#2563eb",T:"#dc2626",U:"#16a34a",V:"#9333ea",W:"#ea580c",X:"#0891b2"};
   const curves = channelRows.map((item) => item.equity_curve || []).filter((curve) => curve.length);
+  const priceCurve = Array.isArray(shadow.price_curve) ? shadow.price_curve : [];
   if (chart) {
-    if (!curves.length) chart.innerHTML = '<text x="360" y="92" text-anchor="middle" class="axis-label">누적 테스트 데이터 수집 중 · 아직 비교 구간이 없습니다</text>';
+    if (!curves.length && !priceCurve.length) chart.innerHTML = '<text x="360" y="92" text-anchor="middle" class="axis-label">가격 데이터 수집 중 · 이후 매매 수익률과 함께 표시됩니다</text>';
     else {
-      const maxN = Math.max(...curves.map((curve) => curve.length));
-      const values = curves.flat(); const lo = Math.min(0, ...values), hi = Math.max(0, ...values);
+      const maxN = Math.max(1, ...curves.map((curve) => curve.length), priceCurve.length);
+      const values = [...curves.flat(), ...priceCurve]; const lo = Math.min(0, ...values), hi = Math.max(0, ...values);
       const span = Math.max(hi - lo, 0.001);
       const lines = channelRows.map((item) => {
         const curve = item.equity_curve || []; if (!curve.length) return "";
         const points = curve.map((value, index) => `${24 + index * 672 / Math.max(maxN - 1, 1)},${154 - (value - lo) * 128 / span}`).join(" ");
         return `<polyline fill="none" stroke="${colors[item.variant_key]}" stroke-width="2.5" points="${points}"/>`;
       }).join("");
+      const pricePoints = priceCurve.map((value, index) => `${24 + index * 672 / Math.max(maxN - 1, 1)},${154 - (value - lo) * 128 / span}`).join(" ");
+      const priceLine = priceCurve.length ? `<polyline fill="none" stroke="#111827" stroke-width="2" stroke-dasharray="6 4" points="${pricePoints}"/>` : "";
+      const tradeMarkers = channelRows.map((item) => {
+        const curve = item.equity_curve || [], actions = item.action_curve || [];
+        return actions.map((action, index) => {
+          if ((action !== "buy" && action !== "sell") || index >= curve.length) return "";
+          const x = 24 + index * 672 / Math.max(maxN - 1, 1), y = 154 - (curve[index] - lo) * 128 / span;
+          const color = action === "buy" ? "#16a34a" : "#dc2626";
+          return `<circle cx="${x}" cy="${y}" r="4" fill="${color}" stroke="white" stroke-width="1"><title>${item.variant_key} ${action === "buy" ? "매수" : "매도"} · ${percent(curve[index])}</title></circle>`;
+        }).join("");
+      }).join("");
       const zeroY = 154 - (0 - lo) * 128 / span;
-      chart.innerHTML = `<line class="axis" x1="24" y1="${zeroY}" x2="696" y2="${zeroY}"/>${lines}`;
+      chart.innerHTML = `<line class="axis" x1="24" y1="${zeroY}" x2="696" y2="${zeroY}"/>${priceLine}${lines}${tradeMarkers}${priceCurve.length ? `<circle cx="696" cy="${154 - (priceCurve[priceCurve.length - 1] - lo) * 128 / span}" r="4" fill="#111827"/><text x="690" y="18" text-anchor="end" class="axis-label">현재가 ${price(market.current_price)}</text>` : ""}`;
     }
   }
   const legend = document.getElementById("donchianChartLegend");
-  if (legend && channelRows.length) legend.innerHTML = channelRows.map((item) => `<span style="color:${colors[item.variant_key]};font-weight:800">${item.variant_key}</span> ${item.variant_label}: ${item.trade_count ? percent(item.profit_rate) : "표본 대기"}`).join("　·　");
+  if (legend) legend.innerHTML = `<span style="color:#111827;font-weight:800">가격 변동 ${priceCurve.length ? percent(priceCurve[priceCurve.length - 1]) : "수집 중"} · 현재 ${market.current_price === undefined ? "-" : price(market.current_price)}</span>　🟢 매수　🔴 매도<br>` + channelRows.map((item) => `<span style="color:${colors[item.variant_key]};font-weight:800">${item.variant_key}</span> ${item.variant_label}: ${item.trade_count ? percent(item.profit_rate) : "표본 대기"}`).join("　·　");
   document.getElementById("ruleVariantBoard").innerHTML = rows.map((item) => {
     const active = item.variant_key && item.variant_key === shadow.applied_variant_key ? " active" : "";
     const candidate = item.variant_key && item.variant_key === shadow.candidate_leader_key ? " candidate" : "";
