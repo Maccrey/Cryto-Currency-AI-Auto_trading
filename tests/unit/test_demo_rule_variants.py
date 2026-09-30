@@ -74,7 +74,7 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
         ),
     )
 
-    assert {item["variant_key"] for item in report["results"]} == set("ABCDEFGHIJKLMNOPQR")
+    assert {item["variant_key"] for item in report["results"]} == set("ABCDEFGHIJKLMNOPQRSTUVWX")
     # Fallback Leader 즉시 선발: 초기 기동 시 leader_key가 None이 아닌 최소 낙폭 룰로 설정됨
     assert report["leader_key"] is not None
     assert report["is_fallback_leader"] is True

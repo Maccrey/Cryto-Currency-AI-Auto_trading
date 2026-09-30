@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections import deque
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
@@ -27,6 +28,8 @@ from app.services.risk.market_shock import MarketShockConfig, MarketShockRiskGua
 from app.services.risk.reentry import AdaptiveCooldownReentryPolicy, ReentryBlocker
 from app.services.risk.sideways import SidewaysMarketRiskGuard, SidewaysRiskConfig
 from app.services.runtime.uptime import TradingUptimeStore
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -425,7 +428,17 @@ class AutoTradingService:
 
     async def _run(self) -> None:
         while True:
-            await asyncio.to_thread(self.tick)
+            try:
+                await asyncio.to_thread(self.tick)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.exception("auto_trading_cycle_unhandled_exception")
+                self._record_cycle(
+                    status="error",
+                    reason="AUTO_TRADING_LOOP_ERROR",
+                    extra={"error": str(exc)},
+                )
             await self._sleep(self._config.interval_sec)
 
     def tick(self) -> dict[str, object]:

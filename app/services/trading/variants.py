@@ -362,7 +362,11 @@ class DemoRuleVariantShadowTester:
             )
             for variant in self._variants
         ]
-        candidate = max(results, key=self._candidate_score)
+        selectable_results = [
+            item for item in results
+            if item["variant_key"] not in {"S", "T", "U", "V", "W", "X"}
+        ]
+        candidate = max(selectable_results or results, key=self._candidate_score)
         # 조기 승격(Early Promotion): 서버 초기 기동 시 적용 룰이 없는 상태면
         # MIN_PROMOTION_TRADES를 1로 완화하여 영구 대기 상태를 방지합니다.
         is_initial_start = self._applied_variant_key is None
@@ -800,6 +804,7 @@ class DemoRuleVariantShadowTester:
         bu2be = transition.bull_to_bear_score
         b2b_confirmed = transition.bear_to_bull_confirmed
         bu2be_confirmed = transition.bull_to_bear_confirmed
+        forced_sell = False
 
         if variant.key in {"S", "T", "U", "V", "W", "X"}:
             lookbacks = {"S": 12, "T": 20, "U": 30, "V": 40, "W": 55, "X": 80}
