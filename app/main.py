@@ -741,6 +741,14 @@ def create_app(
             "message": message,
         }
 
+    @app.on_event("startup")
+    async def start_auto_trading_on_server_start() -> None:
+        result = start_trading_service()
+        logger.info(
+            "auto_trading_startup_result",
+            extra={"status": result.get("status"), "running": result.get("running", False)},
+        )
+
     def trading_status_service() -> dict[str, object]:
         running = auto_trading_service.is_running()
         startable = auto_trading_service.should_run()

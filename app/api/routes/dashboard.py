@@ -341,7 +341,7 @@ DASHBOARD_HTML = """
   </div>
 </header>
 <nav id="dashboardPages" class="wrap nav" aria-label="대시보드 페이지">
-  <button class="btn selected" data-page="summary">요약</button><button class="btn" data-page="strategy">전략 비교</button><button class="btn" data-page="market">시장</button><button class="btn" data-page="operations">운용</button><button class="btn" data-page="learning">학습·기록</button><button class="btn" data-page="preferences">메인 구성</button>
+  <button class="btn selected" data-page="summary">메인</button><button class="btn" data-page="strategy">전략 비교</button><button class="btn" data-page="market">시장</button><button class="btn" data-page="operations">운용</button><button class="btn" data-page="learning">학습·기록</button><button class="btn" data-page="preferences">메인 구성</button>
 </nav>
 <main class="wrap">
   <section class="grid">
@@ -1931,7 +1931,7 @@ function initDashboardPages() {
     const preferences = page === "preferences";
     document.getElementById("dashboardPreferences").classList.toggle("page-hidden", !preferences);
     cards.forEach((node) => {
-      node.classList.toggle("page-hidden", preferences || node.dataset.pageGroup !== page);
+      node.classList.toggle("page-hidden", preferences || (page !== "summary" && node.dataset.pageGroup !== page));
       node.classList.toggle("home-disabled", page === "summary" && layout.enabled?.[node.dataset.layoutId] === false);
     });
     document.querySelectorAll("#dashboardPages [data-page]").forEach((button) => button.classList.toggle("selected", button.dataset.page === page));
