@@ -157,6 +157,9 @@ DASHBOARD_HTML = """
     .top { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
     h1 { margin: 0; font-size: 24px; }
     .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+    #dashboardPages { padding-top: 10px; }
+    #dashboardPages .selected { background: var(--primary); color: white; border-color: var(--primary); }
+    .page-hidden, .home-disabled { display: none !important; }
     .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #9eb0bd; border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
     .primary { background: var(--primary); color: white; border-color: var(--primary); }
     .runtime-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; box-sizing: border-box; border: 1px solid #94a3b8; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -335,6 +338,9 @@ DASHBOARD_HTML = """
     </div>
   </div>
 </header>
+<nav id="dashboardPages" class="wrap nav" aria-label="대시보드 페이지">
+  <button class="btn selected" data-page="summary">요약</button><button class="btn" data-page="strategy">전략 비교</button><button class="btn" data-page="market">시장</button><button class="btn" data-page="operations">운용</button><button class="btn" data-page="learning">학습·기록</button><button class="btn" data-page="preferences">메인 구성</button>
+</nav>
 <main class="wrap">
   <section class="grid">
     <div class="card metric-card">
@@ -389,7 +395,10 @@ DASHBOARD_HTML = """
     <h2>코인거래소 시뮬레이션</h2>
     <div class="exchange-sim">
       <div class="variant-board">
-        <h2>데모 룰 A~R 내부 테스트</h2>
+        <h2>데모 룰 A~X 내부 테스트</h2>
+        <div class="sub">S~X 터틀/돈치안 후보 성과는 아래 그래프에서 함께 비교합니다. 거래 0회는 0% 수익이 아니라 아직 표본이 없는 상태입니다.</div>
+        <svg id="donchianComparisonChart" class="profit-chart" viewBox="0 0 720 180" role="img" aria-label="터틀 돈치안 후보 6개 누적 수익률 비교"></svg>
+        <div id="donchianChartLegend" class="sub">S 12틱 · T 20틱 · U 30틱 · V 40틱 · W 55틱 · X 80틱</div>
         <div id="ruleVariantBoard" class="variant-grid">
           <div class="variant-card"><div class="variant-title">룰 A</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
           <div class="variant-card"><div class="variant-title">룰 B</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
@@ -522,9 +531,15 @@ DASHBOARD_HTML = """
     </div>
   </section>
 
+  <section id="dashboardPreferences" class="card page-hidden">
+    <h2>메인 화면 구성</h2><div class="sub">체크된 항목만 요약 페이지에 표시됩니다. 위·아래 버튼으로 순서를 바꾸면 화면에도 반영됩니다.</div>
+    <div id="dashboardPreferenceList"></div>
+  </section>
+
 </main>
 <script>
 const THEME_KEY = "cryptoDashboardTheme";
+const DASHBOARD_LAYOUT_KEY = "cryptoDashboardLayoutV1";
 let dashboardRefreshInFlight = false;
 let dashboardSlowRefreshInFlight = false;
 let dashboardRuleOptimizeInFlight = false;
@@ -745,7 +760,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
   document.getElementById("agentRisk").textContent = `장세 ${market.market_state_label || "-"}, 성공률 ${percent(winRate)}`;
   document.getElementById("agentExecution").textContent = shadow.applied_variant_label
     ? `${shadow.applied_variant_label} 적용 중${shadow.selection_changed ? ", 이번 주기에 신규 전환" : ""}`
-    : "A~O 15개 동시 테스트 및 손절 시 실시간 스위칭 기능 작동 중이며 양수 검증 전에는 기존 룰을 유지합니다.";
+    : "A~R 기존 후보와 S~X 돈치안 후보를 그림자 테스트 중입니다. 돈치안 6개는 내부 비교 전용입니다.";
 
   const fallback = [
     {variant_key: "A", variant_label: "룰 A 안정형", description: "기본 신호 장세 균형 추적", profit_rate: null, last_action: "대기"},
@@ -768,10 +783,31 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
     {variant_key: "R", variant_label: "룰 R 반등돌파형", description: "하락세 진정 후 상승 반전 초입에 공격 진입", profit_rate: null, last_action: "대기"}
   ];
   const rows = results.length ? results : fallback;
+  const channelRows = rows.filter((item) => ["S", "T", "U", "V", "W", "X"].includes(item.variant_key));
+  const chart = document.getElementById("donchianComparisonChart");
+  const colors = {S:"#2563eb",T:"#dc2626",U:"#16a34a",V:"#9333ea",W:"#ea580c",X:"#0891b2"};
+  const curves = channelRows.map((item) => item.equity_curve || []).filter((curve) => curve.length);
+  if (chart) {
+    if (!curves.length) chart.innerHTML = '<text x="360" y="92" text-anchor="middle" class="axis-label">누적 테스트 데이터 수집 중 · 아직 비교 구간이 없습니다</text>';
+    else {
+      const maxN = Math.max(...curves.map((curve) => curve.length));
+      const values = curves.flat(); const lo = Math.min(0, ...values), hi = Math.max(0, ...values);
+      const span = Math.max(hi - lo, 0.001);
+      const lines = channelRows.map((item) => {
+        const curve = item.equity_curve || []; if (!curve.length) return "";
+        const points = curve.map((value, index) => `${24 + index * 672 / Math.max(maxN - 1, 1)},${154 - (value - lo) * 128 / span}`).join(" ");
+        return `<polyline fill="none" stroke="${colors[item.variant_key]}" stroke-width="2.5" points="${points}"/>`;
+      }).join("");
+      const zeroY = 154 - (0 - lo) * 128 / span;
+      chart.innerHTML = `<line class="axis" x1="24" y1="${zeroY}" x2="696" y2="${zeroY}"/>${lines}`;
+    }
+  }
+  const legend = document.getElementById("donchianChartLegend");
+  if (legend && channelRows.length) legend.innerHTML = channelRows.map((item) => `<span style="color:${colors[item.variant_key]};font-weight:800">${item.variant_key}</span> ${item.variant_label}: ${item.trade_count ? percent(item.profit_rate) : "표본 대기"}`).join("　·　");
   document.getElementById("ruleVariantBoard").innerHTML = rows.map((item) => {
     const active = item.variant_key && item.variant_key === shadow.applied_variant_key ? " active" : "";
     const candidate = item.variant_key && item.variant_key === shadow.candidate_leader_key ? " candidate" : "";
-    const scoreText = item.profit_rate === null || item.profit_rate === undefined ? "-" : percent(item.profit_rate);
+    const scoreText = !item.trade_count ? "표본 대기" : item.profit_rate === null || item.profit_rate === undefined ? "-" : percent(item.profit_rate);
     const actionText = item.last_action ? `최근 ${formatTradeAction(item.last_action)}` : "대기";
     const stateText = active ? "적용 룰" : candidate ? "수익률 최고 후보" : "";
     return `<div class="variant-card${active}${candidate}">
@@ -780,7 +816,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
       <div class="variant-desc">${stateText ? stateText + "<br>" : ""}${actionText}<br>실현손익 ${number(item.realized_pnl || 0, 0)} KRW<br>${item.description || ""}</div>
     </div>`;
   }).join("");
-  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "데모 모드에서 같은 실시간 데이터를 기준으로 A~R 18개 가상 포트폴리오를 동시에 테스트하고, 손절 발생 시 즉각 리더를 동적 스위칭합니다.";
+  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "데모 모드에서 같은 실시간 데이터를 기준으로 A~X 가상 포트폴리오를 비교합니다. S~X 돈치안 후보는 자동 승격되지 않습니다.";
 }
 
 function aiBadge(label, className) {
@@ -1788,7 +1824,66 @@ function renderDashboard(data) {
   ].join("");
 }
 
+function initDashboardPages() {
+  const main = document.querySelector("main.wrap");
+  const cards = [...main.querySelectorAll(":scope > section")].filter((node) => node.id !== "dashboardPreferences");
+  const layout = (() => { try { return JSON.parse(localStorage.getItem(DASHBOARD_LAYOUT_KEY) || "{}"); } catch (_) { return {}; } })();
+  const titles = new Map();
+  cards.forEach((node, index) => {
+    const title = node.querySelector("h2")?.textContent.trim() || `항목 ${index + 1}`;
+    node.dataset.layoutId = `dashboard-section-${index}`;
+    node.dataset.layoutTitle = title;
+    const text = `${title} ${node.textContent.slice(0, 180)}`;
+    node.dataset.pageGroup = /룰|시뮬레이션|돈치안|전략/i.test(text) ? "strategy"
+      : /시장|가격|온체인|ETF/i.test(text) ? "market"
+      : /학습|체결|전환|기록/i.test(text) ? "learning"
+      : /운용|진단|AI|상황/i.test(text) ? "operations" : "summary";
+    titles.set(node.dataset.layoutId, title);
+  });
+  const savedOrder = Array.isArray(layout.order) ? layout.order : [];
+  cards.sort((a,b) => {
+    const ai = savedOrder.indexOf(a.dataset.layoutId), bi = savedOrder.indexOf(b.dataset.layoutId);
+    return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+  }).forEach((node) => main.insertBefore(node, document.getElementById("dashboardPreferences")));
+  const list = document.getElementById("dashboardPreferenceList");
+  const renderPreferences = () => {
+    const ordered = [...main.querySelectorAll(":scope > section")].filter((node) => node.id !== "dashboardPreferences");
+    list.replaceChildren();
+    ordered.forEach((node, index) => {
+      const row = document.createElement("div"); row.className = "action-row";
+      row.style.alignItems = "center"; row.style.borderBottom = "1px solid var(--border)"; row.style.padding = "8px 0";
+      const check = document.createElement("input"); check.type = "checkbox"; check.checked = layout.enabled?.[node.dataset.layoutId] !== false;
+      check.setAttribute("aria-label", `${node.dataset.layoutTitle} 메인에 표시`);
+      const label = document.createElement("span"); label.textContent = node.dataset.layoutTitle; label.style.flex = "1";
+      const up = document.createElement("button"); up.className = "btn"; up.textContent = "↑"; up.disabled = index === 0;
+      const down = document.createElement("button"); down.className = "btn"; down.textContent = "↓"; down.disabled = index === ordered.length - 1;
+      check.onchange = () => { layout.enabled = {...layout.enabled, [node.dataset.layoutId]: check.checked}; save(); applyLayout(); };
+      up.onclick = () => { if (index > 0) main.insertBefore(node, ordered[index - 1]); persistOrder(); renderPreferences(); };
+      down.onclick = () => { if (index < ordered.length - 1) main.insertBefore(ordered[index + 1], node); persistOrder(); renderPreferences(); };
+      row.append(check, label, up, down); list.append(row);
+    });
+  };
+  function save() { localStorage.setItem(DASHBOARD_LAYOUT_KEY, JSON.stringify(layout)); }
+  function persistOrder() { layout.order = [...main.querySelectorAll(":scope > section")].filter((node) => node.id !== "dashboardPreferences").map((node) => node.dataset.layoutId); save(); }
+  function applyLayout() {
+    cards.forEach((node) => node.classList.toggle("home-disabled", layout.enabled?.[node.dataset.layoutId] === false));
+  }
+  function showPage(page) {
+    const preferences = page === "preferences";
+    document.getElementById("dashboardPreferences").classList.toggle("page-hidden", !preferences);
+    cards.forEach((node) => {
+      node.classList.toggle("page-hidden", preferences || node.dataset.pageGroup !== page);
+      node.classList.toggle("home-disabled", page === "summary" && layout.enabled?.[node.dataset.layoutId] === false);
+    });
+    document.querySelectorAll("#dashboardPages [data-page]").forEach((button) => button.classList.toggle("selected", button.dataset.page === page));
+    if (preferences) renderPreferences();
+  }
+  document.querySelectorAll("#dashboardPages [data-page]").forEach((button) => button.onclick = () => showPage(button.dataset.page));
+  applyLayout(); showPage("summary");
+}
+
 applyTheme(localStorage.getItem(THEME_KEY) || "light");
+initDashboardPages();
 refreshDashboard();
 setInterval(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS);
 </script>
