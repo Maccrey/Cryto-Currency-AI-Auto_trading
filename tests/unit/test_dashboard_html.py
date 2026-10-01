@@ -48,13 +48,14 @@ def test_dashboard_includes_exchange_simulation_and_demo_rule_variants() -> None
     assert "AI-A" in DASHBOARD_HTML
     assert "AI-R" in DASHBOARD_HTML
     assert "AI-X" in DASHBOARD_HTML
-    assert "데모 룰 A~X 내부 테스트" in DASHBOARD_HTML
+    assert "데모 룰 A~AD 내부 테스트" in DASHBOARD_HTML
     assert 'id="ruleVariantBoard"' in DASHBOARD_HTML
     assert "function renderExchangeSimulation" in DASHBOARD_HTML
     assert "tradingStatus.last_cycle" in DASHBOARD_HTML
     assert "shadow.applied_variant_key" in DASHBOARD_HTML
     assert "shadow.candidate_leader_key" in DASHBOARD_HTML
-    assert "같은 실시간 데이터와 가상 자금으로 A~X 룰을 비교" in DASHBOARD_HTML
+    assert "일반 후보는 같은 가상 자금과 최근 완료 사이클로 비교합니다." in DASHBOARD_HTML
+    assert "룰 AD 균형 손익비형" in DASHBOARD_HTML
     assert "룰 D 돌파확인형" in DASHBOARD_HTML
     assert "룰 E 박스저점형" in DASHBOARD_HTML
     assert "룰 F 자본보전형" in DASHBOARD_HTML
@@ -104,7 +105,7 @@ def test_dashboard_flips_changing_numeric_metrics() -> None:
 
 
 def test_dashboard_includes_rule_review_pipeline_panel() -> None:
-    assert "데모 룰 A~X 내부 테스트" in DASHBOARD_HTML
+    assert "데모 룰 A~AD 내부 테스트" in DASHBOARD_HTML
     assert 'id="dashboardRuleOptimizeButton"' in DASHBOARD_HTML
     assert "Codex 자동 룰개선 (데모·실거래)" in DASHBOARD_HTML
     assert 'fetch("/dashboard/rules/optimize-demo", {method: "POST"})' in DASHBOARD_HTML

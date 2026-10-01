@@ -124,6 +124,7 @@ class DemoRuleVariantShadowTester:
     DONCHIAN_KEYS = frozenset({"S", "T", "U", "V", "W", "X"})
     DONCHIAN_TIMEFRAMES = {"S": 5 * 60, "T": 15 * 60, "U": 30 * 60, "V": 60 * 60, "W": 2 * 60 * 60, "X": 4 * 60 * 60}
     DONCHIAN_TIMEFRAME_LABELS = {"S": "5분봉", "T": "15분봉", "U": "30분봉", "V": "1시간봉", "W": "2시간봉", "X": "4시간봉"}
+    MIN_RULE_SELECTION_CYCLES = 3
 
     # Bear-to-bull confirmed → buy multiplier is boosted by this factor
     BEAR_TO_BULL_BUY_BOOST = 1.35
@@ -297,6 +298,12 @@ class DemoRuleVariantShadowTester:
             take_profit_pct=0.0037,
             stop_loss_pct=0.0023,
         ),
+        DemoRuleVariant(key="Y", label="룰 Y 저비용 초단타", description="수수료를 넘는 짧은 목표와 빠른 청산으로 잦은 소액 거래를 비교합니다.", buy_multiplier=0.65, sell_multiplier=1.8, take_profit_pct=0.0023, stop_loss_pct=0.0014),
+        DemoRuleVariant(key="Z", label="룰 Z 추세 눌림목", description="상승 추세 안의 약한 눌림과 재상승 신호에 진입하고 추세가 꺾이면 청산합니다.", buy_multiplier=0.9, sell_multiplier=1.15, take_profit_pct=0.0034, stop_loss_pct=0.0019),
+        DemoRuleVariant(key="AA", label="룰 AA 저낙폭 방어형", description="장세 전환 확인과 강한 신호를 요구하고 작은 목표·짧은 손절로 낙폭을 제한합니다.", buy_multiplier=0.45, sell_multiplier=2.0, take_profit_pct=0.0025, stop_loss_pct=0.0013),
+        DemoRuleVariant(key="AB", label="룰 AB 모멘텀 확인형", description="상승 흐름과 강한 모멘텀이 동시에 확인될 때 참여해 신호 품질을 우선합니다.", buy_multiplier=1.1, sell_multiplier=0.9, take_profit_pct=0.0038, stop_loss_pct=0.0021),
+        DemoRuleVariant(key="AC", label="룰 AC 변동성 축소형", description="변동성이 커지면 주문을 줄이고 안정된 구간에서 수수료 여유를 둔 짧은 거래를 비교합니다.", buy_multiplier=0.7, sell_multiplier=1.45, take_profit_pct=0.0028, stop_loss_pct=0.0016),
+        DemoRuleVariant(key="AD", label="룰 AD 균형 손익비형", description="전환·추세 신호를 확인하고 손절 대비 넓은 목표 수익으로 손익비를 높입니다.", buy_multiplier=0.8, sell_multiplier=1.25, take_profit_pct=0.0036, stop_loss_pct=0.0018),
         # Independent two-hour-candle simulations; these are never promotion candidates.
         DemoRuleVariant(key="S", label="터틀/돈치안 1 빠른돌파", description="2시간봉 12개 고가 돌파 진입, 6개 저가 이탈 청산 시뮬레이션", buy_multiplier=0.55, sell_multiplier=1.0, take_profit_pct=0.0060, stop_loss_pct=0.0030),
         DemoRuleVariant(key="T", label="터틀/돈치안 2 균형돌파", description="2시간봉 20개 고가 돌파 진입, 10개 저가 이탈 청산 시뮬레이션", buy_multiplier=0.50, sell_multiplier=1.0, take_profit_pct=0.0080, stop_loss_pct=0.0040),
@@ -374,7 +381,8 @@ class DemoRuleVariantShadowTester:
         ]
         active_results = [item for item in results if item["variant_key"] not in self.DONCHIAN_KEYS]
         cycle_counts = [int(item.get("completed_cycle_count") or 0) for item in active_results]
-        comparable_cycle_count = min(cycle_counts, default=0)
+        eligible_cycle_counts = [count for count in cycle_counts if count >= self.MIN_RULE_SELECTION_CYCLES]
+        comparable_cycle_count = self.MIN_RULE_SELECTION_CYCLES if eligible_cycle_counts else 0
         for item in active_results:
             returns = item.get("cycle_returns") or []
             if comparable_cycle_count > 0 and len(returns) >= comparable_cycle_count:
@@ -388,11 +396,11 @@ class DemoRuleVariantShadowTester:
                 item["comparison_cycle_count"] = 0
                 item["comparison_profit_rate"] = 0.0
         candidate = max(active_results, key=self._candidate_score)
-        # Only select rules with a completed, positive realized result. Turtle
-        # candidates are simulation-only and are excluded from active selection.
+        # Require three completed round trips, then compare the same latest-three
+        # cycle window. Turtle candidates remain simulation-only.
         profitable_results = [
             item for item in active_results
-            if int(item.get("completed_cycle_count") or 0) > 0
+            if int(item.get("completed_cycle_count") or 0) >= self.MIN_RULE_SELECTION_CYCLES
             and float(item.get("comparison_profit_rate") or 0.0) > 0.0
         ]
         leader = max(profitable_results, key=self._leader_score) if profitable_results else None
@@ -1534,6 +1542,65 @@ class DemoRuleVariantShadowTester:
                 buy_multiplier = 0.0
                 sell_multiplier *= 2.00 if market_state == "bear" else 1.50
                 action_reason = "reversal_hold"
+
+        # ── Additional fine-grained scalping candidates Y–AD ───────────────────
+        elif variant.key == "Y":
+            entry_allowed = (
+                decision.signal.level in {"medium", "strong", "very_strong"}
+                and market_pressure >= -0.05
+                and (market_state == "bull" or (market_state == "box" and box_position is not None and box_position <= 0.45))
+                and decision.features.short_volatility <= 0.012
+            )
+            buy_multiplier *= 1.0 if entry_allowed else 0.0
+            action_reason = "low_cost_scalp_entry" if entry_allowed else "low_cost_scalp_wait"
+        elif variant.key == "Z":
+            pullback_reclaim = (
+                market_state == "bull" and decision.features.ret_30s < 0
+                and decision.features.ma_trend > 0
+                and decision.signal.level in {"medium", "strong", "very_strong"}
+            )
+            entry_allowed = pullback_reclaim or b2b_confirmed
+            buy_multiplier *= 1.15 if pullback_reclaim else (0.70 if entry_allowed else 0.0)
+            sell_multiplier *= 0.80 if market_state == "bull" else 1.35
+            action_reason = "trend_pullback_reclaim" if entry_allowed else "trend_pullback_wait"
+        elif variant.key == "AA":
+            entry_allowed = (
+                decision.signal.level in {"strong", "very_strong"}
+                and (market_state == "bull" or b2b_confirmed or (market_state == "box" and box_position is not None and box_position <= 0.30))
+            )
+            buy_multiplier *= 0.8 if entry_allowed else 0.0
+            sell_multiplier *= 1.4
+            action_reason = "low_drawdown_confirmed_entry" if entry_allowed else "low_drawdown_wait"
+        elif variant.key == "AB":
+            entry_allowed = market_state == "bull" and market_pressure >= 0.12 and decision.signal.level in {"strong", "very_strong"}
+            buy_multiplier *= 1.25 if entry_allowed else 0.0
+            sell_multiplier *= 0.75
+            take_profit_pct *= 1.10
+            action_reason = "momentum_confirmed_entry" if entry_allowed else "momentum_confirmation_wait"
+        elif variant.key == "AC":
+            volatility = max(decision.features.short_volatility, 0.0001)
+            risk_scale = min(max(0.006 / volatility, 0.35), 1.0)
+            entry_allowed = (
+                decision.signal.level in {"medium", "strong", "very_strong"}
+                and market_pressure >= 0.02
+                and market_state != "bear"
+            )
+            buy_multiplier *= risk_scale if entry_allowed else 0.0
+            sell_multiplier *= 1.0 + ((1.0 - risk_scale) * 0.8)
+            take_profit_pct *= risk_scale
+            stop_loss_pct *= risk_scale
+            action_reason = "volatility_scaled_entry" if entry_allowed else "volatility_scaled_wait"
+        elif variant.key == "AD":
+            entry_allowed = (
+                decision.signal.level in {"medium", "strong", "very_strong"}
+                and (market_pressure >= 0.06 or b2b_confirmed)
+                and market_state in {"bull", "box"}
+            )
+            buy_multiplier *= 1.0 if entry_allowed else 0.0
+            if market_pressure < 0:
+                sell_multiplier *= 1.25
+            take_profit_pct *= 1.05
+            action_reason = "balanced_reward_risk_entry" if entry_allowed else "balanced_reward_risk_wait"
 
         # ── Global: volatility penalty ─────────────────────────────────────────
         volatility_penalty = min(max(decision.features.short_volatility / 0.02, 0.0), 1.0)

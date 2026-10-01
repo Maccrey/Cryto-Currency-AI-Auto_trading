@@ -402,7 +402,7 @@ DASHBOARD_HTML = """
     <h2>코인거래소 시뮬레이션</h2>
     <div class="exchange-sim">
       <div class="variant-board">
-        <h2>데모 룰 A~X 내부 테스트</h2>
+        <h2>데모 룰 A~AD 내부 테스트</h2>
         <div class="sub">S~X 터틀/돈치안 후보 성과는 아래 그래프에서 함께 비교합니다. 거래 0회는 0% 수익이 아니라 아직 표본이 없는 상태입니다.</div>
         <svg id="donchianComparisonChart" class="profit-chart" viewBox="0 0 720 180" role="img" aria-label="터틀 돈치안 후보 6개 누적 수익률 비교"></svg>
         <div id="donchianChartLegend" class="sub">테스트 전용 · 전 카드 20봉 고점 돌파 매수 / 10봉 저점 이탈 매도 · S 5분 · T 15분 · U 30분 · V 1시간 · W 2시간 · X 4시간</div>
@@ -800,7 +800,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
   document.getElementById("agentRisk").textContent = `장세 ${market.market_state_label || "-"}, 성공률 ${percent(winRate)}`;
   document.getElementById("agentExecution").textContent = shadow.applied_variant_label
     ? `${shadow.applied_variant_label} 적용 중${shadow.selection_changed ? ", 이번 주기에 신규 전환" : ""}`
-    : "A~X 후보를 같은 가상 자금으로 비교합니다. 수익과 거래 횟수 기준을 충족한 돈치안 후보도 실제 매매 룰로 자동 선정됩니다.";
+    : "일반 룰 후보는 같은 가상 자금과 최근 완료 사이클로 비교합니다. S~X 돈치안은 시간봉별 테스트 전용입니다.";
 
   const fallback = [
     {variant_key: "A", variant_label: "룰 A 안정형", description: "기본 신호 장세 균형 추적", profit_rate: null, last_action: "대기"},
@@ -821,6 +821,12 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
     {variant_key: "P", variant_label: "룰 P 추세장기형", description: "넓은 손절선으로 큰 추세를 길게 보유", profit_rate: null, last_action: "대기"},
     {variant_key: "Q", variant_label: "룰 Q 변동적응형", description: "변동성에 맞춰 TP/SL 실시간 조율", profit_rate: null, last_action: "대기"},
     {variant_key: "R", variant_label: "룰 R 반등돌파형", description: "하락세 진정 후 상승 반전 초입에 공격 진입", profit_rate: null, last_action: "대기"},
+    {variant_key: "Y", variant_label: "룰 Y 저비용 초단타", description: "낮은 변동성에서 수수료를 넘기는 빠른 거래", profit_rate: null, last_action: "대기"},
+    {variant_key: "Z", variant_label: "룰 Z 추세 눌림목", description: "상승 추세 중 눌림 후 재상승에 진입", profit_rate: null, last_action: "대기"},
+    {variant_key: "AA", variant_label: "룰 AA 저낙폭 방어형", description: "강한 신호만 거래해 낙폭을 억제", profit_rate: null, last_action: "대기"},
+    {variant_key: "AB", variant_label: "룰 AB 모멘텀 확인형", description: "상승장과 강한 모멘텀을 함께 확인", profit_rate: null, last_action: "대기"},
+    {variant_key: "AC", variant_label: "룰 AC 변동성 축소형", description: "변동성에 따라 주문과 손익 폭 조절", profit_rate: null, last_action: "대기"},
+    {variant_key: "AD", variant_label: "룰 AD 균형 손익비형", description: "진입 확인과 손익비 중심 단기 매매", profit_rate: null, last_action: "대기"},
     {variant_key: "S", variant_label: "터틀/돈치안 S (5분봉)", description: "5분봉 20개 고가 돌파 매수 · 10개 저가 이탈 매도", timeframe: "5분봉", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
     {variant_key: "T", variant_label: "터틀/돈치안 T (15분봉)", description: "15분봉 20개 고가 돌파 매수 · 10개 저가 이탈 매도", timeframe: "15분봉", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
     {variant_key: "U", variant_label: "터틀/돈치안 U (30분봉)", description: "30분봉 20개 고가 돌파 매수 · 10개 저가 이탈 매도", timeframe: "30분봉", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
@@ -881,7 +887,7 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
       <div class="variant-desc">${stateText ? stateText + "<br>" : ""}${actionText}<br>실현손익 ${number(item.realized_pnl || 0, 0)} KRW<br>${item.description || ""}</div>
     </div>`;
   }).join("");
-  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "같은 실시간 데이터와 가상 자금으로 A~X 룰을 비교하고 검증 기준을 충족한 룰을 매매에 적용합니다.";
+  document.getElementById("ruleVariantReason").textContent = shadow.leader_reason || "일반 후보는 완료된 매매 사이클 성과로 비교합니다. 돈치안 S~X는 시간봉별 시뮬레이션 전용입니다.";
 }
 
 function aiBadge(label, className) {

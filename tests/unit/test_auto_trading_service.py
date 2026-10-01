@@ -537,7 +537,7 @@ def test_auto_trading_service_executes_demo_trade_after_signal(tmp_path: Path) -
     assert result["rule_variant_shadow"]["candidate_leader_key"] in set("ABCDEFGHIJKLMNOPQR")
     assert result["trade_logic_update_trace"]["version"] == "2026-06-07-loss-aware-weak-recovery-guard"
     assert "demo_realized_pnl" in result["trade_logic_update_trace"]["optimization_metric_keys"]
-    assert {item["variant_key"] for item in result["rule_variant_shadow"]["results"]} == set("ABCDEFGHIJKLMNOPQRSTUVWX")
+    assert {item["variant_key"] for item in result["rule_variant_shadow"]["results"]} == set("ABCDEFGHIJKLMNOPQRSTUVWX") | {"Y", "Z", "AA", "AB", "AC", "AD"}
     assert service.last_cycle()["rule_variant_leader_key"] == result["rule_variant_leader_key"]
     observation_rows = [
         json.loads(line)

@@ -74,12 +74,12 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
         ),
     )
 
-    assert {item["variant_key"] for item in report["results"]} == set("ABCDEFGHIJKLMNOPQRSTUVWX")
+    assert {item["variant_key"] for item in report["results"]} == set("ABCDEFGHIJKLMNOPQRSTUVWX") | {"Y", "Z", "AA", "AB", "AC", "AD"}
     # Positive realized profit is required before a rule can become active.
     assert report["leader_key"] is None
     assert report["is_fallback_leader"] is False
     assert report["selection_type"] is None
-    assert report["candidate_leader_key"] in set("ABCDEFGHIJKLMNOPQR")
+    assert report["candidate_leader_key"] in (set("ABCDEFGHIJKLMNOPQR") | {"Y", "Z", "AA", "AB", "AC", "AD"})
     assert all("effective_buy_multiplier" in item for item in report["results"])
     assert all(0.0024 <= item["effective_take_profit_pct"] <= 0.0045 for item in report["results"])
     assert all(0.0012 <= item["effective_stop_loss_pct"] <=
@@ -156,8 +156,8 @@ def test_demo_rule_variant_shadow_tester_compares_profit_rate_after_same_price_m
     assert results["A"]["profit_rate"] > results["C"]["profit_rate"]
     # 조기 승격(early promotion) 로직으로 인해 1사이클 완료 후 바로 리더가 승격될 수 있음
     # (leader_key가 None 또는 유효한 키이어야 함)
-    assert report["leader_key"] is None or report["leader_key"] in set("ABCDEFGHIJKLMNOPQR")
-    assert report["candidate_leader_key"] in set("ABCDEFGHIJKLMNOPQR")
+    assert report["leader_key"] is None or report["leader_key"] in (set("ABCDEFGHIJKLMNOPQR") | {"Y", "Z", "AA", "AB", "AC", "AD"})
+    assert report["candidate_leader_key"] in (set("ABCDEFGHIJKLMNOPQR") | {"Y", "Z", "AA", "AB", "AC", "AD"})
 
 
 def test_demo_rule_variant_defensive_rule_buys_only_near_box_low() -> None:
