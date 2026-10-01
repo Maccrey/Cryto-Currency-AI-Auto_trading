@@ -39,15 +39,15 @@ TRADING_PROFILES: dict[str, TradingProfileSpec] = {
         auto_interval_sec=3.0,
         auto_min_history=6,
         min_net_edge_pct=0.0008,
-        validation_window_sec=480,   # 강화: 5분→8분 (45~51분 손절 패턴 분석 기반 연장)
-        min_expected_return_pct=0.0065,  # 상향: 0.4%→0.65% (평균 수익률 0.62% 기반, 수익 추구 강화)
+        validation_window_sec=180,
+        min_expected_return_pct=0.0030,
         spread_bps=8.0,
         slippage_bps=12.0,
-        fixed_stop_loss_pct=0.024,
-        stop_loss_weak_pct=0.012,
-        stop_loss_medium_pct=0.018,
-        stop_loss_strong_pct=0.024,
-        stop_loss_very_strong_pct=0.030,
+        fixed_stop_loss_pct=0.012,
+        stop_loss_weak_pct=0.008,
+        stop_loss_medium_pct=0.010,
+        stop_loss_strong_pct=0.012,
+        stop_loss_very_strong_pct=0.015,
     ),
     "short_term": TradingProfileSpec(
         key="short_term",

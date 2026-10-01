@@ -129,7 +129,7 @@ class DemoRuleVariantShadowTester:
     EMERGENCY_FALLBACK_MAX_DRAWDOWN_RATIO = 0.80
     # 연속 손절 쿨다운: 연속 N회 손절 시 이 틱 수만큼 신규 매수를 차단
     CONSECUTIVE_STOP_LOSS_COOLDOWN_TRIGGER = 2   # 2회 연속 손절 시 쿨다운 발동
-    CONSECUTIVE_STOP_LOSS_COOLDOWN_TICKS = 200   # 약 10분(3초 간격) 쿨다운
+    CONSECUTIVE_STOP_LOSS_COOLDOWN_TICKS = 60    # 약 3분(3초 간격) 쿨다운
 
     # ── Fallback Leader (전체 음수 시 임시 리더) ────────────────────────────────
     # 정상 승격 조건을 충족하는 룰이 없을 때 최고 성과 룰을 임시 리더로 사용.

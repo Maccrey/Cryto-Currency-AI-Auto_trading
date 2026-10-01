@@ -196,8 +196,14 @@ class AutoTradingService:
         )
         self._market_state_entry_guard = MarketStateEntryGuard(
             enabled=config.market_state_entry_guard_enabled,
-            confirmation_ticks=config.market_state_transition_confirmation_ticks,
-            bear_entry_min_score=config.market_state_bear_entry_min_score,
+            confirmation_ticks=(
+                1 if config.trading_profile == "scalping"
+                else config.market_state_transition_confirmation_ticks
+            ),
+            bear_entry_min_score=(
+                0.55 if config.trading_profile == "scalping"
+                else config.market_state_bear_entry_min_score
+            ),
         )
         self._demo_rule_variant_shadow_tester = DemoRuleVariantShadowTester(
             trading_fee_rate=config.trading_fee_rate,

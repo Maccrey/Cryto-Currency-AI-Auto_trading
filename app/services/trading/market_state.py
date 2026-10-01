@@ -51,6 +51,16 @@ class MarketStateEntryGuard:
             and signal_level in {"medium", "strong", "very_strong"}
             and signal_score >= 0.4
         )
+        rebound_entry = (
+            entry_type == "initial"
+            and signal_score >= self._bear_entry_min_score
+            and signal_level in {"medium", "strong", "very_strong"}
+            and bool(set(signal_reason_codes or ()) & {
+                "BEAR_REBOUND_PARTICIPATION",
+                "PRICE_CHANNEL_BREAKOUT_CONFIRMED",
+                "MOMENTUM_BREAKOUT",
+            })
+        )
         transition_boost = (
             self._enabled
             and current_state == "bull"
@@ -77,7 +87,7 @@ class MarketStateEntryGuard:
                 current_state_count=current_count,
                 transition=transition,
             )
-        if current_state == "bear" and not breakout_entry:
+        if current_state == "bear" and not (breakout_entry or rebound_entry):
             return MarketStateEntryDecision(
                 allowed=False,
                 reason_code="MARKET_STATE_BEAR_ENTRY_BLOCK",
