@@ -961,11 +961,8 @@ def test_verified_demo_rule_updates_are_restored_for_live_strategy(tmp_path: Pat
 
     result = demo.apply_demo_rule_update(
         [
-            {"parameter": "NO_TRADE_RELAX_MIN_SCORE"},
-            {"parameter": "BULL_BOX_BEAR_REBOUND_SIGNAL_BOOST"},
-            {"parameter": "TECHNICAL_TREND_CONFIRMATION"},
-            {"parameter": "TECHNICAL_BEARISH_SIZE_REDUCTION"},
-            {"parameter": "EXTERNAL_CONTEXT_BULLISH_BOOST"},
+            {"parameter": "TECHNICAL_TREND_CONFIRMATION", "proposed_value": 0.03},
+            {"parameter": "MIN_NET_EDGE_PCT", "proposed_value": 0.002},
         ]
     )
     live = _build_service(
@@ -978,12 +975,9 @@ def test_verified_demo_rule_updates_are_restored_for_live_strategy(tmp_path: Pat
     live._restore_verified_rule_updates()
 
     assert result["applied"] is True
-    assert live._config.allow_weak_no_trade_relax is True
-    assert live._config.no_trade_relax_min_score == 0.18
     assert live._trade_decision_service._runtime_rule_overrides == {
         "technical_trend_confirmation_boost": 0.03,
-        "bearish_entry_score_multiplier": 0.9,
-        "external_context_bullish_multiplier": 1.002,
+        "minimum_net_edge_pct": 0.002,
     }
 
 

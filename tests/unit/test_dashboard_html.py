@@ -32,7 +32,7 @@ def test_dashboard_includes_24h_profit_rate_chart() -> None:
     assert 'POST_SELL_REENTRY_EDGE_REQUIRED' in DASHBOARD_HTML
     assert 'MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 진입 차단"' in DASHBOARD_HTML
     assert 'fetchJson("/dashboard/market?history_limit=288")' in DASHBOARD_HTML
-    assert 'renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market);' in DASHBOARD_HTML
+    assert 'renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market, summary.daily_goal || {});' in DASHBOARD_HTML
     assert "`${market.market || marketLabel} <span" not in DASHBOARD_HTML
 
 
@@ -41,13 +41,13 @@ def test_dashboard_includes_exchange_simulation_and_demo_rule_variants() -> None
     assert "AI-A" in DASHBOARD_HTML
     assert "AI-R" in DASHBOARD_HTML
     assert "AI-X" in DASHBOARD_HTML
-    assert "데모 룰 A~R 내부 테스트" in DASHBOARD_HTML
+    assert "데모 룰 A~X 내부 테스트" in DASHBOARD_HTML
     assert 'id="ruleVariantBoard"' in DASHBOARD_HTML
     assert "function renderExchangeSimulation" in DASHBOARD_HTML
     assert "tradingStatus.last_cycle" in DASHBOARD_HTML
     assert "shadow.applied_variant_key" in DASHBOARD_HTML
     assert "shadow.candidate_leader_key" in DASHBOARD_HTML
-    assert "같은 실시간 데이터를 기준으로 A~R 18개 가상 포트폴리오를 동시에 테스트" in DASHBOARD_HTML
+    assert "같은 실시간 데이터와 가상 자금으로 A~X 룰을 비교" in DASHBOARD_HTML
     assert "룰 D 돌파확인형" in DASHBOARD_HTML
     assert "룰 E 박스저점형" in DASHBOARD_HTML
     assert "룰 F 자본보전형" in DASHBOARD_HTML
@@ -97,36 +97,14 @@ def test_dashboard_flips_changing_numeric_metrics() -> None:
 
 
 def test_dashboard_includes_rule_review_pipeline_panel() -> None:
-    assert "룰 개선" in DASHBOARD_HTML
-    assert "Codex 자동 룰 개선 시작" in DASHBOARD_HTML
-    assert "Codex 자동 룰 개선 진행" in DASHBOARD_HTML
-    assert "다시 룰 개선" in DASHBOARD_HTML
-    assert "진행 내용이 길면" in DASHBOARD_HTML
-    assert 'postJson("/api/v1/rules/auto-improve"' in DASHBOARD_HTML
-    assert "runCodexRuleAutomation" in DASHBOARD_HTML
-    assert "renderRuleAutomationResult" in DASHBOARD_HTML
-    assert "function maybeRunAutoRuleImprove(progress)" in DASHBOARD_HTML
-    assert "학습완료율 100% 도달로 학습 데이터, 온체인 데이터, ETF 상태를 함께 분석합니다." in DASHBOARD_HTML
-    assert 'sessionStorage.getItem(AUTO_RULE_READY_KEY) === "done"' in DASHBOARD_HTML
-    assert "replay 결과" in DASHBOARD_HTML
-    assert "demo 적용" in DASHBOARD_HTML
-    assert "live 승인 적용" in DASHBOARD_HTML
-    assert "커밋 해시 연결" in DASHBOARD_HTML
-    assert "히스토리 보정" in DASHBOARD_HTML
-    assert "룰 변경 롤백" in DASHBOARD_HTML
-    assert 'postJson("/api/v1/rules/review"' in DASHBOARD_HTML
-    assert 'fetchJson("/api/v1/rules/proposals"' in DASHBOARD_HTML
-    assert 'fetchJson("/api/v1/rules/history"' in DASHBOARD_HTML
-    assert "/commit-hash" in DASHBOARD_HTML
-    assert "/history-corrections" in DASHBOARD_HTML
-    assert "/rollback" in DASHBOARD_HTML
-    assert "refreshRuleHistory" in DASHBOARD_HTML
-    assert "renderLatestRuleProposal" in DASHBOARD_HTML
-    assert "renderRuleHistory" in DASHBOARD_HTML
-    assert 'id="ruleDataQuality"' in DASHBOARD_HTML
-    assert 'id="ruleReplayProfit"' in DASHBOARD_HTML
-    assert "formatMarketDataQuality" in DASHBOARD_HTML
-    assert "formatReplayProfit" in DASHBOARD_HTML
+    assert "데모 룰 A~X 내부 테스트" in DASHBOARD_HTML
+    assert 'id="dashboardRuleOptimizeButton"' in DASHBOARD_HTML
+    assert "Codex 자동 룰개선 (데모·실거래)" in DASHBOARD_HTML
+    assert 'fetch("/dashboard/rules/optimize-demo", {method: "POST"})' in DASHBOARD_HTML
+    assert "function optimizeDemoRules()" in DASHBOARD_HTML
+    assert "proposal.replay_result" in DASHBOARD_HTML
+    assert "proposal.demo_applied" in DASHBOARD_HTML
+    assert "live_rules_persisted" in DASHBOARD_HTML
 
 
 def test_settings_includes_server_name_field() -> None:
@@ -138,11 +116,8 @@ def test_settings_includes_server_name_field() -> None:
 
 
 def test_settings_rule_improvement_layout_wraps_long_text() -> None:
-    assert ".rule-result { width: 100%; margin-top: 10px; border-collapse: collapse; table-layout: fixed;" in SETTINGS_HTML
-    assert "overflow-wrap: anywhere; word-break: break-word;" in SETTINGS_HTML
-    assert ".rule-final { margin-top: 14px;" in SETTINGS_HTML
-    assert "white-space: pre-wrap" in SETTINGS_HTML
-    assert ".rule-actions { display: grid; grid-template-columns: 1fr; }" in SETTINGS_HTML
+    assert ".note { color: #52616d; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }" in SETTINGS_HTML
+    assert 'id="ruleOptimizeStatus" class="note"' in SETTINGS_HTML
 
 
 def test_dashboard_includes_external_market_context_panel() -> None:
@@ -298,65 +273,37 @@ def test_dashboard_refresh_throttles_overlapping_requests() -> None:
     assert "setInterval(refreshDashboard, DASHBOARD_REFRESH_INTERVAL_MS);" in DASHBOARD_HTML
 
 
-def test_dashboard_displays_trading_runtime_only_when_running() -> None:
-    assert 'id="tradingRuntime" class="runtime-pill"' in DASHBOARD_HTML
-    assert 'href="/health" target="_blank" rel="noreferrer">상태 API</a>\n        <span id="tradingRuntime"' in DASHBOARD_HTML
-    assert "트레이딩 운영시간 : ${formatTradingRuntime(status.uptime_sec)}" in DASHBOARD_HTML
+def test_dashboard_displays_trading_runtime_and_start_action() -> None:
+    assert 'id="tradingRuntime" class="runtime-pill stopped"' in DASHBOARD_HTML
+    assert 'href="/health" target="_blank" rel="noreferrer">상태 API</a>\n        <button id="tradingRuntime"' in DASHBOARD_HTML
+    assert "● 자동매매 실행 중 · ${formatTradingRuntime(status.uptime_sec)}" in DASHBOARD_HTML
     assert "fetchJson(\"/settings/trading/status\")" in DASHBOARD_HTML
-    assert "runtime.classList.remove(\"visible\")" in DASHBOARD_HTML
-    assert "runtime.classList.add(\"visible\")" in DASHBOARD_HTML
-    assert ".runtime-pill { display: none;" in DASHBOARD_HTML
-    assert "width: 258px;" in DASHBOARD_HTML
+    assert "runtime.classList.remove(\"running\", \"stopped\", \"unavailable\")" in DASHBOARD_HTML
+    assert 'onclick="startTradingFromDashboard()"' in DASHBOARD_HTML
+    assert "현재 중지 · 눌러서 자동매매 시작" in DASHBOARD_HTML
+    assert ".runtime-pill { display: inline-flex;" in DASHBOARD_HTML
     assert "font-variant-numeric: tabular-nums;" in DASHBOARD_HTML
-    assert "flex: 0 0 258px;" in DASHBOARD_HTML
-    assert "background: #f97316; color: #ffffff;" in DASHBOARD_HTML
+    assert ".runtime-pill.running { border-color: #16a34a; background: #dcfce7; color: #166534; }" in DASHBOARD_HTML
+    assert ".top { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }" in DASHBOARD_HTML
 
 
-def test_dashboard_displays_rule_review_coin_context() -> None:
-    assert 'row("대상 코인"' in DASHBOARD_HTML
-    assert 'row("룰 로그 경로"' in DASHBOARD_HTML
-    assert 'row("외부 컨텍스트"' in DASHBOARD_HTML
-    assert 'row("히스토리 경고"' in DASHBOARD_HTML
-    assert "formatRuleExternalContext" in DASHBOARD_HTML
-    assert "formatRuleHistoryWarnings" in DASHBOARD_HTML
-    assert "commit_hash" in DASHBOARD_HTML
-    assert "commit ${item.commit_hash}" in DASHBOARD_HTML
+def test_dashboard_exposes_rule_optimizer_review_result() -> None:
+    assert "async function optimizeDemoRules()" in DASHBOARD_HTML
+    assert 'fetch("/dashboard/rules/optimize-demo", {method: "POST"})' in DASHBOARD_HTML
+    assert "proposal.codex_suggested_changes" in DASHBOARD_HTML
+    assert "proposal.rejection_reasons" in DASHBOARD_HTML
+    assert "replay.candidate_changes_tested" in DASHBOARD_HTML
 
 
-def test_settings_includes_rule_review_pipeline_panel() -> None:
-    assert "Codex 자동 룰 개선 시작" in SETTINGS_HTML
-    assert "Codex 자동 룰 개선 진행" in SETTINGS_HTML
-    assert "다시 룰 개선" in SETTINGS_HTML
-    assert "진행 내용이 길면" in SETTINGS_HTML
-    assert 'postJson("/api/v1/rules/auto-improve"' in SETTINGS_HTML
-    assert "runCodexRuleAutomation" in SETTINGS_HTML
-    assert "renderRuleAutomationResult" in SETTINGS_HTML
-    assert "replay 결과" in SETTINGS_HTML
-    assert "demo 적용" in SETTINGS_HTML
-    assert "live 승인 적용" in SETTINGS_HTML
-    assert "커밋 해시 연결" in SETTINGS_HTML
-    assert "히스토리 보정" in SETTINGS_HTML
-    assert "룰 변경 롤백" in SETTINGS_HTML
-    assert 'postJson("/api/v1/rules/review"' in SETTINGS_HTML
-    assert 'fetchJson("/api/v1/rules/proposals"' in SETTINGS_HTML
-    assert 'fetchJson("/api/v1/rules/history"' in SETTINGS_HTML
-    assert "/commit-hash" in SETTINGS_HTML
-    assert "/history-corrections" in SETTINGS_HTML
-    assert "/rollback" in SETTINGS_HTML
-    assert "refreshRuleHistory" in SETTINGS_HTML
-    assert "renderLatestRuleProposal" in SETTINGS_HTML
-    assert "renderRuleHistory" in SETTINGS_HTML
-    assert 'row("대상 코인"' in SETTINGS_HTML
-    assert 'row("룰 로그 경로"' in SETTINGS_HTML
-    assert 'row("외부 컨텍스트"' in SETTINGS_HTML
-    assert 'row("히스토리 경고"' in SETTINGS_HTML
-    assert "formatRuleExternalContext" in SETTINGS_HTML
-    assert "formatRuleHistoryWarnings" in SETTINGS_HTML
-    assert "formatContextState" in SETTINGS_HTML
-    assert 'neutral: "중립"' in SETTINGS_HTML
-    assert 'not_applicable: "해당 없음"' in SETTINGS_HTML
-    assert "commit_hash" in SETTINGS_HTML
-    assert "commit ${item.commit_hash}" in SETTINGS_HTML
+def test_settings_exposes_demo_rule_optimizer_and_replay_result() -> None:
+    assert "Codex 룰 최적화" in SETTINGS_HTML
+    assert 'id="optimizeDemoRulesButton"' in SETTINGS_HTML
+    assert "로그 기반 룰 원클릭 최적화" in SETTINGS_HTML
+    assert 'fetch("/settings/rules/optimize-demo", {method: "POST"})' in SETTINGS_HTML
+    assert "async function optimizeDemoRules()" in SETTINGS_HTML
+    assert "proposal.replay_result" in SETTINGS_HTML
+    assert "proposal.demo_applied" in SETTINGS_HTML
+    assert "live_rules_persisted" in SETTINGS_HTML
 
 
 def test_settings_includes_external_context_and_no_trade_controls() -> None:

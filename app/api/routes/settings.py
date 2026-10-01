@@ -234,7 +234,7 @@ SETTINGS_HTML = """
       section { padding: 16px; }
       .row { grid-template-columns: 1fr; }
     }
-    .note { color: #52616d; font-size: 13px; line-height: 1.45; }
+    .note { color: #52616d; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
     .checkbox-line { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13px; font-weight: 650; }
   </style>
 </head>
