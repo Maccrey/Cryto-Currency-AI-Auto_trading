@@ -275,9 +275,9 @@ DASHBOARD_HTML = """
     .profit-chart .price-axis-label { fill: #facc15; font-size: 11px; font-weight: 800; text-anchor: end; }
     .profit-chart .axis { stroke: var(--border); stroke-width: 1; }
     .profit-chart .trade-marker { stroke: var(--surface); stroke-width: 2; cursor: help; }
-    .profit-chart .trade-marker.buy { fill: #b42318; }
-    .profit-chart .trade-marker.sell { fill: #145ea8; }
-    .profit-chart .trade-marker.stop-loss { fill: #facc15; }
+    .profit-chart .trade-marker.buy { fill: #145ea8; }
+    .profit-chart .trade-marker.sell { fill: #b42318; }
+    .profit-chart .trade-marker.stop-loss { fill: #b42318; }
     .goal-progress { display: grid; grid-template-columns: minmax(140px, 1fr) auto; align-items: center; gap: 10px; margin-top: 10px; }
     .goal-progress-track { height: 12px; overflow: hidden; border-radius: 999px; background: var(--soft); border: 1px solid var(--border); }
     .goal-progress-fill { width: 0; height: 100%; border-radius: inherit; background: #16a34a; transition: width 180ms ease; }
@@ -1397,10 +1397,14 @@ function buildProfitTradeMarkers({executions, data, startTime, endTime, timeSpan
   return [...seriesMarkers, ...filled].map((execution) => {
     const timestamp = new Date(execution.recorded_at).getTime();
     if (!Number.isFinite(timestamp) || timestamp < startTime || timestamp > endTime) return "";
+    // Pin trade markers to the displayed portfolio-return curve at trade time.
+    // Per-execution P/L can be zero or use a different basis, which used to
+    // stack markers on the chart's center/zero line.
     const nearest = nearestProfitPoint(data, timestamp);
-    const profitRate = execution.profit_rate !== undefined && execution.profit_rate !== null
-      ? Number(execution.profit_rate)
-      : nearest ? Number(nearest.profit_rate) : 0;
+    const profitRate = profitRateAtTime(data, timestamp)
+      ?? (execution.profit_rate !== undefined && execution.profit_rate !== null
+        ? Number(execution.profit_rate)
+        : nearest ? Number(nearest.profit_rate) : 0);
     const x = left + ((timestamp - startTime) / timeSpan) * width;
     const y = top + height - ((profitRate - minValue) / span) * height;
     const markerClass = execution.is_stop_loss ? "stop-loss" : execution.side;
@@ -1423,6 +1427,28 @@ function nearestProfitPoint(data, timestamp) {
     }
   });
   return nearest;
+}
+
+function profitRateAtTime(data, timestamp) {
+  if (!Array.isArray(data) || !data.length) return null;
+  const points = data.map((item) => ({
+    timestamp: new Date(item.recorded_at).getTime(),
+    profitRate: Number(item.profit_rate)
+  })).filter((item) => Number.isFinite(item.timestamp) && Number.isFinite(item.profitRate))
+    .sort((a, b) => a.timestamp - b.timestamp);
+  if (!points.length) return null;
+  if (timestamp <= points[0].timestamp) return points[0].profitRate;
+  if (timestamp >= points[points.length - 1].timestamp) return points[points.length - 1].profitRate;
+  for (let index = 1; index < points.length; index += 1) {
+    const right = points[index];
+    if (timestamp > right.timestamp) continue;
+    const left = points[index - 1];
+    const span = right.timestamp - left.timestamp;
+    if (span <= 0) return right.profitRate;
+    const progress = (timestamp - left.timestamp) / span;
+    return left.profitRate + ((right.profitRate - left.profitRate) * progress);
+  }
+  return points[points.length - 1].profitRate;
 }
 
 function profitMarkerTitle(execution, profitRate) {

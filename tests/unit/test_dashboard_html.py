@@ -23,7 +23,10 @@ def test_dashboard_includes_24h_profit_rate_chart() -> None:
     assert ".profit-chart .market-price-point" in DASHBOARD_HTML
     assert ".profit-chart .price-axis-label" in DASHBOARD_HTML
     assert ".profit-chart .price-axis-label { fill: #facc15;" in DASHBOARD_HTML
-    assert ".profit-chart .trade-marker.stop-loss { fill: #facc15; }" in DASHBOARD_HTML
+    assert ".profit-chart .trade-marker.buy { fill: #145ea8; }" in DASHBOARD_HTML
+    assert ".profit-chart .trade-marker.sell { fill: #b42318; }" in DASHBOARD_HTML
+    assert ".profit-chart .trade-marker.stop-loss { fill: #b42318; }" in DASHBOARD_HTML
+    assert "profitRateAtTime(data, timestamp)" in DASHBOARD_HTML
     assert "최근 24시간 수익률 데이터가 아직 없습니다.${priceSummary ? ` / 가격 ${priceSummary}` : \"\"}" in DASHBOARD_HTML
     assert "${profitLine}${marketPriceLine}${markers}" in DASHBOARD_HTML
     assert "observedSpan < timeSpan * 0.5" in DASHBOARD_HTML
