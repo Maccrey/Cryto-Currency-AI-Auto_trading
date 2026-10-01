@@ -12,6 +12,8 @@ class MarketPriceSnapshot:
     market: str
     price: float
     recorded_at: str
+    high_price: float | None = None
+    low_price: float | None = None
 
 
 class MarketPriceStore:
@@ -30,14 +32,24 @@ class MarketPriceStore:
         self._prices: dict[str, MarketPriceSnapshot] = {}
         self._history: dict[str, deque[MarketPriceSnapshot]] = {}
 
-    def save(self, *, market: str, price: float) -> MarketPriceSnapshot:
-        return self.save_at(market=market, price=price, recorded_at=self._timestamp_provider())
+    def save(
+        self, *, market: str, price: float, high_price: float | None = None, low_price: float | None = None,
+    ) -> MarketPriceSnapshot:
+        return self.save_at(
+            market=market, price=price, recorded_at=self._timestamp_provider(),
+            high_price=high_price, low_price=low_price,
+        )
 
-    def save_at(self, *, market: str, price: float, recorded_at: str) -> MarketPriceSnapshot:
+    def save_at(
+        self, *, market: str, price: float, recorded_at: str,
+        high_price: float | None = None, low_price: float | None = None,
+    ) -> MarketPriceSnapshot:
         snapshot = MarketPriceSnapshot(
             market=market,
             price=price,
             recorded_at=recorded_at,
+            high_price=high_price,
+            low_price=low_price,
         )
         self._prices[market] = snapshot
         if market not in self._history:

@@ -448,6 +448,7 @@ def create_app(
                 market_price_store=market_price_store,
                 learning_service=learning_service,
                 observation_path=profile_learning_log_dir / "market-observations.jsonl",
+                candle_count=200,
             ).bootstrap()
             logger.info(
                 "market_history_bootstrap_completed",

@@ -127,6 +127,8 @@ class HistoricalMarketBootstrapService:
                 market=self._market,
                 price=candle.trade_price,
                 recorded_at=candle.recorded_at,
+                high_price=candle.high_price,
+                low_price=candle.low_price,
             )
             payload = self._observation_payload(candle)
             latest_payload = payload

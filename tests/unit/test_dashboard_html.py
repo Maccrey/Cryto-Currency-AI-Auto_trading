@@ -26,6 +26,10 @@ def test_dashboard_includes_24h_profit_rate_chart() -> None:
     assert ".profit-chart .trade-marker.buy { fill: #145ea8; }" in DASHBOARD_HTML
     assert ".profit-chart .trade-marker.sell { fill: #b42318; }" in DASHBOARD_HTML
     assert ".profit-chart .trade-marker.stop-loss { fill: #b42318; }" in DASHBOARD_HTML
+    assert 'id="chartPositionPnl"' in DASHBOARD_HTML
+    assert 'marketPriceAtTime(pricePoints, timestamp)' in DASHBOARD_HTML
+    assert "Plot fills on the same live market-price path" in DASHBOARD_HTML
+    assert '보유 중 미실현 ${openPnl > 0 ? "+" : ""}${number(openPnl, 2)}원' in DASHBOARD_HTML
     assert "profitRateAtTime(data, timestamp)" in DASHBOARD_HTML
     assert "최근 24시간 수익률 데이터가 아직 없습니다.${priceSummary ? ` / 가격 ${priceSummary}` : \"\"}" in DASHBOARD_HTML
     assert "${profitLine}${marketPriceLine}${markers}" in DASHBOARD_HTML
@@ -35,7 +39,7 @@ def test_dashboard_includes_24h_profit_rate_chart() -> None:
     assert 'POST_SELL_REENTRY_EDGE_REQUIRED' in DASHBOARD_HTML
     assert 'MARKET_STATE_BEAR_ENTRY_BLOCK: "하락장 진입 차단"' in DASHBOARD_HTML
     assert 'fetchJson("/dashboard/market?history_limit=288")' in DASHBOARD_HTML
-    assert 'renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market, summary.daily_goal || {});' in DASHBOARD_HTML
+    assert 'renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market, summary.daily_goal || {}, summary.unrealized_pnl || 0, summary.coin_balance || 0);' in DASHBOARD_HTML
     assert "`${market.market || marketLabel} <span" not in DASHBOARD_HTML
 
 

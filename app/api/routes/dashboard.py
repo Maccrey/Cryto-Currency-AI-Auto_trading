@@ -278,6 +278,10 @@ DASHBOARD_HTML = """
     .profit-chart .trade-marker.buy { fill: #145ea8; }
     .profit-chart .trade-marker.sell { fill: #b42318; }
     .profit-chart .trade-marker.stop-loss { fill: #b42318; }
+    .chart-position-pnl { font-weight: 800; font-size: 1.05rem; padding: 4px 8px; border-radius: 6px; display: inline-block; margin: 4px 0; }
+    .chart-position-pnl.positive { color: #166534; background: #dcfce7; }
+    .chart-position-pnl.negative { color: #991b1b; background: #fee2e2; }
+    .chart-position-pnl.neutral { color: var(--muted); background: var(--surface); }
     .goal-progress { display: grid; grid-template-columns: minmax(140px, 1fr) auto; align-items: center; gap: 10px; margin-top: 10px; }
     .goal-progress-track { height: 12px; overflow: hidden; border-radius: 999px; background: var(--soft); border: 1px solid var(--border); }
     .goal-progress-fill { width: 0; height: 100%; border-radius: inherit; background: #16a34a; transition: width 180ms ease; }
@@ -384,6 +388,7 @@ DASHBOARD_HTML = """
 
   <section class="card">
     <h2>24시간 수익률</h2>
+    <div id="chartPositionPnl" class="chart-position-pnl neutral">보유 포지션 없음</div>
     <svg id="profitRateChart" class="profit-chart" viewBox="0 0 720 180" role="img" aria-label="24시간 수익률 선그래프"></svg>
     <div id="profitRateChartSub" class="sub">-</div>
     <div class="goal-progress" aria-label="일일 목표 달성률">
@@ -400,7 +405,7 @@ DASHBOARD_HTML = """
         <h2>데모 룰 A~X 내부 테스트</h2>
         <div class="sub">S~X 터틀/돈치안 후보 성과는 아래 그래프에서 함께 비교합니다. 거래 0회는 0% 수익이 아니라 아직 표본이 없는 상태입니다.</div>
         <svg id="donchianComparisonChart" class="profit-chart" viewBox="0 0 720 180" role="img" aria-label="터틀 돈치안 후보 6개 누적 수익률 비교"></svg>
-        <div id="donchianChartLegend" class="sub">S 12틱 · T 20틱 · U 30틱 · V 40틱 · W 55틱 · X 80틱</div>
+        <div id="donchianChartLegend" class="sub">테스트 전용 · 전 카드 20봉 고점 돌파 매수 / 10봉 저점 이탈 매도 · S 5분 · T 15분 · U 30분 · V 1시간 · W 2시간 · X 4시간</div>
         <div id="ruleVariantBoard" class="variant-grid">
           <div class="variant-card"><div class="variant-title">룰 A</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
           <div class="variant-card"><div class="variant-title">룰 B</div><div class="variant-score">-</div><div class="variant-desc">대기 중</div></div>
@@ -816,12 +821,12 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
     {variant_key: "P", variant_label: "룰 P 추세장기형", description: "넓은 손절선으로 큰 추세를 길게 보유", profit_rate: null, last_action: "대기"},
     {variant_key: "Q", variant_label: "룰 Q 변동적응형", description: "변동성에 맞춰 TP/SL 실시간 조율", profit_rate: null, last_action: "대기"},
     {variant_key: "R", variant_label: "룰 R 반등돌파형", description: "하락세 진정 후 상승 반전 초입에 공격 진입", profit_rate: null, last_action: "대기"},
-    {variant_key: "S", variant_label: "터틀/돈치안 1 빠른돌파 (12)", description: "12틱 고가 돌파 · 6틱 저가 청산", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 12},
-    {variant_key: "T", variant_label: "터틀/돈치안 2 균형돌파 (20)", description: "20틱 고가 돌파 · 10틱 저가 청산", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
-    {variant_key: "U", variant_label: "터틀/돈치안 3 추세보유 (30)", description: "30틱 고가 돌파 추세추종", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 30},
-    {variant_key: "V", variant_label: "터틀/돈치안 4 보수돌파 (40)", description: "40틱 채널 돌파 추종", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 40},
-    {variant_key: "W", variant_label: "터틀/돈치안 5 장기추세 (55)", description: "55틱 고가 돌파 후 추세 약화 시 청산", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 55},
-    {variant_key: "X", variant_label: "터틀/돈치안 6 초장기추세 (80)", description: "80틱 돌파 후 장기 추세 청산", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 80}
+    {variant_key: "S", variant_label: "터틀/돈치안 S (5분봉)", description: "5분봉 20개 고가 돌파 매수 · 10개 저가 이탈 매도", timeframe: "5분봉", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
+    {variant_key: "T", variant_label: "터틀/돈치안 T (15분봉)", description: "15분봉 20개 고가 돌파 매수 · 10개 저가 이탈 매도", timeframe: "15분봉", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
+    {variant_key: "U", variant_label: "터틀/돈치안 U (30분봉)", description: "30분봉 20개 고가 돌파 매수 · 10개 저가 이탈 매도", timeframe: "30분봉", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
+    {variant_key: "V", variant_label: "터틀/돈치안 V (1시간봉)", description: "1시간봉 20개 고가 돌파 매수 · 10개 저가 이탈 매도", timeframe: "1시간봉", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
+    {variant_key: "W", variant_label: "터틀/돈치안 W (2시간봉)", description: "2시간봉 20개 고가 돌파 매수 · 10개 저가 이탈 매도", timeframe: "2시간봉", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
+    {variant_key: "X", variant_label: "터틀/돈치안 X (4시간봉)", description: "4시간봉 20개 고가 돌파 매수 · 10개 저가 이탈 매도", timeframe: "4시간봉", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20}
   ];
   const rows = results.length ? results : fallback;
   const channelRows = rows.filter((item) => ["S", "T", "U", "V", "W", "X"].includes(item.variant_key));
@@ -1217,12 +1222,23 @@ function deriveInvestmentValue(summary, market) {
   };
 }
 
-function renderProfitRateChart(points, executions = [], market = {}, dailyGoal = {}) {
+function renderProfitRateChart(points, executions = [], market = {}, dailyGoal = {}, unrealizedPnl = 0, coinBalance = 0) {
   const svg = document.getElementById("profitRateChart");
   const sub = document.getElementById("profitRateChartSub");
   const data = Array.isArray(points)
     ? points.filter((item) => Number.isFinite(Number(item.profit_rate)) && item.recorded_at)
     : [];
+  const positionPnl = document.getElementById("chartPositionPnl");
+  const heldAmount = Number(coinBalance || 0);
+  const openPnl = Number(unrealizedPnl || 0);
+  if (positionPnl) {
+    positionPnl.classList.toggle("positive", heldAmount > 0 && openPnl > 0);
+    positionPnl.classList.toggle("negative", heldAmount > 0 && openPnl < 0);
+    positionPnl.classList.toggle("neutral", heldAmount <= 0 || openPnl === 0);
+    positionPnl.textContent = heldAmount > 0
+      ? `보유 중 미실현 ${openPnl > 0 ? "+" : ""}${number(openPnl, 2)}원`
+      : "보유 포지션 없음";
+  }
   const values = data.length ? data.map((item) => Number(item.profit_rate)) : [0];
   const minValue = Math.min(...values, -0.001);
   const maxValue = Math.max(...values, 0.001);
@@ -1254,6 +1270,7 @@ function renderProfitRateChart(points, executions = [], market = {}, dailyGoal =
   const markers = buildProfitTradeMarkers({
     executions,
     data,
+    market,
     startTime,
     endTime,
     timeSpan,
@@ -1374,7 +1391,7 @@ function marketPriceSummary(market, startTime, endTime) {
   return `${price(Math.min(...prices))}~${price(Math.max(...prices))}`;
 }
 
-function buildProfitTradeMarkers({executions, data, startTime, endTime, timeSpan, minValue, span, left, top, width, height}) {
+function buildProfitTradeMarkers({executions, data, market, startTime, endTime, timeSpan, minValue, span, left, top, width, height}) {
   const seriesMarkers = (Array.isArray(data) ? data : [])
     .filter((item) => item.recorded_at && ["buy", "sell", "stop_loss"].includes(item.trade_type))
     .map((item) => ({
@@ -1394,24 +1411,51 @@ function buildProfitTradeMarkers({executions, data, startTime, endTime, timeSpan
   const filled = history
     .filter((item) => item.status === "filled" && item.recorded_at && ["buy", "sell"].includes(item.side))
     .filter((item) => !seen.has(`${item.recorded_at}|${item.side}|${item.is_stop_loss ? "stop" : "regular"}`));
+  const pricePoints = marketPricePoints(market || {}, startTime, endTime)
+    .sort((leftItem, rightItem) => leftItem.timestamp - rightItem.timestamp);
+  if (!pricePoints.length) return "";
+  const displayDomain = marketPriceDisplayDomain(pricePoints, startTime, endTime, timeSpan);
+  const prices = pricePoints.map((item) => item.price);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceSpan = Math.max(maxPrice - minPrice, Math.max(maxPrice * 0.001, 1));
   return [...seriesMarkers, ...filled].map((execution) => {
     const timestamp = new Date(execution.recorded_at).getTime();
     if (!Number.isFinite(timestamp) || timestamp < startTime || timestamp > endTime) return "";
-    // Pin trade markers to the displayed portfolio-return curve at trade time.
-    // Per-execution P/L can be zero or use a different basis, which used to
-    // stack markers on the chart's center/zero line.
+    // Plot fills on the same live market-price path, not on the return axis.
     const nearest = nearestProfitPoint(data, timestamp);
     const profitRate = profitRateAtTime(data, timestamp)
       ?? (execution.profit_rate !== undefined && execution.profit_rate !== null
         ? Number(execution.profit_rate)
         : nearest ? Number(nearest.profit_rate) : 0);
-    const x = left + ((timestamp - startTime) / timeSpan) * width;
-    const y = top + height - ((profitRate - minValue) / span) * height;
+    const executionPrice = Number(execution.filled_price);
+    const markerPrice = Number.isFinite(executionPrice) && executionPrice > 0
+      ? executionPrice
+      : marketPriceAtTime(pricePoints, timestamp);
+    if (!Number.isFinite(markerPrice)) return "";
+    const x = left + ((timestamp - displayDomain.startTime) / displayDomain.timeSpan) * width;
+    const y = maxPrice === minPrice
+      ? top + (height / 2)
+      : top + height - ((markerPrice - minPrice) / priceSpan) * height;
     const markerClass = execution.is_stop_loss ? "stop-loss" : execution.side;
     const radius = execution.side === "buy" ? 5.5 : 5;
     const title = escapeHtml(profitMarkerTitle(execution, profitRate));
     return `<circle class="trade-marker ${markerClass}" cx="${number(x, 1)}" cy="${number(y, 1)}" r="${radius}"><title>${title}</title></circle>`;
   }).join("");
+}
+
+function marketPriceAtTime(points, timestamp) {
+  if (!points.length) return null;
+  let before = points[0];
+  for (const after of points) {
+    if (after.timestamp >= timestamp) {
+      if (after.timestamp === before.timestamp) return after.price;
+      const ratio = (timestamp - before.timestamp) / (after.timestamp - before.timestamp);
+      return before.price + ((after.price - before.price) * ratio);
+    }
+    before = after;
+  }
+  return before.price;
 }
 
 function nearestProfitPoint(data, timestamp) {
@@ -1746,6 +1790,7 @@ function formatBlockedReason(value) {
     PRICE_SNAPSHOT_UNAVAILABLE: "현재가 데이터 없음",
     INVALID_PRICE_SNAPSHOT: "현재가 데이터 오류",
     POSITION_HELD: "포지션 보유 중",
+    NO_POSITIVE_RULE_LEADER_YET: "수익이 양수인 최고 매매룰 대기 중",
     POSITION_EXIT_TRIGGERED: "포지션 청산 실행",
     LIVE_ORDER_PENDING: "실거래 주문 처리 대기",
     LIVE_ORDER_STATUS_UNAVAILABLE: "실거래 주문 상태 확인 불가",
@@ -1864,7 +1909,7 @@ function renderDashboard(data) {
   document.getElementById("winRateSub").textContent = winRate === null ? "완료된 거래 손익 기록이 쌓이면 표시됩니다." : "현재 기록 기준 수익 거래 비율입니다.";
   setFlipTextWithTitle("pnlMetric", `${number(summary.realized_pnl, 2)} KRW`);
   document.getElementById("pnlSub").textContent = `미실현 손익 ${number(summary.unrealized_pnl, 2)} KRW, 매수 ${summary.buy_count || 0}건, 매도 ${summary.sell_count || 0}건`;
-  renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market, summary.daily_goal || {});
+  renderProfitRateChart(summary.profit_rate_series_24h || [], executions.history || [], market, summary.daily_goal || {}, summary.unrealized_pnl || 0, summary.coin_balance || 0);
   const aiState = deriveAiState({health, summary, market, executions});
   document.getElementById("aiState").innerHTML = aiBadge(aiState.ai[0], aiState.ai[1]);
   document.getElementById("autoTradingState").innerHTML = aiBadge(aiState.trading[0], aiState.trading[1]);

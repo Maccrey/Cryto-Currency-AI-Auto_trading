@@ -75,10 +75,10 @@ def test_demo_rule_variant_shadow_tester_runs_all_rules_on_same_tick() -> None:
     )
 
     assert {item["variant_key"] for item in report["results"]} == set("ABCDEFGHIJKLMNOPQRSTUVWX")
-    # Fallback Leader 즉시 선발: 초기 기동 시 leader_key가 None이 아닌 최소 낙폭 룰로 설정됨
-    assert report["leader_key"] is not None
-    assert report["is_fallback_leader"] is True
-    assert report["selection_type"] == "fallback_leader"
+    # Positive realized profit is required before a rule can become active.
+    assert report["leader_key"] is None
+    assert report["is_fallback_leader"] is False
+    assert report["selection_type"] is None
     assert report["candidate_leader_key"] in set("ABCDEFGHIJKLMNOPQR")
     assert all("effective_buy_multiplier" in item for item in report["results"])
     assert all(0.0024 <= item["effective_take_profit_pct"] <= 0.0045 for item in report["results"])
@@ -304,9 +304,9 @@ def test_demo_rule_variant_shadow_tester_resets_all_candidate_results() -> None:
 
     assert all(item["trade_count"] == 0 for item in report["results"])
     assert all(item["profit_rate"] <= 0 for item in report["results"])
-    # reset 후에도 Fallback Leader 즉시 선발 (is_initial_start=True)
-    assert report["leader_key"] is not None
-    assert report["is_fallback_leader"] is True
+    # Reset never starts trading before a positive realized rule exists.
+    assert report["leader_key"] is None
+    assert report["is_fallback_leader"] is False
 
 
 def test_demo_rule_variant_candidate_uses_highest_profit_rate_even_when_all_negative() -> None:
@@ -338,20 +338,26 @@ def test_demo_rule_variant_requires_five_closed_trades_for_normal_promotion() ->
     assert DemoRuleVariantShadowTester._promotion_eligible(candidate) is True
 
 
-def test_donchian_uses_same_order_budget_and_promotion_threshold() -> None:
+def test_donchian_is_simulation_only_and_never_becomes_rule_leader() -> None:
     tester = DemoRuleVariantShadowTester()
     portfolio = PortfolioState(cash_balance=1_000_000, asset_currency="XRP",
                                asset_balance=0, avg_buy_price=0)
-    tester._price_history = [1_000.0] * 12
+    tester._donchian_candles["S"] = [
+        {"bucket": index, "high": 1_000.0, "low": 990.0, "close": 1_000.0}
+        for index in range(12)
+    ]
     blocked = _decision(market_state="bull", buy_amount=0)
     blocked = replace(blocked, sizing=replace(blocked.sizing, allowed=False))
     report = tester.evaluate(decision=blocked, current_price=1_001.0, portfolio=portfolio)
     fast = next(item for item in report["results"] if item["variant_key"] == "S")
     assert fast["asset_balance"] == 0
+    assert report["leader_key"] in set("ABCDEFGHIJKLMNOPQR")
+    assert report["candidate_leader_key"] in set("ABCDEFGHIJKLMNOPQR")
 
     eligible = dict(fast, profit_rate=0.01, realized_pnl=100.0,
                     trade_count=5, profit_factor=1.5, stop_loss_rate=0.2)
     assert DemoRuleVariantShadowTester._promotion_eligible(eligible) is True
+    assert eligible["variant_key"] == "S"  # promotion is separately excluded by evaluate()
     eligible["trade_count"] = 4
     assert DemoRuleVariantShadowTester._promotion_eligible(eligible) is False
 
@@ -370,28 +376,34 @@ def test_donchian_waits_for_lookback_data_before_testing() -> None:
 
     fast = next(item for item in report["results"] if item["variant_key"] == "S")
     assert fast["data_ready"] is False
-    assert fast["data_count"] == 5
-    assert fast["data_required"] == 12
-    assert fast["action_reason"] == "donchian_12_data_waiting"
+    assert fast["data_count"] == 0
+    assert fast["data_required"] == 20
+    assert fast["timeframe"] == "5분봉"
+    assert "20_10_data_waiting" in fast["action_reason"]
     assert fast["asset_balance"] == 0
 
 
-def test_shadow_reset_keeps_selected_rule_and_market_prices() -> None:
+def test_shadow_reset_preserves_donchian_portfolio_and_market_prices() -> None:
     tester = DemoRuleVariantShadowTester()
-    tester._applied_variant_key = "S"
+    tester._applied_variant_key = "A"
     tester._price_history = [1_000.0] * 12
     tester._portfolios["S"] = ShadowPortfolio(cash_balance=900_000.0,
                                                 asset_balance=100.0, avg_buy_price=1_000.0)
+    tester._portfolios["A"] = ShadowPortfolio(cash_balance=950_000.0,
+                                                asset_balance=50.0, avg_buy_price=1_000.0)
+    tester._donchian_candles["S"] = [{"bucket": 1, "high": 1_010.0, "low": 990.0, "close": 1_000.0}]
     tester.reset_shadow_results()
-    assert tester._applied_variant_key == "S"
+    assert tester._applied_variant_key is None
     assert tester._price_history == [1_000.0] * 12
-    assert tester._portfolios == {}
+    assert "A" not in tester._portfolios
+    assert tester._portfolios["S"].asset_balance == 100.0
+    assert len(tester._donchian_candles["S"]) == 1
     invested = PortfolioState(cash_balance=900_000.0, asset_currency="XRP",
                               asset_balance=100.0, avg_buy_price=1_000.0)
     tester.evaluate(decision=_decision(market_state="bull", buy_amount=0),
                     current_price=1_000.0, portfolio=invested)
-    assert all(item.cash_balance == 1_000_000.0 and item.asset_balance == 0
-               for item in tester._portfolios.values())
+    assert tester._portfolios["S"].asset_balance == 100.0
+    assert all(tester._portfolios[key].asset_balance == 0 for key in "ABCDEFGHIJKLMNOPQR")
 
 
 def test_demo_rule_variant_positive_leader_switches_applied_entry_policy() -> None:
@@ -430,7 +442,7 @@ def test_demo_rule_variant_positive_leader_switches_applied_entry_policy() -> No
     assert applied.sizing.buy_amount <= decision.sizing.buy_amount
 
 
-def test_demo_rule_variant_stop_loss_forced_switch() -> None:
+def test_demo_rule_variant_changes_only_to_a_positive_rule() -> None:
     # ── 시나리오 1: 다른 룰들 중 양수(플러스) 수익률이 없는 경우 (스위칭 비활성) ──
     tester = DemoRuleVariantShadowTester()
     tester._applied_variant_key = "A"
@@ -464,9 +476,9 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
         ),
     )
 
-    # 양수 수익률 룰이 없으므로 스위칭되지 않고 A 유지
-    assert report["selection_changed"] is False
-    assert report["applied_variant_key"] == "A"
+    # A is negative, so it is removed and new entries must wait for a positive rule.
+    assert report["selection_changed"] is True
+    assert report["applied_variant_key"] is None
 
     # ── 시나리오 2: 다른 룰들 중 양수(플러스) 수익률이 존재하는 경우 (스위칭 활성) ──
     tester2 = DemoRuleVariantShadowTester()
@@ -502,10 +514,10 @@ def test_demo_rule_variant_stop_loss_forced_switch() -> None:
         ),
     )
 
-    # B가 양수(1%)이면서 실현 손익이 검증되었으므로 A에서 B로 강제 스위칭되어야 함
+    # The highest positive realized rule is selected without a stop-loss bypass.
     assert report2["selection_changed"] is True
     assert report2["applied_variant_key"] == "B"
-    assert report2["selection_type"] == "stop_loss_forced_switch"
+    assert report2["selection_type"] == "performance_promotion"
     assert report2["previous_variant_label"] == "룰 A 초단타 안정형"
     assert report2["previous_variant_profit_rate"] < 0
     assert report2["applied_variant_profit_rate"] > 0
@@ -760,25 +772,17 @@ def test_profit_win_resets_consecutive_stop_loss_count() -> None:
     assert shadow.consecutive_stop_loss_count == 0  # 리셋
 
 
-def test_emergency_fallback_triggers_on_two_stop_losses() -> None:
-    """비상 전환 기준 완화: 2회 손절(기존 3회)만으로 방어 룰로 즉시 전환."""
+def test_non_positive_rules_do_not_fallback_after_losses() -> None:
     tester = DemoRuleVariantShadowTester()
     portfolio = _portfolio()
 
-    # 초기 설정: 한 룰에 2회 손절 누적
-    tester.evaluate(
+    report = tester.evaluate(
         decision=_decision(market_state="bull"),
         current_price=1_000,
         portfolio=portfolio,
     )
-    # 현재 적용 룰의 stop_loss_count를 2로 강제 설정
-    if tester._applied_variant_key:
-        shadow = tester._portfolios.get(tester._applied_variant_key)
-        if shadow:
-            shadow.stop_loss_count = 2
-            shadow.trade_count = 2
-
-    assert tester.EMERGENCY_FALLBACK_STOP_LOSS_COUNT == 2
+    assert report["leader_key"] is None
+    assert report["is_fallback_leader"] is False
 
 
 def test_bear_market_forces_minimum_80pct_sell_ratio() -> None:

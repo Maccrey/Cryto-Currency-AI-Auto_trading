@@ -30,12 +30,13 @@ Shared mechanisms
 3. Forced sell on bull→bear confirmation; take-profit threshold lowered immediately.
 4. Global volatility penalty applied on top of per-variant logic.
 5. Bear-to-bull boost (×1.35) stacked on per-variant buy multiplier when confirmed.
-6. Early Promotion: on first server start (_applied_variant_key is None),
-   MIN_PROMOTION_TRADES is relaxed to 1 to prevent indefinite wait state.
+6. Rule changes require positive realized profit; non-profitable candidates never
+   become active leaders and Turtle variants remain simulation-only.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timezone
 from typing import Iterable
 
 from app.services.portfolio.sync import PortfolioState
@@ -94,6 +95,11 @@ class ShadowPortfolio:
     consecutive_stop_loss_count: int = 0   # 연속 손절 횟수 (수익 발생 시 리셋)
     cooling_off_ticks_remaining: int = 0   # 남은 쿨다운 틱 수
     holding_ticks: int = 0                 # 초단타 최대 보유 시간 관리
+    completed_cycle_count: int = 0
+    cycle_returns: list[float] | None = None
+    cycle_start_cash: float | None = None
+    cycle_realized_pnl: float = 0.0
+    cycle_had_stop_loss: bool = False
 
 
 class DemoRuleVariantShadowTester:
@@ -115,28 +121,18 @@ class DemoRuleVariantShadowTester:
     SCALPING_MAX_TAKE_PROFIT_PCT = 0.0045
     SCALPING_MAX_STOP_LOSS_PCT = 0.0030
     SCALPING_MAX_HOLD_TICKS = 40  # 3초 주기 기준 약 2분
+    DONCHIAN_KEYS = frozenset({"S", "T", "U", "V", "W", "X"})
+    DONCHIAN_TIMEFRAMES = {"S": 5 * 60, "T": 15 * 60, "U": 30 * 60, "V": 60 * 60, "W": 2 * 60 * 60, "X": 4 * 60 * 60}
+    DONCHIAN_TIMEFRAME_LABELS = {"S": "5분봉", "T": "15분봉", "U": "30분봉", "V": "1시간봉", "W": "2시간봉", "X": "4시간봉"}
 
     # Bear-to-bull confirmed → buy multiplier is boosted by this factor
     BEAR_TO_BULL_BUY_BOOST = 1.35
     # Bull-to-bear confirmed → sell multiplier is boosted by this factor
     BULL_TO_BEAR_SELL_BOOST = 1.80
 
-    # 비상 전환 발동 기준: 현재 룰의 손절 횟수가 이 값 이상이고
-    # 정상 승격 후보가 없을 때, 최저 낙폭/손절율 룰로 긴급 전환
-    # ↓ 2회로 완화: 연속 3회→대형 손실(-50원+) 전에 2회만 되어도 방어 룰 즉시 전환
-    EMERGENCY_FALLBACK_STOP_LOSS_COUNT = 2
-    # 비상 전환 시 현재 룰보다 낙폭이 이 배율 이하인 룰만 후보로 고려
-    EMERGENCY_FALLBACK_MAX_DRAWDOWN_RATIO = 0.80
     # 연속 손절 쿨다운: 연속 N회 손절 시 이 틱 수만큼 신규 매수를 차단
     CONSECUTIVE_STOP_LOSS_COOLDOWN_TRIGGER = 2   # 2회 연속 손절 시 쿨다운 발동
     CONSECUTIVE_STOP_LOSS_COOLDOWN_TICKS = 60    # 약 3분(3초 간격) 쿨다운
-
-    # ── Fallback Leader (전체 음수 시 임시 리더) ────────────────────────────────
-    # 정상 승격 조건을 충족하는 룰이 없을 때 최고 성과 룰을 임시 리더로 사용.
-    # 이를 통해 NO_POSITIVE_RULE_LEADER_YET로 인한 영구 매매 정지를 방지한다.
-    FALLBACK_LEADER_MIN_TRADES = 1     # 리셋 직후 1거래 이상이면 fallback 후보 (신속 선발)
-    FALLBACK_LEADER_MAX_SL_RATE = 0.60  # 손절률 60% 이하인 룰만 fallback 후보
-    FALLBACK_LEADER_BUY_SCALE = 0.40   # fallback 시 매수 크기 40% 축소 (더 보수적 운용)
 
     DEFAULT_VARIANTS = (
         DemoRuleVariant(
@@ -301,14 +297,13 @@ class DemoRuleVariantShadowTester:
             take_profit_pct=0.0037,
             stop_loss_pct=0.0023,
         ),
-        # Donchian/Turtle candidates use compact lookbacks suitable for this
-        # high-frequency price stream and the same promotion criteria as A-R.
-        DemoRuleVariant(key="S", label="터틀/돈치안 1 빠른돌파", description="Donchian 12틱 고가 돌파 진입, 6틱 저가 이탈 청산", buy_multiplier=0.55, sell_multiplier=1.0, take_profit_pct=0.0060, stop_loss_pct=0.0030),
-        DemoRuleVariant(key="T", label="터틀/돈치안 2 균형돌파", description="Donchian 20틱 고가 돌파 진입, 10틱 저가 이탈 청산", buy_multiplier=0.50, sell_multiplier=1.0, take_profit_pct=0.0080, stop_loss_pct=0.0040),
-        DemoRuleVariant(key="U", label="터틀/돈치안 3 추세보유", description="Donchian 30틱 고가 돌파, 넓은 손절로 추세 보유", buy_multiplier=0.45, sell_multiplier=1.0, take_profit_pct=0.0120, stop_loss_pct=0.0050),
-        DemoRuleVariant(key="V", label="터틀/돈치안 4 보수돌파", description="Donchian 40틱 돌파를 거래량 확인과 함께 추종", buy_multiplier=0.40, sell_multiplier=1.0, take_profit_pct=0.0100, stop_loss_pct=0.0040),
-        DemoRuleVariant(key="W", label="터틀/돈치안 5 장기추세", description="Donchian 55틱 돌파 후 추세 약화 시 청산", buy_multiplier=0.35, sell_multiplier=1.0, take_profit_pct=0.0150, stop_loss_pct=0.0060),
-        DemoRuleVariant(key="X", label="터틀/돈치안 6 초장기추세", description="Donchian 80틱 돌파, 장기 추세용 넓은 청산폭", buy_multiplier=0.30, sell_multiplier=1.0, take_profit_pct=0.0180, stop_loss_pct=0.0070),
+        # Independent two-hour-candle simulations; these are never promotion candidates.
+        DemoRuleVariant(key="S", label="터틀/돈치안 1 빠른돌파", description="2시간봉 12개 고가 돌파 진입, 6개 저가 이탈 청산 시뮬레이션", buy_multiplier=0.55, sell_multiplier=1.0, take_profit_pct=0.0060, stop_loss_pct=0.0030),
+        DemoRuleVariant(key="T", label="터틀/돈치안 2 균형돌파", description="2시간봉 20개 고가 돌파 진입, 10개 저가 이탈 청산 시뮬레이션", buy_multiplier=0.50, sell_multiplier=1.0, take_profit_pct=0.0080, stop_loss_pct=0.0040),
+        DemoRuleVariant(key="U", label="터틀/돈치안 3 추세보유", description="2시간봉 30개 고가 돌파, 넓은 손절로 추세 보유 시뮬레이션", buy_multiplier=0.45, sell_multiplier=1.0, take_profit_pct=0.0120, stop_loss_pct=0.0050),
+        DemoRuleVariant(key="V", label="터틀/돈치안 4 보수돌파", description="2시간봉 40개 채널 돌파 시뮬레이션", buy_multiplier=0.40, sell_multiplier=1.0, take_profit_pct=0.0100, stop_loss_pct=0.0040),
+        DemoRuleVariant(key="W", label="터틀/돈치안 5 장기추세", description="2시간봉 55개 고가 돌파 후 추세 약화 시 청산 시뮬레이션", buy_multiplier=0.35, sell_multiplier=1.0, take_profit_pct=0.0150, stop_loss_pct=0.0060),
+        DemoRuleVariant(key="X", label="터틀/돈치안 6 초장기추세", description="2시간봉 80개 돌파 후 장기 추세 청산 시뮬레이션", buy_multiplier=0.30, sell_multiplier=1.0, take_profit_pct=0.0180, stop_loss_pct=0.0070),
     )
 
     def __init__(
@@ -325,6 +320,11 @@ class DemoRuleVariantShadowTester:
         self._applied_variant_key: str | None = None
         self._transition_detector = transition_detector or MarketTransitionDetector()
         self._price_history: list[float] = []
+        self._donchian_candles: dict[str, list[dict[str, float | int]]] = {key: [] for key in self.DONCHIAN_KEYS}
+        self._active_donchian_candle: dict[str, dict[str, float | int] | None] = {key: None for key in self.DONCHIAN_KEYS}
+        self._last_donchian_closed_candle: dict[str, dict[str, float | int] | None] = {key: None for key in self.DONCHIAN_KEYS}
+        self._donchian_candle_closed_this_tick: set[str] = set()
+        self._donchian_evaluation_price: dict[str, float] = {}
         self._equity_history: dict[str, list[float]] = {}
         self._action_history: dict[str, list[str]] = {}
         self._fresh_start_cash_only = False
@@ -339,6 +339,7 @@ class DemoRuleVariantShadowTester:
         decision: TradeDecisionResult,
         current_price: float,
         portfolio: PortfolioState,
+        recorded_at: str | None = None,
     ) -> dict[str, object]:
         if current_price <= 0:
             return self._empty_report()
@@ -346,6 +347,10 @@ class DemoRuleVariantShadowTester:
         self._price_history.append(float(current_price))
         if len(self._price_history) > 500:
             del self._price_history[:-500]
+        self._donchian_candle_closed_this_tick = self._update_donchian_candles(
+            price=float(current_price),
+            recorded_at=recorded_at,
+        )
 
         # Evaluate transition state once for all variants
         transition = self._transition_detector.evaluate(
@@ -358,188 +363,69 @@ class DemoRuleVariantShadowTester:
             self._evaluate_variant(
                 variant=variant,
                 decision=decision,
-                current_price=current_price,
+                current_price=(
+                    float(self._donchian_evaluation_price.get(variant.key) or current_price)
+                    if variant.key in self.DONCHIAN_KEYS else current_price
+                ),
                 transition=transition,
+                allow_trade=(variant.key not in self.DONCHIAN_KEYS or variant.key in self._donchian_candle_closed_this_tick),
             )
             for variant in self._variants
         ]
-        candidate = max(results, key=self._candidate_score)
-        # 조기 승격(Early Promotion): 서버 초기 기동 시 적용 룰이 없는 상태면
-        # MIN_PROMOTION_TRADES를 1로 완화하여 영구 대기 상태를 방지합니다.
-        is_initial_start = self._applied_variant_key is None
-        promotable = [
-            item for item in results
-            if self._promotion_eligible(item, early=is_initial_start)
+        active_results = [item for item in results if item["variant_key"] not in self.DONCHIAN_KEYS]
+        cycle_counts = [int(item.get("completed_cycle_count") or 0) for item in active_results]
+        comparable_cycle_count = min(cycle_counts, default=0)
+        for item in active_results:
+            returns = item.get("cycle_returns") or []
+            if comparable_cycle_count > 0 and len(returns) >= comparable_cycle_count:
+                comparable_returns = returns[-comparable_cycle_count:]
+                item["comparison_cycle_count"] = comparable_cycle_count
+                item["comparison_profit_rate"] = round(
+                    sum(float(value) for value in comparable_returns) / comparable_cycle_count,
+                    6,
+                )
+            else:
+                item["comparison_cycle_count"] = 0
+                item["comparison_profit_rate"] = 0.0
+        candidate = max(active_results, key=self._candidate_score)
+        # Only select rules with a completed, positive realized result. Turtle
+        # candidates are simulation-only and are excluded from active selection.
+        profitable_results = [
+            item for item in active_results
+            if int(item.get("completed_cycle_count") or 0) > 0
+            and float(item.get("comparison_profit_rate") or 0.0) > 0.0
         ]
-        leader = max(promotable, key=self._leader_score) if promotable else None
-        
+        leader = max(profitable_results, key=self._leader_score) if profitable_results else None
+        promotable = [item for item in active_results if self._promotion_eligible(item)]
         applied = next(
             (item for item in results if item["variant_key"] == self._applied_variant_key),
             None,
         )
         previous_applied = applied
-        # ── 손절 시 즉시 리더 스위칭 (Bypass Promotion) ──
-        applied_stop_loss = (
-            applied is not None
-            and applied.get("last_action") == "sell"
-            and applied.get("stop_loss_triggered_this_tick") is True
+        selection_changed = (leader is None and self._applied_variant_key is not None) or (
+            leader is not None and leader["variant_key"] != self._applied_variant_key
         )
-        forced_switch_active = False
-        old_variant_label = applied["variant_label"] if applied else ""
-
-        if applied_stop_loss:
-            positive_other_results = [
-                r for r in results 
-                if r["variant_key"] != applied["variant_key"] 
-                and (r["variant_key"] not in {"S", "T", "U", "V", "W", "X"} or self._promotion_eligible(r))
-                and int(r.get("trade_count") or 0) >= 1
-                and float(r.get("realized_pnl") or 0.0) > 0.0
-            ]
-            if positive_other_results:
-                new_leader = max(positive_other_results, key=lambda x: float(x.get("profit_rate") or 0.0))
-                self._applied_variant_key = str(new_leader["variant_key"])
-                applied = new_leader
-                forced_switch_active = True
-                selection_changed = True
-            else:
-                selection_changed = leader is not None and leader["variant_key"] != self._applied_variant_key
-                if selection_changed:
-                    self._applied_variant_key = str(leader["variant_key"])
-                    applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
-        else:
-            selection_changed = leader is not None and leader["variant_key"] != self._applied_variant_key
-            if selection_changed:
-                self._applied_variant_key = str(leader["variant_key"])
-                applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
-            elif applied is None and leader is not None:
-                # ── 버그 픽스: leader가 존재하는데 applied가 None이면 즉시 leader를 설정 ──
-                # (서버 재기동 후 조기 승격이 안 됐거나, 최초 설정 후 리셋된 경우)
-                self._applied_variant_key = str(leader["variant_key"])
-                applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
-                selection_changed = True
-        emergency_fallback_active = False
-        # ── 비상 전환 (Emergency Fallback) ────────────────────────────────────────
-        # 정상 승격 룰 없음 + 현재 룰 손절 과다 → 최저 낙폭 방어 룰로 강제 이탈
-        if (
-            not selection_changed
-            and not forced_switch_active
-            and applied is not None
-            and not promotable  # 정상 승격 후보가 전혀 없음
-            and int(applied.get("stop_loss_count") or 0) >= self.EMERGENCY_FALLBACK_STOP_LOSS_COUNT
-        ):
-            current_drawdown = float(applied.get("max_drawdown_pct") or 0.0)
-            current_sl_rate = float(applied.get("stop_loss_rate") or 0.0)
-            # 현재 룰보다 낙폭+손절율이 낮은 룰 중 최적 선택
-            safer_candidates = [
-                r for r in results
-                if r["variant_key"] != applied["variant_key"]
-                and r["variant_key"] not in {"S", "T", "U", "V", "W", "X"}
-                and float(r.get("max_drawdown_pct") or 0.0) <= current_drawdown * self.EMERGENCY_FALLBACK_MAX_DRAWDOWN_RATIO
-                and (r.get("stop_loss_rate") is None or float(r.get("stop_loss_rate") or 0.0) <= current_sl_rate)
-            ]
-            if safer_candidates:
-                # 낙폭 최소 + 손절율 최소 + 수익률 최고 순으로 정렬
-                safest = min(
-                    safer_candidates,
-                    key=lambda r: (
-                        float(r.get("max_drawdown_pct") or 0.0),
-                        float(r.get("stop_loss_rate") or 0.0),
-                        -float(r.get("profit_rate") or 0.0),
-                    ),
-                )
-                old_variant_label = applied["variant_label"]
-                self._applied_variant_key = str(safest["variant_key"])
-                applied = next((item for item in results if item["variant_key"] == self._applied_variant_key), None)
-                selection_changed = True
-                emergency_fallback_active = True
-
-        # ── Fallback Leader: 정상 승격 불가 시 최고 성과 룰을 임시 리더로 ─────────
-        # NO_POSITIVE_RULE_LEADER_YET 영구 정지 방지.
-        # promotable이 없고 applied도 없으면(또는 applied가 None이면) 임시 리더 선발.
-        fallback_leader_active = False
-        if not promotable and applied is None and not selection_changed:
-            # 초기 기동(is_initial_start=True) 시: 섀도 포트폴리오가 모두 0거래
-            # → min_trades=0으로 완화하여 즉시 안전한 룰 선발
-            # 정상 운용 중: FALLBACK_LEADER_MIN_TRADES(3) 이상 거래한 룰만 후보
-            fallback_min_trades = 0 if is_initial_start else self.FALLBACK_LEADER_MIN_TRADES
-            fallback_candidates = [
-                r for r in results
-                if r["variant_key"] not in {"S", "T", "U", "V", "W", "X"}
-                and int(r.get("trade_count") or 0) >= fallback_min_trades
-                and (
-                    r.get("stop_loss_rate") is None
-                    or float(r.get("stop_loss_rate") or 0.0) <= self.FALLBACK_LEADER_MAX_SL_RATE
-                )
-            ]
-            if not fallback_candidates:
-                # 모든 룰이 손절률 초과 시 손절률 조건 제외하고 재탐색
-                fallback_candidates = [r for r in results if r["variant_key"] not in {"S", "T", "U", "V", "W", "X"}]
-            if fallback_candidates:
-                # 초기 기동 시: 낙폭 최소 + 손절률 최소 우선(안전한 룰)
-                # 정상 운용 시: 수익률 최고 + 낙폭 최소
-                if is_initial_start:
-                    fallback_leader = min(
-                        fallback_candidates,
-                        key=lambda r: (
-                            float(r.get("max_drawdown_pct") or 0.0),  # 낙폭 최소 우선
-                            float(r.get("stop_loss_rate") or 0.0),    # 손절률 최소 차선
-                        ),
-                    )
-                else:
-                    fallback_leader = max(
-                        fallback_candidates,
-                        key=lambda r: (
-                            float(r.get("profit_rate") or -999.0),   # 수익률 최고 우선
-                            -float(r.get("max_drawdown_pct") or 0.0),  # 낙폭 최소 차선
-                        ),
-                    )
-                self._applied_variant_key = str(fallback_leader["variant_key"])
-                applied = next(
-                    (item for item in results if item["variant_key"] == self._applied_variant_key),
-                    None,
-                )
-                selection_changed = True
-                fallback_leader_active = True
-
-        selection_type = (
-            "stop_loss_forced_switch"
-            if forced_switch_active
-            else "emergency_fallback"
-            if emergency_fallback_active
-            else "fallback_leader"             # 신규: 전체 음수 시 임시 리더 모드
-            if fallback_leader_active
-            else "performance_promotion"
-            if selection_changed
-            else None
+        self._applied_variant_key = None if leader is None else str(leader["variant_key"])
+        applied = next(
+            (item for item in results if item["variant_key"] == self._applied_variant_key),
+            None,
         )
+        selection_type = "performance_promotion" if selection_changed and leader is not None else None
         _report = {
             "leader_key": None if applied is None else applied["variant_key"],
             "leader_label": None if applied is None else applied["variant_label"],
             "leader_reason": (
-                f"기존 적용 룰 {old_variant_label}에서 손절이 발생하여, 현재 수익률 {applied['profit_rate']:.2%}로 가장 우수한 {applied['variant_label']}로 즉시 강제 전환(스위칭)되었습니다."
-                if forced_switch_active and applied is not None
-                else (
-                    f"비상 전환(Emergency Fallback): {old_variant_label}에서 손절 과다 발생. "
-                    f"최저 낙폭 방어 룰 {applied['variant_label']}(낙폭 {float(applied.get('max_drawdown_pct', 0)):.2%})으로 긴급 전환."
-                    if emergency_fallback_active and applied is not None
-                    else (
-                        f"임시 리더 모드(Fallback Leader): 정상 승격 가능 룰 없음. "
-                        f"가장 손실이 적은 {applied['variant_label']}(수익률 {float(applied.get('profit_rate', 0)):.2%})을 "
-                        f"임시 리더로 선발. 매수 크기 {int(self.FALLBACK_LEADER_BUY_SCALE*100)}% 축소 적용."
-                        if fallback_leader_active and applied is not None
-                        else self._leader_reason(leader)
-                        if leader is not None
-                        else self._no_positive_leader_reason(candidate, applied)
-                    )
-                )
+                self._leader_reason(leader)
+                if leader is not None
+                else self._no_positive_leader_reason(candidate, previous_applied)
             ),
             "candidate_leader_key": candidate["variant_key"],
             "candidate_leader_label": candidate["variant_label"],
             "candidate_leader_profit_rate": candidate["profit_rate"],
-            "promotion_eligible": applied is not None and not forced_switch_active,
+            "promotion_eligible": applied is not None and bool(applied.get("promotion_eligible")),
             "selection_changed": selection_changed,
             "selection_type": selection_type,
-            "is_fallback_leader": fallback_leader_active,   # 신규: fallback 모드 여부
+            "is_fallback_leader": False,
             "previous_variant_key": (
                 None if previous_applied is None else previous_applied["variant_key"]
             ),
@@ -566,6 +452,9 @@ class DemoRuleVariantShadowTester:
             "results": results,
             "price_curve": self._normalized_price_history(),
             "current_price": float(current_price),
+            "donchian_timeframe": "5m/15m/30m/1h/2h/4h",
+            "donchian_candle_count": {key: len(value) for key, value in self._donchian_candles.items()},
+            "comparable_cycle_count": comparable_cycle_count,
         }
         self._last_report = _report  # 일일 요약 등 외부 접근용 캐시
         return _report
@@ -583,26 +472,72 @@ class DemoRuleVariantShadowTester:
         self._applied_variant_key = None
         self._transition_detector.reset()
         self._price_history.clear()
+        self._donchian_candles = {key: [] for key in self.DONCHIAN_KEYS}
+        self._active_donchian_candle = {key: None for key in self.DONCHIAN_KEYS}
+        self._last_donchian_closed_candle = {key: None for key in self.DONCHIAN_KEYS}
+        self._donchian_candle_closed_this_tick = set()
+        self._donchian_evaluation_price = {}
         self._equity_history.clear()
         self._action_history.clear()
         self._last_report = None
         self._fresh_start_cash_only = True
 
     def reset_shadow_results(self) -> None:
-        """Start a fresh comparison period while keeping the selected live rule."""
-        selected = self._applied_variant_key
-        prices = list(self._price_history)
-        self.reset()
-        self._applied_variant_key = selected
-        self._price_history = prices
+        """Reset active rule comparisons while preserving Turtle simulations."""
+        for key in list(self._portfolios):
+            if key in self.DONCHIAN_KEYS:
+                continue
+            self._portfolios.pop(key, None)
+            self._equity_history.pop(key, None)
+            self._action_history.pop(key, None)
+        self._applied_variant_key = None
+        self._transition_detector.reset()
+        self._fresh_start_cash_only = True
+        self._last_report = None
 
-    def seed_price_history(self, prices: Iterable[float]) -> None:
-        """Warm Donchian channels from observed prices without simulating trades."""
+    def seed_price_history(
+        self, prices: Iterable[float | tuple[float, str] | tuple[float, str, float | None, float | None]],
+    ) -> None:
+        """Warm tick and six timeframe channel histories without simulating trades."""
         if self._price_history:
             return
-        valid_prices = [float(price) for price in prices if float(price) > 0]
+        rows: list[tuple[float, str | None, float, float]] = []
+        for item in prices:
+            if isinstance(item, tuple):
+                price, recorded_at = item[0], item[1]
+                high = item[2] if len(item) > 2 else None
+                low = item[3] if len(item) > 3 else None
+            else:
+                price, recorded_at, high, low = item, None, None, None
+            if float(price) > 0:
+                rows.append((
+                    float(price), recorded_at,
+                    float(high) if high is not None and float(high) > 0 else float(price),
+                    float(low) if low is not None and float(low) > 0 else float(price),
+                ))
+        valid_prices = [price for price, _, _, _ in rows]
         if valid_prices:
-            self._price_history = valid_prices[-80:]
+            self._price_history = valid_prices[-500:]
+        timed_rows = [row for row in rows if row[1]]
+        for key, seconds in self.DONCHIAN_TIMEFRAMES.items():
+            grouped: dict[int, dict[str, float]] = {}
+            for price, stamp, high, low in timed_rows:
+                try:
+                    timestamp = datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).timestamp()
+                except (TypeError, ValueError):
+                    continue
+                bucket = self._donchian_bucket(timestamp, seconds)
+                candle = grouped.setdefault(bucket, {"high": high, "low": low, "close": price})
+                candle["high"] = max(candle["high"], high)
+                candle["low"] = min(candle["low"], low)
+                candle["close"] = price
+            buckets = sorted(grouped)
+            if len(buckets) > 1:
+                self._donchian_candles[key] = [{"bucket": bucket, **grouped[bucket]} for bucket in buckets[:-1]][-100:]
+            if buckets:
+                active_bucket = buckets[-1]
+                self._active_donchian_candle[key] = {"bucket": active_bucket, **grouped[active_bucket]}
+                self._donchian_evaluation_price[key] = grouped[active_bucket]["close"]
 
     def apply_selected_variant(
         self,
@@ -684,7 +619,7 @@ class DemoRuleVariantShadowTester:
         if self._initial_equity is None:
             self._initial_equity = max(initial_equity, 1.0)
         for variant in self._variants:
-            self._portfolios.setdefault(
+            shadow = self._portfolios.setdefault(
                 variant.key,
                 ShadowPortfolio(
                     cash_balance=initial_equity if self._fresh_start_cash_only else portfolio.cash_balance,
@@ -693,7 +628,48 @@ class DemoRuleVariantShadowTester:
                     peak_equity=initial_equity,
                 ),
             )
+            if shadow.asset_balance > 0 and shadow.cycle_start_cash is None:
+                shadow.cycle_start_cash = shadow.cash_balance + (shadow.asset_balance * shadow.avg_buy_price)
+            if shadow.cycle_returns is None:
+                shadow.cycle_returns = []
         self._fresh_start_cash_only = False
+
+    def _update_donchian_candles(self, *, price: float, recorded_at: str | None) -> set[str]:
+        stamp = recorded_at or datetime.now(timezone.utc).isoformat()
+        try:
+            timestamp = datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+        except (TypeError, ValueError):
+            timestamp = datetime.now(timezone.utc).timestamp()
+        closed_keys: set[str] = set()
+        for key, seconds in self.DONCHIAN_TIMEFRAMES.items():
+            bucket = self._donchian_bucket(timestamp, seconds)
+            active = self._active_donchian_candle[key]
+            if active is None:
+                self._active_donchian_candle[key] = {"bucket": bucket, "high": price, "low": price, "close": price}
+                self._donchian_evaluation_price[key] = price
+                continue
+            active_bucket = int(active["bucket"])
+            if bucket < active_bucket:
+                continue
+            if bucket == active_bucket:
+                active["high"] = max(float(active["high"]), price)
+                active["low"] = min(float(active["low"]), price)
+                active["close"] = price
+                continue
+            closed = dict(active)
+            self._donchian_candles[key].append(closed)
+            self._donchian_candles[key] = self._donchian_candles[key][-100:]
+            self._last_donchian_closed_candle[key] = closed
+            self._donchian_evaluation_price[key] = float(closed["close"])
+            self._active_donchian_candle[key] = {"bucket": bucket, "high": price, "low": price, "close": price}
+            closed_keys.add(key)
+        return closed_keys
+
+    @classmethod
+    def _donchian_bucket(cls, timestamp: float, candle_seconds: int) -> int:
+        # Align candle boundaries to Korea Standard Time midnight.
+        kst_offset_seconds = 9 * 60 * 60
+        return int((timestamp + kst_offset_seconds) // candle_seconds)
 
     def _evaluate_variant(
         self,
@@ -702,6 +678,7 @@ class DemoRuleVariantShadowTester:
         decision: TradeDecisionResult,
         current_price: float,
         transition: TransitionState,
+        allow_trade: bool = True,
     ) -> dict[str, object]:
         shadow = self._portfolios[variant.key]
         policy = self._market_sensitive_policy(
@@ -709,10 +686,13 @@ class DemoRuleVariantShadowTester:
             decision=decision,
             current_price=current_price,
             transition=transition,
+            allow_trade=allow_trade,
         )
         action = "hold"
         stop_loss_triggered_this_tick = False
-        if shadow.asset_balance > 0:
+        if not allow_trade:
+            pass
+        elif shadow.asset_balance > 0:
             shadow.holding_ticks += 1
             stop_loss_triggered_this_tick = (
                 shadow.avg_buy_price > 0
@@ -730,17 +710,32 @@ class DemoRuleVariantShadowTester:
             stop_loss_triggered_this_tick = (
                 action == "sell" and stop_loss_triggered_this_tick
             )
-        elif decision.sizing.allowed:
+        elif decision.sizing.allowed or (variant.key in self.DONCHIAN_KEYS and allow_trade and policy.entry_allowed):
+            simulated_decision = decision
+            if variant.key in self.DONCHIAN_KEYS and not decision.sizing.allowed:
+                base_amount = max(float(self._initial_equity or 0.0) * 0.10, self.MIN_ORDER_AMOUNT_KRW)
+                simulated_decision = replace(
+                    decision,
+                    sizing=replace(decision.sizing, allowed=True, buy_amount=base_amount),
+                )
             action = self._maybe_shadow_buy(
                 shadow=shadow,
                 policy=policy,
-                decision=decision,
+                decision=simulated_decision,
                 current_price=current_price,
             )
         shadow.last_action = action
         equity = shadow.cash_balance + (shadow.asset_balance * current_price)
         self._update_drawdown(shadow=shadow, equity=equity)
-        profit_rate = 0.0 if self._initial_equity is None else (equity - self._initial_equity) / self._initial_equity
+        cycle_returns = list(shadow.cycle_returns or [])
+        profit_rate = (
+            sum(cycle_returns) / len(cycle_returns)
+            if cycle_returns else 0.0
+        )
+        open_return_rate = (
+            (current_price - shadow.avg_buy_price) / shadow.avg_buy_price
+            if shadow.asset_balance > 0 and shadow.avg_buy_price > 0 else 0.0
+        )
         curve = self._equity_history.setdefault(variant.key, [])
         curve.append(round(profit_rate, 6))
         if len(curve) > 500:
@@ -761,6 +756,11 @@ class DemoRuleVariantShadowTester:
             "variant_label": variant.label,
             "description": variant.description,
             "profit_rate": round(profit_rate, 6),
+            "comparison_profit_rate": round(profit_rate, 6),
+            "comparison_cycle_count": len(cycle_returns),
+            "open_return_rate": round(open_return_rate, 6),
+            "cycle_returns": cycle_returns[-100:],
+            "completed_cycle_count": shadow.completed_cycle_count,
             "equity_curve": list(self._equity_history.get(variant.key, [])),
             "action_curve": list(self._action_history.get(variant.key, [])),
             "equity": round(equity, 2),
@@ -781,8 +781,9 @@ class DemoRuleVariantShadowTester:
             "action_reason": policy.action_reason,
             "entry_allowed_by_variant": policy.entry_allowed,
             "data_ready": not policy.action_reason.endswith("_data_waiting"),
-            "data_count": min(max(len(self._price_history) - 1, 0), {"S": 12, "T": 20, "U": 30, "V": 40, "W": 55, "X": 80}.get(variant.key, 0)),
-            "data_required": {"S": 12, "T": 20, "U": 30, "V": 40, "W": 55, "X": 80}.get(variant.key),
+            "timeframe": self.DONCHIAN_TIMEFRAME_LABELS.get(variant.key),
+            "data_count": min(max(len(self._donchian_candles.get(variant.key, [])), 0), 20),
+            "data_required": 20 if variant.key in self.DONCHIAN_KEYS else None,
             "market_state": policy.market_state,
             "market_state_label": decision.regime.market_state_label,
             "market_pressure": policy.market_pressure,
@@ -813,6 +814,7 @@ class DemoRuleVariantShadowTester:
         decision: TradeDecisionResult,
         current_price: float,
         transition: TransitionState,
+        allow_trade: bool = True,
     ) -> DemoRuleVariantPolicy:
         market_state = decision.regime.market_state if decision.regime.market_state in {"bull", "bear", "box"} else "box"
         market_pressure = self._market_pressure(decision)
@@ -835,24 +837,31 @@ class DemoRuleVariantShadowTester:
         forced_sell = False
 
         if variant.key in {"S", "T", "U", "V", "W", "X"}:
-            lookbacks = {"S": 12, "T": 20, "U": 30, "V": 40, "W": 55, "X": 80}
-            period = lookbacks[variant.key]
-            prior = self._price_history[:-1][-period:]
-            breakout = len(prior) == period and current_price > max(prior)
-            exit_window = prior[-max(2, period // 2):]
-            forced_sell = bool(exit_window) and current_price < min(exit_window)
-            # A Donchian breakout is itself a trend confirmation. The generic
-            # regime classifier can lag a reversal and keep labeling a rising
-            # breakout as bear, which otherwise suppresses every Turtle entry.
+            period = 20
+            prior = self._donchian_candles[variant.key][-period:]
+            prior_highs = [float(item["high"]) for item in prior]
+            prior_lows = [float(item["low"]) for item in prior]
+            closed_candle = self._last_donchian_closed_candle[variant.key]
+            breakout = (
+                allow_trade and closed_candle is not None and len(prior) == period
+                and float(closed_candle["close"]) > max(prior_highs)
+            )
+            exit_window = prior_lows[-10:]
+            forced_sell = (
+                allow_trade and closed_candle is not None and bool(exit_window)
+                and float(closed_candle["close"]) < min(exit_window)
+            )
             entry_allowed = breakout
             buy_multiplier = (
                 variant.buy_multiplier * (0.5 if market_state == "bear" else 1.0)
                 if entry_allowed else 0.0
             )
             if len(prior) < period:
-                action_reason = f"donchian_{period}_data_waiting"
+                action_reason = f"donchian_{self.DONCHIAN_TIMEFRAME_LABELS[variant.key]}_20_10_data_waiting"
+            elif not allow_trade:
+                action_reason = f"donchian_{self.DONCHIAN_TIMEFRAME_LABELS[variant.key]}_waiting_candle"
             else:
-                action_reason = f"donchian_{period}_breakout" if entry_allowed else f"donchian_{period}_waiting"
+                action_reason = f"donchian_{self.DONCHIAN_TIMEFRAME_LABELS[variant.key]}_20_10_breakout" if entry_allowed else f"donchian_{self.DONCHIAN_TIMEFRAME_LABELS[variant.key]}_20_10_waiting"
 
         # ── Forced sell flag: apply to all variants when bull→bear is confirmed ─
         if variant.key not in {"S", "T", "U", "V", "W", "X"}:
@@ -1617,6 +1626,10 @@ class DemoRuleVariantShadowTester:
         )
         if buy_amount < self.MIN_ORDER_AMOUNT_KRW:
             return "hold"
+        if shadow.asset_balance <= 0:
+            shadow.cycle_start_cash = shadow.cash_balance
+            shadow.cycle_realized_pnl = 0.0
+            shadow.cycle_had_stop_loss = False
         quantity = round(buy_amount / current_price, 8)
         fee = buy_amount * self._trading_fee_rate
         total_cost = (shadow.avg_buy_price * shadow.asset_balance) + buy_amount + fee
@@ -1673,26 +1686,43 @@ class DemoRuleVariantShadowTester:
         pnl = proceeds - fee - cost_basis
         shadow.cash_balance = round(shadow.cash_balance + proceeds - fee, 2)
         shadow.asset_balance = round(max(shadow.asset_balance - quantity, 0.0), 8)
+        shadow.cycle_realized_pnl = round(shadow.cycle_realized_pnl + pnl, 2)
+        if stop_loss_triggered:
+            shadow.cycle_had_stop_loss = True
         if shadow.asset_balance <= 0:
             shadow.asset_balance = 0.0
             shadow.avg_buy_price = 0.0
             shadow.holding_ticks = 0
+            cycle_pnl = shadow.cycle_realized_pnl
+            cycle_start_cash = max(float(shadow.cycle_start_cash or 0.0), 1.0)
+            cycle_return = cycle_pnl / cycle_start_cash
+            shadow.cycle_returns = list(shadow.cycle_returns or [])
+            shadow.cycle_returns.append(round(cycle_return, 6))
+            if len(shadow.cycle_returns) > 100:
+                del shadow.cycle_returns[:-100]
+            shadow.completed_cycle_count += 1
+            shadow.trade_count += 1
+            if cycle_pnl > 0:
+                shadow.win_count += 1
+                shadow.gross_profit = round(shadow.gross_profit + cycle_pnl, 2)
+                shadow.consecutive_stop_loss_count = 0
+            else:
+                shadow.loss_count += 1
+                shadow.gross_loss = round(shadow.gross_loss + abs(cycle_pnl), 2)
+            if shadow.cycle_had_stop_loss:
+                shadow.stop_loss_count += 1
+            # Reset each candidate to the same starting bankroll after a round trip.
+            shadow.cash_balance = round(cycle_start_cash, 2)
+            shadow.peak_equity = cycle_start_cash
+            shadow.cycle_start_cash = None
+            shadow.cycle_realized_pnl = 0.0
+            shadow.cycle_had_stop_loss = False
         shadow.realized_pnl = round(shadow.realized_pnl + pnl, 2)
-        shadow.trade_count += 1
-        if pnl < 0:
-            shadow.loss_count += 1
-            shadow.gross_loss = round(shadow.gross_loss + abs(pnl), 2)
         if stop_loss_triggered:
-            shadow.stop_loss_count += 1
             # ── 연속 손절 카운터 업데이트 ─────────────────────────────────
             shadow.consecutive_stop_loss_count += 1
             if shadow.consecutive_stop_loss_count >= self.CONSECUTIVE_STOP_LOSS_COOLDOWN_TRIGGER:
                 shadow.cooling_off_ticks_remaining = self.CONSECUTIVE_STOP_LOSS_COOLDOWN_TICKS
-        if pnl > 0:
-            shadow.win_count += 1
-            shadow.gross_profit = round(shadow.gross_profit + pnl, 2)
-            # ── 수익 발생 시 연속 손절 카운터 리셋 ──────────────────────
-            shadow.consecutive_stop_loss_count = 0
         return "sell"
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -1752,17 +1782,17 @@ class DemoRuleVariantShadowTester:
 
     @staticmethod
     def _leader_score(item: dict[str, object]) -> tuple[float, float, int]:
-        profit_rate = float(item.get("profit_rate") or 0.0)
-        trade_count = int(item.get("trade_count") or 0)
+        profit_rate = float(item.get("comparison_profit_rate") or 0.0)
+        trade_count = int(item.get("comparison_cycle_count") or 0)
         max_drawdown_pct = float(item.get("max_drawdown_pct") or 0.0)
         return profit_rate, -max_drawdown_pct, trade_count
 
     @staticmethod
     def _candidate_score(item: dict[str, object]) -> tuple[float, float, int]:
         return (
-            float(item.get("profit_rate") or 0.0),
+            float(item.get("comparison_profit_rate") or 0.0),
             -float(item.get("max_drawdown_pct") or 0.0),
-            int(item.get("trade_count") or 0),
+            int(item.get("completed_cycle_count") or 0),
         )
 
     @classmethod
@@ -1778,7 +1808,7 @@ class DemoRuleVariantShadowTester:
         profit_factor = item.get("profit_factor")
         stop_loss_rate = item.get("stop_loss_rate")
         eligible = (
-            float(item.get("profit_rate") or 0.0) > 0.0
+            float(item.get("comparison_profit_rate", item.get("profit_rate")) or 0.0) > 0.0
             and float(item.get("realized_pnl") or 0.0) > 0.0
             and int(item.get("trade_count") or 0) >= min_trades
             and profit_factor is not None
@@ -1815,8 +1845,8 @@ class DemoRuleVariantShadowTester:
             else f"기존 적용 룰 {applied['variant_label']}을 유지합니다."
         )
         return (
-            f"현재 양수 수익과 최소 {cls.MIN_PROMOTION_TRADES}회 청산 조건을 함께 충족한 룰이 없어 "
-            f"변경하지 않습니다. 수익률 기준 최고 후보는 {candidate['variant_label']}이며 "
+            f"실현 손익과 누적 수익률이 모두 양수인 룰이 없어 매수 룰을 적용하지 않습니다. "
+            f"현재 수익률 최고 후보는 {candidate['variant_label']}이며 "
             f"누적 수익률은 {float(candidate['profit_rate']):.2%}입니다. {applied_text}"
         )
 

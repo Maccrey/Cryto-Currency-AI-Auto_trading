@@ -313,13 +313,18 @@ class AutoTradingService:
         }
 
     def reset_demo_rule_variants(self) -> None:
-        self._demo_rule_variant_shadow_tester.reset()
-        self._prime_demo_variant_price_history()
+        self._demo_rule_variant_shadow_tester.reset_shadow_results()
 
     def _prime_demo_variant_price_history(self) -> None:
-        history = self._market_price_store.list_history(self._market, limit=80)
+        history = self._market_price_store.list_history(self._market)
         self._demo_rule_variant_shadow_tester.seed_price_history(
-            snapshot.price for snapshot in history
+            (
+                snapshot.price,
+                snapshot.recorded_at,
+                snapshot.high_price,
+                snapshot.low_price,
+            )
+            for snapshot in history
         )
 
     def apply_demo_rule_update(self, changes: list[dict[str, Any]]) -> dict[str, object]:
@@ -329,8 +334,7 @@ class AutoTradingService:
         result = self._apply_verified_rule_updates(changes)
         if result["applied"]:
             self._persist_verified_rule_updates(changes)
-            self._demo_rule_variant_shadow_tester.reset()
-            self._prime_demo_variant_price_history()
+            self._demo_rule_variant_shadow_tester.reset_shadow_results()
             result["effective_immediately"] = True
             result["trading_running"] = self.is_running()
             result["live_rules_persisted"] = self._rule_update_state_path is not None
@@ -415,7 +419,8 @@ class AutoTradingService:
         self._last_entry_signal_level = None
         self._last_entry_signal_score = None
         self._scale_in_count = 0
-        self.reset_demo_rule_variants()
+        self._demo_rule_variant_shadow_tester.reset()
+        self._prime_demo_variant_price_history()
         if self._uptime_store is not None:
             self._uptime_store.reset()
             if self.is_running():
@@ -655,7 +660,6 @@ class AutoTradingService:
             decision=decision,
             variant_payload=variant_payload,
             current_price=snapshot.trade_price,
-            position_exists=position is not None,
             available_cash=available_cash,
         )
         box_range_opportunity = self._box_range_buy_opportunity(
@@ -1216,22 +1220,15 @@ class AutoTradingService:
             decision=decision,
             current_price=current_price,
             portfolio=self._portfolio_state(),
+            recorded_at=self._clock().isoformat(),
         )
         self._notify_rule_variant_change_if_needed(payload)
         self._record_variant_diagnostic_events(payload)
-        if payload.get("selection_changed") and payload.get("previous_variant_key"):
-            self._demo_rule_variant_shadow_tester.reset_shadow_results()
-            payload["shadow_test_reset"] = True
         return payload
 
     def _donchian_channel_exit(self, variant_key: str | None, current_price: float) -> bool:
-        lookbacks = {"S": 12, "T": 20, "U": 30, "V": 40, "W": 55, "X": 80}
-        period = lookbacks.get(variant_key or "")
-        if period is None:
-            return False
-        exit_period = max(2, period // 2)
-        prior = list(self._prices)[:-1]
-        return len(prior) >= exit_period and current_price < min(prior[-exit_period:])
+        # Turtle/Donchian candidates are simulations only; they never manage live positions.
+        return False
 
     @staticmethod
     def _selected_donchian_breakout(*, variant_payload: dict[str, object] | None, decision) -> bool:
@@ -1402,43 +1399,22 @@ class AutoTradingService:
         decision: TradeDecisionResult,
         variant_payload: dict[str, object] | None,
         current_price: float,
-        position_exists: bool,
         available_cash: float,
     ) -> TradeDecisionResult:
         has_applied_rule = False
-        is_fallback_leader = False
         if variant_payload is not None:
             applied_key = variant_payload.get("leader_key")
             if applied_key:
                 has_applied_rule = True
-                is_fallback_leader = bool(variant_payload.get("is_fallback_leader", False))
                 decision = self._demo_rule_variant_shadow_tester.apply_selected_variant(
                     decision=decision,
                     current_price=current_price,
                     available_cash=available_cash,
                 )
-                # ── Fallback Leader 모드: 매수 크기 50% 축소 ────────────────────────
-                # 정상 승격 룰이 없어 임시 리더를 사용 중. 손실 위험을 줄이기 위해
-                # 매수 금액을 절반으로 축소하여 보수적으로 운용한다.
-                if is_fallback_leader and not position_exists:
-                    from app.services.trading.variants import DemoRuleVariantShadowTester
-                    scale = DemoRuleVariantShadowTester.FALLBACK_LEADER_BUY_SCALE
-                    new_buy_amount = decision.sizing.buy_amount * scale
-                    new_buy_quantity = decision.sizing.buy_quantity * scale
-                    new_buy_ratio = decision.sizing.buy_ratio * scale
-                    decision = replace(
-                        decision,
-                        sizing=replace(
-                            decision.sizing,
-                            buy_amount=new_buy_amount,
-                            buy_quantity=new_buy_quantity,
-                            buy_ratio=new_buy_ratio,
-                            blocked_reason=None,  # 차단 해제
-                        ),
-                    )
 
-        # 플러스 검증된 대표 룰이 적용되지 않은 상태에서 신규 매수 진입 시도인 경우 대기 및 차단
-        if not has_applied_rule and not position_exists:
+        # A non-positive rule set blocks both new entries and scale-ins.
+        # Existing positions continue through the separate exit-management path.
+        if not has_applied_rule:
             decision = replace(
                 decision,
                 sizing=replace(
@@ -2221,8 +2197,7 @@ class AutoTradingService:
             return  # 최근에 이미 리셋했음
 
         # ── 리셋 실행 ──────────────────────────────────────────────────────────
-        self._demo_rule_variant_shadow_tester.reset()
-        self._prime_demo_variant_price_history()
+        self._demo_rule_variant_shadow_tester.reset_shadow_results()
         self._last_variant_reset_at = now
         # _consecutive_entry_blocks도 리셋해 no_trade 릴렉스 카운터 초기화
         self._consecutive_entry_blocks = 0
