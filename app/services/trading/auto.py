@@ -202,6 +202,7 @@ class AutoTradingService:
         self._demo_rule_variant_shadow_tester = DemoRuleVariantShadowTester(
             trading_fee_rate=config.trading_fee_rate,
         )
+        self._prime_demo_variant_price_history()
         self._last_cycle: dict[str, object] | None = None
         self._pending_live_order_id: str | None = None
         self._pending_live_fill_applied = False
@@ -307,6 +308,13 @@ class AutoTradingService:
 
     def reset_demo_rule_variants(self) -> None:
         self._demo_rule_variant_shadow_tester.reset()
+        self._prime_demo_variant_price_history()
+
+    def _prime_demo_variant_price_history(self) -> None:
+        history = self._market_price_store.list_history(self._market, limit=80)
+        self._demo_rule_variant_shadow_tester.seed_price_history(
+            snapshot.price for snapshot in history
+        )
 
     def apply_demo_rule_update(self, changes: list[dict[str, Any]]) -> dict[str, object]:
         """Apply verified rules to demo and persist the same set for live mode."""
@@ -316,6 +324,7 @@ class AutoTradingService:
         if result["applied"]:
             self._persist_verified_rule_updates(changes)
             self._demo_rule_variant_shadow_tester.reset()
+            self._prime_demo_variant_price_history()
             result["effective_immediately"] = True
             result["trading_running"] = self.is_running()
             result["live_rules_persisted"] = self._rule_update_state_path is not None
@@ -2207,6 +2216,7 @@ class AutoTradingService:
 
         # ── 리셋 실행 ──────────────────────────────────────────────────────────
         self._demo_rule_variant_shadow_tester.reset()
+        self._prime_demo_variant_price_history()
         self._last_variant_reset_at = now
         # _consecutive_entry_blocks도 리셋해 no_trade 릴렉스 카운터 초기화
         self._consecutive_entry_blocks = 0

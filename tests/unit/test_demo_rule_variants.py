@@ -356,6 +356,26 @@ def test_donchian_uses_same_order_budget_and_promotion_threshold() -> None:
     assert DemoRuleVariantShadowTester._promotion_eligible(eligible) is False
 
 
+def test_donchian_waits_for_lookback_data_before_testing() -> None:
+    tester = DemoRuleVariantShadowTester()
+    portfolio = PortfolioState(cash_balance=1_000_000, asset_currency="XRP",
+                               asset_balance=0, avg_buy_price=0)
+    tester._price_history = [1_000.0] * 5
+
+    report = tester.evaluate(
+        decision=_decision(market_state="bull"),
+        current_price=1_001.0,
+        portfolio=portfolio,
+    )
+
+    fast = next(item for item in report["results"] if item["variant_key"] == "S")
+    assert fast["data_ready"] is False
+    assert fast["data_count"] == 5
+    assert fast["data_required"] == 12
+    assert fast["action_reason"] == "donchian_12_data_waiting"
+    assert fast["asset_balance"] == 0
+
+
 def test_shadow_reset_keeps_selected_rule_and_market_prices() -> None:
     tester = DemoRuleVariantShadowTester()
     tester._applied_variant_key = "S"

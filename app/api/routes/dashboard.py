@@ -816,12 +816,12 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
     {variant_key: "P", variant_label: "룰 P 추세장기형", description: "넓은 손절선으로 큰 추세를 길게 보유", profit_rate: null, last_action: "대기"},
     {variant_key: "Q", variant_label: "룰 Q 변동적응형", description: "변동성에 맞춰 TP/SL 실시간 조율", profit_rate: null, last_action: "대기"},
     {variant_key: "R", variant_label: "룰 R 반등돌파형", description: "하락세 진정 후 상승 반전 초입에 공격 진입", profit_rate: null, last_action: "대기"},
-    {variant_key: "S", variant_label: "터틀/돈치안 1 빠른돌파 (12)", description: "12틱 고가 돌파 · 6틱 저가 청산", profit_rate: null, trade_count: 0, last_action: "대기"},
-    {variant_key: "T", variant_label: "터틀/돈치안 2 균형돌파 (20)", description: "20틱 고가 돌파 · 10틱 저가 청산", profit_rate: null, trade_count: 0, last_action: "대기"},
-    {variant_key: "U", variant_label: "터틀/돈치안 3 추세보유 (30)", description: "30틱 고가 돌파 추세추종", profit_rate: null, trade_count: 0, last_action: "대기"},
-    {variant_key: "V", variant_label: "터틀/돈치안 4 보수돌파 (40)", description: "40틱 채널 돌파 추종", profit_rate: null, trade_count: 0, last_action: "대기"},
-    {variant_key: "W", variant_label: "터틀/돈치안 5 장기추세 (55)", description: "55틱 고가 돌파 추세추종", profit_rate: null, trade_count: 0, last_action: "대기"},
-    {variant_key: "X", variant_label: "터틀/돈치안 6 초장기추세 (80)", description: "80틱 고가 돌파 추세추종", profit_rate: null, trade_count: 0, last_action: "대기"}
+    {variant_key: "S", variant_label: "터틀/돈치안 1 빠른돌파 (12)", description: "12틱 고가 돌파 · 6틱 저가 청산", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 12},
+    {variant_key: "T", variant_label: "터틀/돈치안 2 균형돌파 (20)", description: "20틱 고가 돌파 · 10틱 저가 청산", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 20},
+    {variant_key: "U", variant_label: "터틀/돈치안 3 추세보유 (30)", description: "30틱 고가 돌파 추세추종", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 30},
+    {variant_key: "V", variant_label: "터틀/돈치안 4 보수돌파 (40)", description: "40틱 채널 돌파 추종", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 40},
+    {variant_key: "W", variant_label: "터틀/돈치안 5 장기추세 (55)", description: "55틱 고가 돌파 후 추세 약화 시 청산", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 55},
+    {variant_key: "X", variant_label: "터틀/돈치안 6 초장기추세 (80)", description: "80틱 돌파 후 장기 추세 청산", profit_rate: null, trade_count: 0, last_action: "대기", data_ready: false, data_count: 0, data_required: 80}
   ];
   const rows = results.length ? results : fallback;
   const channelRows = rows.filter((item) => ["S", "T", "U", "V", "W", "X"].includes(item.variant_key));
@@ -866,7 +866,8 @@ function renderExchangeSimulation({market, tradingStatus, winRate}) {
   document.getElementById("ruleVariantBoard").innerHTML = rows.map((item) => {
     const active = item.variant_key && item.variant_key === shadow.applied_variant_key ? " active" : "";
     const candidate = item.variant_key && item.variant_key === shadow.candidate_leader_key ? " candidate" : "";
-    const scoreText = !item.trade_count ? "표본 대기" : item.profit_rate === null || item.profit_rate === undefined ? "-" : percent(item.profit_rate);
+    const waitingForData = ["S", "T", "U", "V", "W", "X"].includes(item.variant_key) && item.data_ready === false;
+    const scoreText = waitingForData ? `데이터 수집 중 ${item.data_count || 0}/${item.data_required || "-"}` : !item.trade_count ? "표본 대기" : item.profit_rate === null || item.profit_rate === undefined ? "-" : percent(item.profit_rate);
     const actionText = item.last_action ? `최근 ${formatTradeAction(item.last_action)}` : "대기";
     const stateText = active ? "적용 룰" : candidate ? "수익률 최고 후보" : "";
     return `<div class="variant-card${active}${candidate}">

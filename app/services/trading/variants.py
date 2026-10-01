@@ -596,6 +596,14 @@ class DemoRuleVariantShadowTester:
         self._applied_variant_key = selected
         self._price_history = prices
 
+    def seed_price_history(self, prices: Iterable[float]) -> None:
+        """Warm Donchian channels from observed prices without simulating trades."""
+        if self._price_history:
+            return
+        valid_prices = [float(price) for price in prices if float(price) > 0]
+        if valid_prices:
+            self._price_history = valid_prices[-80:]
+
     def apply_selected_variant(
         self,
         *,
@@ -772,6 +780,9 @@ class DemoRuleVariantShadowTester:
             "holding_ticks": shadow.holding_ticks,
             "action_reason": policy.action_reason,
             "entry_allowed_by_variant": policy.entry_allowed,
+            "data_ready": not policy.action_reason.endswith("_data_waiting"),
+            "data_count": min(max(len(self._price_history) - 1, 0), {"S": 12, "T": 20, "U": 30, "V": 40, "W": 55, "X": 80}.get(variant.key, 0)),
+            "data_required": {"S": 12, "T": 20, "U": 30, "V": 40, "W": 55, "X": 80}.get(variant.key),
             "market_state": policy.market_state,
             "market_state_label": decision.regime.market_state_label,
             "market_pressure": policy.market_pressure,
@@ -838,7 +849,10 @@ class DemoRuleVariantShadowTester:
                 variant.buy_multiplier * (0.5 if market_state == "bear" else 1.0)
                 if entry_allowed else 0.0
             )
-            action_reason = f"donchian_{period}_breakout" if entry_allowed else f"donchian_{period}_waiting"
+            if len(prior) < period:
+                action_reason = f"donchian_{period}_data_waiting"
+            else:
+                action_reason = f"donchian_{period}_breakout" if entry_allowed else f"donchian_{period}_waiting"
 
         # ── Forced sell flag: apply to all variants when bull→bear is confirmed ─
         if variant.key not in {"S", "T", "U", "V", "W", "X"}:
