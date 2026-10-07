@@ -1,6 +1,7 @@
 import pytest
 
-from app.services.execution.demo import DemoExecutor
+from app.services.execution.demo import DemoExecutor, FillResult
+from app.services.execution.live import LiveExecutionResult
 from app.services.learning.service import LearningEvent
 from app.services.position.ledger import PositionLifecycleLedger
 from app.services.position.exit import PositionExitService, RegularSellExecutor, StopLossSellExecutor
@@ -599,4 +600,78 @@ def test_trailing_exit_survives_gap_below_floor(exit_price, is_stop_loss) -> Non
     assert result["trigger"]["reason_code"] == "TRAILING_STOP_TRIGGERED"
     assert result["execution"]["is_stop_loss"] is is_stop_loss
     assert result["execution"]["filled_quantity"] == 100.0
+    assert store.get() is None
+
+
+def test_staged_take_profit_sells_half_then_waits_for_higher_target() -> None:
+    store = CurrentPositionStore()
+    store.save(PositionSnapshot(
+        market="KRW-XRP", signal_level="medium", entry_price=1_000.0,
+        quantity=100.0, stop_loss_price=990.0, stop_loss_pct=0.01,
+        validation_window_sec=180, min_expected_return_pct=0.004,
+        stop_loss_reason=None,
+    ))
+    service = PositionExitService(
+        position_store=store, hard_stop_monitor=HardStopMonitor(),
+        post_entry_validator=PostEntryValidator(),
+        executor=DemoExecutor(live_order_gateway=ForbiddenLiveOrderGateway()),
+        trading_mode="demo", staged_take_profit_enabled=True,
+    )
+    context = dict(elapsed_sec=60, momentum_score=0.6, orderbook_imbalance=0.1, market_state="bull")
+
+    first = service.evaluate_and_execute(current_price=1_007.0, **context)
+    assert first["execution"]["filled_quantity"] == 50.0
+    assert store.get().quantity == 50.0
+    assert store.get().stop_loss_reason == "PROFIT_PROTECTED"
+
+    waiting = service.evaluate_and_execute(current_price=1_008.0, **context)
+    assert waiting["execution"] is None
+    assert store.get().quantity == 50.0
+
+    second = service.evaluate_and_execute(current_price=1_012.0, **context)
+    assert second["execution"]["filled_quantity"] == 50.0
+    assert store.get() is None
+
+
+def test_live_staged_take_profit_updates_position_only_after_fill() -> None:
+    class FillExecutor:
+        def execute(self, intent):
+            self.intent = intent
+            return LiveExecutionResult(accepted=True, order_id="sell-1", status="wait", blocked_reason=None)
+
+        def resolve_order(self, order_id):
+            return FillResult(
+                market="KRW-XRP", side="sell", filled_price=self.intent.price,
+                filled_quantity=self.intent.quantity, fee=30.0,
+                status="filled", mode="live", is_virtual=False, is_stop_loss=False,
+            )
+
+        def acknowledge_order(self, order_id):
+            pass
+
+    store = CurrentPositionStore()
+    store.save(PositionSnapshot(
+        market="KRW-XRP", signal_level="medium", entry_price=1_000.0,
+        quantity=100.0, stop_loss_price=990.0, stop_loss_pct=0.01,
+        validation_window_sec=180, min_expected_return_pct=0.004,
+        stop_loss_reason=None,
+    ))
+    service = PositionExitService(
+        position_store=store, hard_stop_monitor=HardStopMonitor(),
+        post_entry_validator=PostEntryValidator(), executor=FillExecutor(),
+        trading_mode="live", staged_take_profit_enabled=True,
+    )
+    context = dict(elapsed_sec=60, momentum_score=0.6, orderbook_imbalance=0.1, market_state="bull")
+
+    pending = service.evaluate_and_execute(current_price=1_007.0, **context)
+    assert pending["status"] == "pending"
+    assert store.get().quantity == 100.0
+    filled = service.evaluate_and_execute(current_price=1_007.0, **context)
+    assert filled["execution"]["filled_quantity"] == 50.0
+    assert store.get().quantity == 50.0
+    assert store.get().stop_loss_reason == "PROFIT_PROTECTED"
+
+    assert service.evaluate_and_execute(current_price=1_008.0, **context)["execution"] is None
+    assert service.evaluate_and_execute(current_price=1_012.0, **context)["status"] == "pending"
+    service.evaluate_and_execute(current_price=1_012.0, **context)
     assert store.get() is None

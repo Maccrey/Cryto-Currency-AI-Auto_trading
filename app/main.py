@@ -509,6 +509,7 @@ def create_app(
             trading_fee_rate=float(settings.trading_fee_rate),
             take_profit_min_exit_ratio=0.45 if settings.trading_profile in {"scalping", "short_term"} else 0.65,
             weak_signal_take_profit_min_exit_ratio=0.75 if settings.trading_profile == "scalping" else 0.85,
+            staged_take_profit_enabled=True,
         )
     if post_fill_service is None:
         post_fill_service = PostFillService(
@@ -553,6 +554,8 @@ def create_app(
             trading_profile=settings.trading_profile,
             spread_bps=trading_profile.spread_bps,
             slippage_bps=trading_profile.slippage_bps,
+            entry_min_traded_value_multiple=0.8 if settings.trading_profile == "scalping" else 0.0,
+            initial_entry_fraction=0.5,
             trading_fee_rate=float(settings.trading_fee_rate),
             max_daily_loss=float(settings.max_daily_loss),
             no_trade_adaptive_enabled=settings.no_trade_adaptive_enabled,

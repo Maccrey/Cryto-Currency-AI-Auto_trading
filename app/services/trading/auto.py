@@ -55,6 +55,8 @@ class AutoTradingConfig:
     bull_scale_in_enabled: bool = True
     bull_scale_in_max_price_premium_pct: float = 0.004
     bull_scale_in_min_traded_value_multiple: float = 1.03
+    entry_min_traded_value_multiple: float = 0.0
+    initial_entry_fraction: float = 1.0
     # Legacy single cooldown kept for backward compatibility.
     # When non-zero the adaptive policy below is ignored.
     reentry_block_seconds: int = 0
@@ -709,6 +711,23 @@ class AutoTradingService:
                     **rule_variant,
                 },
             )
+        entry_volume = self._entry_volume_decision(entry_type=entry_type, decision=decision)
+        if not entry_volume["allowed"]:
+            self._consecutive_entry_blocks += 1
+            return self._record_cycle(
+                status="blocked",
+                reason="ENTRY_TRADED_VALUE_NOT_CONFIRMED",
+                extra={
+                    "entry_type": entry_type,
+                    "signal_level": decision.signal.level,
+                    "signal_score": decision.signal.score,
+                    "buy_amount": 0.0,
+                    "market_state": entry_market_state,
+                    "market_state_label": entry_market_state_label,
+                    **entry_volume,
+                    **self._variant_extra(variant_payload),
+                },
+            )
         log_backed_recovery = self._log_backed_bull_weak_recovery(
             decision=decision,
             variant_payload=variant_payload,
@@ -903,6 +922,8 @@ class AutoTradingService:
                 },
             )
         decision = scale_in_limit["decision"]
+        original_buy_amount = decision.sizing.buy_amount if position is None else None
+        decision = self._stage_initial_entry(decision=decision, position=position, current_price=snapshot.trade_price)
         scale_in_cap_applied = bool(scale_in_limit.get("cap_applied"))
         scale_in_original_buy_amount = scale_in_limit.get("original_buy_amount")
         if self._scale_in_signal_not_stronger(position=position, decision=decision):
@@ -993,6 +1014,8 @@ class AutoTradingService:
                 "scale_in_count": self._scale_in_count,
                 "scale_in_cap_applied": scale_in_cap_applied,
                 "scale_in_original_buy_amount": scale_in_original_buy_amount,
+                "entry_stage_fraction": self._config.initial_entry_fraction if position is None else None,
+                "entry_original_buy_amount": original_buy_amount,
                 **self._variant_extra(variant_payload),
             },
         )
@@ -1963,6 +1986,8 @@ class AutoTradingService:
     def _scale_in_allowed(self, *, position, current_price: float) -> bool:
         if not self._config.scale_in_enabled:
             return False
+        if getattr(position, "stop_loss_reason", None) == "PROFIT_PROTECTED":
+            return False
         if current_price <= 0 or position.entry_price <= 0:
             return False
         # 기본은 평균 단가 이하의 pullback 분할매수다. 상승장에서는 가격·거래대금이
@@ -2021,6 +2046,41 @@ class AutoTradingService:
         if previous is None or not same_day or value < previous:
             return 0.0
         return float(value - previous)
+
+    def _entry_volume_decision(self, *, entry_type: str, decision: TradeDecisionResult) -> dict[str, object]:
+        minimum = max(self._config.entry_min_traded_value_multiple, 0.0)
+        if minimum <= 0 or entry_type != "initial" or not decision.sizing.allowed:
+            return {"allowed": True}
+        recent = list(self._traded_values)[-3:]
+        baseline = sum(recent[:-1]) / 2 if len(recent) == 3 else 0.0
+        current = recent[-1] if recent else 0.0
+        multiple = current / baseline if baseline > 0 else 0.0
+        return {
+            "allowed": baseline > 0 and multiple >= minimum,
+            "entry_traded_value_multiple": round(multiple, 4),
+            "entry_min_traded_value_multiple": minimum,
+        }
+
+    def _stage_initial_entry(
+        self, *, decision: TradeDecisionResult, position, current_price: float,
+    ) -> TradeDecisionResult:
+        if position is not None or not decision.sizing.allowed or decision.sizing.buy_amount <= 0:
+            return decision
+        fraction = min(max(self._config.initial_entry_fraction, 0.0), 1.0)
+        if fraction >= 1.0:
+            return decision
+        amount = round(decision.sizing.buy_amount * fraction, 1)
+        if amount < DemoRuleVariantShadowTester.MIN_ORDER_AMOUNT_KRW:
+            return replace(decision, sizing=replace(
+                decision.sizing, allowed=False, buy_ratio=0.0, buy_amount=0.0,
+                buy_quantity=0.0, blocked_reason="ENTRY_STAGE_BELOW_MIN_ORDER",
+            ))
+        return replace(decision, sizing=replace(
+            decision.sizing,
+            buy_ratio=round(decision.sizing.buy_ratio * fraction, 3),
+            buy_amount=amount,
+            buy_quantity=round(amount / current_price, 4),
+        ))
 
     def _orderbook_imbalance(self) -> float:
         if len(self._prices) < 2:

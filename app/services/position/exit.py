@@ -80,6 +80,7 @@ class PositionExitService:
         take_profit_min_exit_ratio: float = 0.75,
         weak_signal_take_profit_min_exit_ratio: float = 1.0,
         profit_protection_buffer_pct: float = 0.0002,
+        staged_take_profit_enabled: bool = False,
     ) -> None:
         self._position_store = position_store
         self._hard_stop_monitor = hard_stop_monitor
@@ -102,6 +103,7 @@ class PositionExitService:
         self._box_range_edge_zone_ratio = min(max(float(box_range_edge_zone_ratio), 0.05), 0.5)
         self._take_profit_min_exit_ratio = min(max(float(take_profit_min_exit_ratio), 0.25), 1.0)
         self._weak_signal_take_profit_min_exit_ratio = min(max(float(weak_signal_take_profit_min_exit_ratio), self._take_profit_min_exit_ratio), 1.0)
+        self._staged_take_profit_enabled = staged_take_profit_enabled
         self._profit_protection_buffer_pct = max(float(profit_protection_buffer_pct), 0.0)
         self._pending_live_exit: dict | None = None
 
@@ -312,10 +314,15 @@ class PositionExitService:
         )
         if take_profit_exit["triggered"]:
             take_profit_details = {key: value for key, value in take_profit_exit.items() if key != "triggered"}
-            resolved_exit = self._resolve_exit_quantity(
-                position=position,
-                current_price=current_price,
-                requested_exit_ratio=self._dynamic_exit_ratio(
+            if self._staged_take_profit_enabled:
+                first_stage = position.stop_loss_reason != "PROFIT_PROTECTED"
+                staged_exit_ratio = (
+                    0.5 if first_stage and position.signal_level != "weak"
+                    and momentum_score >= -0.3 and orderbook_imbalance >= -0.3
+                    else 1.0
+                )
+            else:
+                staged_exit_ratio = self._dynamic_exit_ratio(
                     requested_exit_ratio=1.0,
                     reason_code="TAKE_PROFIT_TARGET_HIT",
                     momentum_score=momentum_score,
@@ -323,7 +330,11 @@ class PositionExitService:
                     signal_level=position.signal_level,
                     take_profit_min_exit_ratio=self._take_profit_min_exit_ratio,
                     weak_signal_take_profit_min_exit_ratio=self._weak_signal_take_profit_min_exit_ratio,
-                ),
+                )
+            resolved_exit = self._resolve_exit_quantity(
+                position=position,
+                current_price=current_price,
+                requested_exit_ratio=staged_exit_ratio,
             )
             if resolved_exit["blocked_reason"] is not None:
                 self._record_exit_blocked(
@@ -604,6 +615,8 @@ class PositionExitService:
             orderbook_imbalance=orderbook_imbalance,
             market_state=market_state,
         )
+        if self._staged_take_profit_enabled and position.stop_loss_reason == "PROFIT_PROTECTED":
+            target_pct = round(target_pct * 1.5, 6)
         if gross_return_pct < target_pct or net_return_pct < self._take_profit_min_net_pct:
             return {"triggered": False}
         return {

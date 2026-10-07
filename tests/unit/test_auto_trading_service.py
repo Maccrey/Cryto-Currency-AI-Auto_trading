@@ -22,10 +22,10 @@ from app.services.risk.stop_loss import StopLossInjector
 from app.services.risk.stop_loss import PositionSnapshot
 from app.services.signals.engine import SignalEngine
 from app.services.signals.features import MarketFeatureCalculator
-from app.services.sizing.engine import SizingEngine
+from app.services.sizing.engine import SizingDecision, SizingEngine
 from app.services.execution.live import LiveExecutor
 from app.services.trading.auto import AutoTradingConfig, AutoTradingService
-from app.services.trading.decision import TradeDecisionService
+from app.services.trading.decision import TradeDecisionResult, TradeDecisionService
 from app.services.trading.execution import TradeExecutionService
 from app.services.trading.post_fill import PostFillService
 from app.services.learning.service import LearningEvent, LearningService
@@ -365,6 +365,74 @@ def test_auto_trading_service_passes_recent_loss_streak_to_regime_engine(tmp_pat
     request = service._build_decision_request(800.0)
 
     assert request.recent_loss_streak == 2
+
+
+def test_scalping_entry_requires_confirmed_traded_value(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0])
+    service._config = replace(service._config, entry_min_traded_value_multiple=0.8)
+    decision = SimpleNamespace(sizing=SimpleNamespace(allowed=True))
+
+    service._traded_values.extend((100.0, 100.0, 19.0))
+    blocked = service._entry_volume_decision(entry_type="initial", decision=decision)
+    assert blocked["allowed"] is False
+    assert blocked["entry_traded_value_multiple"] == 0.19
+
+    service._traded_values.append(100.0)
+    assert service._entry_volume_decision(entry_type="initial", decision=decision)["allowed"] is True
+
+    service._traded_values.clear()
+    service._traded_values.extend((0.0, 0.0, 100.0))
+    assert service._entry_volume_decision(entry_type="initial", decision=decision)["allowed"] is False
+    assert service._entry_volume_decision(entry_type="scale_in", decision=decision)["allowed"] is True
+
+
+def test_initial_buy_is_split_after_risk_sizing(tmp_path: Path) -> None:
+    service = _build_service(tmp_path, [800.0])
+    service._config = replace(service._config, initial_entry_fraction=0.5)
+    decision = TradeDecisionResult(
+        features=None, signal=None, regime=None,
+        sizing=SizingDecision(
+            allowed=True, order_side="buy", buy_ratio=0.24,
+            buy_amount=100_000.0, buy_quantity=100.0,
+        ),
+    )
+
+    first = service._stage_initial_entry(decision=decision, position=None, current_price=1_000.0)
+    assert first.sizing.buy_amount == 50_000.0
+    assert first.sizing.buy_quantity == 50.0
+    assert first.sizing.buy_ratio == 0.12
+    assert service._stage_initial_entry(decision=decision, position=object(), current_price=1_000.0) == decision
+
+    small = replace(decision, sizing=replace(decision.sizing, buy_amount=8_000.0))
+    blocked = service._stage_initial_entry(decision=small, position=None, current_price=1_000.0)
+    assert blocked.sizing.allowed is False
+    assert blocked.sizing.blocked_reason == "ENTRY_STAGE_BELOW_MIN_ORDER"
+
+    protected = SimpleNamespace(entry_price=1_000.0, stop_loss_reason="PROFIT_PROTECTED")
+    assert service._scale_in_allowed(position=protected, current_price=999.0) is False
+
+
+def test_tick_blocks_thin_volume_and_halves_confirmed_initial_buy(tmp_path: Path) -> None:
+    def run_with_traded_values(values: list[float], name: str) -> dict[str, object]:
+        service = _build_service(tmp_path / name, [800.0, 806.0, 813.0, 824.0], min_history=4)
+        service._config = replace(
+            service._config, entry_min_traded_value_multiple=0.8, initial_entry_fraction=0.5,
+        )
+        observations = iter(values)
+        service._traded_value = lambda snapshot: next(observations)
+        service._run_demo_rule_variant_shadow = lambda **kwargs: {"leader_key": "A", "results": []}
+        service._apply_variant_and_gate_entry = lambda *, decision, variant_payload, current_price, available_cash: decision
+        for _ in values:
+            result = service.tick()
+        return result
+
+    thin = run_with_traded_values([100.0, 100.0, 100.0, 19.0], "thin")
+    assert thin["reason"] == "ENTRY_TRADED_VALUE_NOT_CONFIRMED"
+    assert thin["buy_amount"] == 0.0
+
+    confirmed = run_with_traded_values([100.0, 100.0, 100.0, 150.0], "confirmed")
+    assert confirmed["status"] == "filled"
+    assert confirmed["buy_amount"] == confirmed["entry_original_buy_amount"] * 0.5
 
 
 
